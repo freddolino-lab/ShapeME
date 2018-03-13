@@ -318,7 +318,7 @@ class SeqDatabase(object):
         """ Get method for the values attribute
 
         Returns:
-            self.values- this is a mutable list
+            self.values- after reading this is a numpyarray
         """
         return self.values
 
@@ -339,13 +339,13 @@ class SeqDatabase(object):
             self.values (list): converts the values into their new categories
         """
         # first convert values to robust Z score
-        self.values = np.array(self.values)
-        median = np.median(self.values)
-        mad = np.median(np.abs((self.values-median)))*1.4826
-        self.values = (self.values-median)/mad
+        values = get_values(self)
+        median = np.median(values)
+        mad = np.median(np.abs((values-median)))*1.4826
+        values = (values-median)/mad
         bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
         logging.warning("Discretizing on bins: %s"%bins)
-        self.values = list(np.digitize(self.values, bins))
+        self.values = np.digitize(values, bins)
 
 
     def discretize_quant(self,nbins=10):
@@ -358,12 +358,12 @@ class SeqDatabase(object):
             self.values (list): converts the values into their new categories
         """
         quants = np.arange(0,100, 100.0/nbins)
-        values = np.array(self.values)
+        values = self.get_values()
         bins = []
         for quant in quants:
             bins.append(np.percentile(values, quant))
         logging.warning("Discretizing on bins: %s"%bins)
-        self.values = list(np.digitize(values, bins))
+        self.values = np.digitize(values, bins)
 
     def category_subset(self, category):
         """Subset the Sequence database based on category membership
@@ -375,12 +375,13 @@ class SeqDatabase(object):
             new SeqDatabase object, all attributes are shared with original
             object, so this acts more like a numpy view
         """
-        locs = np.where(np.array(self.values) == category)[0]
+        values = self.get_values()
+        locs = np.where(values == category)[0]
         new_db = SeqDatabase(names=[self.names[x] for x in locs])
         new_db.params = [self.params[x] for x in locs]
         new_db.values = [self.values[x] for x in locs]
         if self.vectors:
-            new_db.vectors= self.vectors
+            new_db.vectors= [self.vectors[x] for x in locs]
         return new_db
 
     def shuffle(self):
@@ -394,7 +395,7 @@ class SeqDatabase(object):
         subset = np.random.permutation(size)
         new_db = SeqDatabase(names=[self.names[x] for x in subset])
         new_db.params = [self.params[x] for x in subset]
-        new_db.values = [self.values[x] for x in subset]
+        new_db.values = self.get_values()[subset]
         if self.vectors:
             new_db.vectors= [self.vectors[x] for x in subset]
         return new_db
@@ -416,7 +417,7 @@ class SeqDatabase(object):
         subset = subset[0:total_num]
         new_db = SeqDatabase(names=[self.names[x] for x in subset])
         new_db.params = [self.params[x] for x in subset]
-        new_db.values = [self.values[x] for x in subset]
+        new_db.values = self.get_values()[subset]
         if self.vectors:
             new_db.vectors= [self.vectors[x] for x in subset]
         return new_db
@@ -441,6 +442,7 @@ class SeqDatabase(object):
                 self.names.append(linearr[0])
                 self.values.append(dtype(linearr[1]))
                 self.params.append(dsp.ShapeParams(data={},names=[]))
+            self.values = np.array(self.values)
 
 
     def normalize_params(self):
@@ -512,11 +514,11 @@ class SeqDatabase(object):
         discrete (np.array) - a vector containing motif matches, 1 true 0 false
 
         Returns:
-        dict holding enrichment for each category
+            dict holding enrichment for each category as a two way table
         """
 
         enrichment = {}
-        values = np.array(self.values)
+        values = self.get_values()
         discrete = np.array(discrete)
         for value in np.unique(self.values):
             two_way = []
@@ -539,7 +541,7 @@ class SeqDatabase(object):
         Returns:
             mutual information between discrete and self.values
         """
-        these_vals = self.values
+        these_vals = self.get_values()
         total = len(self.values) + 0.0
         MI = 0
         for val in np.unique(these_vals):
@@ -565,7 +567,7 @@ class SeqDatabase(object):
         Returns:
             entropy between discrete and self.values
         """
-        these_vals = self.values
+        these_vals = self.get_values()
         total = len(self.values) + 0.0
         entropy = 0
         for val in np.unique(these_vals):
