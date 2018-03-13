@@ -162,7 +162,7 @@ def greedy_search(cats, threshold = 10, number=1000):
     for value in np.unique(values):
         logging.warning("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
     return seeds
-                
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('infile', action='store', type=str,
@@ -215,36 +215,39 @@ if __name__ == "__main__":
     threshold = find_initial_threshold(cats.random_subset(args.threshold_perc))
     logging.warning("Using %f as an initial threshold"%(threshold))
 
-    all_mi = []
+    all_seeds = []
 
     #for motif1 in [possible_motifs[x] for x in np.random.randint(0,high=len(possible_motifs), size=100)]:
     logging.warning("Greedy search for possible motifs")
     possible_motifs = greedy_search(cats, 2*threshold, args.num_seeds)
     logging.warning("%s possible motifs"%(len(possible_motifs)))
     logging.warning("Finding MI for seeds")
+    this_entry = {}
     for i,motif1 in enumerate(possible_motifs):
         if not (i % 10):
             logging.warning("Computing MI for motif %s"%i)
-        this_mi = 0
-        this_discrete = []
         if args.seed_perc != 1:
             this_cats = cats.random_subset(args.seed_perc)
         else:
             this_cats = cats
         this_discrete = generate_peak_vector(this_cats, motif1.as_vector(cache=True), threshold)
-        this_mi = this_cats.mutual_information(this_discrete)
-        this_entropy = this_cats.shannon_entropy(this_discrete)
-        all_mi.append((this_mi, this_entropy, motif1))
+        this_entry['mi'] = this_cats.mutual_information(this_discrete)
+        this_entry['entropy'] = this_cats.shannon_entropy(this_discrete)
+        this_entry['enrichment'] = this_cats.calculate_enrichment(this_discrete)
+        this_entry['seed'] = motif1
+        this_entry['threshold'] = threshold
+        all_seeds.append(this_entry)
+        this_entry = {}
     logging.warning("Sorting seeds")
-    all_mi = sorted(all_mi, key=lambda x: x[0])
-    logging.warning(all_mi[-1:])
-    motif_to_optimize = list(all_mi[-1][-1].as_vector(True))
+    all_seeds = sorted(all_seeds, key=lambda x: x['mi'])
+    motif_to_optimize = list(all_seeds[-1]['seed'].as_vector(cache=True))
     logging.warning("Calculating Enrichment for top 10 seeds")
-    for motif in all_mi[-10:]:
-        logging.warning(motif[-1].as_vector(True))
-        enriched = cats.calculate_enrichment(np.array(generate_peak_vector(cats, motif[-1].as_vector(True), threshold)))
-        for key in sorted(enriched.keys()):
-            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(enriched[key])))
+    for motif in all_seeds[-10:]:
+        logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
+        logging.warning("MI: %f"%(motif['mi']))
+        logging.warning("Entropy: %f"%(motif['entropy']))
+        for key in sorted(motif['enrichment'].keys()):
+            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
 
     logging.warning("Taking top seed to optimize")
     logging.warning(motif_to_optimize)
