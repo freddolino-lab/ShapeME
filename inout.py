@@ -325,7 +325,7 @@ class SeqDatabase(object):
         """
         return self.names
 
-    def discretize(self):
+    def discretize_RZ(self):
         # first convert values to robust Z score
         self.values = np.array(self.values)
         median = np.median(self.values)
@@ -334,6 +334,16 @@ class SeqDatabase(object):
         bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
         logging.warning("Discretizing on bins: %s"%bins)
         self.values = np.digitize(self.values, bins)
+
+
+    def discretize_quant(self,nbins=10):
+        quants = np.arange(0,100, 100.0/nbins)
+        values = np.array(self.values)
+        bins = []
+        for quant in quants:
+            bins.append(np.percentile(values, quant))
+        logging.warning("Discretizing on bins: %s"%bins)
+        self.values = list(np.digitize(values, bins))
 
     def category_subset(self, category):
         """Subset the Sequence database based on category membership
@@ -470,13 +480,16 @@ class SeqDatabase(object):
         dict holding enrichment for each category
         """
 
-        total = len(self.values) + 0.0
-        total_peaks = np.sum(discrete == 1) + 0.0
         enrichment = {}
+        values = np.array(self.values)
+        discrete = np.array(discrete)
         for value in np.unique(self.values):
-            cat_and_peak = np.sum(np.logical_and(self.values == value, discrete ==1))
-            enrichment[value] = np.log2(cat_and_peak/total_peaks) -\
-                                np.log2(total_peaks/total)
+            two_way = []
+            two_way.append(np.sum(np.logical_and(values == value, discrete == 1 )))
+            two_way.append(np.sum(np.logical_and(values != value, discrete == 1)))
+            two_way.append(np.sum(np.logical_and(values == value, discrete == 0)))
+            two_way.append(np.sum(np.logical_and(values != value, discrete == 0)))
+            enrichment[value] = two_way
         return enrichment
 
     def mutual_information(self, discrete):
@@ -504,3 +517,27 @@ class SeqDatabase(object):
                 else:
                     MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
         return MI
+
+    def shannon_entropy(self, discrete):
+        """Method to calculate the entropy between the values in the database and
+        an external vector of discrete values of the same length
+        
+        Uses log2 so entropy is in bits
+
+        Args:
+            discrete (np.array): a number array of integer values the same
+                                 length as the database
+        Returns:
+            entropy between discrete and self.values
+        """
+        these_vals = self.values
+        total = len(self.values) + 0.0
+        entropy = 0
+        for val in np.unique(these_vals):
+            for val2 in np.unique(discrete):
+                p_x_y = np.sum(np.logical_and(these_vals == val, discrete == val2))/total
+                if p_x_y == 0:
+                    entropy+= 0
+                else:
+                    entropy += p_x_y*np.log2(p_x_y)
+        return -entropy

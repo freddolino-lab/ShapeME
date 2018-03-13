@@ -17,14 +17,6 @@ def optimize_mi(param_vec, data):
     threshold = param_vec[-1]
     this_data = data.random_subset(args.optimize_perc)
     this_discrete = generate_peak_vector(this_data, param_vec[:-1], threshold)
-#    for this_seq in this_data.vectors:
-#        seq_pass = 0
-#        for motif in this_seq:
-#            distance = motif.distance(np.array(param_vec[:-1]), vec=True, cache=True)
-#            if distance < threshold:
-#                seq_pass = 1
-#                break
-#        this_discrete.append(seq_pass)
     this_mi = this_data.mutual_information(this_discrete)
     return this_mi
 
@@ -57,6 +49,16 @@ def find_initial_threshold(cats, wsize, wstart, wend):
     stdev = np.std(distances)
     return np.exp(mean-2*stdev)
 
+def seqs_per_bin(cats):
+    string = ""
+    for value in np.unique(cats.values):
+        string += "Cat %i: %i\n"%(value, np.sum(np.array(cats.values) ==  value))
+    return string
+
+def two_way_to_log_odds(two_way):
+    num = np.array(two_way[0], dtype=float)/np.array(two_way[1],dtype=float)
+    denom = np.array(two_way[2], dtype=float)/np.array(two_way[3],dtype=float)
+    return np.log(num/denom)
 
 def read_parameter_file(infile):
     fastadata = inout.FastaFile()
@@ -72,8 +74,9 @@ class MotifMatch(Exception):
 
 def greedy_search(cats, threshold = 10, number=1000):
     seeds = []
+    values = []
     cats_shuffled = cats.shuffle()
-    for seq in cats_shuffled.iterate_through_precompute():
+    for i,seq in enumerate(cats_shuffled.iterate_through_precompute()):
         if(len(seeds) >= number):
             break
         for motif in seq:
@@ -82,9 +85,13 @@ def greedy_search(cats, threshold = 10, number=1000):
                     distance = motif2.distance(motif.as_vector(), vec=True, cache=True)
                     if distance < threshold:
                         raise MotifMatch(distance)
-                seeds.append(motif)             
+                seeds.append(motif)
+                values.append(cats_shuffled.values[i])
             except MotifMatch as e:
                 continue
+    values = np.array(values)
+    for value in np.unique(values):
+        logging.warning("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
     return seeds
                 
 if __name__ == "__main__":
@@ -106,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument('--threshold_perc', type=float, default=0.05)
     parser.add_argument('--optimize_perc', type=float, default=0.1)
     parser.add_argument('--seed_perc', type=float, default=1)
-    parser.add_argument('--continuous', action="store_true")
+    parser.add_argument('--continuous', type=int, default=None)
 
     
     args = parser.parse_args()
@@ -115,10 +122,12 @@ if __name__ == "__main__":
     all_params = [read_parameter_file(x) for x in args.params]
     cats = inout.SeqDatabase(names=[])
     cats.read(args.infile,float)
-    if args.continuous:
+    if args.continuous is not None:
         logging.warning("Discretizing data")
-        cats.discretize()
-
+        logging.warning(cats.values[0:10])
+        cats.discretize_quant(args.continuous)
+        logging.warning(cats.values[0:10])
+    logging.warning(seqs_per_bin(cats))
     for name, param in zip(cats.names, cats):
         for this_param, this_param_name in zip(all_params, args.param_names):
             param.add_shape_param(dsp.ShapeParamSeq(this_param_name, this_param.pull_entry(name).seq))
@@ -152,15 +161,21 @@ if __name__ == "__main__":
             this_cats = cats
         this_discrete = generate_peak_vector(this_cats, motif1.as_vector(cache=True), threshold)
         this_mi = this_cats.mutual_information(this_discrete)
-        all_mi.append((this_mi, motif1.as_vector(cache=True)))
+        this_entropy = this_cats.shannon_entropy(this_discrete)
+        all_mi.append((this_mi, this_entropy, motif1.as_vector(cache=True)))
     logging.warning("Sorting seeds")
     all_mi = sorted(all_mi, key=lambda x: x[0])
     logging.warning(all_mi[-1:])
-    logging.warning("Taking top seed to optimize")
     motif_to_optimize = list(all_mi[-1][-1])
-    enriched = cats.calculate_enrichment(np.array(generate_peak_vector(cats, motif_to_optimize, threshold)))
-    for key in sorted(enriched.keys()):
-        logging.warning("Enrichment for Cat %s is %s"%(key, enriched[key]))
+    logging.warning("Calculating Enrichment for top 10 seeds")
+    for motif in all_mi[-10:]:
+        logging.warning(motif)
+        enriched = cats.calculate_enrichment(np.array(generate_peak_vector(cats, motif[-1], threshold)))
+        for key in sorted(enriched.keys()):
+            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(enriched[key])))
+
+    logging.warning("Taking top seed to optimize")
+    logging.warning(motif_to_optimize)
     motif_to_optimize.append(threshold)
     logging.warning(optimize_mi(motif_to_optimize, cats))
     logging.warning("Optimizing top seed using Nelder Mead")
