@@ -238,7 +238,7 @@ class ShapeParams(object):
             end = len(self)
         start_i = start
         end_i = start+size
-        while end_i <= (end - slide_by):
+        while end_i < (end - slide_by):
             yield self[start_i:end_i]
             start_i = start_i + slide_by
             end_i = start_i + size

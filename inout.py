@@ -1,5 +1,6 @@
 import numpy as np
 import dnashapeparams as dsp
+import logging
 
 def complement(sequence):
     """Complement a nucleotide sequence
@@ -325,8 +326,14 @@ class SeqDatabase(object):
         return self.names
 
     def discretize(self):
-        ## TODO create a function to discretize continuous data
-        self.values = values
+        # first convert values to robust Z score
+        self.values = np.array(self.values)
+        median = np.median(self.values)
+        mad = np.median(np.abs((self.values-median)))*1.4826
+        self.values = (self.values-median)/mad
+        bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
+        logging.warning("Discretizing on bins: %s"%bins)
+        self.values = np.digitize(self.values, bins)
 
     def category_subset(self, category):
         """Subset the Sequence database based on category membership
@@ -405,6 +412,7 @@ class SeqDatabase(object):
                 self.values.append(dtype(linearr[1]))
                 self.params.append(dsp.ShapeParams(data={},names=[]))
 
+
     def normalize_params(self):
         """Method to normalize each parameter to a robustZ score based on
         all parameters in the database.
@@ -452,6 +460,24 @@ class SeqDatabase(object):
         for vals in self.vectors:
             yield vals
 
+    def calculate_enrichment(self, discrete):
+        """ Calculate the enrichment of a motif for each category
+
+        Args:
+        discrete (np.array) - a vector containing motif matches, 1 true 0 false
+
+        Returns:
+        dict holding enrichment for each category
+        """
+
+        total = len(self.values) + 0.0
+        total_peaks = np.sum(discrete == 1) + 0.0
+        enrichment = {}
+        for value in np.unique(self.values):
+            cat_and_peak = np.sum(np.logical_and(self.values == value, discrete ==1))
+            enrichment[value] = np.log2(cat_and_peak/total_peaks) -\
+                                np.log2(total_peaks/total)
+        return enrichment
 
     def mutual_information(self, discrete):
         """Method to calculate the MI between the values in the database and
