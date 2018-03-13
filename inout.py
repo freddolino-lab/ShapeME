@@ -286,6 +286,8 @@ class SeqDatabase(object):
         data (dict): a dictionary with fasta names as keys and scores as values
         names (list): A list of fasta names
         params (list): A list of dsp.ShapeParams for each sequence
+        vectors (list): A list of all motifs precomputed
+        center_spread (dict): The center and spread used to normalize shape data
     """
 
     def __init__(self, names=None):
@@ -307,6 +309,9 @@ class SeqDatabase(object):
             yield param
 
     def __len__(self):
+        """Length method returns the total number of sequences in the database
+        as determined by the length of the names attribute
+        """
         return len(self.names)
 
     def get_values(self):
@@ -326,6 +331,13 @@ class SeqDatabase(object):
         return self.names
 
     def discretize_RZ(self):
+        """ Discretize data using 5 bins according to the robust Z score
+        
+        Prints bins divisions to the logger
+
+        Modifies:
+            self.values (list): converts the values into their new categories
+        """
         # first convert values to robust Z score
         self.values = np.array(self.values)
         median = np.median(self.values)
@@ -333,10 +345,18 @@ class SeqDatabase(object):
         self.values = (self.values-median)/mad
         bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
         logging.warning("Discretizing on bins: %s"%bins)
-        self.values = np.digitize(self.values, bins)
+        self.values = list(np.digitize(self.values, bins))
 
 
     def discretize_quant(self,nbins=10):
+        """ Discretize data into n equally populated bins according to the
+        n quantiles
+        
+        Prints bins divisions to the logger
+
+        Modifies:
+            self.values (list): converts the values into their new categories
+        """
         quants = np.arange(0,100, 100.0/nbins)
         values = np.array(self.values)
         bins = []
@@ -459,6 +479,15 @@ class SeqDatabase(object):
         self.center_spread = cent_spread
 
     def pre_compute_windows(self, wsize, slide_by = 1, wstart=0, wend= None):
+        """Method to precompute all nmers. Uses them same syntax as 
+        the sliding windows method.
+
+
+        Modifies:
+            self.vectors - creates a list of lists where there is a single
+                           entry for each list holding all motifs coming
+                           from that sequence (motif = dsp.ShapeParams)
+        """
         for seq in self:
             this_seqs = []
             for window in seq.sliding_windows(wsize, slide_by, wstart, wend):
@@ -467,6 +496,12 @@ class SeqDatabase(object):
             self.vectors.append(this_seqs)
 
     def iterate_through_precompute(self):
+        """Method to iterate through all precomputed motifs
+
+
+        Yields: 
+            vals (list): a list of motifs for that sequence
+        """
         for vals in self.vectors:
             yield vals
 

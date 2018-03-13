@@ -11,7 +11,7 @@ class ShapeParamSeq(object):
  
     def __init__(self, name=None, params=None):
         self.name = name
-        if params:
+        if params is not None:
             self.params = params
         else:
             self.params = []
@@ -47,7 +47,9 @@ class ShapeParamSeq(object):
         Modifies:
             params (list)
         """
+        self.params = list(self.params)
         self.params.append(param)
+        self.params = np.array(self.params)
 
     def __len__(self):
         """ Length method simply returns the length of the params list
@@ -73,7 +75,7 @@ class ShapeParamSeq(object):
         """
         values = self.get_values()
         values = (values-center)/spread
-        self.params = list(values)
+        self.params = values
 
     def unnormalize_values(self, center, spread):
         """ Method to revert the values back to unnormalized by a center and
@@ -83,7 +85,7 @@ class ShapeParamSeq(object):
         """
         values = self.get_values()
         values = (values*spread) + center
-        self.params = list(values)
+        self.params = values
         
 
 class ShapeParams(object):
