@@ -4,6 +4,7 @@ import logging
 import argparse
 import numpy as np
 import scipy.optimize as opt
+import shapemotifvis as smv
 np.random.seed(1234)
 
 def make_initial_seeds(cats, wsize,wstart,wend):
@@ -183,9 +184,11 @@ if __name__ == "__main__":
     parser.add_argument('--optimize_perc', type=float, default=0.1)
     parser.add_argument('--seed_perc', type=float, default=1)
     parser.add_argument('--continuous', type=int, default=None)
+    parser.add_argument('-o', type=str, default="motif_out_")
 
-    
+ 
     args = parser.parse_args()
+    outpre = args.o
     
     logging.warning("Reading in files")
     all_params = [read_parameter_file(x) for x in args.params]
@@ -248,6 +251,10 @@ if __name__ == "__main__":
         logging.warning("Entropy: %f"%(motif['entropy']))
         for key in sorted(motif['enrichment'].keys()):
             logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
+    logging.warning("Generating initial heatmap for top 15 seeds")
+    enrich_hm = smv.EnrichmentHeatmap(all_seeds[-10:])
+    enrich_hm.display_enrichment(outpre+"enrichment_hm.png")
+    enrich_hm.display_motifs(outpre+"motif_hm.png")
 
     logging.warning("Taking top seed to optimize")
     logging.warning(motif_to_optimize)
