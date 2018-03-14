@@ -5,6 +5,8 @@ import argparse
 import numpy as np
 import scipy.optimize as opt
 import shapemotifvis as smv
+import multiprocessing as mp
+import copy
 np.random.seed(1234)
 
 def make_initial_seeds(cats, wsize,wstart,wend):
@@ -164,6 +166,34 @@ def greedy_search(cats, threshold = 10, number=1000):
         logging.warning("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
     return seeds
 
+def mp_optimize_seeds_helper(args):
+    seed, data, sample_perc = args
+    final_seed_dict = {}
+    motif_to_optimize = list(seed['seed'].as_vector(cache=True))
+    motif_to_optimize.append(seed['threshold'])
+    final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=sample_perc),
+            motif_to_optimize, method="nelder-mead")
+    final = final['x']
+    threshold = final[-1]
+    final_seed = dsp.ShapeParams()
+    final_seed.from_vector(seed['seed'].names, final[:-1])
+    final_seed_dict['seed'] = final_seed
+    discrete = generate_peak_vector(data, final_seed.as_vector(cache=True), 
+                                    threshold = threshold)
+    final_seed_dict['threshold'] = threshold
+    final_seed_dict['enrichment'] = data.calculate_enrichment(discrete)
+    final_seed_dict['entropy'] = data.shannon_entropy(discrete)
+    final_seed_dict['mi'] = data.mutual_information(discrete)
+    return final_seed_dict
+        
+def mp_optimize_seeds(seeds, data, sample_perc, p=1):
+    pool = mp.Pool(processes=p)
+    final_seeds = pool.map(mp_optimize_seeds_helper, 
+                           ((seed, data, sample_perc) for seed in seeds))
+    pool.close()
+    pool.join()
+    return final_seeds
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('infile', action='store', type=str,
@@ -185,6 +215,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed_perc', type=float, default=1)
     parser.add_argument('--continuous', type=int, default=None)
     parser.add_argument('-o', type=str, default="motif_out_")
+    parser.add_argument('-p', type=int, default=1, help="number of processors")
 
  
     args = parser.parse_args()
@@ -251,17 +282,18 @@ if __name__ == "__main__":
         logging.warning("Entropy: %f"%(motif['entropy']))
         for key in sorted(motif['enrichment'].keys()):
             logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
-    logging.warning("Generating initial heatmap for top 15 seeds")
+    logging.warning("Generating initial heatmap for top 10 seeds")
     enrich_hm = smv.EnrichmentHeatmap(all_seeds[-10:])
-    enrich_hm.display_enrichment(outpre+"enrichment_hm.png")
-    enrich_hm.display_motifs(outpre+"motif_hm.png")
+    enrich_hm.display_enrichment(outpre+"enrichment_before_hm.png")
+    enrich_hm.display_motifs(outpre+"motif_before_hm.png")
 
-    logging.warning("Taking top seed to optimize")
-    logging.warning(motif_to_optimize)
-    motif_to_optimize.append(threshold)
-    logging.warning(optimize_mi(motif_to_optimize, cats, sample_perc = args.optimize_perc))
-    logging.warning("Optimizing top seed using Nelder Mead")
-    final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
-    logging.warning(final['x'])
+    logging.warning("Optimizing seeds using %i processors"%(args.p))
+    final_seeds = mp_optimize_seeds(all_seeds[-10:], cats, args.optimize_perc, p=args.p)
+    logging.warning("Generating final heatmap for optimized seeds")
+    enrich_hm = smv.EnrichmentHeatmap(final_seeds)
+    enrich_hm.display_enrichment(outpre+"enrichment_after_hm.png")
+    enrich_hm.display_motifs(outpre+"motif_after_hm.png")
+
+    #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
     #logging.warning(final)

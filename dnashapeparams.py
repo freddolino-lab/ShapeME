@@ -175,6 +175,11 @@ class ShapeParams(object):
         if params.name not in self.names:
             self.names.append(params.name)
 
+    def from_vector(self, names, vector):
+        size = len(vector)/len(names)
+        for i, name in enumerate(names):
+            self.add_shape_param(ShapeParamSeq(name=name, params = vector[i:size]))
+
     def matrix(self):
         """ Convert the Shape parameter data into a matrix
 
