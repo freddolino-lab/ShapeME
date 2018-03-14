@@ -214,6 +214,7 @@ if __name__ == "__main__":
     parser.add_argument('--optimize_perc', type=float, default=0.1)
     parser.add_argument('--seed_perc', type=float, default=1)
     parser.add_argument('--continuous', type=int, default=None)
+    parser.add_argument('--optimize', action="store_true")
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
 
@@ -284,15 +285,15 @@ if __name__ == "__main__":
             logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
     logging.warning("Generating initial heatmap for top 10 seeds")
     enrich_hm = smv.EnrichmentHeatmap(all_seeds[-10:])
-    enrich_hm.display_enrichment(outpre+"enrichment_before_hm.png")
-    enrich_hm.display_motifs(outpre+"motif_before_hm.png")
-
-    logging.warning("Optimizing seeds using %i processors"%(args.p))
-    final_seeds = mp_optimize_seeds(all_seeds[-10:], cats, args.optimize_perc, p=args.p)
-    logging.warning("Generating final heatmap for optimized seeds")
-    enrich_hm = smv.EnrichmentHeatmap(final_seeds)
-    enrich_hm.display_enrichment(outpre+"enrichment_after_hm.png")
-    enrich_hm.display_motifs(outpre+"motif_after_hm.png")
+    enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
+    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
+    if args.optimize:
+        logging.warning("Optimizing seeds using %i processors"%(args.p))
+        final_seeds = mp_optimize_seeds(all_seeds[-10:], cats, args.optimize_perc, p=args.p)
+        logging.warning("Generating final heatmap for optimized seeds")
+        enrich_hm = smv.EnrichmentHeatmap(final_seeds)
+        enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
+        enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
 
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
