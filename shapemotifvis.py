@@ -17,6 +17,7 @@ class EnrichmentHeatmap(object):
         ax = plt.gca()
         fig = ax.imshow(out_mat, interpolation='nearest', cmap="bwr", vmax = np.max(out_mat), vmin= -np.max(out_mat), *args)
         plt.colorbar(fig)
+        plt.title(self.get_title())
         xlabels, ylabels = self.get_labels()
         ax.set_yticks(np.arange(0, out_mat.shape[0]))
         ax.set_yticklabels(ylabels)
@@ -53,11 +54,14 @@ class EnrichmentHeatmap(object):
     def get_labels(self):
         ylabels = []
         for motif in sorted(self.motifs, key=lambda x : x['mi'], reverse=True):
-            ylabels.append("MI: %f Entropy: %f"%(motif['mi'], motif['entropy']))
+            ylabels.append("MI: %f Entropy: %f"%(motif['mi'], motif['motif_entropy']))
         xlabels = []
         for val in sorted(motif["enrichment"].keys()):
             xlabels.append(val)
         return (xlabels, ylabels)
+
+    def get_title(self):
+        return "Category Entropy: %s"%(self.motifs[0]['category_entropy'])
 
 
 

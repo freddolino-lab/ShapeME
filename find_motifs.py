@@ -182,7 +182,8 @@ def mp_optimize_seeds_helper(args):
                                     threshold = threshold)
     final_seed_dict['threshold'] = threshold
     final_seed_dict['enrichment'] = data.calculate_enrichment(discrete)
-    final_seed_dict['entropy'] = data.shannon_entropy(discrete)
+    final_seed_dict['motif_entropy'] = inout.entropy(discrete)
+    final_seed_dict['category_entropy'] = data.shannon_entropy()
     final_seed_dict['mi'] = data.mutual_information(discrete)
     return final_seed_dict
         
@@ -228,9 +229,7 @@ if __name__ == "__main__":
     if args.continuous is not None:
         cats.read(args.infile, float)
         logging.warning("Discretizing data")
-        logging.warning(cats.values[0:10])
         cats.discretize_quant(args.continuous)
-        logging.warning(cats.values[0:10])
     else:
         cats.read(args.infile, int)
     logging.warning("Distribution of sequences per class:")
@@ -242,6 +241,8 @@ if __name__ == "__main__":
 
     logging.warning("Normalizing parameters")
     cats.normalize_params()
+    for name in cats.center_spread.keys():
+        logging.warning("%s: %s"%(name, cats.center_spread[name]))
 
     logging.warning("Precomputing all windows")
     cats.pre_compute_windows(args.windowsize, wstart=args.windowstart, wend=args.windowend)
@@ -258,16 +259,18 @@ if __name__ == "__main__":
     logging.warning("%s possible motifs"%(len(possible_motifs)))
     logging.warning("Finding MI for seeds")
     this_entry = {}
+
+    if args.seed_perc != 1:
+        this_cats = cats.random_subset(args.seed_perc)
+    else:
+        this_cats = cats
     for i,motif1 in enumerate(possible_motifs):
         if not (i % 10):
             logging.warning("Computing MI for motif %s"%i)
-        if args.seed_perc != 1:
-            this_cats = cats.random_subset(args.seed_perc)
-        else:
-            this_cats = cats
         this_discrete = generate_peak_vector(this_cats, motif1.as_vector(cache=True), threshold)
         this_entry['mi'] = this_cats.mutual_information(this_discrete)
-        this_entry['entropy'] = this_cats.shannon_entropy(this_discrete)
+        this_entry['motif_entropy'] = inout.entropy(this_discrete)
+        this_entry['category_entropy'] = this_cats.shannon_entropy()
         this_entry['enrichment'] = this_cats.calculate_enrichment(this_discrete)
         this_entry['seed'] = motif1
         this_entry['threshold'] = threshold
@@ -280,7 +283,8 @@ if __name__ == "__main__":
     for motif in all_seeds[-10:]:
         logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
         logging.warning("MI: %f"%(motif['mi']))
-        logging.warning("Entropy: %f"%(motif['entropy']))
+        logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
+        logging.warning("Category Entropy: %f"%(motif['category_entropy']))
         for key in sorted(motif['enrichment'].keys()):
             logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
     logging.warning("Generating initial heatmap for top 10 seeds")

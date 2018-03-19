@@ -22,8 +22,8 @@ center, spread = cats.center_spread["MGW"]
 correct_motif = dsp.ShapeParamSeq(name="MGW", params = list(5.0*np.ones(15)))
 #correct_motif.normalize_values(center, spread)
 for i, param in enumerate(cats):
-    if cats.values[i] == 1:
-        param.data["MGW"].params[300:315] = correct_motif.params
+    if cats.values[i] == 1 or i == 10:
+        param.data["MGW"].params[300:315] = correct_motif.params * np.random.normal(1.0, spread, 15)
     else:
         for motif in param.sliding_windows(15, start=2, end=498):
             distance = motif.distance(np.array(correct_motif), vec=True)

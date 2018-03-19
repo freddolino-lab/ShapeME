@@ -555,9 +555,9 @@ class SeqDatabase(object):
                     MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
         return MI
 
-    def shannon_entropy(self, discrete):
-        """Method to calculate the entropy between the values in the database and
-        an external vector of discrete values of the same length
+    def joint_entropy(self, discrete):
+        """Method to calculate the joint entropy between the values in the
+        database and an external vector of discrete values of the same length
         
         Uses log2 so entropy is in bits
 
@@ -578,3 +578,28 @@ class SeqDatabase(object):
                 else:
                     entropy += p_x_y*np.log2(p_x_y)
         return -entropy
+
+    def shannon_entropy(self):
+        return entropy(self.get_values())
+
+def entropy(array):
+    """Method to calculate the entropy of any discrete numpy array
+        
+    Uses log2 so entropy is in bits
+
+    Args:
+        array (np.array): an array of discrete categories
+    Returns:
+        entropy of array
+    """
+    entropy = 0
+    total = array.size 
+    for val in np.unique(array):
+        num_this_class = np.sum(array == val)
+        p_i = num_this_class/float(total)
+        if p_i == 0:
+            entropy += 0
+        else:
+            entropy += p_i*np.log2(p_i)
+    return -entropy
+
