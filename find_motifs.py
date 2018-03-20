@@ -171,9 +171,9 @@ def mp_optimize_seeds_helper(args):
     final_seed_dict = {}
     motif_to_optimize = list(seed['seed'].as_vector(cache=True))
     motif_to_optimize.append(seed['threshold'])
-    final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=sample_perc),
+    final_opt = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=sample_perc),
             motif_to_optimize, method="nelder-mead")
-    final = final['x']
+    final = final_opt['x']
     threshold = final[-1]
     final_seed = dsp.ShapeParams()
     final_seed.from_vector(seed['seed'].names, final[:-1])
@@ -185,6 +185,11 @@ def mp_optimize_seeds_helper(args):
     final_seed_dict['motif_entropy'] = inout.entropy(discrete)
     final_seed_dict['category_entropy'] = data.shannon_entropy()
     final_seed_dict['mi'] = data.mutual_information(discrete)
+    final_seed_dict['opt_success'] = final_opt['success']
+    final_seed_dict['opt_message'] = final_opt['message']
+    final_seed_dict['opt_iter'] = final_opt['nit']
+    final_seed_dict['opt_func'] = final_opt['nfev']
+
     return final_seed_dict
         
 def mp_optimize_seeds(seeds, data, sample_perc, p=1):
@@ -303,7 +308,11 @@ if __name__ == "__main__":
             for key in sorted(motif['enrichment'].keys()):
                 logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
                 logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
-            logging.warning("Generating final heatmap for optimized seeds")
+            logging.warning("Success?: %s"%(motif['opt_success']))
+            logging.warning("Message: %s"%(motif['opt_message']))
+            logging.warning("Iterations: %s"%(motif['opt_iter']))
+            logging.warning("Func Evals: %s"%(motif['opt_func']))
+        logging.warning("Generating final heatmap for optimized seeds")
         enrich_hm = smv.EnrichmentHeatmap(final_seeds)
         enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
         enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
