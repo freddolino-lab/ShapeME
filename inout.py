@@ -480,6 +480,19 @@ class SeqDatabase(object):
                 param.normalize_values(center, spread)
         self.center_spread = cent_spread
 
+    def unnormalize_params(self):
+        """Method to unnormalize each parameter from its RobustZ score back to
+        its original value
+
+        Modifies:
+            params - unnormalizes all the param values
+        """
+        # unnormalize params
+        for seqparam in self:
+            for param in seqparam:
+                center, spread = self.center_spread[param.name]
+                param.unnormalize_values(center, spread)
+
     def pre_compute_windows(self, wsize, slide_by = 1, wstart=0, wend= None):
         """Method to precompute all nmers. Uses them same syntax as 
         the sliding windows method.

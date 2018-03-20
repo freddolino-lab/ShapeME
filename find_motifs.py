@@ -252,10 +252,10 @@ if __name__ == "__main__":
     logging.warning("Using %f as an initial threshold"%(threshold))
 
     all_seeds = []
-
-    #for motif1 in [possible_motifs[x] for x in np.random.randint(0,high=len(possible_motifs), size=100)]:
-    logging.warning("Greedy search for possible motifs")
-    possible_motifs = greedy_search(cats, 2*threshold, args.num_seeds)
+    
+    greedy_threshold = threshold + 1/np.sqrt(args.windowsize*len(args.params))*threshold
+    logging.warning("Greedy search for possible motifs with threshold %s"%(greedy_threshold))
+    possible_motifs = greedy_search(cats, greedy_threshold, args.num_seeds)
     logging.warning("%s possible motifs"%(len(possible_motifs)))
     logging.warning("Finding MI for seeds")
     this_entry = {}
@@ -286,6 +286,7 @@ if __name__ == "__main__":
         logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
         logging.warning("Category Entropy: %f"%(motif['category_entropy']))
         for key in sorted(motif['enrichment'].keys()):
+            logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
             logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
     logging.warning("Generating initial heatmap for top 10 seeds")
     enrich_hm = smv.EnrichmentHeatmap(all_seeds[-10:])
@@ -294,7 +295,15 @@ if __name__ == "__main__":
     if args.optimize:
         logging.warning("Optimizing seeds using %i processors"%(args.p))
         final_seeds = mp_optimize_seeds(all_seeds[-10:], cats, args.optimize_perc, p=args.p)
-        logging.warning("Generating final heatmap for optimized seeds")
+        for motif in final_seeds:
+            logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
+            logging.warning("MI: %f"%(motif['mi']))
+            logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
+            logging.warning("Category Entropy: %f"%(motif['category_entropy']))
+            for key in sorted(motif['enrichment'].keys()):
+                logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
+                logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
+            logging.warning("Generating final heatmap for optimized seeds")
         enrich_hm = smv.EnrichmentHeatmap(final_seeds)
         enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
         enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")

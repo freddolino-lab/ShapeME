@@ -176,9 +176,21 @@ class ShapeParams(object):
             self.names.append(params.name)
 
     def from_vector(self, names, vector):
-        size = len(vector)/len(names)
-        for i, name in enumerate(names):
-            self.add_shape_param(ShapeParamSeq(name=name, params = vector[i:size]))
+        """ Create a ShapeParams object from a vector of values and a set of
+        names
+
+        Args:
+            names (list) - list of strings for each of the param seqs
+            vector(np.array) - array of values that of length len(names)*int
+
+        Modifies:
+            self.data adds in new ShapeParamSeq objects
+        """
+        size = vector.size/len(names)
+        end = 0
+        for name in names:
+            self.add_shape_param(ShapeParamSeq(name=name, params = vector[end:end+size]))
+            end = end + size
 
     def matrix(self):
         """ Convert the Shape parameter data into a matrix
