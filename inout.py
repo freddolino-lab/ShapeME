@@ -554,19 +554,7 @@ class SeqDatabase(object):
         Returns:
             mutual information between discrete and self.values
         """
-        these_vals = self.get_values()
-        total = len(self.values) + 0.0
-        MI = 0
-        for val in np.unique(these_vals):
-            for val2 in np.unique(discrete):
-                p_x = np.sum(these_vals == val)/total
-                p_y = np.sum(discrete == val2)/total
-                p_x_y = np.sum(np.logical_and(these_vals == val, discrete == val2))/total
-                if p_x_y == 0 or p_x == 0 or p_y == 0:
-                    MI+= 0
-                else:
-                    MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
-        return MI
+        return mutual_information(self.get_values(), discrete)
 
     def joint_entropy(self, discrete):
         """Method to calculate the joint entropy between the values in the
@@ -580,17 +568,7 @@ class SeqDatabase(object):
         Returns:
             entropy between discrete and self.values
         """
-        these_vals = self.get_values()
-        total = len(self.values) + 0.0
-        entropy = 0
-        for val in np.unique(these_vals):
-            for val2 in np.unique(discrete):
-                p_x_y = np.sum(np.logical_and(these_vals == val, discrete == val2))/total
-                if p_x_y == 0:
-                    entropy+= 0
-                else:
-                    entropy += p_x_y*np.log2(p_x_y)
-        return -entropy
+        return joint_entropy(self.get_values(), discrete)
 
     def shannon_entropy(self):
         return entropy(self.get_values())
@@ -616,3 +594,133 @@ def entropy(array):
             entropy += p_i*np.log2(p_i)
     return -entropy
 
+
+def joint_entropy(arrayx, arrayy):
+    """Method to calculate the joint entropy H(X,Y) for two discrete numpy
+    arrays
+    
+    Uses log2 so entropy is in bits. Arrays must be same length
+
+    Args:
+        arrayx (np.array): an array of discrete values
+        arrayy (np.array): an array of discrete values
+    Returns:
+        entropy between discrete and self.values
+    """
+    total_1 = arrayx.size 
+    total_2 = arrayy.size
+    if total_1 != total_2:
+        raise ValueError("Array sizes must be the same %s %s"%(total_1, total_2))
+    else:
+        total = total_1 + 0.0
+
+    entropy = 0
+    for x in np.unique(arrayx):
+        for y in np.unique(arrayy):
+            p_x_y = np.sum(np.logical_and(arrayx == x, arrayy == y))/total
+            if p_x_y == 0:
+                entropy+= 0
+            else:
+                entropy += p_x_y*np.log2(p_x_y)
+    return -entropy
+
+def conditional_entropy(arrayx, arrayy):
+    """Method to calculate the conditional entropy H(X|Y) of the two arrays
+    
+    Uses log2 so entropy is in bits. Arrays must be same length
+
+    Args:
+        arrayx (np.array): an array of discrete values
+        arrayy (np.array): an array of discrete values
+    Returns:
+        entropy between discrete and self.values
+    """
+    total_1 = arrayx.size 
+    total_2 = arrayy.size
+    if total_1 != total_2:
+        raise ValueError("Array sizes must be the same %s %s"%(total_1, total_2))
+    else:
+        total = total_1 + 0.0
+
+    entropy = 0
+    for x in np.unique(arrayx):
+        for y in np.unique(arrayy):
+            p_x_y = np.sum(np.logical_and(arrayx == x, arrayy == y))/total
+            p_x = np.sum(arrayx == x)/total
+            if p_x_y == 0 or p_x == 0:
+                entropy+= 0
+            else:
+                entropy += p_x_y*np.log2(p_x/p_x_y)
+    return -entropy
+
+
+def mutual_information(arrayx, arrayy):
+    """Method to calculate the mutual information between two discrete
+    numpy arrays
+        
+    Uses log2 so mutual information is in bits
+
+    Args:
+        arrayx (np.array): an array of discrete categories
+        arrayy (np.array): an array of discrete categories
+    Returns:
+        mutual information between array1 and array2
+    """
+
+    total_x = arrayx.size 
+    total_y = arrayy.size
+    if total_x != total_y:
+        raise ValueError("Array sizes must be the same %s %s"%(total_x, total_y))
+    else:
+        total = total_x + 0.0
+    MI = 0
+    for x in np.unique(arrayx):
+        for y in np.unique(arrayy):
+            p_x = np.sum(arrayx == x)/total
+            p_y = np.sum(arrayy == y)/total
+            p_x_y = np.sum(np.logical_and(arrayx == x, arrayy == y))/total
+            if p_x_y == 0 or p_x == 0 or p_y == 0:
+                MI+= 0
+            else:
+                MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
+    return MI
+
+
+def conditional_mutual_information(arrayx, arrayy, arrayz):
+    """Method to calculate the conditional mutual information I(X,Y|Z)
+        
+    Uses log2 so mutual information is in bits. This is O(X*Y*Z) where
+    X Y and Z are the number of unique categories in each array
+
+    Args:
+        arrayx (np.array): an array of discrete categories
+        arrayy (np.array): an array of discrete categories
+        arrayz (np.array): an array of discrete categories
+    Returns:
+        conditional mutual information arrayx;arrayy | arrayz
+    """
+
+    total_x = arrayx.size 
+    total_y = arrayy.size
+    total_z = arrayz.size
+    if total_x != total_y or total_y != total_z:
+        raise ValueError("Array sizes must be the same %s %s %s"%(total_x, total_y, total_z))
+    else:
+        total = total_1 + 0.0
+    CMI = 0
+    for z in np.unique(arrayz):
+        subset = arrayz == z
+        total_subset = np.sum(subset)
+        p_z = total_subset/total
+        this_MI = 0
+        for x in np.unique(arrayx):
+            for y in np.unique(arrayy):
+                p_x = np.sum(arrayx[subset] == x)/total_subset
+                p_y = np.sum(arrayy[subset] == y)/total_subset
+                p_x_y = np.sum(np.logical_and(arrayx[subset] == x, arrayy[subset] == y))/total_subset
+                if p_x_y == 0 or p_x == 0 or p_y == 0:
+                    this_MI+= 0
+                else:
+                    this_MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
+        CMI += p_z*this_MI
+    return CMI
