@@ -10,6 +10,15 @@ class EnrichmentHeatmap(object):
 
     def __init__(self, motifs=None):
         self.motifs = motifs
+    
+    def plot_optimization(self, outfile):
+        f, axes = plt.subplots(len(self.motifs))
+        if len(self.motifs) < 2:
+            axes = [axes]
+        for i, motif in enumerate(sorted(self.motifs, key = lambda x:x['mi'], reverse=True)):
+            axes[i].scatter(motif['opt_info']['eval'], motif['opt_info']['value'])
+            axes[i].set_title("Motif %i"%i)
+        plt.savefig(outfile)
 
     def display_enrichment(self, outfile, *args):
         out_mat = self.convert_to_enrichment_mat()
@@ -28,6 +37,8 @@ class EnrichmentHeatmap(object):
 
     def display_motifs(self, outfile, *args):
         f, axes = plt.subplots(len(self.motifs),1)
+        if len(self.motifs) < 2:
+            axes = [axes]
         for i, motif in enumerate(sorted(self.motifs, key=lambda x: x['mi'], reverse=True)):
             this_seed = motif['seed']
             this_matrix = this_seed.matrix()
@@ -36,7 +47,7 @@ class EnrichmentHeatmap(object):
             axes[i].set_yticklabels(this_seed.names)
             if i == len(self.motifs):
                 axes[i].set_xticks(np.arange(0,this_matrix.shape[1]))
-                axes[i].set_xticklabels(np.arange(0, this_matrix.shape[0]))
+                axes[i].set_xticklabels(np.arange(0, this_matrix.shape[1]))
             else:
                 axes[i].set_xticks([])
         plt.savefig(outfile)
@@ -62,9 +73,3 @@ class EnrichmentHeatmap(object):
 
     def get_title(self):
         return "Category Entropy: %s"%(self.motifs[0]['category_entropy'])
-
-
-
-
-
-

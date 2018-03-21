@@ -19,7 +19,7 @@ def make_initial_seeds(cats, wsize,wstart,wend):
             seeds.append(window)
     return seeds
 
-def optimize_mi(param_vec, data, sample_perc):
+def optimize_mi(param_vec, data, sample_perc, info):
     """ Function to optimize a particular motif
 
     Args:
@@ -34,7 +34,11 @@ def optimize_mi(param_vec, data, sample_perc):
     this_data = data.random_subset(sample_perc)
     this_discrete = generate_peak_vector(this_data, param_vec[:-1], threshold)
     this_mi = this_data.mutual_information(this_discrete)
-    return this_mi
+    if info["NFeval"]%10 == 0:
+        info["value"].append(this_mi)
+        info["eval"].append(info["NFeval"])
+    info["NFeval"] += 1
+    return -this_mi
 
 def generate_peak_vector(data, motif_vec, threshold):
     """ Function to calculate the sequences that have a match to a motif
@@ -169,10 +173,12 @@ def greedy_search(cats, threshold = 10, number=1000):
 def mp_optimize_seeds_helper(args):
     seed, data, sample_perc = args
     final_seed_dict = {}
+    func_info = {"NFeval":0, "eval":[], "value":[]}
     motif_to_optimize = list(seed['seed'].as_vector(cache=True))
     motif_to_optimize.append(seed['threshold'])
-    final_opt = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=sample_perc),
-            motif_to_optimize, method="nelder-mead")
+    final_opt = opt.minimize(optimize_mi,motif_to_optimize, 
+                             args=(data, sample_perc, func_info), 
+                             method="nelder-mead")
     final = final_opt['x']
     threshold = final[-1]
     final_seed = dsp.ShapeParams()
@@ -185,10 +191,12 @@ def mp_optimize_seeds_helper(args):
     final_seed_dict['motif_entropy'] = inout.entropy(discrete)
     final_seed_dict['category_entropy'] = data.shannon_entropy()
     final_seed_dict['mi'] = data.mutual_information(discrete)
+    final_seed_dict['discrete'] = discrete
     final_seed_dict['opt_success'] = final_opt['success']
     final_seed_dict['opt_message'] = final_opt['message']
     final_seed_dict['opt_iter'] = final_opt['nit']
     final_seed_dict['opt_func'] = final_opt['nfev']
+    final_seed_dict['opt_info'] = func_info
 
     return final_seed_dict
         
@@ -199,6 +207,24 @@ def mp_optimize_seeds(seeds, data, sample_perc, p=1):
     pool.close()
     pool.join()
     return final_seeds
+
+def filter_seeds(seeds, cats, mi_threshold):
+    these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
+    top_seeds = [these_seeds[0]]
+    for cand_seed in these_seeds:
+        seed_pass = True
+        if cand_seed['mi'] < mi_threshold:
+            continue
+        for good_seed in top_seeds:
+            this_mi = inout.conditional_mutual_information(cats.get_values(), 
+                                                 cand_seed['discrete'], 
+                                                 good_seed['discrete'])
+            if this_mi < mi_threshold:
+                seed_pass = False
+                break
+        if seed_pass:
+            top_seeds.append(cand_seed)
+    return top_seeds
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -221,6 +247,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed_perc', type=float, default=1)
     parser.add_argument('--continuous', type=int, default=None)
     parser.add_argument('--optimize', action="store_true")
+    parser.add_argument('--min_mi', type=float, default=0.05)
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
 
@@ -279,13 +306,13 @@ if __name__ == "__main__":
         this_entry['enrichment'] = this_cats.calculate_enrichment(this_discrete)
         this_entry['seed'] = motif1
         this_entry['threshold'] = threshold
+        this_entry['discrete'] = this_discrete
         all_seeds.append(this_entry)
         this_entry = {}
-    logging.warning("Sorting seeds")
-    all_seeds = sorted(all_seeds, key=lambda x: x['mi'])
-    motif_to_optimize = list(all_seeds[-1]['seed'].as_vector(cache=True))
-    logging.warning("Calculating Enrichment for top 10 seeds")
-    for motif in all_seeds[-10:]:
+    logging.warning("Filtering seeds by Conditional MI")
+    good_seeds = filter_seeds(all_seeds, this_cats, args.min_mi)
+    logging.warning("%s seeds survived"%(len(good_seeds)))
+    for motif in good_seeds:
         logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
         logging.warning("MI: %f"%(motif['mi']))
         logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
@@ -293,14 +320,33 @@ if __name__ == "__main__":
         for key in sorted(motif['enrichment'].keys()):
             logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
             logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
-    logging.warning("Generating initial heatmap for top 10 seeds")
-    enrich_hm = smv.EnrichmentHeatmap(all_seeds[-10:])
+    logging.warning("Generating initial heatmap for passing seeds")
+    enrich_hm = smv.EnrichmentHeatmap(good_seeds)
     enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
     enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
+#   logging.warning("Sorting seeds")
+#    all_seeds = sorted(all_seeds, key=lambda x: x['mi'])
+#    motif_to_optimize = list(all_seeds[-1]['seed'].as_vector(cache=True))
+#    logging.warning("Calculating Enrichment for top 10 seeds")
+#    for motif in all_seeds[-10:]:
+#        logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
+#        logging.warning("MI: %f"%(motif['mi']))
+#        logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
+#        logging.warning("Category Entropy: %f"%(motif['category_entropy']))
+#        for key in sorted(motif['enrichment'].keys()):
+#            logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
+#            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
+#    logging.warning("Generating initial heatmap for top 10 seeds")
+#    enrich_hm = smv.EnrichmentHeatmap(all_seeds[-10:])
+#    enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
+#    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.warning("Optimizing seeds using %i processors"%(args.p))
-        final_seeds = mp_optimize_seeds(all_seeds[-10:], cats, args.optimize_perc, p=args.p)
-        for motif in final_seeds:
+        final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
+        logging.warning("Filtering seeds by Conditional MI")
+        final_good_seeds = filter_seeds(final_seeds, cats, args.min_mi)
+        logging.warning("%s seeds survived"%(len(final_good_seeds)))
+        for motif in final_good_seeds:
             logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
             logging.warning("MI: %f"%(motif['mi']))
             logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
@@ -311,11 +357,12 @@ if __name__ == "__main__":
             logging.warning("Success?: %s"%(motif['opt_success']))
             logging.warning("Message: %s"%(motif['opt_message']))
             logging.warning("Iterations: %s"%(motif['opt_iter']))
-            logging.warning("Func Evals: %s"%(motif['opt_func']))
         logging.warning("Generating final heatmap for optimized seeds")
-        enrich_hm = smv.EnrichmentHeatmap(final_seeds)
+        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
         enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
         enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
+        logging.warning("Plotting optimization for final motifs")
+        enrich_hm.plot_optimization(outpre+"optimization.pdf")
 
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)

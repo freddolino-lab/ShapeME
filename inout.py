@@ -706,11 +706,11 @@ def conditional_mutual_information(arrayx, arrayy, arrayz):
     if total_x != total_y or total_y != total_z:
         raise ValueError("Array sizes must be the same %s %s %s"%(total_x, total_y, total_z))
     else:
-        total = total_1 + 0.0
+        total = total_x + 0.0
     CMI = 0
     for z in np.unique(arrayz):
         subset = arrayz == z
-        total_subset = np.sum(subset)
+        total_subset = np.sum(subset) + 0.0
         p_z = total_subset/total
         this_MI = 0
         for x in np.unique(arrayx):
