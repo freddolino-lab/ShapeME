@@ -225,7 +225,7 @@ class ShapeParams(object):
             mat = self.matrix()
             return np.reshape(mat, mat.size)
 
-    def windows(self, size, start=0, end= None):
+    def windows(self, size, start=0, end= 0):
         """ Generator to get equally sized windows of the ShapeParams object
         Args:
             size (int): size of the windows to create
@@ -235,14 +235,13 @@ class ShapeParams(object):
         Yields:
             a slice of the ShapeParams object
         """
-        if end is None:
-            end = len(self)
+        end = len(self) - end
         last_i = start
         for i in range(start+size, end, size):
             yield self[last_i:i]
             last_i = i
 
-    def sliding_windows(self, size, slide_by=1, start=0, end= None):
+    def sliding_windows(self, size, slide_by=1, start=0, end= 0):
         """ Generator to get sliding windows of the ShapeParams object
 
         Args:
@@ -253,8 +252,7 @@ class ShapeParams(object):
         Yields:
             a slice of the ShapeParams object
         """
-        if end is None:
-            end = len(self)
+        end = len(self)-end
         start_i = start
         end_i = start+size
         while end_i < (end - slide_by):

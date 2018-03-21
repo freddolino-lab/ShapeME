@@ -281,12 +281,12 @@ if __name__ == "__main__":
                          help='inputfile with mgw scores')
     parser.add_argument('--param_names', nargs="+", type=str,
                          help='parameter names')
-    parser.add_argument('--windowsize', type=int,
-                         help='window_size to use', default=15)
-    parser.add_argument('--windowstart', type=int,
-                         help='window_start to use', default=2)
-    parser.add_argument('--windowend', type=int,
-                         help='window_start to use', default=None)
+    parser.add_argument('--kmer', type=int,
+                         help='kmer size to search for', default=15)
+    parser.add_argument('--ignorestart', type=int,
+                         help='# bp to ignore at start of each sequence', default=2)
+    parser.add_argument('--ignoreend', type=int,
+                         help='# bp to ignore at end of each sequence', default=2)
     parser.add_argument('--num_seeds', type=int,
                          help='number of seeds to start', default=100)
     parser.add_argument('--threshold_perc', type=float, default=0.05)
@@ -324,7 +324,7 @@ if __name__ == "__main__":
         logging.warning("%s: %s"%(name, cats.center_spread[name]))
 
     logging.warning("Precomputing all windows")
-    cats.pre_compute_windows(args.windowsize, wstart=args.windowstart, wend=args.windowend)
+    cats.pre_compute_windows(args.kmer, wstart=args.ignorestart, wend=args.ignoreend)
 
     logging.warning("Determining inital threshold")
     threshold = find_initial_threshold(cats.random_subset(args.threshold_perc))
@@ -332,7 +332,7 @@ if __name__ == "__main__":
 
     all_seeds = []
     
-    greedy_threshold = threshold + 1/np.sqrt(args.windowsize*len(args.params))*threshold
+    greedy_threshold = threshold + 1/np.sqrt(args.kmer*len(args.params))*threshold
     logging.warning("Greedy search for possible motifs with threshold %s"%(greedy_threshold))
     possible_motifs = greedy_search(cats, greedy_threshold, args.num_seeds)
     logging.warning("%s possible motifs"%(len(possible_motifs)))
@@ -357,7 +357,7 @@ if __name__ == "__main__":
         all_seeds.append(this_entry)
         this_entry = {}
     logging.warning("Filtering seeds by Conditional MI")
-    good_seeds = filter_seeds(all_seeds, this_cats, args.mi_threshold)
+    good_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.warning("%s seeds survived"%(len(good_seeds)))
     for motif in good_seeds:
         logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
