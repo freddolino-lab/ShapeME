@@ -209,6 +209,7 @@ def mp_optimize_seeds(seeds, data, sample_perc, p=1):
     return final_seeds
 
 def filter_seeds(seeds, cats, mi_threshold):
+    mi_threshold = cats.shannon_entropy()*mi_threshold
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
     top_seeds = [these_seeds[0]]
     for cand_seed in these_seeds:
@@ -222,6 +223,52 @@ def filter_seeds(seeds, cats, mi_threshold):
             if this_mi < mi_threshold:
                 seed_pass = False
                 break
+        if seed_pass:
+            top_seeds.append(cand_seed)
+    return top_seeds
+
+def aic_seeds(seeds, cats):
+    delta_k = len(seeds[0]['seed'])
+    n = len(cats)
+    these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
+    if 2*delta_k - 2*n*these_seeds[0]['mi'] < 0:
+        top_seeds = [these_seeds[0]]
+    else:
+        return []
+        for cand_seed in these_seeds:
+            seed_pass = True
+            if 2*delta_k - 2*n*cand_seed['mi'] > 0:
+                continue
+            for good_seed in top_seeds:
+                this_mi = inout.conditional_mutual_information(cats.get_values(), 
+                                                 cand_seed['discrete'], 
+                                                 good_seed['discrete'])
+                if 2*delta_k- 2*n*cand_seed['mi'] > 0:
+                    seed_pass = False
+                    break
+        if seed_pass:
+            top_seeds.append(cand_seed)
+    return top_seeds
+
+def bic_seeds(seeds, cats):
+    delta_k = len(seeds[0]['seed'])
+    n = len(cats)
+    these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
+    if 2*delta_k*np.log2(n) - 2*n*these_seeds[0]['mi'] < 0:
+        top_seeds = [these_seeds[0]]
+    else:
+        return []
+        for cand_seed in these_seeds:
+            seed_pass = True
+            if 2*delta_k*np.log2(n) - 2*n*cand_seed['mi'] > 0:
+                continue
+            for good_seed in top_seeds:
+                this_mi = inout.conditional_mutual_information(cats.get_values(), 
+                                                 cand_seed['discrete'], 
+                                                 good_seed['discrete'])
+                if 2*delta_k*np.log2(n) - 2*n*cand_seed['mi'] > 0:
+                    seed_pass = False
+                    break
         if seed_pass:
             top_seeds.append(cand_seed)
     return top_seeds
@@ -247,7 +294,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed_perc', type=float, default=1)
     parser.add_argument('--continuous', type=int, default=None)
     parser.add_argument('--optimize', action="store_true")
-    parser.add_argument('--min_mi', type=float, default=0.05)
+    parser.add_argument('--mi_perc', type=float, default=0.01)
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
 
@@ -310,7 +357,7 @@ if __name__ == "__main__":
         all_seeds.append(this_entry)
         this_entry = {}
     logging.warning("Filtering seeds by Conditional MI")
-    good_seeds = filter_seeds(all_seeds, this_cats, args.min_mi)
+    good_seeds = filter_seeds(all_seeds, this_cats, args.mi_threshold)
     logging.warning("%s seeds survived"%(len(good_seeds)))
     for motif in good_seeds:
         logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
@@ -343,8 +390,10 @@ if __name__ == "__main__":
     if args.optimize:
         logging.warning("Optimizing seeds using %i processors"%(args.p))
         final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
-        logging.warning("Filtering seeds by Conditional MI")
-        final_good_seeds = filter_seeds(final_seeds, cats, args.min_mi)
+        logging.warning("Filtering final seeds by AIC")
+        final_good_seeds = aic_seeds(final_seeds, cats)
+        if len(final_good_seeds) < 1: 
+            logging.warning("No motifs found")
         logging.warning("%s seeds survived"%(len(final_good_seeds)))
         for motif in final_good_seeds:
             logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))

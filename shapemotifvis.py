@@ -32,7 +32,7 @@ class EnrichmentHeatmap(object):
         ax.set_yticklabels(ylabels)
         ax.set_xticks(np.arange(0, out_mat.shape[1]))
         ax.set_xticklabels(xlabels)
-
+        plt.tight_layout()
         plt.savefig(outfile)
 
     def display_motifs(self, outfile, *args):
@@ -50,6 +50,8 @@ class EnrichmentHeatmap(object):
                 axes[i].set_xticklabels(np.arange(0, this_matrix.shape[1]))
             else:
                 axes[i].set_xticks([])
+
+        plt.tight_layout()
         plt.savefig(outfile)
 
     def convert_to_enrichment_mat(self):
