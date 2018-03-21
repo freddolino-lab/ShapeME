@@ -598,6 +598,54 @@ class SeqDatabase(object):
     def shannon_entropy(self):
         return entropy(self.get_values())
 
+class ShapeMotifFile(object):
+    """ Class to store a dna shape motif file .dsm for writing and reading
+
+    """
+    def __init__(self):
+        self.motifs = []
+
+    def add_motifs(self, motifs):
+        self.motifs.extend(motifs)
+
+    def create_transform_line(self, motif, cats):
+        string = "Transform"
+        for name in motif['seed'].names:
+            string += "\t%s:(%f,%f)"%(name, cats.center_spread[name][0], cats.center_spread[name][1])
+        string +="\n"
+        return string
+
+    def create_motif_line(self,motif):
+        string = "Motif"
+        string += "\tname:%s"%(motif["name"])
+        string += "\tthreshold:%f"%(motif["threshold"])
+        string += "\tlength:%i"%(len(motif["seed"]))
+        if motif.has_key("mi"):
+            string +="\tmi:%f"%(motif['mi'])
+        if motif.has_key("motif_entropy"):
+            string +="\tmotif_entropy:%f"%(motif['motif_entropy'])
+        if motif.has_key("category_entropy"):
+            string +="\tcategory_entropy:%f"%(motif['category_entropy'])
+        string += "\n"
+        return string
+
+    def create_data_lines(self,motif):
+        string = ""
+        for col in motif['seed'].matrix().transpose():
+            string+= ",".join(["%f"%val for val in col])
+            string += "\n"
+        return string
+
+    def write_file(self, outfile, cats):
+        with open(outfile, mode="w") as f:
+            for i, motif in enumerate(self.motifs):
+                if not motif.has_key("name"):
+                    motif["name"] = "motif_%i"%(i)
+                f.write(self.create_transform_line(motif, cats))
+                f.write(self.create_motif_line(motif))
+                f.write(self.create_data_lines(motif))
+                f.write("")
+
 def entropy(array):
     """Method to calculate the entropy of any discrete numpy array
         

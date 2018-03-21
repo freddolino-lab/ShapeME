@@ -30,7 +30,8 @@ def optimize_mi(param_vec, data, sample_perc, info):
         as determined by 
     """
     threshold = param_vec[-1]
-    this_data = data.random_subset_by_class(sample_perc)
+    this_data = data
+    #this_data = data.random_subset_by_class(sample_perc)
     this_discrete = generate_peak_vector(this_data, param_vec[:-1], threshold)
     this_mi = this_data.mutual_information(this_discrete)
     if info["NFeval"]%10 == 0:
@@ -171,12 +172,13 @@ def greedy_search(cats, threshold = 10, number=1000):
 
 def mp_optimize_seeds_helper(args):
     seed, data, sample_perc = args
+    this_data = data.random_subset_by_class(sample_perc)
     final_seed_dict = {}
     func_info = {"NFeval":0, "eval":[], "value":[]}
     motif_to_optimize = list(seed['seed'].as_vector(cache=True))
     motif_to_optimize.append(seed['threshold'])
     final_opt = opt.minimize(optimize_mi,motif_to_optimize, 
-                             args=(data, sample_perc, func_info), 
+                             args=(this_data, sample_perc, func_info), 
                              method="nelder-mead")
     final = final_opt['x']
     threshold = final[-1]
@@ -227,7 +229,7 @@ def filter_seeds(seeds, cats, mi_threshold):
     return top_seeds
 
 def aic_seeds(seeds, cats):
-    delta_k = len(seeds[0]['seed'])
+    delta_k = len(seeds[0]['seed'].as_vector(cache=True))
     n = len(cats)
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
     if 2*delta_k - 2*n*these_seeds[0]['mi'] < 0:
@@ -250,7 +252,7 @@ def aic_seeds(seeds, cats):
     return top_seeds
 
 def bic_seeds(seeds, cats):
-    delta_k = len(seeds[0]['seed'])
+    delta_k = len(seeds[0]['seed'].as_vector(cache=True))
     n = len(cats)
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
     if 2*delta_k*np.log2(n) - 2*n*these_seeds[0]['mi'] < 0:
@@ -392,8 +394,7 @@ if __name__ == "__main__":
 #    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.warning("Optimizing seeds using %i processors"%(args.p))
-        this_cats = cats.random_subset_by_class(args.optimize_perc)
-        final_seeds = mp_optimize_seeds(good_seeds, this_cats, 1, p=args.p)
+        final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
         logging.warning("Filtering final seeds by AIC")
         final_good_seeds = aic_seeds(final_seeds, cats)
         if len(final_good_seeds) < 1: 
@@ -416,6 +417,15 @@ if __name__ == "__main__":
         enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
         logging.warning("Plotting optimization for final motifs")
         enrich_hm.plot_optimization(outpre+"optimization.pdf")
+        logging.warning("Writing final motifs")
+        outmotifs = inout.ShapeMotifFile()
+        outmotifs.add_motifs(final_good_seeds)
+        outmotifs.write_file(outpre+"called_motifs.dsp", cats)
+    else:
+        logging.warning("Writing final motifs")
+        outmotifs = inout.ShapeMotifFile()
+        outmotifs.add_motifs(good_seeds)
+        outmotifs.write_file(outpre+"called_motifs.dsm", cats)
 
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
