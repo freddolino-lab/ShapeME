@@ -7,7 +7,6 @@ import scipy.optimize as opt
 import shapemotifvis as smv
 import multiprocessing as mp
 import copy
-np.random.seed(1234)
 
 def make_initial_seeds(cats, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
@@ -31,7 +30,7 @@ def optimize_mi(param_vec, data, sample_perc, info):
         as determined by 
     """
     threshold = param_vec[-1]
-    this_data = data.random_subset(sample_perc)
+    this_data = data.random_subset_by_class(sample_perc)
     this_discrete = generate_peak_vector(this_data, param_vec[:-1], threshold)
     this_mi = this_data.mutual_information(this_discrete)
     if info["NFeval"]%10 == 0:
@@ -295,12 +294,14 @@ if __name__ == "__main__":
     parser.add_argument('--continuous', type=int, default=None)
     parser.add_argument('--optimize', action="store_true")
     parser.add_argument('--mi_perc', type=float, default=0.01)
+    parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
 
  
     args = parser.parse_args()
     outpre = args.o
+    np.random.seed(args.seed)
     
     logging.warning("Reading in files")
     all_params = [read_parameter_file(x) for x in args.params]
@@ -327,7 +328,7 @@ if __name__ == "__main__":
     cats.pre_compute_windows(args.kmer, wstart=args.ignorestart, wend=args.ignoreend)
 
     logging.warning("Determining inital threshold")
-    threshold = find_initial_threshold(cats.random_subset(args.threshold_perc))
+    threshold = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
     logging.warning("Using %f as an initial threshold"%(threshold))
 
     all_seeds = []
@@ -340,9 +341,11 @@ if __name__ == "__main__":
     this_entry = {}
 
     if args.seed_perc != 1:
-        this_cats = cats.random_subset(args.seed_perc)
+        this_cats = cats.random_subset_by_class(args.seed_perc)
     else:
         this_cats = cats
+    logging.warning("Distribution of sequences per class for seed screening")
+    logging.warning(seqs_per_bin(this_cats))
     for i,motif1 in enumerate(possible_motifs):
         if not (i % 10):
             logging.warning("Computing MI for motif %s"%i)
@@ -389,7 +392,8 @@ if __name__ == "__main__":
 #    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.warning("Optimizing seeds using %i processors"%(args.p))
-        final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
+        this_cats = cats.random_subset_by_class(args.optimize_perc)
+        final_seeds = mp_optimize_seeds(good_seeds, this_cats, 1, p=args.p)
         logging.warning("Filtering final seeds by AIC")
         final_good_seeds = aic_seeds(final_seeds, cats)
         if len(final_good_seeds) < 1: 

@@ -406,7 +406,6 @@ class SeqDatabase(object):
 
         Args:
             size (float): percentage of data to subset
-            prng (np.random.prng): a numpy random number generator
 
         Returns:
             new SeqDatabase object, all attributes are shared with original
@@ -420,6 +419,32 @@ class SeqDatabase(object):
         new_db.values = self.get_values()[subset]
         if self.vectors:
             new_db.vectors= [self.vectors[x] for x in subset]
+        return new_db
+
+    def random_subset_by_class(self, size):
+        """ Take a random subset with proportional class representation. 
+        NOT THREAD SAFE
+
+        Args:
+            size (float): percentage of data to subset
+
+        Returns:
+            new SeqDatabase object, all attributes are shared with original
+            object, so this acts more like a numpy view
+        """
+        vals = self.get_values()
+        indices = []
+        for val in np.unique(vals):
+            this_subset = np.where(vals == val)[0]
+            total_num = int(np.floor(len(this_subset)*size))
+            selection = np.random.permutation(len(this_subset))
+            for val in selection[0:total_num]:
+                indices.append(this_subset[val])
+        new_db = SeqDatabase(names=[self.names[x] for x in indices])
+        new_db.params = [self.params[x] for x in indices]
+        new_db.values = self.get_values()[indices]
+        if self.vectors:
+            new_db.vectors= [self.vectors[x] for x in indices]
         return new_db
 
 
