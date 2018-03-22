@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import find_motifs as fm
 import numpy as np
 
-
-
 class EnrichmentHeatmap(object):
 
     def __init__(self, motifs=None):
@@ -18,6 +16,7 @@ class EnrichmentHeatmap(object):
         for i, motif in enumerate(sorted(self.motifs, key = lambda x:x['mi'], reverse=True)):
             axes[i].scatter(motif['opt_info']['eval'], motif['opt_info']['value'])
             axes[i].set_title("Motif %i"%i)
+        plt.tight_layout()
         plt.savefig(outfile)
 
     def display_enrichment(self, outfile, *args):

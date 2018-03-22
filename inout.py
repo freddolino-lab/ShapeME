@@ -604,6 +604,7 @@ class ShapeMotifFile(object):
     """
     def __init__(self):
         self.motifs = []
+        self.cent_spreads = []
 
     def add_motifs(self, motifs):
         self.motifs.extend(motifs)
@@ -614,6 +615,63 @@ class ShapeMotifFile(object):
             string += "\t%s:(%f,%f)"%(name, cats.center_spread[name][0], cats.center_spread[name][1])
         string +="\n"
         return string
+
+    def read_transform_line(self,linearr):
+        cent_spread = {}
+        names = []
+        for val in linearr:
+            name, vals = val.split(":")
+            center,spread = vals.split(",")
+            center = float(center.replace("(", ""))
+            spread = float(spread.replace(")", ""))
+            cent_spread[name] = (center, spread)
+            names.append(name)
+        return cent_spread, names
+
+    def read_motif_line(self,linearr):
+        motif_dict = {}
+        for val in linearr:
+            key, value = val.split(":")
+            motif_dict[key] = value
+        return motif_dict
+
+    def read_data_lines(self,lines, names):
+        data_dict = {}
+        for name in names:
+            data_dict[name] = []
+        for line in lines:
+            linearr = line.split("\t")
+            for val in linearr:
+                data_dict[name].append(val)
+        motif = dsp.ShapeParams()
+        for name in names:
+            motif.add_shape_param(dsp.ShapeParamSeq(name=name, 
+                                  params=data_dict[name]))
+        return motif
+
+    def read_file(self, infile):
+        in_motif=False
+        cent_spreads = []
+        with open(infile) as f:
+            for line in f:
+                if not in_motif:
+                    while line.rstrip() == "":
+                        continue
+                    if line.rstrip().startswith("Transform"):
+                        in_motif = True
+                        lines = []
+                        cent_spread, names = self.read_transform_line(line.rstrip().split("\t")[1:])
+                        continue
+                else:
+                    if line.startswith("Motif"):
+                        this_motif = self.read_motif_line(line.rstrip().split("\t")[1:])
+                    elif line.rstrip() == "":
+                        this_motif["seed"] = self.read_data_lines(lines, names)
+                        self.motifs.append(this_motif)
+                        self.cent_spreads.append(cent_spread)
+                        in_motif = False
+                    else:
+                        lines.append(line)
 
     def create_motif_line(self,motif):
         string = "Motif"
@@ -644,7 +702,7 @@ class ShapeMotifFile(object):
                 f.write(self.create_transform_line(motif, cats))
                 f.write(self.create_motif_line(motif))
                 f.write(self.create_data_lines(motif))
-                f.write("")
+                f.write("\n")
 
 def entropy(array):
     """Method to calculate the entropy of any discrete numpy array
