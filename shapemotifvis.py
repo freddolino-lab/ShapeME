@@ -15,8 +15,7 @@ class EnrichmentHeatmap(object):
             axes = [axes]
         for i, motif in enumerate(sorted(self.motifs, key = lambda x:x['mi'], reverse=True)):
             axes[i].scatter(motif['opt_info']['eval'], motif['opt_info']['value'])
-            axes[i].set_title("Motif %i"%i)
-        plt.tight_layout()
+            #axes[i].set_title("Motif %i"%i)
         plt.savefig(outfile)
 
     def display_enrichment(self, outfile, *args):

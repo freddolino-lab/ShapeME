@@ -6,7 +6,6 @@ import numpy as np
 import scipy.optimize as opt
 import shapemotifvis as smv
 import multiprocessing as mp
-import copy
 
 def make_initial_seeds(cats, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
@@ -25,6 +24,8 @@ def optimize_mi(param_vec, data, sample_perc, info):
         param_vec (list) - values to optimize. Last value is threshold
         data (SeqDatabase) - full seq database
         sample_perc(float) - percentage of database to calculate MI over
+        info (dict) - store number of function evals and value associated with it
+                      keys must include NFeval: int, value: list, eval: list
     Returns:
         MI for the parameters over a random sample of the seq database
         as determined by 
@@ -171,14 +172,24 @@ def greedy_search(cats, threshold = 10, number=1000):
     return seeds
 
 def mp_optimize_seeds_helper(args):
+    """ Helper function to allow seed optimization to be multiprocessed
+    
+    Args:
+        args (list) - list containing starting seed dict, category, and sample
+                      percentage
+    
+    Returns:
+        final_seed_dict (dict) - A dictionary containing final motif and
+                                 additional values that go with it
+    """
     seed, data, sample_perc = args
-    this_data = data.random_subset_by_class(sample_perc)
+    #this_data = data.random_subset_by_class(sample_perc)
     final_seed_dict = {}
     func_info = {"NFeval":0, "eval":[], "value":[]}
     motif_to_optimize = list(seed['seed'].as_vector(cache=True))
     motif_to_optimize.append(seed['threshold'])
     final_opt = opt.minimize(optimize_mi,motif_to_optimize, 
-                             args=(this_data, sample_perc, func_info), 
+                             args=(data, sample_perc, func_info), 
                              method="nelder-mead")
     final = final_opt['x']
     threshold = final[-1]
@@ -202,9 +213,21 @@ def mp_optimize_seeds_helper(args):
     return final_seed_dict
         
 def mp_optimize_seeds(seeds, data, sample_perc, p=1):
+    """Perform seed optimization in a multiprocessed manner
+    
+    Args:
+        seeds (list) - List containing seed dictionaries
+        data (SeqDatabase) - Full dataset to train on
+        sample_perc (float) - percentage of data to sample for optimization
+    
+    Returns:
+        final_seed_dict (dict) - A dictionary containing final motif and
+                                 additional values that go with it
+    """
     pool = mp.Pool(processes=p)
+    this_data = data.random_subset_by_class(sample_perc)
     final_seeds = pool.map(mp_optimize_seeds_helper, 
-                           ((seed, data, sample_perc) for seed in seeds))
+                           ((seed, this_data, sample_perc) for seed in seeds))
     pool.close()
     pool.join()
     return final_seeds
@@ -374,7 +397,8 @@ if __name__ == "__main__":
 
     all_seeds = []
     
-    greedy_threshold = threshold + 1/np.sqrt(args.kmer*len(args.params))*threshold
+    #greedy_threshold = threshold + 1/np.sqrt(args.kmer*len(args.params))*threshold
+    greedy_threshold = threshold
     logging.warning("Greedy search for possible motifs with threshold %s"%(greedy_threshold))
     possible_motifs = greedy_search(cats, greedy_threshold, args.num_seeds)
     logging.warning("%s possible motifs"%(len(possible_motifs)))
@@ -415,25 +439,19 @@ if __name__ == "__main__":
     enrich_hm = smv.EnrichmentHeatmap(good_seeds)
     enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
     enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
-#   logging.warning("Sorting seeds")
-#    all_seeds = sorted(all_seeds, key=lambda x: x['mi'])
-#    motif_to_optimize = list(all_seeds[-1]['seed'].as_vector(cache=True))
-#    logging.warning("Calculating Enrichment for top 10 seeds")
-#    for motif in all_seeds[-10:]:
-#        logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
-#        logging.warning("MI: %f"%(motif['mi']))
-#        logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
-#        logging.warning("Category Entropy: %f"%(motif['category_entropy']))
-#        for key in sorted(motif['enrichment'].keys()):
-#            logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
-#            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
-#    logging.warning("Generating initial heatmap for top 10 seeds")
-#    enrich_hm = smv.EnrichmentHeatmap(all_seeds[-10:])
-#    enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
-#    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.warning("Optimizing seeds using %i processors"%(args.p))
         final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
+        if args.optimize_perc != 1:
+            logging.warning("Testing final optimized seeds on full database")
+            for i,this_entry in enumerate(final_seeds):
+                logging.warning("Computing MI for motif %s"%i)
+                this_discrete = generate_peak_vector(cats, this_entry['seed'].as_vector(cache=True), this_entry['threshold'])
+                this_entry['mi'] = cats.mutual_information(this_discrete)
+                this_entry['motif_entropy'] = inout.entropy(this_discrete)
+                this_entry['category_entropy'] = cats.shannon_entropy()
+                this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
+                this_entry['discrete'] = this_discrete
         logging.warning("Filtering final seeds by AIC")
         final_good_seeds = aic_seeds(final_seeds, cats)
         if len(final_good_seeds) < 1: 
