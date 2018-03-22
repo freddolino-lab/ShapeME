@@ -210,10 +210,20 @@ def mp_optimize_seeds(seeds, data, sample_perc, p=1):
     return final_seeds
 
 def filter_seeds(seeds, cats, mi_threshold):
+    """ Select initial seeds through conditional mutual information
+
+    Args:
+        seeds (list of dicts) - list of motif dictionaries
+        cats (SeqDatabase Class) - sequences motifs are compared against
+        mi_threshold (float) - percentage of total entropy CMI must be >
+    
+    Returns:
+        final_seeds (list of dicts) - list of passing motif dictionaries
+    """
     mi_threshold = cats.shannon_entropy()*mi_threshold
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
     top_seeds = [these_seeds[0]]
-    for cand_seed in these_seeds:
+    for cand_seed in these_seeds[1:]:
         seed_pass = True
         if cand_seed['mi'] < mi_threshold:
             continue
@@ -229,29 +239,58 @@ def filter_seeds(seeds, cats, mi_threshold):
     return top_seeds
 
 def aic_seeds(seeds, cats):
+    """ Select final seeds through AIC
+
+    Args:
+        seeds (list of dicts) - list of final motif dictionaries
+        cats (SeqDatabase Class) - sequences motifs are compared against
+    
+    Returns:
+        final_seeds (list of dicts) - list of passing motif dictionaries
+    """
+
+    # get number of parameters based on length of motif vector
     delta_k = len(seeds[0]['seed'].as_vector(cache=True))
+    # get number of sequences
     n = len(cats)
+    # sort seeds by mutual information
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
+    # Make sure first seed passes AIC
     if 2*delta_k - 2*n*these_seeds[0]['mi'] < 0:
         top_seeds = [these_seeds[0]]
     else:
         return []
-        for cand_seed in these_seeds:
-            seed_pass = True
-            if 2*delta_k - 2*n*cand_seed['mi'] > 0:
-                continue
-            for good_seed in top_seeds:
-                this_mi = inout.conditional_mutual_information(cats.get_values(), 
-                                                 cand_seed['discrete'], 
-                                                 good_seed['discrete'])
-                if 2*delta_k- 2*n*cand_seed['mi'] > 0:
-                    seed_pass = False
-                    break
+    # loop through candidate seeds
+    for cand_seed in these_seeds[1:]:
+        seed_pass = True
+        # if the total MI for this seed doesn't pass AIC skip it
+        if 2*delta_k - 2*n*cand_seed['mi'] > 0:
+            continue
+        for good_seed in top_seeds:
+            # check the conditional mutual information for this seed with
+            # each of the chosen seeds
+            this_mi = inout.conditional_mutual_information(cats.get_values(), 
+                                             cand_seed['discrete'], 
+                                             good_seed['discrete'])
+            # if candidate seed doesn't improve model as added to each of the 
+            # chosen seeds, skip it
+            if 2*delta_k- 2*n*this_mi > 0:
+                seed_pass = False
+                break
         if seed_pass:
             top_seeds.append(cand_seed)
     return top_seeds
 
 def bic_seeds(seeds, cats):
+    """ Select final seeds through BIC
+
+    Args:
+        seeds (list of dicts) - list of final motif dictionaries
+        cats (SeqDatabase Class) - sequences motifs are compared against
+    
+    Returns:
+        final_seeds (list of dicts) - list of passing motif dictionaries
+    """
     delta_k = len(seeds[0]['seed'].as_vector(cache=True))
     n = len(cats)
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
@@ -259,17 +298,17 @@ def bic_seeds(seeds, cats):
         top_seeds = [these_seeds[0]]
     else:
         return []
-        for cand_seed in these_seeds:
-            seed_pass = True
-            if 2*delta_k*np.log2(n) - 2*n*cand_seed['mi'] > 0:
-                continue
-            for good_seed in top_seeds:
-                this_mi = inout.conditional_mutual_information(cats.get_values(), 
-                                                 cand_seed['discrete'], 
-                                                 good_seed['discrete'])
-                if 2*delta_k*np.log2(n) - 2*n*cand_seed['mi'] > 0:
-                    seed_pass = False
-                    break
+    for cand_seed in these_seeds[1:]:
+        seed_pass = True
+        if 2*delta_k*np.log2(n) - 2*n*cand_seed['mi'] > 0:
+            continue
+        for good_seed in top_seeds:
+            this_mi = inout.conditional_mutual_information(cats.get_values(), 
+                                             cand_seed['discrete'], 
+                                             good_seed['discrete'])
+            if 2*delta_k*np.log2(n) - 2*n*this_mi > 0:
+                seed_pass = False
+                break
         if seed_pass:
             top_seeds.append(cand_seed)
     return top_seeds
