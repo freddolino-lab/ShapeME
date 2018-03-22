@@ -600,16 +600,32 @@ class SeqDatabase(object):
 
 class ShapeMotifFile(object):
     """ Class to store a dna shape motif file .dsm for writing and reading
+        Currently no error checking on input file format
 
+        Attributes:
+            motifs (list) - list of motif dicts
+            cent_spreads(list) - list of center spread dict for each motif
     """
     def __init__(self):
         self.motifs = []
         self.cent_spreads = []
 
     def add_motifs(self, motifs):
+        """ Method to add additional motifs
+
+        Currently extends to current list
+        """
         self.motifs.extend(motifs)
 
     def create_transform_line(self, motif, cats):
+        """ Method to create a transform line from a motif and category
+
+        Args
+            motif(dict) - motif dict
+            cats(SeqDatabase) - final sequence database
+        Returns
+            string of line to be written
+        """
         string = "Transform"
         for name in motif['seed'].names:
             string += "\t%s:(%f,%f)"%(name, cats.center_spread[name][0], cats.center_spread[name][1])
@@ -617,6 +633,14 @@ class ShapeMotifFile(object):
         return string
 
     def read_transform_line(self,linearr):
+        """ Method to read a transform line from an input file
+
+        Args
+            linearr(list) - line split by tabs without Transform in the beg
+        Returns
+            cent_spread (dict) - parsed from line with names as keys
+            names (list) - list of names in file order
+        """
         cent_spread = {}
         names = []
         for val in linearr:
@@ -629,6 +653,13 @@ class ShapeMotifFile(object):
         return cent_spread, names
 
     def read_motif_line(self,linearr):
+        """ Method to read a motif line from an input file
+
+        Args
+            linearr(list) - line split by tabs without Motif in the beg
+        Returns
+            motif_dict (dict) - dictionary holding all the motif fields
+        """
         motif_dict = {}
         for val in linearr:
             key, value = val.split(":")
@@ -636,6 +667,14 @@ class ShapeMotifFile(object):
         return motif_dict
 
     def read_data_lines(self,lines, names):
+        """ Method to read a set of data lines from an input file
+
+        Args
+            lines(list) - list of unsplit lines
+            names(list) - list of names in proper order as data
+        Returns
+            motif (dsp.ShapeParams) - holds the particular motif
+        """
         data_dict = {}
         for name in names:
             data_dict[name] = []
@@ -650,6 +689,15 @@ class ShapeMotifFile(object):
         return motif
 
     def read_file(self, infile):
+        """ Method to read the full file
+
+        Args
+            infile (str) - name of input file
+            names(list) - list of names in proper order as data
+        Modifies
+            self.motifs adds a motif per motif in file
+            self.center_spread adds center and spread per motif in file
+        """
         in_motif=False
         cent_spreads = []
         with open(infile) as f:
@@ -674,6 +722,13 @@ class ShapeMotifFile(object):
                         lines.append(line)
 
     def create_motif_line(self,motif):
+        """ Method to create a motif line from a motif dict
+
+        Args
+            motif(dict) - motif dict
+        Returns
+            string of line to be written
+        """
         string = "Motif"
         string += "\tname:%s"%(motif["name"])
         string += "\tthreshold:%f"%(motif["threshold"])
@@ -688,6 +743,13 @@ class ShapeMotifFile(object):
         return string
 
     def create_data_lines(self,motif):
+        """ Method to create data lines from a motif 
+
+        Args
+            motif(dict) - motif dict
+        Returns
+            string of lines to be written
+        """
         string = ""
         for col in motif['seed'].matrix().transpose():
             string+= ",".join(["%f"%val for val in col])
@@ -695,6 +757,12 @@ class ShapeMotifFile(object):
         return string
 
     def write_file(self, outfile, cats):
+        """ Method to write a file form object
+
+        Args
+            outfile(str) - name of outputfile
+            cats (SeqDatabase) - whole database used
+        """
         with open(outfile, mode="w") as f:
             for i, motif in enumerate(self.motifs):
                 if not motif.has_key("name"):
