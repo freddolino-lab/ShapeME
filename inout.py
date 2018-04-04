@@ -2,6 +2,35 @@ import numpy as np
 import dnashapeparams as dsp
 import logging
 
+def robust_z_csp(array):
+    """Method to get the center and spread of an array based on the robustZ
+
+    This will ignore any Nans or infinites in the array.
+
+    Args:
+        array (np.array)- 1 dimensional numpy array
+    Returns:
+        tuple - center (median) spread (MAD)
+
+    """
+    these_vals = array[np.isfinite(array)]
+    center = np.median(these_vals)
+    spread = np.median(np.abs(these_vals - center))*1.4826
+    return (center, spread)
+
+def identity_csp(array):
+    """Method to get the center and spread of an array that keeps the array
+    the same when used to normalize
+
+    Args:
+        array (np.array)- 1 dimensional numpy array
+    Returns:
+        tuple - center (0) spread (1)
+
+    """
+    return (0, 1)
+
+
 def complement(sequence):
     """Complement a nucleotide sequence
     >>> complement("AGTC")
@@ -470,7 +499,7 @@ class SeqDatabase(object):
             self.values = np.array(self.values)
 
 
-    def normalize_params(self):
+    def normalize_params(self, method=robust_z_csp):
         """Method to normalize each parameter to a robustZ score based on
         all parameters in the database.
 
@@ -492,11 +521,8 @@ class SeqDatabase(object):
         cent_spread = {}
         for name in all_this_param.keys():
             these_vals = all_this_param[name]
-            these_vals = np.array(these_vals)
-            these_vals = these_vals[np.isfinite(these_vals)]
-            center = np.median(these_vals)
-            spread = np.median(np.abs(these_vals - center))*1.4826
-            cent_spread[name] = (center, spread)
+            these_vals = np.array(these_vals) 
+            cent_spread[name] = method(these_vals)
 
         # normalize params
         for seqparam in self:
@@ -519,7 +545,7 @@ class SeqDatabase(object):
                 param.unnormalize_values(center, spread)
 
     def pre_compute_windows(self, wsize, slide_by = 1, wstart=0, wend= None):
-        """Method to precompute all nmers. Uses them same syntax as 
+        """Method to precompute all nmers. Uses the same syntax as 
         the sliding windows method.
 
 
@@ -855,7 +881,7 @@ def conditional_entropy(arrayx, arrayy):
 
 def mutual_information(arrayx, arrayy):
     """Method to calculate the mutual information between two discrete
-    numpy arrays
+    numpy arrays I(X;Y)
         
     Uses log2 so mutual information is in bits
 
@@ -886,7 +912,7 @@ def mutual_information(arrayx, arrayy):
 
 
 def conditional_mutual_information(arrayx, arrayy, arrayz):
-    """Method to calculate the conditional mutual information I(X,Y|Z)
+    """Method to calculate the conditional mutual information I(X;Y|Z)
         
     Uses log2 so mutual information is in bits. This is O(X*Y*Z) where
     X Y and Z are the number of unique categories in each array
@@ -923,3 +949,4 @@ def conditional_mutual_information(arrayx, arrayy, arrayz):
                     this_MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
         CMI += p_z*this_MI
     return CMI
+

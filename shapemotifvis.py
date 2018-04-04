@@ -40,7 +40,9 @@ class EnrichmentHeatmap(object):
         for i, motif in enumerate(sorted(self.motifs, key=lambda x: x['mi'], reverse=True)):
             this_seed = motif['seed']
             this_matrix = this_seed.matrix()
-            axes[i].imshow(this_matrix, interpolation='nearest', cmap='PRGn', vmin=-4, vmax=4, *args)
+            #axes[i].imshow(this_matrix, interpolation='nearest', cmap='PRGn', vmin=-4, vmax=4, *args)
+
+            axes[i].imshow(this_matrix, interpolation='nearest', cmap='PRGn', *args)
             axes[i].set_yticks(np.arange(0,this_matrix.shape[0]))
             axes[i].set_yticklabels(this_seed.names)
             if i == len(self.motifs):

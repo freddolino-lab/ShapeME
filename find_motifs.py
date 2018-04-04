@@ -352,6 +352,8 @@ if __name__ == "__main__":
                          help='# bp to ignore at end of each sequence', default=2)
     parser.add_argument('--num_seeds', type=int,
                          help='number of seeds to start', default=100)
+    parser.add_argument('--nonormalize', action="store_true",
+                         help='don\'t normalize the input data by robustZ')
     parser.add_argument('--threshold_perc', type=float, default=0.05)
     parser.add_argument('--optimize_perc', type=float, default=0.1)
     parser.add_argument('--seed_perc', type=float, default=1)
@@ -384,7 +386,10 @@ if __name__ == "__main__":
             param.add_shape_param(dsp.ShapeParamSeq(this_param_name, this_param.pull_entry(name).seq))
 
     logging.warning("Normalizing parameters")
-    cats.normalize_params()
+    if args.nonormalize:
+        cats.normalize_params(inout.identity_csp)
+    else:
+        cats.normalize_params()
     for name in cats.center_spread.keys():
         logging.warning("%s: %s"%(name, cats.center_spread[name]))
 
