@@ -1,6 +1,7 @@
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib import gridspec as gs
 import find_motifs as fm
 import numpy as np
 
@@ -17,6 +18,15 @@ class EnrichmentHeatmap(object):
             axes[i].scatter(motif['opt_info']['eval'], motif['opt_info']['value'])
             #axes[i].set_title("Motif %i"%i)
         plt.savefig(outfile)
+
+    def find_max_min(self):
+        maxs = []
+        mins = []
+        for motif in self.motifs:
+            maxs.append(np.amax(motif['seed'].matrix()))
+            mins.append(np.amin(motif['seed'].matrix()))
+
+        return (np.min(mins), np.max(maxs))
 
     def display_enrichment(self, outfile, *args):
         out_mat = self.convert_to_enrichment_mat()
@@ -35,21 +45,25 @@ class EnrichmentHeatmap(object):
 
     def display_motifs(self, outfile, *args):
         f, axes = plt.subplots(len(self.motifs),1)
+        g = gs.GridSpec(len(self.motifs), 2, width_ratios=(20,1))
+
+        this_min, this_max = self.find_max_min()
         if len(self.motifs) < 2:
             axes = [axes]
         for i, motif in enumerate(sorted(self.motifs, key=lambda x: x['mi'], reverse=True)):
             this_seed = motif['seed']
             this_matrix = this_seed.matrix()
-            #axes[i].imshow(this_matrix, interpolation='nearest', cmap='PRGn', vmin=-4, vmax=4, *args)
-
-            axes[i].imshow(this_matrix, interpolation='nearest', cmap='PRGn', *args)
-            axes[i].set_yticks(np.arange(0,this_matrix.shape[0]))
-            axes[i].set_yticklabels(this_seed.names)
-            if i == len(self.motifs):
-                axes[i].set_xticks(np.arange(0,this_matrix.shape[1]))
-                axes[i].set_xticklabels(np.arange(0, this_matrix.shape[1]))
+            axes = plt.subplot(g[i,0])
+            this_fig = plt.imshow(this_matrix, interpolation='nearest', cmap='PRGn', vmin=this_min, vmax=this_max, *args)
+            axes.set_yticks(np.arange(0,this_matrix.shape[0]))
+            axes.set_yticklabels(this_seed.names)
+            if i == len(self.motifs)-1:
+                axes.set_xticks(np.arange(0,this_matrix.shape[1]))
+                axes.set_xticklabels(np.arange(0, this_matrix.shape[1]))
             else:
-                axes[i].set_xticks([])
+                axes.set_xticks([])
+        axes = plt.subplot(g[:,1])
+        plt.colorbar(this_fig, cax=axes)
 
         plt.tight_layout()
         plt.savefig(outfile)
