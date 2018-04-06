@@ -275,6 +275,36 @@ class ShapeParams(object):
         else:
             return np.sum(np.abs(self.as_vector(cache=cache) - other.as_vector()))
 
+    def normalize_values(self, center_spread_dict):
+        """ Method to revert the entire motif back to normalized values
+
+        Args:
+            center_spread_dict (dict) - center spread dict having keys for
+                                        each parameter
+
+        Converts values to (values-center)/spread
+        """
+        if center_spread_dict.keys() != self.data.keys():
+            raise ValueError("Parameter names don't match %s %s")%(center_spread_dict.keys(), self.data.keys())
+        for name in center_spread_dict.keys():
+            center, spread = center_spread_dict[name]
+            self.data[name].normalize_values(center, spread)
+
+    def unnormalize_values(self, center_spread_dict):
+        """ Method to revert the entire motif back to unnormalized values
+
+        Args:
+            center_spread_dict (dict) - center spread dict having keys for
+                                        each parameter
+
+        Converts values to (values*spread)+center
+        """
+        if center_spread_dict.keys() != self.data.keys():
+            raise ValueError("Parameter names don't match %s %s")%(center_spread_dict.keys(), self.data.keys())
+        for name in center_spread_dict.keys():
+            center, spread = center_spread_dict[name]
+            self.data[name].unnormalize_values(center, spread)
+
 if __name__ == "__main__":
 
     MGW = ShapeParamSeq(name="MGW", params= [4,3,2,1,0,1,2,3,4,5,6,7])

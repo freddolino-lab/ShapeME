@@ -279,7 +279,7 @@ def aic_seeds(seeds, cats):
     # sort seeds by mutual information
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
     # Make sure first seed passes AIC
-    if 2*delta_k - 2*n*these_seeds[0]['mi'] < 0:
+    if (2*delta_k - 2*n*these_seeds[0]['mi']) < 0:
         top_seeds = [these_seeds[0]]
     else:
         return []
@@ -287,7 +287,7 @@ def aic_seeds(seeds, cats):
     for cand_seed in these_seeds[1:]:
         seed_pass = True
         # if the total MI for this seed doesn't pass AIC skip it
-        if 2*delta_k - 2*n*cand_seed['mi'] > 0:
+        if (2*delta_k - 2*n*cand_seed['mi']) > 0:
             continue
         for good_seed in top_seeds:
             # check the conditional mutual information for this seed with
@@ -297,7 +297,7 @@ def aic_seeds(seeds, cats):
                                              good_seed['discrete'])
             # if candidate seed doesn't improve model as added to each of the 
             # chosen seeds, skip it
-            if 2*delta_k- 2*n*this_mi > 0:
+            if (2*delta_k- 2*n*this_mi) > 0:
                 seed_pass = False
                 break
         if seed_pass:
@@ -396,7 +396,7 @@ if __name__ == "__main__":
     logging.warning("Precomputing all windows")
     cats.pre_compute_windows(args.kmer, wstart=args.ignorestart, wend=args.ignoreend)
 
-    logging.warning("Determining inital threshold")
+    logging.warning("Determining initial threshold")
     threshold = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
     logging.warning("Using %f as an initial threshold"%(threshold))
 
@@ -457,8 +457,8 @@ if __name__ == "__main__":
                 this_entry['category_entropy'] = cats.shannon_entropy()
                 this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
-        logging.warning("Filtering final seeds by AIC")
-        final_good_seeds = aic_seeds(final_seeds, cats)
+        logging.warning("Filtering final seeds by BIC")
+        final_good_seeds = bic_seeds(final_seeds, cats)
         if len(final_good_seeds) < 1: 
             logging.warning("No motifs found")
         logging.warning("%s seeds survived"%(len(final_good_seeds)))

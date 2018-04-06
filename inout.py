@@ -636,6 +636,22 @@ class ShapeMotifFile(object):
         self.motifs = []
         self.cent_spreads = []
 
+    def __iter__(self):
+        for motif in self.motifs:
+            yield motif
+
+    def __len__(self):
+        return len(self.motifs)
+
+    def unnormalize(self):
+        for i, motif in enumerate(self):
+            motif['seed'].unnormalize_values(self.cent_spreads[i])
+
+    def normalize(self):
+        for i, motif in enumerate(self):
+            motif['seed'].normalize_values(self.cent_spreads[i])
+
+
     def add_motifs(self, motifs):
         """ Method to add additional motifs
 
@@ -689,7 +705,10 @@ class ShapeMotifFile(object):
         motif_dict = {}
         for val in linearr:
             key, value = val.split(":")
-            motif_dict[key] = value
+            try:
+                motif_dict[key] = float(value)
+            except ValueError:
+                motif_dict[key] = value
         return motif_dict
 
     def read_data_lines(self,lines, names):
@@ -705,9 +724,9 @@ class ShapeMotifFile(object):
         for name in names:
             data_dict[name] = []
         for line in lines:
-            linearr = line.split("\t")
-            for val in linearr:
-                data_dict[name].append(val)
+            linearr = line.split(",")
+            for i,val in enumerate(linearr):
+                data_dict[names[i]].append(float(val))
         motif = dsp.ShapeParams()
         for name in names:
             motif.add_shape_param(dsp.ShapeParamSeq(name=name, 
