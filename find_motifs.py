@@ -429,7 +429,7 @@ if __name__ == "__main__":
         this_entry['discrete'] = this_discrete
         all_seeds.append(this_entry)
         this_entry = {}
-    logging.warning("Filtering seeds by Conditional MI")
+    logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc*this_cats.shannon_entropy()))
     good_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.warning("%s seeds survived"%(len(good_seeds)))
     for motif in good_seeds:
@@ -441,7 +441,11 @@ if __name__ == "__main__":
             logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
             logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
     logging.warning("Generating initial heatmap for passing seeds")
-    enrich_hm = smv.EnrichmentHeatmap(good_seeds)
+    if len(good_seeds) > 25:
+        logging.warning("Only plotting first 25 seeds")
+        enrich_hm = smv.EnrichmentHeatmap(good_seeds[:35])
+    else:
+        enrich_hm = smv.EnrichmentHeatmap(good_seeds)
     enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
     enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
@@ -487,7 +491,7 @@ if __name__ == "__main__":
         logging.warning("Writing final motifs")
         outmotifs = inout.ShapeMotifFile()
         outmotifs.add_motifs(good_seeds)
-        outmotifs.write_file(outpre+"called_motifs.dsm", cats)
+        outmotifs.write_file(outpre+"called_motifs.dsp", cats)
 
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
