@@ -66,7 +66,7 @@ class EnrichmentHeatmap(object):
         aspect_ratio = float(width)/float(height)
         fig = plt.figure(figsize=(fig_height * aspect_ratio, fig_height))
         g = gs.GridSpec(len(self.motifs)+1, 1, width_ratios=[1],
-                        height_ratios=[3]*len(self.motifs)+[1])
+                        height_ratios=[3]*len(self.motifs)+[1], hspace=0.01, wspace=0.0)
 
         this_min, this_max = self.find_max_min()
         
