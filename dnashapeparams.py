@@ -1,5 +1,15 @@
 import numpy as np
 
+
+def euclidean_distance(vec1, vec2):
+    return np.sqrt(np.sum((vec1 - vec2)**2))
+
+def manhattan_distance(vec1, vec2):
+    return np.sum(np.abs(vec1 - vec2))
+
+def hamming_distance(vec1, vec2):
+    return np.sum(vec1 != vec2)
+
 class ShapeParamSeq(object):
     """ Class to hold a sequence of parameters for a single DNA shape parameter
 
@@ -110,6 +120,7 @@ class ShapeParams(object):
             self.names = []
 
         self.vector= None
+        self.metric = manhattan_distance
 
     def __len__(self):
         """ Get the length of the object
@@ -255,7 +266,7 @@ class ShapeParams(object):
         end = len(self)-end
         start_i = start
         end_i = start+size
-        while end_i < (end - slide_by):
+        while end_i <= end:
             yield self[start_i:end_i]
             start_i = start_i + slide_by
             end_i = start_i + size
@@ -271,9 +282,9 @@ class ShapeParams(object):
             distance (float): manhattan distance
         """
         if vec:
-            return np.sum(np.abs(self.as_vector(cache=cache) - other))
+            return self.metric(self.as_vector(cache=cache), other)
         else:
-            return np.sum(np.abs(self.as_vector(cache=cache) - other.as_vector()))
+            return self.metric(self.as_vector(cache=cache),other.as_vector())
 
     def normalize_values(self, center_spread_dict):
         """ Method to revert the entire motif back to normalized values
@@ -304,6 +315,8 @@ class ShapeParams(object):
         for name in center_spread_dict.keys():
             center, spread = center_spread_dict[name]
             self.data[name].unnormalize_values(center, spread)
+
+
 
 if __name__ == "__main__":
 

@@ -360,6 +360,7 @@ if __name__ == "__main__":
     parser.add_argument('--continuous', type=int, default=None)
     parser.add_argument('--optimize', action="store_true")
     parser.add_argument('--mi_perc', type=float, default=0.01)
+    parser.add_argument('--distance_metric', type=str, default="manhattan")
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
@@ -371,6 +372,10 @@ if __name__ == "__main__":
     
     logging.warning("Reading in files")
     all_params = [read_parameter_file(x) for x in args.params]
+    dist_met = {"manhattan": dsp.manhattan_distance, 
+                "hamming": dsp.hamming_distance,
+                "euclidean": dsp.euclidean_distance}
+    this_dist = dist_met[args.distance_metric]
     cats = inout.SeqDatabase(names=[])
     if args.continuous is not None:
         cats.read(args.infile, float)
@@ -384,6 +389,7 @@ if __name__ == "__main__":
     for name, param in zip(cats.names, cats):
         for this_param, this_param_name in zip(all_params, args.param_names):
             param.add_shape_param(dsp.ShapeParamSeq(this_param_name, this_param.pull_entry(name).seq))
+            param.metric = this_dist
 
     logging.warning("Normalizing parameters")
     if args.nonormalize:
@@ -397,8 +403,12 @@ if __name__ == "__main__":
     cats.pre_compute_windows(args.kmer, wstart=args.ignorestart, wend=args.ignoreend)
 
     logging.warning("Determining initial threshold")
-    threshold = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
-    logging.warning("Using %f as an initial threshold"%(threshold))
+    if args.distance_metric == "hamming":
+        threshold = 4
+        logging.warning("Using %f as an initial threshold"%(threshold))
+    else:
+        threshold = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
+        logging.warning("Using %f as an initial threshold"%(threshold))
 
     all_seeds = []
     
@@ -488,9 +498,28 @@ if __name__ == "__main__":
         outmotifs.add_motifs(final_good_seeds)
         outmotifs.write_file(outpre+"called_motifs.dsp", cats)
     else:
+        if args.optimize_perc != 1:
+            logging.warning("Testing final optimized seeds on full database")
+            for i,this_entry in enumerate(good_seeds):
+                logging.warning("Computing MI for motif %s"%i)
+                this_discrete = generate_peak_vector(cats, this_entry['seed'].as_vector(cache=True), this_entry['threshold'])
+                this_entry['mi'] = cats.mutual_information(this_discrete)
+                this_entry['motif_entropy'] = inout.entropy(this_discrete)
+                this_entry['category_entropy'] = cats.shannon_entropy()
+                this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
+                this_entry['discrete'] = this_discrete
+        logging.warning("Filtering final seeds by BIC")
+        final_good_seeds = bic_seeds(good_seeds, cats)
+        if len(final_good_seeds) < 1: 
+            logging.warning("No motifs found")
+        logging.warning("%s seeds survived"%(len(final_good_seeds)))
+        logging.warning("%s seeds survived"%(len(final_good_seeds)))
         logging.warning("Writing final motifs")
+        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
+        enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
+        enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
         outmotifs = inout.ShapeMotifFile()
-        outmotifs.add_motifs(good_seeds)
+        outmotifs.add_motifs(final_good_seeds)
         outmotifs.write_file(outpre+"called_motifs.dsp", cats)
 
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
