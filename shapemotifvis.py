@@ -109,3 +109,19 @@ class EnrichmentHeatmap(object):
 
     def get_title(self):
         return "$H(C)$: %.3f"%(self.motifs[0]['category_entropy'])
+
+    def enrichment_heatmap_txt(self, outfile):
+        all_lines=[]
+        for i, motif in enumerate(sorted(self.motifs,key=lambda x:x['mi'], reverse=True)):
+            motif_vals = ["%.3f"%(motif['mi']), "%.3f"%(motif['motif_entropy'])]
+            for val in sorted(motif["enrichment"].keys()):
+                this_logodds = fm.two_way_to_log_odds(motif["enrichment"][val])
+                motif_vals.append("%.4e"%this_logodds)
+            all_lines.append(motif_vals)
+        with open(outfile, mode="w") as outf:
+            outf.write("#%s\n"%(self.get_title()))
+            outf.write("mi\tentropy\t"+"\t".join([str(val) for val in sorted(motif["enrichment"].keys())]) +"\n")
+            for line in all_lines:
+                outf.write("\t".join(line)+"\n")
+
+         

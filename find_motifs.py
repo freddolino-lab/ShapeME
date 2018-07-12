@@ -364,6 +364,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
+    parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
 
  
     args = parser.parse_args()
@@ -453,11 +454,14 @@ if __name__ == "__main__":
     logging.warning("Generating initial heatmap for passing seeds")
     if len(good_seeds) > 25:
         logging.warning("Only plotting first 25 seeds")
-        enrich_hm = smv.EnrichmentHeatmap(good_seeds[:35])
+        enrich_hm = smv.EnrichmentHeatmap(good_seeds[:25])
     else:
         enrich_hm = smv.EnrichmentHeatmap(good_seeds)
-    enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
-    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
+
+    enrich_hm.enrichment_heatmap_txt(outpre+"enrichment_before_hm.txt")
+    if not args.txt_only:
+        enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
+        enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.warning("Optimizing seeds using %i processors"%(args.p))
         final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
@@ -489,10 +493,12 @@ if __name__ == "__main__":
             logging.warning("Iterations: %s"%(motif['opt_iter']))
         logging.warning("Generating final heatmap for optimized seeds")
         enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
-        enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
-        enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
-        logging.warning("Plotting optimization for final motifs")
-        enrich_hm.plot_optimization(outpre+"optimization.pdf")
+        enrich_hm.enrichment_heatmap_txt(outpre+"enrichment_after_hm.txt")
+        if not args.txt_only:
+            enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
+            enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
+            logging.warning("Plotting optimization for final motifs")
+            enrich_hm.plot_optimization(outpre+"optimization.pdf")
         logging.warning("Writing final motifs")
         outmotifs = inout.ShapeMotifFile()
         outmotifs.add_motifs(final_good_seeds)
@@ -516,8 +522,10 @@ if __name__ == "__main__":
         logging.warning("%s seeds survived"%(len(final_good_seeds)))
         logging.warning("Writing final motifs")
         enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
-        enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
-        enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
+        enrich_hm.enrichment_heatmap_txt(outpre+"enrichment_after_hm.txt")
+        if not args.txt_only:
+            enrich_hm.display_enrichment(outpre+"enrichment_after_hm.pdf")
+            enrich_hm.display_motifs(outpre+"motif_after_hm.pdf")
         outmotifs = inout.ShapeMotifFile()
         outmotifs.add_motifs(final_good_seeds)
         outmotifs.write_file(outpre+"called_motifs.dsp", cats)
