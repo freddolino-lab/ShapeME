@@ -504,7 +504,7 @@ class SeqDatabase(object):
 
         TODO check to make sure keys match all parameter names
         """
-        self.center_spread=center_spread
+        self.center_spread = center_spread
 
 
     def determine_center_spread(self, method=robust_z_csp):
