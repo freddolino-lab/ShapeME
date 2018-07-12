@@ -394,8 +394,9 @@ if __name__ == "__main__":
 
     logging.warning("Normalizing parameters")
     if args.nonormalize:
-        cats.normalize_params(inout.identity_csp)
+        cats.determine_center_spread(inout.identity_csp)
     else:
+        cats.determine_center_spread()
         cats.normalize_params()
     for name in cats.center_spread.keys():
         logging.warning("%s: %s"%(name, cats.center_spread[name]))

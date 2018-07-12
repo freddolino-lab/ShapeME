@@ -498,18 +498,24 @@ class SeqDatabase(object):
                 self.params.append(dsp.ShapeParams(data={},names=[]))
             self.values = np.array(self.values)
 
+    def set_center_spread(self, center_spread):
+        """Method to set the center spread for the database for each
+        parameter
 
-    def normalize_params(self, method=robust_z_csp):
-        """Method to normalize each parameter to a robustZ score based on
+        TODO check to make sure keys match all parameter names
+        """
+        self.center_spread=center_spread
+
+
+    def determine_center_spread(self, method=robust_z_csp):
+        """Method to get the center spread for each parameter based on
         all parameters in the database.
 
         This will ignore any Nans in any sequences parameter scores. First
         calculates center (median of all scores) and spread (MAD of all scores)
-        and uses the dsp.ShapeParamSeq.normalize_values method to normalize
-        each parameter
 
         Modifies:
-            params - makes all dsp.ShapeParams.params into a robustZ score
+            self.center_spread - populates center spread with calculated values
         """
         # figure out center and spread
         for seqparam in self:
@@ -523,13 +529,21 @@ class SeqDatabase(object):
             these_vals = all_this_param[name]
             these_vals = np.array(these_vals) 
             cent_spread[name] = method(these_vals)
+        self.center_spread = cent_spread
+
+    def normalize_params(self):
+        """Method to normalize each parameter based on self.center_spread
+
+        Modifies:
+            params - makes all dsp.ShapeParams.params into a robustZ score
+        """
 
         # normalize params
         for seqparam in self:
             for param in seqparam:
-                center, spread = cent_spread[param.name]
+                center, spread = self.center_spread[param.name]
                 param.normalize_values(center, spread)
-        self.center_spread = cent_spread
+
 
     def unnormalize_params(self):
         """Method to unnormalize each parameter from its RobustZ score back to
