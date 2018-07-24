@@ -243,7 +243,7 @@ def filter_seeds(seeds, cats, mi_threshold):
     Returns:
         final_seeds (list of dicts) - list of passing motif dictionaries
     """
-    mi_threshold = cats.shannon_entropy()*mi_threshold
+    #mi_threshold = cats.shannon_entropy()*mi_threshold
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
     top_seeds = [these_seeds[0]]
     for cand_seed in these_seeds[1:]:
