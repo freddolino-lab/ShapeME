@@ -3,6 +3,7 @@ import dnashapeparams as dsp
 import logging
 import argparse
 import numpy as np
+import sys
 
 
 def read_parameter_file(infile):
@@ -18,24 +19,21 @@ def read_parameter_file(infile):
         fastadata.read_whole_datafile(f)
     return fastadata
 
-def motif_match(motif_vec, data_vec, metric, threshold, direction="below"):
-    if direction == "below":
-        return metric(motif_vec, data_vec) < threshold
-    elif direction == "above":
-        return metric(motif_vec, data_vec) > threshold
+def motif_score(motif_vec, data_vec, metric):
+    return metric(motif_vec, data_vec)
 
-    return metric(motif_vec, data_vec) < threshold
-
-def search_for_motifs(seq, motif, threshold, metric, wsize, wstart=0, wend=None):
+def search_for_motifs(seq, motif, threshold, metric, wsize, wstart=0, wend=None, threshold_above=False):
     matches = []
     for i, window in enumerate(seq.sliding_windows(wsize, 1, wstart, wend)):
-        if motif_match(motif.as_vector(cache=True), window.as_vector(), metric, threshold):
-            matches.append([i+wstart, i+wstart+wsize])
+        score = motif_score(motif.as_vector(cache=True), window.as_vector(), metric)
+        above_thresh = score > threshold
+        if above_thresh == threshold_above:
+            matches.append([i+wstart, i+wstart+wsize, score])
     return matches
 
 def write_matches_bed(fhandle, name, matches, motif_name):
     for match in matches:
-        fhandle.write("%s\t%i\t%i\t%s\n"%(name, match[0], match[1], motif_name))
+        fhandle.write("%s\t%i\t%i\t%s\t%.4f\n"%(name, match[0], match[1], motif_name, match[2]))
 
 def write_matches_count(fhandle, name, matches, motif_name):
     fhandle.write("%s\t%s\t%i\n"%(name,motif_name,len(matches)))
@@ -47,12 +45,16 @@ if __name__ == "__main__":
     parser.add_argument('--param_names', nargs="+", type=str,
                          help='parameter names')
     parser.add_argument('--motifs', type=str, help="motif with motifs to search for")
+    parser.add_argument('--threshold', type=float, help="overridding threshold for a match",
+            default=None)
+    parser.add_argument('--threshold_above', action='store_true', 
+            help="consider matches as being above the threshold")
     parser.add_argument('--ignorestart', type=int,
                          help='# bp to ignore at start of each sequence', default=2)
     parser.add_argument('--ignoreend', type=int,
                          help='# bp to ignore at end of each sequence', default=2)
     parser.add_argument('--outfmt', type=str, default=".bed", help=".bed for full matches or .txt for counts")
-    parser.add_argument('-o', type=str, default="matches_out_")
+    parser.add_argument('-o', type=str, default="-")
 
     logging.warning("Reading in files")
 
@@ -92,15 +94,24 @@ if __name__ == "__main__":
                 param.add_shape_param(dsp.ShapeParamSeq(this_param_name, this_param.pull_entry(name).seq))
             except KeyError:
                 raise KeyError("Missing entry %s in fasta file for %s"%(name, this_param_name))
-    outfile = open(args.o+args.outfmt, mode="w")
+    if args.o == "-":
+        outfile = sys.stdout
+    else:
+        outfile = open(args.o+args.outfmt, mode="w")
     for i, motif in enumerate(motifs):
+        if args.threshold:
+            this_threshold = args.threshold
+        else:
+            this_threshold = motif['threshold']
+        logging.warning("Searching with motif %s and threshold %.4f"%(motif['name'], this_threshold))
         logging.warning("Normalizing parameters")
         genome.set_center_spread(motifs.cent_spreads[i])
         genome.normalize_params()
         for name, seq in zip(genome.names, genome):
-            matches = search_for_motifs(seq, motif['seed'], motif['threshold'], 
+            matches = search_for_motifs(seq, motif['seed'], this_threshold, 
                                         dsp.manhattan_distance, len(motif['seed']),
-                                        wstart=args.ignorestart, wend=args.ignoreend)
+                                        wstart=args.ignorestart, wend=args.ignoreend,
+                                        threshold_above = args.threshold_above)
             write(outfile, name, matches, motif['name'])
         genome.unnormalize_params()
     outfile.close()
