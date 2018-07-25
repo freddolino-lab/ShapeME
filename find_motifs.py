@@ -441,7 +441,8 @@ if __name__ == "__main__":
         this_entry['discrete'] = this_discrete
         all_seeds.append(this_entry)
         this_entry = {}
-    logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc*this_cats.shannon_entropy()))
+    #logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc*this_cats.shannon_entropy()))
+    logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     good_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.warning("%s seeds survived"%(len(good_seeds)))
     for motif in good_seeds:
