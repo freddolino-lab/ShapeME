@@ -4,8 +4,49 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec as gs
 import find_motifs as fm
 import numpy as np
+import inout
 
 plt.rc('figure', titlesize=10)
+
+class MotifVis(inout.ShapeMotifFile):
+
+    def plot_motif(self, motif, consolidate=False, plot_type='line', grid = None, ylim= None, ylabs=False):
+        param_names = motif['seed'].names
+        mat = motif['seed'].matrix()
+        fig = plt.gcf()
+        if grid is None:
+           total_grid = gs.GridSpec(1,1) 
+           grid= total_grid[0]
+        nested_gs = gs.GridSpecFromSubplotSpec(len(param_names), 1, subplot_spec=grid, hspace=0.05)
+        for i, name in enumerate(param_names):
+            this_ax = plt.Subplot(fig, nested_gs[i])
+            this_ax.plot(range(len(mat[i,:])), mat[i,:])
+            if i == 0:
+                this_ax.set_title("%s\n MI:%0.3f"%(motif['name'], motif['mi']))
+            if ylim:
+                this_ax.set_ylim(ylim)
+            if ylabs:
+                this_ax.set_ylabel(name)
+            else:
+                this_ax.set_yticklabels([])
+            this_ax.set_xticklabels([])
+            fig.add_subplot(this_ax)
+        this_ax.set_xticklabels(range(len(mat[i,:])))
+        return fig
+
+    def plot_motifs(self, grid = None, ylim=None, name= ""):
+        fig = plt.gcf()
+        if grid is None:
+            total_grid = gs.GridSpec(1,1)
+            grid = total_grid[0]
+        nested_gs = gs.GridSpecFromSubplotSpec(1, len(self.motifs), subplot_spec=grid, wspace=0.1)
+        for i, motif in enumerate(self.motifs):
+            if i == 0:
+                ylabs = True
+            else:
+                ylabs = False
+            self.plot_motif(motif, grid=nested_gs[i], ylim=ylim, ylabs=ylabs)
+        return fig
 
 class EnrichmentHeatmap(object):
 
