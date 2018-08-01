@@ -35,6 +35,10 @@ def write_matches_bed(fhandle, name, matches, motif_name):
     for match in matches:
         fhandle.write("%s\t%i\t%i\t%s\t%.4f\n"%(name, match[0], match[1], motif_name, match[2]))
 
+def write_matches_fimo(fhandle, name, matches, motif_name):
+    for match in matches:
+        fhandle.write("%s\t%s\t%i\t%i\t.\t%.4f\t.\t.\t.\n"%(motif_name,name, match[0], match[1], match[2]))
+
 def write_matches_count(fhandle, name, matches, motif_name):
     fhandle.write("%s\t%s\t%i\n"%(name,motif_name,len(matches)))
 
@@ -53,13 +57,15 @@ if __name__ == "__main__":
                          help='# bp to ignore at start of each sequence', default=2)
     parser.add_argument('--ignoreend', type=int,
                          help='# bp to ignore at end of each sequence', default=2)
-    parser.add_argument('--outfmt', type=str, default=".bed", help=".bed for full matches or .txt for counts")
+    parser.add_argument('--outfmt', type=str, default=".bed",
+            help=".bed for full matches or .txt for counts or .fimo for fimo-like format")
     parser.add_argument('-o', type=str, default="-")
 
     logging.warning("Reading in files")
 
     args = parser.parse_args()
-    write_types = {".bed": write_matches_bed, ".txt": write_matches_count}
+    write_types = {".bed": write_matches_bed, ".txt": write_matches_count,
+            ".fimo": write_matches_fimo}
     try:
         write = write_types[args.outfmt]
     except KeyError:

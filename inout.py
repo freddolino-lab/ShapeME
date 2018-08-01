@@ -87,7 +87,7 @@ class FastaEntry(object):
                 fhandle.write(self.seq[i:-1] + "\n")
 
     def __iter__(self):
-        for base in seq:
+        for base in self.seq:
             yield base
 
 

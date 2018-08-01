@@ -21,6 +21,7 @@ class MotifVis(inout.ShapeMotifFile):
         for i, name in enumerate(param_names):
             this_ax = plt.Subplot(fig, nested_gs[i])
             this_ax.plot(range(len(mat[i,:])), mat[i,:])
+            this_ax.set_xticks(range(len(mat[i,:])))
             if i == 0:
                 this_ax.set_title("%s\n MI:%0.3f"%(motif['name'], motif['mi']))
             if ylim:
