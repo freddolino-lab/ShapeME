@@ -6,6 +6,7 @@ import numpy as np
 import scipy.optimize as opt
 import shapemotifvis as smv
 import multiprocessing as mp
+import itertools
 
 def make_initial_seeds(cats, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
@@ -72,21 +73,27 @@ def find_initial_threshold(cats):
                              motifs pre_computed
     Returns:
         threshold (float) - a threshold that is the
-                            mean(distance)-2*stdev(distance)
+                            mean(log(distance)-2*stdev(log(distance)))
     """
-    seeds = []
-    for this_seq in cats.iterate_through_precompute():
-        seeds.extend(this_seq)
-    distances = []
-    for seed1 in seeds:
-        for seed2 in seeds:
-            distances.append(seed1.distance(seed2.as_vector(cache=True), vec=True, cache=True))
-    distances = np.array(distances)
-    distances = distances[distances > 0]
-    distances = np.log(distances)
+    mean = 0
+    tot = 0
+    for i, this_seqi in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
+        for j, this_seqj in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
+            if i >= j:
+                continue
+            else:
+                mean += np.log(this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True))
+                tot += 1.0
+    mean = mean / tot
+    var = 0
+    for i, this_seqi in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
+        for j, this_seqj in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
+            if i >= j:
+                continue
+            else:
+                var += (np.log(this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True)) - mean)**2
 
-    mean = np.mean(distances)
-    stdev = np.std(distances)
+    stdev = np.sqrt(var/tot)
     return np.exp(mean-2*stdev)
 
 def seqs_per_bin(cats):
