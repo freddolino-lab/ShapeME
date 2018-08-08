@@ -73,28 +73,27 @@ def find_initial_threshold(cats):
                              motifs pre_computed
     Returns:
         threshold (float) - a threshold that is the
-                            mean(log(distance)-2*stdev(log(distance)))
+                            mean(distance)-2*stdev(distance))
     """
-    mean = 0
-    tot = 0
+    # calculate stdev and mean using welford's algorithm
+    mean = 0.0
+    sqdist = 0.0
+    tot = 0.0
     for i, this_seqi in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
         for j, this_seqj in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
             if i >= j:
                 continue
             else:
-                mean += np.log(this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True))
                 tot += 1.0
-    mean = mean / tot
-    var = 0
-    for i, this_seqi in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
-        for j, this_seqj in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
-            if i >= j:
-                continue
-            else:
-                var += (np.log(this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True)) - mean)**2
+                newval = this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True)
+                delta = newval-mean
+                mean += delta /tot
+                delta2 = newval - mean
+                sqdist += delta * delta2
 
-    stdev = np.sqrt(var/tot)
-    return np.exp(mean-2*stdev)
+    stdev = np.sqrt(sqdist/(tot-1.0))
+    logging.warning("Threshold mean: %s and stdev %s"%(mean, stdev))
+    return mean-2*stdev
 
 def seqs_per_bin(cats):
     """ Function to determine how many sequences are in each category
