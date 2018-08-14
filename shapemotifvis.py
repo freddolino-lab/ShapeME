@@ -5,10 +5,43 @@ from matplotlib import gridspec as gs
 import find_motifs as fm
 import numpy as np
 import inout
+import sys
+sys.path.append("/home/mbwolfe/src/DNAshape_motif_finder/helical_wheel")
+import helical_wheel as hw
 
 plt.rc('figure', titlesize=10)
 
 class MotifVis(inout.ShapeMotifFile):
+
+    def plot_helical(self, motif, baseparams, lineparams, grid=None, vmin=None, vmax=None):
+        fig = plt.gcf()
+        if grid is None:
+           total_grid = gs.GridSpec(1,1) 
+           grid= total_grid[0]
+        nested_gs = gs.GridSpecFromSubplotSpec(len(baseparams), 1, subplot_spec=grid, hspace=0.05)
+        basepairs = len(motif['seed'])
+        for motif_part in xrange(len(baseparams)):
+            circs = []
+            circ_vals=[]
+            line_vals=[]
+            for base in xrange(basepairs):
+                val_at_base = motif['seed'][base]
+                circ_vals.append(val_at_base.data[baseparams[motif_part]].params)
+                line_vals.append(val_at_base.data[lineparams[motif_part]].params)
+                circs.append(hw.BasePair(rad=2))
+            line_vals = line_vals[:-1]
+            helical = hw.HelicalWheel()
+            helical.add_circs(circs)
+            helical.arrange_circs()
+            helical.connect_circs()
+            helical.update_circ_colors(circ_vals)
+            helical.update_line_colors(line_vals)
+            this_ax = plt.Subplot(fig, nested_gs[motif_part])
+            helical.plot(cmap_lines=plt.cm.get_cmap("coolwarm"), cmap_circs=plt.cm.get_cmap("BrBG"), ax=this_ax, vmin=vmin, vmax=vmax)
+            this_ax.axis('off')
+            fig.add_subplot(this_ax)
+
+        return fig
 
     def plot_motif(self, motif, consolidate=False, plot_type='line', grid = None, ylim= None, ylabs=False):
         param_names = motif['seed'].names
@@ -47,6 +80,16 @@ class MotifVis(inout.ShapeMotifFile):
             else:
                 ylabs = False
             self.plot_motif(motif, grid=nested_gs[i], ylim=ylim, ylabs=ylabs)
+        return fig
+
+    def plot_helical_motifs(self, motif, baseparams, lineparams, grid=None, vmin=None, vmax=None):
+        fig = plt.gcf()
+        if grid is None:
+            total_grid = gs.GridSpec(1,1)
+            grid = total_grid[0]
+        nested_gs = gs.GridSpecFromSubplotSpec(1, len(self.motifs), subplot_spec=grid, wspace=0.1)
+        for i, motif in enumerate(self.motifs):
+            self.plot_helical(motif, baseparams, lineparams, nested_gs[i], vmin, vmax)
         return fig
 
 class EnrichmentHeatmap(object):

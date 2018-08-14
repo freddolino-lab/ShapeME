@@ -93,7 +93,7 @@ def find_initial_threshold(cats):
 
     stdev = np.sqrt(sqdist/(tot-1.0))
     logging.warning("Threshold mean: %s and stdev %s"%(mean, stdev))
-    return mean-2*stdev
+    return mean, stdev
 
 def seqs_per_bin(cats):
     """ Function to determine how many sequences are in each category
@@ -169,6 +169,52 @@ def greedy_search(cats, threshold = 10, number=1000):
                     if distance < threshold:
                         raise MotifMatch(distance)
                 seeds.append(motif)
+                values.append(cats_shuffled.values[i])
+            except MotifMatch as e:
+                continue
+    values = np.array(values)
+    for value in np.unique(values):
+        logging.warning("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
+    return seeds
+
+def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1):
+    """ Function to find initial seeds by a greedy search
+
+    Prints the number of seeds per class to the logger
+
+    Args:
+        cats (inout.SeqDatabase) - input data, must have motifs already 
+                                   precomputed
+        threshold (float) - threshold for considering a motif a match
+        number (int) - number of seeds to stop near 
+    Returns:
+        seeds (list) - a list of dsp.ShapeParamSeq objects to be considered
+    """
+    seeds = []
+    values = []
+    cats_shuffled = cats.shuffle()
+    for i,seq in enumerate(cats_shuffled.iterate_through_precompute()):
+        if(len(seeds) >= number):
+            break
+        # sample random start location in seq:
+        start_loc = np.random.random_integers(0,len(seq))
+        # sample random direction:
+        direction = np.random.random_integers(0,1)
+        if direction:
+            seq_to_iter = seq
+        else:
+            seq_to_iter = seq[::-1]
+        curr_seeds_per_seq=0
+        for motif in seq_to_iter[start_loc:]:
+            if curr_seeds_per_seq >= seeds_per_seq:
+                break
+            try:
+                for motif2 in seeds:
+                    distance = motif2.distance(motif.as_vector(), vec=True, cache=True)
+                    if distance < threshold:
+                        raise MotifMatch(distance)
+                seeds.append(motif)
+                curr_seeds_per_seq += 1
                 values.append(cats_shuffled.values[i])
             except MotifMatch as e:
                 continue
@@ -360,12 +406,22 @@ if __name__ == "__main__":
                          help='number of seeds to start', default=100)
     parser.add_argument('--nonormalize', action="store_true",
                          help='don\'t normalize the input data by robustZ')
-    parser.add_argument('--threshold_perc', type=float, default=0.05)
-    parser.add_argument('--optimize_perc', type=float, default=0.1)
-    parser.add_argument('--seed_perc', type=float, default=1)
-    parser.add_argument('--continuous', type=int, default=None)
-    parser.add_argument('--optimize', action="store_true")
-    parser.add_argument('--mi_perc', type=float, default=0.01)
+    parser.add_argument('--threshold_perc', type=float, default=0.05,
+            help="percentage of data to determine threshold on")
+    parser.add_argument('--threshold_seeds', type=float, default=2.0, 
+            help="std deviations below mean for seed finding")
+    parser.add_argument('--threshold_match', type=float, default=2.0, 
+            help="std deviations below mean for match")
+    parser.add_argument('--optimize_perc', type=float, default=0.1, 
+            help="percentage of data to optimize on")
+    parser.add_argument('--seed_perc', type=float, default=1,
+            help="percentage of data to EVALUATE seeds on")
+    parser.add_argument('--continuous', type=int, default=None,
+            help="number of bins to discretize continuous input data with")
+    parser.add_argument('--optimize', action="store_true",
+            help="optimize seeds with Nelder Mead?")
+    parser.add_argument('--mi_perc', type=float, default=0.01,
+            help="cutoff for Mutual Information needed to keep a seed")
     parser.add_argument('--distance_metric', type=str, default="manhattan")
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('-o', type=str, default="motif_out_")
@@ -412,18 +468,17 @@ if __name__ == "__main__":
 
     logging.warning("Determining initial threshold")
     if args.distance_metric == "hamming":
-        threshold = 4
-        logging.warning("Using %f as an initial threshold"%(threshold))
+        threshold_match = 4
+        logging.warning("Using %f as an initial match threshold"%(threshold_match))
     else:
-        threshold = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
-        logging.warning("Using %f as an initial threshold"%(threshold))
+        mean,stdev = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
+        threshold_seeds = mean - args.threshold_seeds*stdev
+        threshold_match = mean - args.threshold_match*stdev
+        logging.warning("Using %f as an initial match threshold"%(threshold_match))
 
     all_seeds = []
-    
-    #greedy_threshold = threshold + 1/np.sqrt(args.kmer*len(args.params))*threshold
-    greedy_threshold = threshold
-    logging.warning("Greedy search for possible motifs with threshold %s"%(greedy_threshold))
-    possible_motifs = greedy_search(cats, greedy_threshold, args.num_seeds)
+    logging.warning("Greedy search for possible motifs with threshold %s"%(threshold_seeds))
+    possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds)
     logging.warning("%s possible motifs"%(len(possible_motifs)))
     logging.warning("Finding MI for seeds")
     this_entry = {}
@@ -437,13 +492,13 @@ if __name__ == "__main__":
     for i,motif1 in enumerate(possible_motifs):
         if not (i % 10):
             logging.warning("Computing MI for motif %s"%i)
-        this_discrete = generate_peak_vector(this_cats, motif1.as_vector(cache=True), threshold)
+        this_discrete = generate_peak_vector(this_cats, motif1.as_vector(cache=True), threshold_match)
         this_entry['mi'] = this_cats.mutual_information(this_discrete)
         this_entry['motif_entropy'] = inout.entropy(this_discrete)
         this_entry['category_entropy'] = this_cats.shannon_entropy()
         this_entry['enrichment'] = this_cats.calculate_enrichment(this_discrete)
         this_entry['seed'] = motif1
-        this_entry['threshold'] = threshold
+        this_entry['threshold'] = threshold_match
         this_entry['discrete'] = this_discrete
         all_seeds.append(this_entry)
         this_entry = {}
