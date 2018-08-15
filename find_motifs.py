@@ -84,15 +84,8 @@ def find_initial_threshold(cats):
             if i >= j:
                 continue
             else:
-                #tot += 1.0
                 newval = this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True)
                 online_mean.update(newval)
-#                delta = newval-mean
-#                mean += delta /tot
-#                delta2 = newval - mean
-#                sqdist += delta * delta2
-
-    #stdev = np.sqrt(sqdist/(tot-1.0))
     mean = online_mean.final_mean()
     stdev = online_mean.final_stdev()
     
@@ -299,17 +292,15 @@ def filter_seeds(seeds, cats, mi_threshold):
     Returns:
         final_seeds (list of dicts) - list of passing motif dictionaries
     """
-    #mi_threshold = cats.shannon_entropy()*mi_threshold
     these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
     top_seeds = [these_seeds[0]]
     for cand_seed in these_seeds[1:]:
         seed_pass = True
-        if cand_seed['mi'] < mi_threshold:
-            continue
         for good_seed in top_seeds:
             this_mi = inout.conditional_mutual_information(cats.get_values(), 
                                                  cand_seed['discrete'], 
-                                                 good_seed['discrete'])
+                                                 good_seed['discrete'])/inout.mutual_information(cand_seed['discrete'], 
+                                                         good_seed['discrete'])
             if this_mi < mi_threshold:
                 seed_pass = False
                 break
@@ -361,15 +352,13 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
     """
     # doing welford's again
     num_passed = 0
-    num_to_use = np.floor((1-holdout_frac)*len(vec1))
+    num_to_use = int(np.floor((1-holdout_frac)*len(vec1)))
     for i in xrange(r):
         jk_selector = np.random.permutation(len(vec1))[0:num_to_use]
         zscore, passed = info_zscore(vec1[jk_selector], vec2[jk_selector], n=n)
         if passed:
             num_passed += 1
     return num_passed
-
-
 
 def aic_seeds(seeds, cats):
     """ Select final seeds through AIC
@@ -461,27 +450,37 @@ if __name__ == "__main__":
     parser.add_argument('--ignoreend', type=int,
                          help='# bp to ignore at end of each sequence', default=2)
     parser.add_argument('--num_seeds', type=int,
-                         help='number of seeds to start', default=100)
+                         help='cutoff for number of seeds to test. Default=1000', default=1000)
+    parser.add_argument('--seeds_per_seq', type=int,
+                         help='max number of seeds to come from a single sequence. Default=1', default=1)
     parser.add_argument('--nonormalize', action="store_true",
                          help='don\'t normalize the input data by robustZ')
     parser.add_argument('--threshold_perc', type=float, default=0.05,
-            help="percentage of data to determine threshold on")
+            help="fraction of data to determine threshold on. Default=0.05")
     parser.add_argument('--threshold_seeds', type=float, default=2.0, 
-            help="std deviations below mean for seed finding")
+            help="std deviations below mean for seed finding. Default=2.0")
     parser.add_argument('--threshold_match', type=float, default=2.0, 
-            help="std deviations below mean for match")
+            help="std deviations below mean for match. Default=2.0")
     parser.add_argument('--optimize_perc', type=float, default=0.1, 
-            help="percentage of data to optimize on")
+            help="fraction of data to optimize on. Default=0.1")
     parser.add_argument('--seed_perc', type=float, default=1,
-            help="percentage of data to EVALUATE seeds on")
+            help="fraction of data to EVALUATE seeds on. Default=1")
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
     parser.add_argument('--optimize', action="store_true",
             help="optimize seeds with Nelder Mead?")
-    parser.add_argument('--mi_perc', type=float, default=0.01,
-            help="cutoff for Mutual Information needed to keep a seed")
-    parser.add_argument('--distance_metric', type=str, default="manhattan")
-    parser.add_argument('--seed', type=int, default=1234)
+    parser.add_argument('--mi_perc', type=float, default=5,
+            help="ratio of CMI/MI to include an additional seed. default=5")
+    parser.add_argument('--infoz', type=int, default=2000, 
+            help="Calculate Z-score for final motif MI with n data permutations. default=2000. Turn off by setting to 0")
+    parser.add_argument('--inforobust', type=int, default=10, 
+            help="Calculate robustness of final motif with x jacknifes. Default=10. Requires infoz to be > 0.")
+    parser.add_argument('--fracjack', type=int, default=0.3, 
+            help="Fraction of data to hold out in jacknifes. Default=0.3.")
+    parser.add_argument('--distance_metric', type=str, default="manhattan",
+            help="distance metric to use, manhattan is the only supported one for now")
+    parser.add_argument('--seed', type=int, default=1234,
+            help="set the random seed, default=1234")
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
     parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
@@ -530,13 +529,13 @@ if __name__ == "__main__":
         logging.warning("Using %f as an initial match threshold"%(threshold_match))
     else:
         mean,stdev = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
-        threshold_seeds = mean - args.threshold_seeds*stdev
-        threshold_match = mean - args.threshold_match*stdev
+        threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
+        threshold_match = max(mean - args.threshold_match*stdev, 0)
         logging.warning("Using %f as an initial match threshold"%(threshold_match))
 
     all_seeds = []
     logging.warning("Greedy search for possible motifs with threshold %s"%(threshold_seeds))
-    possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds)
+    possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds, args.seeds_per_seq)
     logging.warning("%s possible motifs"%(len(possible_motifs)))
     logging.warning("Finding MI for seeds")
     this_entry = {}
@@ -560,7 +559,6 @@ if __name__ == "__main__":
         this_entry['discrete'] = this_discrete
         all_seeds.append(this_entry)
         this_entry = {}
-    #logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc*this_cats.shannon_entropy()))
     logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     good_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.warning("%s seeds survived"%(len(good_seeds)))
@@ -615,17 +613,20 @@ if __name__ == "__main__":
         sys.exit()
     logging.warning("%s seeds survived"%(len(final_good_seeds)))
     for i, motif in enumerate(final_good_seeds):
-        logging.warning("Calculating Z-score for motif %s"%i)
-        # calculate zscore
-        zscore, passed = info_zscore(motif['discrete'], cats.get_values())
-        motif['zscore'] = zscore
-        logging.warning("Calculating Robustness for motif %s"%i)
-        num_passed = info_robustness(motif['discrete'], cats.get_values())
-        motif['robustness'] = "%s/%s"%(num_passed,"10")
         logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
         logging.warning("MI: %f"%(motif['mi']))
-        logging.warning("Z-score: %f"%(motif['zscore']))
-        logging.warning("Robustness: %s"%(motif['robustness']))
+        if args.infoz > 0:
+            logging.warning("Calculating Z-score for motif %s"%i)
+            # calculate zscore
+            zscore, passed = info_zscore(motif['discrete'], cats.get_values(), args.infoz)
+            motif['zscore'] = zscore
+            logging.warning("Z-score: %f"%(motif['zscore']))
+        if args.infoz > 0 and args.inforobust > 0:
+            logging.warning("Calculating Robustness for motif %s"%i)
+            num_passed = info_robustness(motif['discrete'], cats.get_values(), 
+                    args.infoz, args.inforobust, args.fracjack)
+            motif['robustness'] = "%s/%s"%(num_passed,args.inforobust)
+            logging.warning("Robustness: %s"%(motif['robustness']))
         logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
         logging.warning("Category Entropy: %f"%(motif['category_entropy']))
         for key in sorted(motif['enrichment'].keys()):
