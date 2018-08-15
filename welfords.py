@@ -16,8 +16,12 @@ class Welford(object):
 
     def final_mean(self):
         return self.mean
-    def final_stdev(self):
-        return math.sqrt(self.sqdist/(self.tot-1.0))
+
+    def final_stdev(self, ddof=1):
+        return math.sqrt(self.sqdist/(self.tot-ddof))
+
+    def final_var(self):
+        return self.sqdist
 
 if __name__ == "__main__":
     import numpy as np
