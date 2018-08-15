@@ -501,8 +501,8 @@ if __name__ == "__main__":
             help="Fraction of data to hold out in jacknifes. Default=0.3.")
     parser.add_argument('--distance_metric', type=str, default="manhattan",
             help="distance metric to use, manhattan is the only supported one for now")
-    parser.add_argument('--seed', type=int, default=1234,
-            help="set the random seed, default=1234")
+    parser.add_argument('--seed', type=int, default=None,
+            help="set the random seed, default=None, based on system time")
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
     parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
@@ -510,7 +510,8 @@ if __name__ == "__main__":
  
     args = parser.parse_args()
     outpre = args.o
-    np.random.seed(args.seed)
+    if args.seed:
+        np.random.seed(args.seed)
     
     logging.warning("Reading in files")
     all_params = [read_parameter_file(x) for x in args.params]
