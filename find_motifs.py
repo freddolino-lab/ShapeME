@@ -105,7 +105,7 @@ def find_initial_threshold(cats, seeds_per_seq=1):
             if i >= j:
                 continue
             else:
-                newval = seq_section.distance(seed.as_vector(cache=True), vec=True, cache=True)
+                newval = seedi.distance(seedj.as_vector(cache=True), vec=True, cache=True)
                 online_mean.update(newval)
 
     mean = online_mean.final_mean()
