@@ -66,7 +66,7 @@ def generate_peak_vector(data, motif_vec, threshold):
         this_discrete.append(seq_pass)
     return np.array(this_discrete)
 
-def find_initial_threshold(cats):
+def find_initial_threshold(cats, seeds_per_seq=1):
     """ Function to determine a reasonable starting threshold given a sample
     of the data
 
@@ -79,13 +79,35 @@ def find_initial_threshold(cats):
     """
     # calculate stdev and mean using welford's algorithm
     online_mean = welfords.Welford()
-    for i, this_seqi in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
-        for j, this_seqj in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
+    cats_shuffled = cats.shuffle()
+    total_seeds = []
+    # get a set of seeds to run against each other
+    for i, seq in enumerate(cats_shuffled.iterate_through_precompute()):
+        # sample random start location in seq:
+        start_loc = np.random.random_integers(0,len(seq))
+        # sample random direction:
+        direction = np.random.random_integers(0,1)
+        if direction:
+            seq_to_iter = seq
+        else:
+            seq_to_iter = seq[::-1]
+        curr_seeds_per_seq = 0
+        for motif in seq_to_iter[start_loc:]:
+            if curr_seeds_per_seq >= seeds_per_seq:
+                break
+            total_seeds.append(motif)
+            curr_seeds_per_seq += 1
+
+    logging.warning("Using %s random seeds to determine threshold from pairwise distances"%(len(total_seeds)))
+    for i, seedi in enumerate(total_seeds):
+        for j, seedj in enumerate(total_seeds):
+            newval = seedi.distance(seedj.as_vector(cache=True), vec=True, cache=True)
             if i >= j:
                 continue
             else:
-                newval = this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True)
+                newval = seq_section.distance(seed.as_vector(cache=True), vec=True, cache=True)
                 online_mean.update(newval)
+
     mean = online_mean.final_mean()
     stdev = online_mean.final_stdev()
     
@@ -528,7 +550,7 @@ if __name__ == "__main__":
         threshold_match = 4
         logging.warning("Using %f as an initial match threshold"%(threshold_match))
     else:
-        mean,stdev = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc))
+        mean,stdev = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc), args.seeds_per_seq)
         threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
         threshold_match = max(mean - args.threshold_match*stdev, 0)
         logging.warning("Using %f as an initial match threshold"%(threshold_match))
