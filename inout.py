@@ -798,6 +798,11 @@ class ShapeMotifFile(object):
             string +="\tmotif_entropy:%f"%(motif['motif_entropy'])
         if motif.has_key("category_entropy"):
             string +="\tcategory_entropy:%f"%(motif['category_entropy'])
+        if motif.has_key("zscore"):
+            string +="\tZ-score:%f"%(motif['zscore'])
+        if motif.has_key("robustness"):
+            string +="\trobustness:%s"%(motif['robustness'])
+
         string += "\n"
         return string
 

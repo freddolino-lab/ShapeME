@@ -1,4 +1,5 @@
 import inout
+import sys
 import dnashapeparams as dsp
 import logging
 import argparse
@@ -7,6 +8,7 @@ import scipy.optimize as opt
 import shapemotifvis as smv
 import multiprocessing as mp
 import itertools
+import welfords
 
 def make_initial_seeds(cats, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
@@ -76,22 +78,24 @@ def find_initial_threshold(cats):
                             mean(distance)-2*stdev(distance))
     """
     # calculate stdev and mean using welford's algorithm
-    mean = 0.0
-    sqdist = 0.0
-    tot = 0.0
+    online_mean = welfords.Welford()
     for i, this_seqi in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
         for j, this_seqj in enumerate(itertools.chain.from_iterable(cats.iterate_through_precompute())):
             if i >= j:
                 continue
             else:
-                tot += 1.0
+                #tot += 1.0
                 newval = this_seqi.distance(this_seqj.as_vector(cache=True), vec=True, cache=True)
-                delta = newval-mean
-                mean += delta /tot
-                delta2 = newval - mean
-                sqdist += delta * delta2
+                online_mean.update(newval)
+#                delta = newval-mean
+#                mean += delta /tot
+#                delta2 = newval - mean
+#                sqdist += delta * delta2
 
-    stdev = np.sqrt(sqdist/(tot-1.0))
+    #stdev = np.sqrt(sqdist/(tot-1.0))
+    mean = online_mean.final_mean()
+    stdev = online_mean.final_stdev()
+    
     logging.warning("Threshold mean: %s and stdev %s"%(mean, stdev))
     return mean, stdev
 
@@ -312,6 +316,60 @@ def filter_seeds(seeds, cats, mi_threshold):
         if seed_pass:
             top_seeds.append(cand_seed)
     return top_seeds
+
+def info_zscore(vec1, vec2, n=10000):
+    """ Similar to FIRE determine a Z score for vec1 based on MI scores
+    from randomly shuffled vec2
+
+    Args:
+        vec1 - vector to not shuffle
+        vec2 -vector to shuffle
+        n - number of shuffles to do
+    
+    Returns:
+        zscore - (MI_actual - mean MI_shuff)/std
+        passed - was MI_actual greater than all shuffles?
+    """
+    # doing welford's again
+    online_mean = welfords.Welford()
+    passed = True
+    actual = inout.mutual_information(vec1, vec2)
+    for i in xrange(n):
+        shuffle = np.random.permutation(len(vec2))
+        newval = inout.mutual_information(vec1, vec2[shuffle])
+        online_mean.update(newval)
+        if newval >= actual:
+            passed = False
+    mean = online_mean.final_mean()
+    stdev = online_mean.final_stdev()
+    zscore = (actual-mean)/stdev
+    return zscore, passed
+
+def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
+    """ Similar to FIRE Robustness score, calculate Z score for
+    jacknife replicates and report number that pass
+
+    Args:
+        vec1 - vector to not shuffle
+        vec2 -vector to shuffle
+        n - number of shuffles to do for zscore
+        r - number of jackknife replicates
+        holdout_frac - fraction of data to remove for jackknife
+    
+    Returns:
+        num_passed - number of jacknife reps that passed
+    """
+    # doing welford's again
+    num_passed = 0
+    num_to_use = np.floor((1-holdout_frac)*len(vec1))
+    for i in xrange(r):
+        jk_selector = np.random.permutation(len(vec1))[0:num_to_use]
+        zscore, passed = info_zscore(vec1[jk_selector], vec2[jk_selector], n=n)
+        if passed:
+            num_passed += 1
+    return num_passed
+
+
 
 def aic_seeds(seeds, cats):
     """ Select final seeds through AIC
@@ -538,36 +596,8 @@ if __name__ == "__main__":
                 this_entry['category_entropy'] = cats.shannon_entropy()
                 this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
-        logging.warning("Filtering final seeds by BIC")
-        final_good_seeds = bic_seeds(final_seeds, cats)
-        if len(final_good_seeds) < 1: 
-            logging.warning("No motifs found")
-        logging.warning("%s seeds survived"%(len(final_good_seeds)))
-        for motif in final_good_seeds:
-            logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
-            logging.warning("MI: %f"%(motif['mi']))
-            logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
-            logging.warning("Category Entropy: %f"%(motif['category_entropy']))
-            for key in sorted(motif['enrichment'].keys()):
-                logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
-                logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
-            logging.warning("Success?: %s"%(motif['opt_success']))
-            logging.warning("Message: %s"%(motif['opt_message']))
-            logging.warning("Iterations: %s"%(motif['opt_iter']))
-        logging.warning("Generating final heatmap for optimized seeds")
-        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
-        enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
-        if not args.txt_only:
-            enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
-            enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
-            logging.warning("Plotting optimization for final motifs")
-            enrich_hm.plot_optimization(outpre+"_optimization.pdf")
-        logging.warning("Writing final motifs")
-        outmotifs = inout.ShapeMotifFile()
-        outmotifs.add_motifs(final_good_seeds)
-        outmotifs.write_file(outpre+"_called_motifs.dsp", cats)
     else:
-        if args.optimize_perc != 1:
+        if args.seed_perc != 1:
             logging.warning("Testing final optimized seeds on full database")
             for i,this_entry in enumerate(good_seeds):
                 logging.warning("Computing MI for motif %s"%i)
@@ -577,22 +607,47 @@ if __name__ == "__main__":
                 this_entry['category_entropy'] = cats.shannon_entropy()
                 this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
-        logging.warning("Filtering final seeds by BIC")
-        final_good_seeds = bic_seeds(good_seeds, cats)
-        if len(final_good_seeds) < 1: 
-            logging.warning("No motifs found")
-        logging.warning("%s seeds survived"%(len(final_good_seeds)))
-        logging.warning("%s seeds survived"%(len(final_good_seeds)))
-        logging.warning("Writing final motifs")
-        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
-        enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
-        if not args.txt_only:
-            enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
-            enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
-        outmotifs = inout.ShapeMotifFile()
-        outmotifs.add_motifs(final_good_seeds)
-        outmotifs.write_file(outpre+"_called_motifs.dsp", cats)
-
+        final_seeds = good_seeds
+    logging.warning("Filtering final seeds by BIC")
+    final_good_seeds = bic_seeds(final_seeds, cats)
+    if len(final_good_seeds) < 1: 
+        logging.warning("No motifs found")
+        sys.exit()
+    logging.warning("%s seeds survived"%(len(final_good_seeds)))
+    for i, motif in enumerate(final_good_seeds):
+        logging.warning("Calculating Z-score for motif %s"%i)
+        # calculate zscore
+        zscore, passed = info_zscore(motif['discrete'], cats.get_values())
+        motif['zscore'] = zscore
+        logging.warning("Calculating Robustness for motif %s"%i)
+        num_passed = info_robustness(motif['discrete'], cats.get_values())
+        motif['robustness'] = "%s/%s"%(num_passed,"10")
+        logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
+        logging.warning("MI: %f"%(motif['mi']))
+        logging.warning("Z-score: %f"%(motif['zscore']))
+        logging.warning("Robustness: %s"%(motif['robustness']))
+        logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
+        logging.warning("Category Entropy: %f"%(motif['category_entropy']))
+        for key in sorted(motif['enrichment'].keys()):
+            logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
+            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
+        if args.optimize:
+            logging.warning("Optimize Success?: %s"%(motif['opt_success']))
+            logging.warning("Optimize Message: %s"%(motif['opt_message']))
+            logging.warning("Optimize Iterations: %s"%(motif['opt_iter']))
+    logging.warning("Generating final heatmap for seeds")
+    enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
+    enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
+    if not args.txt_only:
+        enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
+        enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
+        if args.optimize:
+            logging.warning("Plotting optimization for final motifs")
+            enrich_hm.plot_optimization(outpre+"_optimization.pdf")
+    logging.warning("Writing final motifs")
+    outmotifs = inout.ShapeMotifFile()
+    outmotifs.add_motifs(final_good_seeds)
+    outmotifs.write_file(outpre+"_called_motifs.dsp", cats)
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
     #logging.warning(final)
