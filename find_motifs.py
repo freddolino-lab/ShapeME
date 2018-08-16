@@ -66,7 +66,7 @@ def generate_peak_vector(data, motif_vec, threshold):
         this_discrete.append(seq_pass)
     return np.array(this_discrete)
 
-def find_initial_threshold(cats, seeds_per_seq=1):
+def find_initial_threshold(cats, seeds_per_seq=1, max_seeds = 10000):
     """ Function to determine a reasonable starting threshold given a sample
     of the data
 
@@ -81,6 +81,7 @@ def find_initial_threshold(cats, seeds_per_seq=1):
     online_mean = welfords.Welford()
     cats_shuffled = cats.shuffle()
     total_seeds = []
+    seed_counter = 0
     # get a set of seeds to run against each other
     for i, seq in enumerate(cats_shuffled.iterate_through_precompute()):
         # sample random start location in seq:
@@ -97,6 +98,9 @@ def find_initial_threshold(cats, seeds_per_seq=1):
                 break
             total_seeds.append(motif)
             curr_seeds_per_seq += 1
+            seed_counter += 1
+        if seed_counter >= max_seeds:
+            break
 
     logging.warning("Using %s random seeds to determine threshold from pairwise distances"%(len(total_seeds)))
     for i, seedi in enumerate(total_seeds):
@@ -583,7 +587,18 @@ if __name__ == "__main__":
         all_seeds.append(this_entry)
         this_entry = {}
     logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
-    good_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
+    novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
+    logging.warning("%s seeds survived"%(len(novel_seeds)))
+    print novel_seeds
+    logging.warning("Filtering seeds by AIC individually")
+    good_seeds = []
+    for seed in novel_seeds:
+        passed = aic_seeds([seed], this_cats)
+        if len(passed) > 0:
+            good_seeds.append(seed) 
+    if len(good_seeds) < 1: 
+        logging.warning("No motifs found")
+        sys.exit()
     logging.warning("%s seeds survived"%(len(good_seeds)))
     for motif in good_seeds:
         logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
