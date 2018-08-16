@@ -84,16 +84,12 @@ def find_initial_threshold(cats, seeds_per_seq=1, max_seeds = 10000):
     seed_counter = 0
     # get a set of seeds to run against each other
     for i, seq in enumerate(cats_shuffled.iterate_through_precompute()):
-        # sample random start location in seq:
-        start_loc = np.random.random_integers(0,len(seq))
-        # sample random direction:
-        direction = np.random.random_integers(0,1)
-        if direction:
-            seq_to_iter = seq
-        else:
-            seq_to_iter = seq[::-1]
+
+        # sample in a random order from the sequence
+        rand_order = np.random.permutation(len(seq))
         curr_seeds_per_seq = 0
-        for motif in seq_to_iter[start_loc:]:
+        for index in rand_order:
+            motif = seq[index]
             if curr_seeds_per_seq >= seeds_per_seq:
                 break
             total_seeds.append(motif)
@@ -219,16 +215,11 @@ def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1):
     for i,seq in enumerate(cats_shuffled.iterate_through_precompute()):
         if(len(seeds) >= number):
             break
-        # sample random start location in seq:
-        start_loc = np.random.random_integers(0,len(seq))
-        # sample random direction:
-        direction = np.random.random_integers(0,1)
-        if direction:
-            seq_to_iter = seq
-        else:
-            seq_to_iter = seq[::-1]
+        # sample in a random order from the sequence
+        rand_order = np.random.permutation(len(seq))
         curr_seeds_per_seq=0
-        for motif in seq_to_iter[start_loc:]:
+        for index in rand_order:
+            motif = seq[index]
             if curr_seeds_per_seq >= seeds_per_seq:
                 break
             try:
@@ -376,7 +367,6 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
     Returns:
         num_passed - number of jacknife reps that passed
     """
-    # doing welford's again
     num_passed = 0
     num_to_use = int(np.floor((1-holdout_frac)*len(vec1)))
     for i in xrange(r):

@@ -517,9 +517,9 @@ class SeqDatabase(object):
         Modifies:
             self.center_spread - populates center spread with calculated values
         """
+        all_this_param = {}
         # figure out center and spread
         for seqparam in self:
-            all_this_param = {}
             for this_param in seqparam:
                 this_val = all_this_param.get(this_param.name, [])
                 this_val.extend(this_param.params)
@@ -529,7 +529,7 @@ class SeqDatabase(object):
             these_vals = all_this_param[name]
             these_vals = np.array(these_vals) 
             cent_spread[name] = method(these_vals)
-        self.center_spread = cent_spread
+        self.set_center_spread(cent_spread)
 
     def normalize_params(self):
         """Method to normalize each parameter based on self.center_spread
