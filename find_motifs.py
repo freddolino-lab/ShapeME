@@ -589,7 +589,6 @@ if __name__ == "__main__":
     logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.warning("%s seeds survived"%(len(novel_seeds)))
-    print novel_seeds
     logging.warning("Filtering seeds by AIC individually")
     good_seeds = []
     for seed in novel_seeds:
