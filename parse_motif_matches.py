@@ -20,7 +20,8 @@ class InStream(object):
     def __getitem__(self, val):
         return self.curr_line[val]
 
-
+def count(inlist):
+    return len(inlist)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -34,7 +35,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    metric = {"max": max, "min": min}
+    metric = {"max": max, "min": min, "count" : count}
     this_metric = metric[args.metric]
     if args.infimo is not "-":
         seqs = inout.FastaFile()

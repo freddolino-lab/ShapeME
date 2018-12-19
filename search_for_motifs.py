@@ -22,22 +22,32 @@ def read_parameter_file(infile):
 def motif_score(motif_vec, data_vec, metric):
     return metric(motif_vec, data_vec)
 
-def search_for_motifs(seq, motif, threshold, metric, wsize, wstart=0, wend=None, threshold_above=False):
+def search_for_motifs(seq, motif, threshold, metric, wsize, wstart=0, wend=None, threshold_above=False, rc=False):
     matches = []
+    motif_vec = motif.as_vector()
+    if args.rc:
+        motif.rev_comp()
+        motif_vec_rc = motif.as_vector()
+        motif.rev_comp()
     for i, window in enumerate(seq.sliding_windows(wsize, 1, wstart, wend)):
-        score = motif_score(motif.as_vector(cache=True), window.as_vector(), metric)
+        score = motif_score(motif_vec, window.as_vector(), metric)
         above_thresh = score > threshold
         if above_thresh == threshold_above:
-            matches.append([i+wstart, i+wstart+wsize, score])
+            matches.append([i+wstart, i+wstart+wsize, score, "+"])
+        if rc:
+            score = motif_score(motif_vec_rc, window.as_vector(), metric)
+            above_thresh = score > threshold
+            if above_thresh == threshold_above:
+                matches.append([i+wstart, i+wstart+wsize, score, "-"])
     return matches
 
 def write_matches_bed(fhandle, name, matches, motif_name):
     for match in matches:
-        fhandle.write("%s\t%i\t%i\t%s\t%.4f\n"%(name, match[0], match[1], motif_name, match[2]))
+        fhandle.write("%s\t%i\t%i\t%s\t%.4f\t%s\n"%(name, match[0], match[1], motif_name, match[2], match[3]))
 
 def write_matches_fimo(fhandle, name, matches, motif_name):
     for match in matches:
-        fhandle.write("%s\t%s\t%i\t%i\t.\t%.4f\t.\t.\t.\n"%(motif_name,name, match[0], match[1], match[2]))
+        fhandle.write("%s\t%s\t%i\t%i\t%s\t%.4f\t.\t.\t.\n"%(motif_name,name, match[0], match[1], match[3], match[2]))
 
 def write_matches_count(fhandle, name, matches, motif_name):
     fhandle.write("%s\t%s\t%i\n"%(name,motif_name,len(matches)))
@@ -59,6 +69,8 @@ if __name__ == "__main__":
                          help='# bp to ignore at end of each sequence', default=2)
     parser.add_argument('--outfmt', type=str, default=".bed",
             help=".bed for full matches or .txt for counts or .fimo for fimo-like format")
+    parser.add_argument('--rc', action="store_true",
+            help="search the reverse complement with each seed as well?")
     parser.add_argument('-o', type=str, default="-")
 
     logging.warning("Reading in files")
@@ -117,7 +129,7 @@ if __name__ == "__main__":
             matches = search_for_motifs(seq, motif['seed'], this_threshold, 
                                         dsp.manhattan_distance, len(motif['seed']),
                                         wstart=args.ignorestart, wend=args.ignoreend,
-                                        threshold_above = args.threshold_above)
+                                        threshold_above = args.threshold_above, rc=args.rc)
             write(outfile, name, matches, motif['name'])
         genome.unnormalize_params()
     outfile.close()

@@ -34,9 +34,9 @@ def optimize_mi(param_vec, data, sample_perc, info):
         as determined by 
     """
     threshold = param_vec[-1]
-    this_data = data
-    #this_data = data.random_subset_by_class(sample_perc)
-    this_discrete = generate_peak_vector(this_data, param_vec[:-1], threshold)
+    this_data = data                                                            #Global, fix later to not be global
+    #this_data = data.random_subset_by_class(sample_perc)                       v
+    this_discrete = generate_peak_vector(this_data, param_vec[:-1], threshold, args.rc)
     this_mi = this_data.mutual_information(this_discrete)
     if info["NFeval"]%10 == 0:
         info["value"].append(this_mi)
@@ -44,7 +44,7 @@ def optimize_mi(param_vec, data, sample_perc, info):
     info["NFeval"] += 1
     return -this_mi
 
-def generate_peak_vector(data, motif_vec, threshold):
+def generate_peak_vector(data, motif, threshold, rc=False):
     """ Function to calculate the sequences that have a match to a motif
     Args:
         data (SeqDatabase) - database to calculate over, must already have
@@ -56,13 +56,26 @@ def generate_peak_vector(data, motif_vec, threshold):
                               1 is a match and 0 is not.
     """
     this_discrete = []
+    motif_vec = motif.as_vector(cache=True)
+    if args.rc:
+        motif.rev_comp()
+        motif_vec_rc = motif.as_vector()
+        motif.rev_comp()
+
     for this_seq in data.iterate_through_precompute():
-        seq_pass = 0
+        seq_pass = False
         for this_motif in this_seq:
             distance = this_motif.distance(motif_vec, vec=True, cache=True)
             if distance < threshold:
-                seq_pass = 1
+                seq_pass = True
                 break
+        if args.rc:
+            for this_motif in this_seq:
+                distance = this_motif.distance(motif_vec_rc, vec=True, cache=True)
+                if distance < threshold:
+                    seq_pass = True
+                    break
+
         this_discrete.append(seq_pass)
     return np.array(this_discrete)
 
@@ -98,7 +111,7 @@ def find_initial_threshold(cats, seeds_per_seq=1, max_seeds = 10000):
         if seed_counter >= max_seeds:
             break
 
-    logging.warning("Using %s random seeds to determine threshold from pairwise distances"%(len(total_seeds)))
+    logging.info("Using %s random seeds to determine threshold from pairwise distances"%(len(total_seeds)))
     for i, seedi in enumerate(total_seeds):
         for j, seedj in enumerate(total_seeds):
             newval = seedi.distance(seedj.as_vector(cache=True), vec=True, cache=True)
@@ -111,7 +124,7 @@ def find_initial_threshold(cats, seeds_per_seq=1, max_seeds = 10000):
     mean = online_mean.final_mean()
     stdev = online_mean.final_stdev()
     
-    logging.warning("Threshold mean: %s and stdev %s"%(mean, stdev))
+    logging.info("Threshold mean: %s and stdev %s"%(mean, stdev))
     return mean, stdev
 
 def seqs_per_bin(cats):
@@ -193,10 +206,10 @@ def greedy_search(cats, threshold = 10, number=1000):
                 continue
     values = np.array(values)
     for value in np.unique(values):
-        logging.warning("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
+        logging.info("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
     return seeds
 
-def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1):
+def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1, rc=False, prev_seeds=None):
     """ Function to find initial seeds by a greedy search
 
     Prints the number of seeds per class to the logger
@@ -209,10 +222,15 @@ def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1):
     Returns:
         seeds (list) - a list of dsp.ShapeParamSeq objects to be considered
     """
-    seeds = []
+    if prev_seeds:
+        seeds = prev_seeds
+    else:
+        seeds = []
     values = []
     cats_shuffled = cats.shuffle()
     for i,seq in enumerate(cats_shuffled.iterate_through_precompute()):
+        if i % 500 == 0:
+            logging.info("Greedy search on seq %s"%(i))
         if(len(seeds) >= number):
             break
         # sample in a random order from the sequence
@@ -223,9 +241,15 @@ def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1):
             if curr_seeds_per_seq >= seeds_per_seq:
                 break
             try:
-                for motif2 in seeds:
-                    distance = motif2.distance(motif.as_vector(), vec=True, cache=True)
+                for j,motif2 in enumerate(seeds):
+                    if rc:
+                        distance = motif2.distance(motif.as_vector()[::-1], vec=True, cache=True)
+                    else: 
+                        distance = motif2.distance(motif.as_vector(), vec=True, cache=True)
                     if distance < threshold:
+                        coin_flip = np.random.randint(0,2)
+                        if coin_flip:
+                            seeds[j] = motif
                         raise MotifMatch(distance)
                 seeds.append(motif)
                 curr_seeds_per_seq += 1
@@ -234,7 +258,7 @@ def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1):
                 continue
     values = np.array(values)
     for value in np.unique(values):
-        logging.warning("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
+        logging.info("Seeds in Cat %i: %i"%(value, np.sum(values == value)))
     return seeds
 
 def mp_optimize_seeds_helper(args):
@@ -469,6 +493,8 @@ if __name__ == "__main__":
                          help='cutoff for number of seeds to test. Default=1000', default=1000)
     parser.add_argument('--seeds_per_seq', type=int,
                          help='max number of seeds to come from a single sequence. Default=1', default=1)
+    parser.add_argument('--seeds_per_seq_thresh', type=int,
+                         help='max number of seeds to come from a single sequence. Default=1', default=1)
     parser.add_argument('--nonormalize', action="store_true",
                          help='don\'t normalize the input data by robustZ')
     parser.add_argument('--threshold_perc', type=float, default=0.05,
@@ -497,17 +523,19 @@ if __name__ == "__main__":
             help="distance metric to use, manhattan is the only supported one for now")
     parser.add_argument('--seed', type=int, default=None,
             help="set the random seed, default=None, based on system time")
+    parser.add_argument('--rc', action="store_true",
+            help="search the reverse complement with each seed as well?")
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
     parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
 
- 
+    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO) 
     args = parser.parse_args()
     outpre = args.o
     if args.seed:
         np.random.seed(args.seed)
     
-    logging.warning("Reading in files")
+    logging.info("Reading in files")
     all_params = [read_parameter_file(x) for x in args.params]
     dist_met = {"manhattan": dsp.manhattan_distance, 
                 "hamming": dsp.hamming_distance,
@@ -516,57 +544,58 @@ if __name__ == "__main__":
     cats = inout.SeqDatabase(names=[])
     if args.continuous is not None:
         cats.read(args.infile, float)
-        logging.warning("Discretizing data")
+        logging.info("Discretizing data")
         cats.discretize_quant(args.continuous)
     else:
         cats.read(args.infile, int)
-    logging.warning("Distribution of sequences per class:")
-    logging.warning(seqs_per_bin(cats))
+    logging.info("Distribution of sequences per class:")
+    logging.info(seqs_per_bin(cats))
 
     for name, param in zip(cats.names, cats):
         for this_param, this_param_name in zip(all_params, args.param_names):
             param.add_shape_param(dsp.ShapeParamSeq(this_param_name, this_param.pull_entry(name).seq))
             param.metric = this_dist
 
-    logging.warning("Normalizing parameters")
+    logging.info("Normalizing parameters")
     if args.nonormalize:
         cats.determine_center_spread(inout.identity_csp)
     else:
         cats.determine_center_spread()
         cats.normalize_params()
     for name in cats.center_spread.keys():
-        logging.warning("%s: %s"%(name, cats.center_spread[name]))
+        logging.info("%s: %s"%(name, cats.center_spread[name]))
 
-    logging.warning("Precomputing all windows")
+    logging.info("Precomputing all windows")
     cats.pre_compute_windows(args.kmer, wstart=args.ignorestart, wend=args.ignoreend)
 
-    logging.warning("Determining initial threshold")
+    logging.info("Determining initial threshold")
     if args.distance_metric == "hamming":
         threshold_match = 4
-        logging.warning("Using %f as an initial match threshold"%(threshold_match))
+        logging.info("Using %f as an initial match threshold"%(threshold_match))
     else:
-        mean,stdev = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc), args.seeds_per_seq)
+        mean,stdev = find_initial_threshold(cats.random_subset_by_class(args.threshold_perc), args.seeds_per_seq_thresh)
         threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
         threshold_match = max(mean - args.threshold_match*stdev, 0)
-        logging.warning("Using %f as an initial match threshold"%(threshold_match))
+        logging.info("Using %f as an initial match threshold"%(threshold_match))
 
     all_seeds = []
-    logging.warning("Greedy search for possible motifs with threshold %s"%(threshold_seeds))
+    logging.info("Greedy search for possible motifs with threshold %s"%(threshold_seeds))
     possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds, args.seeds_per_seq)
-    logging.warning("%s possible motifs"%(len(possible_motifs)))
-    logging.warning("Finding MI for seeds")
+
+    logging.info("%s possible motifs"%(len(possible_motifs)))
+    logging.info("Finding MI for seeds")
     this_entry = {}
 
     if args.seed_perc != 1:
         this_cats = cats.random_subset_by_class(args.seed_perc)
     else:
         this_cats = cats
-    logging.warning("Distribution of sequences per class for seed screening")
-    logging.warning(seqs_per_bin(this_cats))
+    logging.info("Distribution of sequences per class for seed screening")
+    logging.info(seqs_per_bin(this_cats))
     for i,motif1 in enumerate(possible_motifs):
         if not (i % 10):
-            logging.warning("Computing MI for motif %s"%i)
-        this_discrete = generate_peak_vector(this_cats, motif1.as_vector(cache=True), threshold_match)
+            logging.info("Computing MI for motif %s"%i)
+        this_discrete = generate_peak_vector(this_cats, motif1, threshold_match, rc=args.rc)
         this_entry['mi'] = this_cats.mutual_information(this_discrete)
         this_entry['motif_entropy'] = inout.entropy(this_discrete)
         this_entry['category_entropy'] = this_cats.shannon_entropy()
@@ -576,30 +605,30 @@ if __name__ == "__main__":
         this_entry['discrete'] = this_discrete
         all_seeds.append(this_entry)
         this_entry = {}
-    logging.warning("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
+    logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
-    logging.warning("%s seeds survived"%(len(novel_seeds)))
-    logging.warning("Filtering seeds by AIC individually")
+    logging.info("%s seeds survived"%(len(novel_seeds)))
+    logging.info("Filtering seeds by AIC individually")
     good_seeds = []
     for seed in novel_seeds:
         passed = aic_seeds([seed], this_cats)
         if len(passed) > 0:
             good_seeds.append(seed) 
     if len(good_seeds) < 1: 
-        logging.warning("No motifs found")
+        logging.info("No motifs found")
         sys.exit()
-    logging.warning("%s seeds survived"%(len(good_seeds)))
+    logging.info("%s seeds survived"%(len(good_seeds)))
     for motif in good_seeds:
-        logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
-        logging.warning("MI: %f"%(motif['mi']))
-        logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
-        logging.warning("Category Entropy: %f"%(motif['category_entropy']))
+        logging.info("Seed: %s"%(motif['seed'].as_vector(cache=True)))
+        logging.info("MI: %f"%(motif['mi']))
+        logging.info("Motif Entropy: %f"%(motif['motif_entropy']))
+        logging.info("Category Entropy: %f"%(motif['category_entropy']))
         for key in sorted(motif['enrichment'].keys()):
-            logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
-            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
-    logging.warning("Generating initial heatmap for passing seeds")
+            logging.info("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
+            logging.info("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
+    logging.info("Generating initial heatmap for passing seeds")
     if len(good_seeds) > 25:
-        logging.warning("Only plotting first 25 seeds")
+        logging.info("Only plotting first 25 seeds")
         enrich_hm = smv.EnrichmentHeatmap(good_seeds[:25])
     else:
         enrich_hm = smv.EnrichmentHeatmap(good_seeds)
@@ -609,13 +638,13 @@ if __name__ == "__main__":
         enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
         enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
-        logging.warning("Optimizing seeds using %i processors"%(args.p))
+        logging.info("Optimizing seeds using %i processors"%(args.p))
         final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
         if args.optimize_perc != 1:
-            logging.warning("Testing final optimized seeds on full database")
+            logging.info("Testing final optimized seeds on full database")
             for i,this_entry in enumerate(final_seeds):
-                logging.warning("Computing MI for motif %s"%i)
-                this_discrete = generate_peak_vector(cats, this_entry['seed'].as_vector(cache=True), this_entry['threshold'])
+                logging.info("Computing MI for motif %s"%i)
+                this_discrete = generate_peak_vector(cats, this_entry['seed'], this_entry['threshold'], args.rc)
                 this_entry['mi'] = cats.mutual_information(this_discrete)
                 this_entry['motif_entropy'] = inout.entropy(this_discrete)
                 this_entry['category_entropy'] = cats.shannon_entropy()
@@ -623,59 +652,59 @@ if __name__ == "__main__":
                 this_entry['discrete'] = this_discrete
     else:
         if args.seed_perc != 1:
-            logging.warning("Testing final optimized seeds on full database")
+            logging.info("Testing final optimized seeds on full database")
             for i,this_entry in enumerate(good_seeds):
-                logging.warning("Computing MI for motif %s"%i)
-                this_discrete = generate_peak_vector(cats, this_entry['seed'].as_vector(cache=True), this_entry['threshold'])
+                logging.info("Computing MI for motif %s"%i)
+                this_discrete = generate_peak_vector(cats, this_entry['seed'], this_entry['threshold'], args.rc)
                 this_entry['mi'] = cats.mutual_information(this_discrete)
                 this_entry['motif_entropy'] = inout.entropy(this_discrete)
                 this_entry['category_entropy'] = cats.shannon_entropy()
                 this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
         final_seeds = good_seeds
-    logging.warning("Filtering final seeds by BIC")
+    logging.info("Filtering final seeds by BIC")
     final_good_seeds = bic_seeds(final_seeds, cats)
     if len(final_good_seeds) < 1: 
-        logging.warning("No motifs found")
+        logging.info("No motifs found")
         sys.exit()
-    logging.warning("%s seeds survived"%(len(final_good_seeds)))
+    logging.info("%s seeds survived"%(len(final_good_seeds)))
     for i, motif in enumerate(final_good_seeds):
-        logging.warning("Seed: %s"%(motif['seed'].as_vector(cache=True)))
-        logging.warning("MI: %f"%(motif['mi']))
+        logging.info("Seed: %s"%(motif['seed'].as_vector(cache=True)))
+        logging.info("MI: %f"%(motif['mi']))
         if args.infoz > 0:
-            logging.warning("Calculating Z-score for motif %s"%i)
+            logging.info("Calculating Z-score for motif %s"%i)
             # calculate zscore
             zscore, passed = info_zscore(motif['discrete'], cats.get_values(), args.infoz)
             motif['zscore'] = zscore
-            logging.warning("Z-score: %f"%(motif['zscore']))
+            logging.info("Z-score: %f"%(motif['zscore']))
         if args.infoz > 0 and args.inforobust > 0:
-            logging.warning("Calculating Robustness for motif %s"%i)
+            logging.info("Calculating Robustness for motif %s"%i)
             num_passed = info_robustness(motif['discrete'], cats.get_values(), 
                     args.infoz, args.inforobust, args.fracjack)
             motif['robustness'] = "%s/%s"%(num_passed,args.inforobust)
-            logging.warning("Robustness: %s"%(motif['robustness']))
-        logging.warning("Motif Entropy: %f"%(motif['motif_entropy']))
-        logging.warning("Category Entropy: %f"%(motif['category_entropy']))
+            logging.info("Robustness: %s"%(motif['robustness']))
+        logging.info("Motif Entropy: %f"%(motif['motif_entropy']))
+        logging.info("Category Entropy: %f"%(motif['category_entropy']))
         for key in sorted(motif['enrichment'].keys()):
-            logging.warning("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
-            logging.warning("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
+            logging.info("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
+            logging.info("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
         if args.optimize:
-            logging.warning("Optimize Success?: %s"%(motif['opt_success']))
-            logging.warning("Optimize Message: %s"%(motif['opt_message']))
-            logging.warning("Optimize Iterations: %s"%(motif['opt_iter']))
-    logging.warning("Generating final heatmap for seeds")
+            logging.info("Optimize Success?: %s"%(motif['opt_success']))
+            logging.info("Optimize Message: %s"%(motif['opt_message']))
+            logging.info("Optimize Iterations: %s"%(motif['opt_iter']))
+    logging.info("Generating final heatmap for seeds")
     enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
     enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
     if not args.txt_only:
         enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
         enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
         if args.optimize:
-            logging.warning("Plotting optimization for final motifs")
+            logging.info("Plotting optimization for final motifs")
             enrich_hm.plot_optimization(outpre+"_optimization.pdf")
-    logging.warning("Writing final motifs")
+    logging.info("Writing final motifs")
     outmotifs = inout.ShapeMotifFile()
     outmotifs.add_motifs(final_good_seeds)
     outmotifs.write_file(outpre+"_called_motifs.dsp", cats)
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
-    #logging.warning(final)
+    #logging.info(final)

@@ -96,6 +96,16 @@ class ShapeParamSeq(object):
         values = self.get_values()
         values = (values*spread) + center
         self.params = values
+
+
+    def rev_comp(self):
+        """ Method to reverse the values to search the negative strand
+
+        Reverses the values in place
+        """
+        values = self.get_values()
+        values = values[::-1]
+        self.params = values
         
 
 class ShapeParams(object):
@@ -315,6 +325,14 @@ class ShapeParams(object):
         for name in center_spread_dict.keys():
             center, spread = center_spread_dict[name]
             self.data[name].unnormalize_values(center, spread)
+
+    def rev_comp(self):
+        """ Method to reverse the values to search the negative strand
+
+        Reverses the values in place
+        """
+        for param in self:
+            param.rev_comp()
 
 
 
