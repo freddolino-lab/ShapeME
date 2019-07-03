@@ -532,16 +532,24 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO) 
     args = parser.parse_args()
     outpre = args.o
+    # choose a random seed
     if args.seed:
         np.random.seed(args.seed)
     
     logging.info("Reading in files")
+    # read in the fasq files containing parameter information
     all_params = [read_parameter_file(x) for x in args.params]
+    # possible distance metrics that could be used
     dist_met = {"manhattan": dsp.manhattan_distance, 
                 "hamming": dsp.hamming_distance,
                 "euclidean": dsp.euclidean_distance}
+    # store the distance metric chosen
     this_dist = dist_met[args.distance_metric]
+    # create an empty sequence database to store the sequences in
     cats = inout.SeqDatabase(names=[])
+    
+    # read in the values associated with each sequence and store them
+    # in the sequence database
     if args.continuous is not None:
         cats.read(args.infile, float)
         logging.info("Discretizing data")
@@ -551,6 +559,7 @@ if __name__ == "__main__":
     logging.info("Distribution of sequences per class:")
     logging.info(seqs_per_bin(cats))
 
+    # add parameter values for each sequence
     for name, param in zip(cats.names, cats):
         for this_param, this_param_name in zip(all_params, args.param_names):
             param.add_shape_param(dsp.ShapeParamSeq(this_param_name, this_param.pull_entry(name).seq))
