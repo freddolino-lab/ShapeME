@@ -6,14 +6,13 @@ import find_motifs as fm
 import numpy as np
 import inout
 import sys
-sys.path.append("/home/mbwolfe/src/DNAshape_motif_finder/helical_wheel")
-import helical_wheel as hw
 
 plt.rc('figure', titlesize=10)
 
 class MotifVis(inout.ShapeMotifFile):
 
     def plot_helical(self, motif, baseparams, lineparams, grid=None, vmin=None, vmax=None):
+        import helical_wheel as hw
         fig = plt.gcf()
         if grid is None:
            total_grid = gs.GridSpec(1,1) 
