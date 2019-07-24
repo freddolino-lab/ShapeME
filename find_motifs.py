@@ -642,9 +642,9 @@ if __name__ == "__main__":
     else:
         enrich_hm = smv.EnrichmentHeatmap(good_seeds)
 
-    enrich_hm.enrichment_heatmap_txt(outpre+"enrichment_before_hm.txt")
+    enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
     if not args.txt_only:
-        enrich_hm.display_enrichment(outpre+"enrichment_before_hm.pdf")
+        enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
         enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.info("Optimizing seeds using %i processors"%(args.p))
