@@ -325,6 +325,34 @@ def mp_optimize_seeds_helper(args):
     final_seed_dict['opt_info'] = func_info
 
     return final_seed_dict
+
+def mp_evaluate_seeds(data, seeds, threshold_match, rc, p=1):
+    """Perform seed evaluation in a multiprocessed manner
+
+    Args:
+        seeds (list) - seeds to evaluate
+        data (cat) - A sequence category object
+        p (int) - number of processors
+    """
+    # determine how to chunk the seeds:
+    seeds_chunked = [seeds[i::p] for i in range(0,p)]
+    pool = mp.Pool(processes=p)
+    out_seeds = pool.map(mp_evaluate_seeds_helper, 
+            ((data, seeds, threshold_match, rc) for seeds in seeds_chunked))
+    pool.close()
+    pool.join()
+    # flatten list
+    final_seeds = []
+    for processor in out_seeds:
+        for seed in processor:
+            final_seeds.append(seed)
+    return final_seeds
+
+def mp_evaluate_seeds_helper(these_args):
+    data, seeds, threshold_match, rc = these_args
+    these_seeds = evaluate_seeds(data, seeds, threshold_match, rc)
+    return these_seeds
+
         
 def mp_optimize_seeds(seeds, data, sample_perc, p=1):
     """Perform seed optimization in a multiprocessed manner
@@ -617,7 +645,6 @@ if __name__ == "__main__":
         threshold_match = max(mean - args.threshold_match*stdev, 0)
         logging.info("Using %f as an initial match threshold"%(threshold_match))
 
-    #all_seeds = []
     logging.info("Greedy search for possible motifs with threshold %s"%(threshold_seeds))
     possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds, args.seeds_per_seq)
 
@@ -631,20 +658,9 @@ if __name__ == "__main__":
         this_cats = cats
     logging.info("Distribution of sequences per class for seed screening")
     logging.info(seqs_per_bin(this_cats))
-#    for i,motif1 in enumerate(possible_motifs):
-#        if not (i % 10):
-#            logging.info("Computing MI for motif %s"%i)
-#        this_discrete = generate_peak_vector(this_cats, motif1, threshold_match, rc=args.rc)
-#        this_entry['mi'] = this_cats.mutual_information(this_discrete)
-#        this_entry['motif_entropy'] = inout.entropy(this_discrete)
-#        this_entry['category_entropy'] = this_cats.shannon_entropy()
-#        this_entry['enrichment'] = this_cats.calculate_enrichment(this_discrete)
-#        this_entry['seed'] = motif1
-#        this_entry['threshold'] = threshold_match
-#        this_entry['discrete'] = this_discrete
-#        all_seeds.append(this_entry)
-#        this_entry = {}
-    all_seeds = evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc)
+    logging.info("Evaluating %s seeds over %s processors"%(len(possible_motifs), args.p))
+
+    all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
     logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.info("%s seeds survived"%(len(novel_seeds)))
