@@ -101,7 +101,7 @@ class ShapeParamSeq(object):
     def rev_comp(self):
         """ Method to reverse the values to search the negative strand
 
-        Reverses the values in place
+        Reverses the values in place. NOT THREAD SAFE
         """
         values = self.get_values()
         values = values[::-1]
@@ -329,7 +329,7 @@ class ShapeParams(object):
     def rev_comp(self):
         """ Method to reverse the values to search the negative strand
 
-        Reverses the values in place
+        Reverses the values in place. NOT THREAD SAFE
         """
         for param in self:
             param.rev_comp()
