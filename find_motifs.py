@@ -333,6 +333,9 @@ def mp_evaluate_seeds(data, seeds, threshold_match, rc, p=1):
         seeds (list) - seeds to evaluate
         data (cat) - A sequence category object
         p (int) - number of processors
+
+    Returns:
+        list of evaluated seed dictionaries
     """
     # determine how to chunk the seeds:
     seeds_chunked = [seeds[i::p] for i in range(0,p)]
@@ -349,6 +352,15 @@ def mp_evaluate_seeds(data, seeds, threshold_match, rc, p=1):
     return final_seeds
 
 def mp_evaluate_seeds_helper(these_args):
+    """ Helper function for doing evaluation in a multiprocessed way
+    
+    Args:
+        these_args (list) - list of args i.e. database, list of seeds,
+                            match cutoff, reverse complement
+
+    Returns:
+        list of evaluated seed dictionaries
+    """
     data, seeds, threshold_match, rc = these_args
     these_seeds = evaluate_seeds(data, seeds, threshold_match, rc)
     return these_seeds
@@ -555,6 +567,7 @@ if __name__ == "__main__":
                          help='max number of seeds to come from a single sequence. Default=1', default=1)
     parser.add_argument('--nonormalize', action="store_true",
                          help='don\'t normalize the input data by robustZ')
+    parser.add_argument('--search_method', type=str, default="greedy", help="search method for initial seeds. Options: greedy, brute")
     parser.add_argument('--threshold_perc', type=float, default=0.05,
             help="fraction of data to determine threshold on. Default=0.05")
     parser.add_argument('--threshold_seeds', type=float, default=2.0, 
@@ -644,11 +657,15 @@ if __name__ == "__main__":
         threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
         threshold_match = max(mean - args.threshold_match*stdev, 0)
         logging.info("Using %f as an initial match threshold"%(threshold_match))
+    if args.search_method == "greedy":
+        logging.info("Greedy search for possible motifs with threshold %s"%(threshold_seeds))
+        possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds, args.seeds_per_seq)
+    else:
+        logging.info("Testing all seeds by brute force")
+        # double for loop list comprehension
+        possible_motifs = [motif for a_seq in cats.iterate_through_precompute() for motif in a_seq]
 
-    logging.info("Greedy search for possible motifs with threshold %s"%(threshold_seeds))
-    possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds, args.seeds_per_seq)
-
-    logging.info("%s possible motifs"%(len(possible_motifs)))
+    logging.info("%s possible seeds"%(len(possible_motifs)))
     logging.info("Finding MI for seeds")
     this_entry = {}
 
@@ -658,7 +675,7 @@ if __name__ == "__main__":
         this_cats = cats
     logging.info("Distribution of sequences per class for seed screening")
     logging.info(seqs_per_bin(this_cats))
-    logging.info("Evaluating %s seeds over %s processors"%(len(possible_motifs), args.p))
+    logging.info("Evaluating %s seeds over %s processor(s)"%(len(possible_motifs), args.p))
 
     all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
     logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
