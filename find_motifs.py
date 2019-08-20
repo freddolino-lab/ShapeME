@@ -59,7 +59,9 @@ def generate_peak_vector(data, motif, threshold, rc=False):
     this_discrete = []
     motif_vec = motif.as_vector(cache=True)
     if rc:
-        motif_vec_rc = motif_vec[::-1]
+        motif.rev_comp()
+        motif_vec_rc = motif.as_vector()
+        motif.rev_comp()
 
     for this_seq in data.iterate_through_precompute():
         seq_pass = False
@@ -241,10 +243,7 @@ def greedy_search2(cats, threshold = 10, number=1000, seeds_per_seq = 1, rc=Fals
                 break
             try:
                 for j,motif2 in enumerate(seeds):
-                    if rc:
-                        distance = motif2.distance(motif.as_vector()[::-1], vec=True, cache=True)
-                    else: 
-                        distance = motif2.distance(motif.as_vector(), vec=True, cache=True)
+                    distance = motif2.distance(motif.as_vector(), vec=True, cache=True)
                     if distance < threshold:
                         coin_flip = np.random.randint(0,2)
                         if coin_flip:
@@ -677,7 +676,8 @@ if __name__ == "__main__":
     logging.info(seqs_per_bin(this_cats))
     logging.info("Evaluating %s seeds over %s processor(s)"%(len(possible_motifs), args.p))
 
-    all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
+    #all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
+    all_seeds = evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc)
     logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.info("%s seeds survived"%(len(novel_seeds)))
