@@ -676,8 +676,8 @@ if __name__ == "__main__":
     logging.info(seqs_per_bin(this_cats))
     logging.info("Evaluating %s seeds over %s processor(s)"%(len(possible_motifs), args.p))
 
-    #all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
-    all_seeds = evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc)
+    all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
+    #all_seeds = evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc)
     logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.info("%s seeds survived"%(len(novel_seeds)))
