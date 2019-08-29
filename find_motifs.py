@@ -9,7 +9,10 @@ import shapemotifvis as smv
 import multiprocessing as mp
 import itertools
 import welfords
-import copy
+import sklearn
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegressionCV
+import cvlogistic
 
 def make_initial_seeds(cats, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
@@ -79,6 +82,36 @@ def generate_peak_vector(data, motif, threshold, rc=False):
 
         this_discrete.append(seq_pass)
     return np.array(this_discrete)
+
+def generate_match_vector(data, motif, rc=False):
+    """ Function to calculate the best possible match value for each seq
+    Args:
+        data (SeqDatabase) - database to calculate over, must already have
+                             motifs pre_computed
+        motif_vec(np.array) - numpy array containing motif vector
+        threshold(float) - a distance threshold to be considered a match
+    Returns:
+        discrete (np.array) - a numpy array of minimum match value for each seq
+    """
+    all_matches = []
+    motif_vec = motif.as_vector(cache=True)
+    if rc:
+        motif.rev_comp()
+        motif_vec_rc = motif.as_vector()
+        motif.rev_comp()
+    this_seq_matches = []
+    for this_seq in data.iterate_through_precompute():
+        for this_motif in this_seq:
+            distance = this_motif.distance(motif_vec, vec=True, cache=True)
+            this_seq_matches.append(distance)
+        if rc:
+            for this_motif in this_seq:
+                distance = this_motif.distance(motif_vec_rc, vec=True, cache=True)
+                this_seq_matches.append(distance)
+
+        all_matches.append(np.min(this_seq_matches))
+        this_seq_matches = []
+    return np.array(all_matches)
 
 def find_initial_threshold(cats, seeds_per_seq=1, max_seeds = 10000):
     """ Function to determine a reasonable starting threshold given a sample
@@ -771,13 +804,30 @@ if __name__ == "__main__":
                 this_entry['enrichment'] = other_cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
         final_seeds = good_seeds
-    logging.info("Filtering final seeds by BIC")
-    final_good_seeds = bic_seeds(final_seeds, other_cats)
-    if len(final_good_seeds) < 1: 
+    logging.info("Finding minimum match scores for each motif")
+    X = [generate_match_vector(other_cats, this_motif['seed'], rc=args.rc) for this_motif in final_seeds] 
+    X = np.stack(X, axis=1)
+    X = StandardScaler().fit_transform(X)
+    y = other_cats.get_values()
+    logging.info("Running L1 regularlized logistic regression with CV to determine reg param")
+    clf = LogisticRegressionCV(cv=5, multi_class='multinomial', penalty='l1', solver='saga',
+            max_iter=10000).fit(X, y)
+    good_seed_index = cvlogistic.choose_features(clf, tol=0)
+    if len(good_seed_index) < 1:
         logging.info("No motifs found")
         sys.exit()
+
+    cvlogistic.write_coef_per_class(clf, args.o + "_coef_per_class.txt")
+    final_good_seeds = [final_seeds[index] for index in good_seed_index]
+    #final_good_seeds = bic_seeds(final_seeds, other_cats)
+#    if len(final_good_seeds) < 1: 
+#        logging.info("No motifs found")
+#        sys.exit()
     logging.info("%s seeds survived"%(len(final_good_seeds)))
     if args.debug:
+        cvlogistic.plot_score(clf, args.o+"_score_logit.png")
+        for cls in clf.classes_:
+            cvlogistic.plot_coef_paths(clf, args.o+"_coef_path%s.png"%cls)
         print_top_seeds(final_good_seeds)
         print_top_seeds(final_good_seeds, reverse=False)
     for i, motif in enumerate(final_good_seeds):
@@ -816,7 +866,7 @@ if __name__ == "__main__":
     logging.info("Writing final motifs")
     outmotifs = inout.ShapeMotifFile()
     outmotifs.add_motifs(final_good_seeds)
-    outmotifs.write_file(outpre+"_called_motifs.dsp", other_cats)
+    outmotifs.write_file(outpre+"_called_motifs.dsp", cats)
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
     #logging.info(final)
