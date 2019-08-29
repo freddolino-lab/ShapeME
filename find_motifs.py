@@ -691,11 +691,14 @@ if __name__ == "__main__":
     logging.info("Finding MI for seeds")
 
     if args.seed_perc != 1:
-        this_cats = cats.random_subset_by_class(args.seed_perc)
+        this_cats, other_cats = cats.random_subset_by_class(args.seed_perc, split=True)
     else:
         this_cats = cats
+        other_cats = cats
     logging.info("Distribution of sequences per class for seed screening")
     logging.info(seqs_per_bin(this_cats))
+    logging.info("Distribution of sequences per class for regression")
+    logging.info(seqs_per_bin(other_cats))
     logging.info("Evaluating %s seeds over %s processor(s)"%(len(possible_motifs), args.p))
 
     all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
@@ -745,31 +748,31 @@ if __name__ == "__main__":
         enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.info("Optimizing seeds using %i processors"%(args.p))
-        final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
+        final_seeds = mp_optimize_seeds(good_seeds, other_cats, args.optimize_perc, p=args.p)
         if args.optimize_perc != 1:
             logging.info("Testing final optimized seeds on full database")
             for i,this_entry in enumerate(final_seeds):
                 logging.info("Computing MI for motif %s"%i)
-                this_discrete = generate_peak_vector(cats, this_entry['seed'], this_entry['threshold'], args.rc)
-                this_entry['mi'] = cats.mutual_information(this_discrete)
+                this_discrete = generate_peak_vector(other_cats, this_entry['seed'], this_entry['threshold'], args.rc)
+                this_entry['mi'] = other_cats.mutual_information(this_discrete)
                 this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = cats.shannon_entropy()
-                this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
+                this_entry['category_entropy'] = other_cats.shannon_entropy()
+                this_entry['enrichment'] = other_cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
     else:
         if args.seed_perc != 1:
-            logging.info("Testing final optimized seeds on full database")
+            logging.info("Testing final optimized seeds on held out database")
             for i,this_entry in enumerate(good_seeds):
                 logging.info("Computing MI for motif %s"%i)
-                this_discrete = generate_peak_vector(cats, this_entry['seed'], this_entry['threshold'], args.rc)
-                this_entry['mi'] = cats.mutual_information(this_discrete)
+                this_discrete = generate_peak_vector(other_cats, this_entry['seed'], this_entry['threshold'], args.rc)
+                this_entry['mi'] = other_cats.mutual_information(this_discrete)
                 this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = cats.shannon_entropy()
-                this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
+                this_entry['category_entropy'] = other_cats.shannon_entropy()
+                this_entry['enrichment'] = other_cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
         final_seeds = good_seeds
     logging.info("Filtering final seeds by BIC")
-    final_good_seeds = bic_seeds(final_seeds, cats)
+    final_good_seeds = bic_seeds(final_seeds, other_cats)
     if len(final_good_seeds) < 1: 
         logging.info("No motifs found")
         sys.exit()
@@ -783,12 +786,12 @@ if __name__ == "__main__":
         if args.infoz > 0:
             logging.info("Calculating Z-score for motif %s"%i)
             # calculate zscore
-            zscore, passed = info_zscore(motif['discrete'], cats.get_values(), args.infoz)
+            zscore, passed = info_zscore(motif['discrete'], other_cats.get_values(), args.infoz)
             motif['zscore'] = zscore
             logging.info("Z-score: %f"%(motif['zscore']))
         if args.infoz > 0 and args.inforobust > 0:
             logging.info("Calculating Robustness for motif %s"%i)
-            num_passed = info_robustness(motif['discrete'], cats.get_values(), 
+            num_passed = info_robustness(motif['discrete'], other_cats.get_values(), 
                     args.infoz, args.inforobust, args.fracjack)
             motif['robustness'] = "%s/%s"%(num_passed,args.inforobust)
             logging.info("Robustness: %s"%(motif['robustness']))
@@ -813,7 +816,7 @@ if __name__ == "__main__":
     logging.info("Writing final motifs")
     outmotifs = inout.ShapeMotifFile()
     outmotifs.add_motifs(final_good_seeds)
-    outmotifs.write_file(outpre+"_called_motifs.dsp", cats)
+    outmotifs.write_file(outpre+"_called_motifs.dsp", other_cats)
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
     #logging.info(final)
