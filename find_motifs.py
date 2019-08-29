@@ -284,6 +284,23 @@ def add_seed_metadata(cats, seed):
     seed['category_entropy'] = cats.shannon_entropy()
     seed['enrichment'] = cats.calculate_enrichment(seed['discrete'])
 
+def print_top_seeds(seeds, n= 5, reverse=True):
+    sorted_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=reverse)
+    if reverse:
+        logging.debug("Printing top %s seeds."%(n))
+    else:
+        logging.debug("Printing bottom %s seeds."%(n))
+
+    for seed in sorted_seeds[0:n]:
+        logging.debug("Seed MI: %s\n Seed Mem: %s\n%s"%(seed['mi'],seed['seed'], seed['seed'].as_vector()))
+
+def save_mis(seeds, out_pre):
+    all_mis = []
+    for seed in seeds:
+        all_mis.append(seed['mi'])
+    np.savetxt(out_pre+".txt", all_mis)
+
+
 def mp_optimize_seeds_helper(args):
     """ Helper function to allow seed optimization to be multiprocessed
     
@@ -597,10 +614,16 @@ if __name__ == "__main__":
             help="search the reverse complement with each seed as well?")
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors")
+    parser.add_argument("--debug", action="store_true",
+            help="print debugging information to stderr")
     parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
-
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO) 
+    
     args = parser.parse_args()
+    if args.debug:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logging.basicConfig(format='%(asctime)s %(message)s', level=level) 
     outpre = args.o
     # choose a random seed
     if args.seed:
@@ -666,7 +689,6 @@ if __name__ == "__main__":
 
     logging.info("%s possible seeds"%(len(possible_motifs)))
     logging.info("Finding MI for seeds")
-    this_entry = {}
 
     if args.seed_perc != 1:
         this_cats = cats.random_subset_by_class(args.seed_perc)
@@ -678,9 +700,16 @@ if __name__ == "__main__":
 
     all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
     #all_seeds = evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc)
+    if args.debug:
+        print_top_seeds(all_seeds)
+        print_top_seeds(all_seeds, reverse=False)
+        save_mis(all_seeds, args.o+"_all_seeds_mi")
     logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
     novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
     logging.info("%s seeds survived"%(len(novel_seeds)))
+    if args.debug:
+        print_top_seeds(novel_seeds)
+        print_top_seeds(novel_seeds, reverse=False)
     logging.info("Filtering seeds by AIC individually")
     good_seeds = []
     for seed in novel_seeds:
@@ -690,6 +719,9 @@ if __name__ == "__main__":
     if len(good_seeds) < 1: 
         logging.info("No motifs found")
         sys.exit()
+    if args.debug:
+        print_top_seeds(good_seeds)
+        print_top_seeds(good_seeds, reverse=False)
     logging.info("%s seeds survived"%(len(good_seeds)))
     for motif in good_seeds:
         add_seed_metadata(this_cats, motif) 
@@ -742,6 +774,9 @@ if __name__ == "__main__":
         logging.info("No motifs found")
         sys.exit()
     logging.info("%s seeds survived"%(len(final_good_seeds)))
+    if args.debug:
+        print_top_seeds(final_good_seeds)
+        print_top_seeds(final_good_seeds, reverse=False)
     for i, motif in enumerate(final_good_seeds):
         logging.info("Seed: %s"%(motif['seed'].as_vector(cache=True)))
         logging.info("MI: %f"%(motif['mi']))
