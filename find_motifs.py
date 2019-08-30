@@ -684,6 +684,7 @@ if __name__ == "__main__":
         possible_motifs = greedy_search2(cats, threshold_seeds, args.num_seeds, args.seeds_per_seq)
     else:
         logging.info("Testing all seeds by brute force")
+        debugger = cats.shuffle()
         # double for loop list comprehension
         possible_motifs = [motif for a_seq in cats.iterate_through_precompute() for motif in a_seq]
 
