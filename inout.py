@@ -510,6 +510,15 @@ class SeqDatabase(object):
                 self.params.append(dsp.ShapeParams(data={},names=[]))
             self.values = np.array(self.values)
 
+    def write(self, outfile):
+        """ Method to write out the category file in FIRE/TEISER/IPAGE format"""
+        with open(outfile, mode="w")  as outf:
+            outf.write("name\tval\n")
+            for name, val in zip(self.names, self.values):
+                outf.write("%s\t%s\n"%(name, val))
+                
+
+
     def set_center_spread(self, center_spread):
         """Method to set the center spread for the database for each
         parameter

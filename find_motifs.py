@@ -728,6 +728,8 @@ if __name__ == "__main__":
     else:
         this_cats = cats
         other_cats = cats
+    if args.debug:
+        other_cats.write(args.o + "_lasso_seqs.txt")
     logging.info("Distribution of sequences per class for seed screening")
     logging.info(seqs_per_bin(this_cats))
     logging.info("Distribution of sequences per class for regression")
@@ -805,6 +807,11 @@ if __name__ == "__main__":
                 this_entry['discrete'] = this_discrete
         final_seeds = good_seeds
     logging.info("Finding minimum match scores for each motif")
+    if args.debug:
+        logging.info("Writing motifs before regression")
+        outmotifs = inout.ShapeMotifFile()
+        outmotifs.add_motifs(final_seeds)
+        outmotifs.write_file(outpre+"_called_motifs_before_regression.dsp", cats)
     X = [generate_match_vector(other_cats, this_motif['seed'], rc=args.rc) for this_motif in final_seeds] 
     X = np.stack(X, axis=1)
     X = StandardScaler().fit_transform(X)
