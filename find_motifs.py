@@ -9,7 +9,11 @@ import shapemotifvis as smv
 import multiprocessing as mp
 import itertools
 import welfords
-import copy
+import sklearn
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import LogisticRegression
+import cvlogistic
 
 def make_initial_seeds(cats, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
@@ -79,6 +83,36 @@ def generate_peak_vector(data, motif, threshold, rc=False):
 
         this_discrete.append(seq_pass)
     return np.array(this_discrete)
+
+def generate_match_vector(data, motif, rc=False):
+    """ Function to calculate the best possible match value for each seq
+    Args:
+        data (SeqDatabase) - database to calculate over, must already have
+                             motifs pre_computed
+        motif_vec(np.array) - numpy array containing motif vector
+        threshold(float) - a distance threshold to be considered a match
+    Returns:
+        discrete (np.array) - a numpy array of minimum match value for each seq
+    """
+    all_matches = []
+    motif_vec = motif.as_vector(cache=True)
+    if rc:
+        motif.rev_comp()
+        motif_vec_rc = motif.as_vector()
+        motif.rev_comp()
+    this_seq_matches = []
+    for this_seq in data.iterate_through_precompute():
+        for this_motif in this_seq:
+            distance = this_motif.distance(motif_vec, vec=True, cache=True)
+            this_seq_matches.append(distance)
+        if rc:
+            for this_motif in this_seq:
+                distance = this_motif.distance(motif_vec_rc, vec=True, cache=True)
+                this_seq_matches.append(distance)
+
+        all_matches.append(np.min(this_seq_matches))
+        this_seq_matches = []
+    return np.array(all_matches)
 
 def find_initial_threshold(cats, seeds_per_seq=1, max_seeds = 10000):
     """ Function to determine a reasonable starting threshold given a sample
@@ -692,11 +726,16 @@ if __name__ == "__main__":
     logging.info("Finding MI for seeds")
 
     if args.seed_perc != 1:
-        this_cats = cats.random_subset_by_class(args.seed_perc)
+        this_cats, other_cats = cats.random_subset_by_class(args.seed_perc, split=True)
     else:
         this_cats = cats
+        other_cats = cats
+    if args.debug:
+        other_cats.write(args.o + "_lasso_seqs.txt")
     logging.info("Distribution of sequences per class for seed screening")
     logging.info(seqs_per_bin(this_cats))
+    logging.info("Distribution of sequences per class for regression")
+    logging.info(seqs_per_bin(other_cats))
     logging.info("Evaluating %s seeds over %s processor(s)"%(len(possible_motifs), args.p))
 
     all_seeds = mp_evaluate_seeds(this_cats, possible_motifs, threshold_match, args.rc, p=args.p)
@@ -705,15 +744,10 @@ if __name__ == "__main__":
         print_top_seeds(all_seeds)
         print_top_seeds(all_seeds, reverse=False)
         save_mis(all_seeds, args.o+"_all_seeds_mi")
-    logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
-    novel_seeds = filter_seeds(all_seeds, this_cats, args.mi_perc)
-    logging.info("%s seeds survived"%(len(novel_seeds)))
-    if args.debug:
-        print_top_seeds(novel_seeds)
-        print_top_seeds(novel_seeds, reverse=False)
+
     logging.info("Filtering seeds by AIC individually")
     good_seeds = []
-    for seed in novel_seeds:
+    for seed in all_seeds:
         passed = aic_seeds([seed], this_cats)
         if len(passed) > 0:
             good_seeds.append(seed) 
@@ -724,7 +758,43 @@ if __name__ == "__main__":
         print_top_seeds(good_seeds)
         print_top_seeds(good_seeds, reverse=False)
     logging.info("%s seeds survived"%(len(good_seeds)))
-    for motif in good_seeds:
+
+    logging.info("Finding minimum match scores for each motif")
+    if args.debug:
+        logging.info("Writing motifs before regression")
+        outmotifs = inout.ShapeMotifFile()
+        outmotifs.add_motifs(good_seeds)
+        outmotifs.write_file(outpre+"_called_motifs_before_regression.dsp", cats)
+
+    X = [generate_match_vector(this_cats, this_motif['seed'], rc=args.rc) for this_motif in good_seeds] 
+    X = np.stack(X, axis=1)
+    X = StandardScaler().fit_transform(X)
+    y = this_cats.get_values()
+    logging.info("Running L1 regularized logistic regression with CV to determine reg param")
+    clf = LogisticRegressionCV(Cs=100, cv=5, multi_class='multinomial', penalty='l1', solver='saga',
+            max_iter=10000).fit(X, y)
+    best_c = cvlogistic.find_best_c(clf)
+    clf_f = LogisticRegression(C=best_c, multi_class='multinomial', penalty='l1',solver='saga', max_iter=10000).fit(X,y)
+    good_seed_index = cvlogistic.choose_features(clf_f, tol=0)
+    if len(good_seed_index) < 1:
+        logging.info("No motifs found")
+        sys.exit()
+
+    cvlogistic.write_coef_per_class(clf_f, args.o + "_coef_per_class.txt")
+    final_good_seeds = [good_seeds[index] for index in good_seed_index]
+    logging.info("%s seeds survived"%(len(final_good_seeds)))
+    if args.debug:
+        cvlogistic.plot_score(clf, args.o+"_score_logit.png")
+        for cls in clf.classes_:
+            cvlogistic.plot_coef_paths(clf, args.o+"_coef_path%s.png"%cls)
+        print_top_seeds(final_good_seeds)
+        print_top_seeds(final_good_seeds, reverse=False)
+        logging.info("Writing motifs after regression")
+        outmotifs = inout.ShapeMotifFile()
+        outmotifs.add_motifs(final_good_seeds)
+        outmotifs.write_file(outpre+"_called_motifs_after_regression.dsp", cats)
+
+    for motif in final_good_seeds:
         add_seed_metadata(this_cats, motif) 
         logging.info("Seed: %s"%(motif['seed'].as_vector(cache=True)))
         logging.info("MI: %f"%(motif['mi']))
@@ -734,11 +804,11 @@ if __name__ == "__main__":
             logging.info("Two way table for cat %s is %s"%(key, motif['enrichment'][key]))
             logging.info("Enrichment for Cat %s is %s"%(key, two_way_to_log_odds(motif['enrichment'][key])))
     logging.info("Generating initial heatmap for passing seeds")
-    if len(good_seeds) > 25:
+    if len(final_good_seeds) > 25:
         logging.info("Only plotting first 25 seeds")
-        enrich_hm = smv.EnrichmentHeatmap(good_seeds[:25])
+        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds[:25])
     else:
-        enrich_hm = smv.EnrichmentHeatmap(good_seeds)
+        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
 
     enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
     if not args.txt_only:
@@ -746,50 +816,48 @@ if __name__ == "__main__":
         enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
         logging.info("Optimizing seeds using %i processors"%(args.p))
-        final_seeds = mp_optimize_seeds(good_seeds, cats, args.optimize_perc, p=args.p)
+        final_seeds = mp_optimize_seeds(final_good_seeds, other_cats, args.optimize_perc, p=args.p)
         if args.optimize_perc != 1:
             logging.info("Testing final optimized seeds on full database")
             for i,this_entry in enumerate(final_seeds):
                 logging.info("Computing MI for motif %s"%i)
-                this_discrete = generate_peak_vector(cats, this_entry['seed'], this_entry['threshold'], args.rc)
-                this_entry['mi'] = cats.mutual_information(this_discrete)
+                this_discrete = generate_peak_vector(other_cats, this_entry['seed'], this_entry['threshold'], args.rc)
+                this_entry['mi'] = other_cats.mutual_information(this_discrete)
                 this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = cats.shannon_entropy()
-                this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
+                this_entry['category_entropy'] = other_cats.shannon_entropy()
+                this_entry['enrichment'] = other_cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
     else:
         if args.seed_perc != 1:
-            logging.info("Testing final optimized seeds on full database")
-            for i,this_entry in enumerate(good_seeds):
+            logging.info("Testing final optimized seeds on held out database")
+            for i,this_entry in enumerate(final_good_seeds):
                 logging.info("Computing MI for motif %s"%i)
-                this_discrete = generate_peak_vector(cats, this_entry['seed'], this_entry['threshold'], args.rc)
-                this_entry['mi'] = cats.mutual_information(this_discrete)
+                this_discrete = generate_peak_vector(other_cats, this_entry['seed'], this_entry['threshold'], args.rc)
+                this_entry['mi'] = other_cats.mutual_information(this_discrete)
                 this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = cats.shannon_entropy()
-                this_entry['enrichment'] = cats.calculate_enrichment(this_discrete)
+                this_entry['category_entropy'] = other_cats.shannon_entropy()
+                this_entry['enrichment'] = other_cats.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
-        final_seeds = good_seeds
-    logging.info("Filtering final seeds by BIC")
-    final_good_seeds = bic_seeds(final_seeds, cats)
-    if len(final_good_seeds) < 1: 
-        logging.info("No motifs found")
-        sys.exit()
-    logging.info("%s seeds survived"%(len(final_good_seeds)))
+        final_seeds = final_good_seeds
+
+    logging.info("Filtering seeds by Conditional MI using %f as a cutoff"%(args.mi_perc))
+    novel_seeds = filter_seeds(final_seeds, other_cats, args.mi_perc)
     if args.debug:
-        print_top_seeds(final_good_seeds)
-        print_top_seeds(final_good_seeds, reverse=False)
-    for i, motif in enumerate(final_good_seeds):
+        print_top_seeds(novel_seeds)
+        print_top_seeds(novel_seeds, reverse=False)
+    logging.info("%s seeds survived"%(len(novel_seeds)))
+    for i, motif in enumerate(novel_seeds):
         logging.info("Seed: %s"%(motif['seed'].as_vector(cache=True)))
         logging.info("MI: %f"%(motif['mi']))
         if args.infoz > 0:
             logging.info("Calculating Z-score for motif %s"%i)
             # calculate zscore
-            zscore, passed = info_zscore(motif['discrete'], cats.get_values(), args.infoz)
+            zscore, passed = info_zscore(motif['discrete'], other_cats.get_values(), args.infoz)
             motif['zscore'] = zscore
             logging.info("Z-score: %f"%(motif['zscore']))
         if args.infoz > 0 and args.inforobust > 0:
             logging.info("Calculating Robustness for motif %s"%i)
-            num_passed = info_robustness(motif['discrete'], cats.get_values(), 
+            num_passed = info_robustness(motif['discrete'], other_cats.get_values(), 
                     args.infoz, args.inforobust, args.fracjack)
             motif['robustness'] = "%s/%s"%(num_passed,args.inforobust)
             logging.info("Robustness: %s"%(motif['robustness']))
@@ -803,7 +871,7 @@ if __name__ == "__main__":
             logging.info("Optimize Message: %s"%(motif['opt_message']))
             logging.info("Optimize Iterations: %s"%(motif['opt_iter']))
     logging.info("Generating final heatmap for seeds")
-    enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
+    enrich_hm = smv.EnrichmentHeatmap(novel_seeds)
     enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
     if not args.txt_only:
         enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
@@ -813,7 +881,7 @@ if __name__ == "__main__":
             enrich_hm.plot_optimization(outpre+"_optimization.pdf")
     logging.info("Writing final motifs")
     outmotifs = inout.ShapeMotifFile()
-    outmotifs.add_motifs(final_good_seeds)
+    outmotifs.add_motifs(novel_seeds)
     outmotifs.write_file(outpre+"_called_motifs.dsp", cats)
     #final = opt.minimize(lambda x: -optimize_mi(x, data=cats, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=cats), motif_to_optimize)
