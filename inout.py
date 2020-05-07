@@ -78,13 +78,17 @@ class FastaEntry(object):
     def __str__(self):
         return "<FastaEntry>" + self.chrm_name() + ":" + str(len(self))
 
-    def write(self,fhandle):
+    def write(self,fhandle, wrap = 70, delim = None):
         fhandle.write(self.header+"\n")
-        for i in range(0,len(self), 70):
+        if delim:
+            convert = lambda x: delim.join([str(val) for val in x])
+        else:
+            convert = lambda x: x
+        for i in range(0,len(self), wrap):
             try:
-                fhandle.write(self.seq[i:i+70]+"\n")
+                fhandle.write(convert(self.seq[i:i+wrap])+"\n")
             except IndexError:
-                fhandle.write(self.seq[i:-1] + "\n")
+                fhandle.write(convert(self.seq[i:-1]) + "\n")
 
     def __iter__(self):
         for base in self.seq:
@@ -246,7 +250,7 @@ class FastaFile(object):
         curr_seq = []
         while line != '':
             if line[0] == ">":
-                curr_entry.set_seq(curr_seq, rm_na={"NA":np.nan})
+                curr_entry.set_seq(curr_seq, rm_na={"NA":np.nan, "nan":np.nan})
                 self.data[curr_entry.chrm_name()] = curr_entry
                 self.names.append(curr_entry.chrm_name())
                 curr_seq = []
@@ -292,7 +296,7 @@ class FastaFile(object):
     def chrm_names(self):
         return self.names
 
-    def write(self, fhandle):
+    def write(self, fhandle, wrap = 70, delim = None):
         """ 
         Write the contents of self.data into a fasta format
 
@@ -304,7 +308,7 @@ class FastaFile(object):
         """
         for chrm in self.chrm_names():
             entry = self.pull_entry(chrm)
-            entry.write(fhandle)
+            entry.write(fhandle, wrap, delim)
 
 
 class SeqDatabase(object):
@@ -813,15 +817,15 @@ class ShapeMotifFile(object):
         string += "\tname:%s"%(motif["name"])
         string += "\tthreshold:%f"%(motif["threshold"])
         string += "\tlength:%i"%(len(motif["seed"]))
-        if motif.has_key("mi"):
+        if "mi" in motif:
             string +="\tmi:%f"%(motif['mi'])
-        if motif.has_key("motif_entropy"):
+        if "motif_entropy" in motif:
             string +="\tmotif_entropy:%f"%(motif['motif_entropy'])
-        if motif.has_key("category_entropy"):
+        if "category_entropy" in motif:
             string +="\tcategory_entropy:%f"%(motif['category_entropy'])
-        if motif.has_key("zscore"):
+        if "zscore" in motif:
             string +="\tZ-score:%f"%(motif['zscore'])
-        if motif.has_key("robustness"):
+        if "robustness" in motif:
             string +="\trobustness:%s"%(motif['robustness'])
 
         string += "\n"
@@ -850,7 +854,7 @@ class ShapeMotifFile(object):
         """
         with open(outfile, mode="w") as f:
             for i, motif in enumerate(self.motifs):
-                if not motif.has_key("name"):
+                if not "name" in motif:
                     motif["name"] = "motif_%i"%(i)
                 f.write(self.create_transform_line(motif, cats))
                 f.write(self.create_motif_line(motif))

@@ -337,16 +337,16 @@ class ShapeParams(object):
 
 
 if __name__ == "__main__":
-
+    print("Testing")
     MGW = ShapeParamSeq(name="MGW", params= [4,3,2,1,0,1,2,3,4,5,6,7])
     Roll = ShapeParamSeq(name="Roll", params=[0,1,2,3,4,4,3,2,1,0,2,3])
     HelT = ShapeParamSeq(name="HelT", params= [4,3,2,1,0,1,2,3,4,5,6,7])
     ProT = ShapeParamSeq(name="ProT", params=[0,1,2,3,4,4,3,2,1,0,2,3])
     params = ShapeParams(data = {Roll.name:Roll, MGW.name:MGW, HelT.name: HelT, ProT.name: ProT}, names= ["Roll", "MGW", "HelT", "ProT"])
-    for window1 in params.sliding_windows(4, start=1, end=10):
-        print window1
-    for window1 in params.sliding_windows(4, start=1, end=10):
-        print window1
+    for window1 in params.sliding_windows(4, start=0, end=0):
+        print(window1.as_vector())
+#    for window1 in params.sliding_windows(4, start=0, end=0):
+#        print(window1.matrix())
 #        for window2 in params.sliding_windows(4, start=1, end=10):
 #            print window1.distance(window2)
 

@@ -3,13 +3,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.stats import sem
+import logging
 
 
 def plot_score(clf, outf):
     """ Plot scores as a function of the C parameter.
     Assumes multinomial model
     """
-    first_class = clf.scores_.keys()[0]
+    first_class = list(clf.scores_.keys())[0]
     all_scores = clf.scores_[first_class]
     # make an empty array of size Cs and intercept + coefficients
     total_num = np.zeros((len(clf.Cs_), len(clf.coef_[0])+1))
@@ -20,7 +21,6 @@ def plot_score(clf, outf):
         CV_avg = np.mean(these_coefs, axis=0)
         # determine the number of non-zero coefficients based on the tolerance
         num_nonzero = abs(CV_avg) > 0
-        print(num_nonzero)
         total_num = np.logical_or(total_num, num_nonzero)
     num_nonzero = np.sum(total_num, axis=1)
     CV_avg = np.mean(all_scores,axis=0)
@@ -117,18 +117,15 @@ def choose_features(clf, tol=0):
     return(np.argwhere(np.max(abs(coefs), axis=0) > tol).flatten())
 
 def find_best_c(clf):
-    first_class = clf.scores_.keys()[0]
+    first_class = list(clf.scores_.keys())[0]
     all_scores = clf.scores_[first_class]
     CV_avg = np.mean(all_scores, axis=0)
     CV_sem = sem(all_scores, axis=0)
     #print(CV_sem)
     best_score = np.argmax(CV_avg)
-    print("best score")
-    print(CV_avg[best_score])
-    print(CV_sem[best_score])
+    logging.info("best score\n mean: %s, sem: %s"%(CV_avg[best_score],CV_sem[best_score]))
     score_1se = CV_avg[best_score] - 2*CV_sem[best_score]
-    print("Score within 2 se")
-    print(score_1se)
+    logging.info("Score within 2 se\n %s"%score_1se)
     best_c = clf.Cs_[np.argmax(CV_avg >= score_1se)]
     return best_c
     
@@ -182,5 +179,7 @@ if __name__ == "__main__":
         plot_coef_paths(clf, "coef_paths_class%s.png"%cls, cls=cls)
     plot_score(clf, "score_over_c.png")
     indices = choose_features(clf_f, tol=0)
+    for i,val in enumerate(indices):
+        print("%i is variable %i"%(i, val))
     write_coef_per_class(clf_f, "coef_per_class.txt")
 

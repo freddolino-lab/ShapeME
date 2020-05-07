@@ -486,7 +486,7 @@ def info_zscore(vec1, vec2, n=10000):
     online_mean = welfords.Welford()
     passed = True
     actual = inout.mutual_information(vec1, vec2)
-    for i in xrange(n):
+    for i in range(n):
         shuffle = np.random.permutation(len(vec2))
         newval = inout.mutual_information(vec1, vec2[shuffle])
         online_mean.update(newval)
@@ -513,7 +513,7 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
     """
     num_passed = 0
     num_to_use = int(np.floor((1-holdout_frac)*len(vec1)))
-    for i in xrange(r):
+    for i in range(r):
         jk_selector = np.random.permutation(len(vec1))[0:num_to_use]
         zscore, passed = info_zscore(vec1[jk_selector], vec2[jk_selector], n=n)
         if passed:
