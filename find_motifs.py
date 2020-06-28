@@ -658,6 +658,7 @@ if __name__ == "__main__":
     else:
         level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level) 
+    logging.getLogger('matplotlib.font_manager').disabled = True
     outpre = args.o
     # choose a random seed
     if args.seed:
