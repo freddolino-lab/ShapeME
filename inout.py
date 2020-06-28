@@ -860,6 +860,29 @@ class ShapeMotifFile(object):
                 f.write(self.create_motif_line(motif))
                 f.write(self.create_data_lines(motif))
                 f.write("\n")
+    def to_tidy(self, outfile):
+        """ Method to write file in a tidy format for data analysis
+
+        Args
+            outfile(str) - name of outputfile
+        """
+        with open(outfile, mode = "w") as f:
+            header = ",".join(self.motifs[0]['seed'].names)
+            header += ",bp,name\n"
+            f.write(header)
+            for i, motif in enumerate(self.motifs):
+                if not "name" in motif:
+                    motif["name"] = "motif_%i"%(i)
+            for i, col in enumerate(motif['seed'].matrix().transpose()):
+                string = ""
+                string += ",".join(["%f"%val for val in col])
+                string += ",%d,%s\n"%(i,motif["name"])
+                f.write(string)
+
+
+
+                
+
 
 def entropy(array):
     """Method to calculate the entropy of any discrete numpy array
