@@ -36,11 +36,10 @@ def optimize_mi(param_vec, data, sample_perc, info):
                       keys must include NFeval: int, value: list, eval: list
     Returns:
         MI for the parameters over a random sample of the seq database
-        as determined by 
+        as determined by input data
     """
     threshold = param_vec[-1]
-    this_data = data                                                            #Global, fix later to not be global
-    #this_data = data.random_subset_by_class(sample_perc)                       v
+    this_data = data
     this_discrete = generate_peak_vector(this_data, param_vec[:-1], threshold, args.rc)
     this_mi = this_data.mutual_information(this_discrete)
     if info["NFeval"]%10 == 0:
@@ -89,8 +88,8 @@ def generate_match_vector(data, motif, rc=False):
     Args:
         data (SeqDatabase) - database to calculate over, must already have
                              motifs pre_computed
-        motif_vec(np.array) - numpy array containing motif vector
-        threshold(float) - a distance threshold to be considered a match
+        motif (np.array) - numpy array containing motif vector
+        rc (bool) - check the reverse complement matches as well
     Returns:
         discrete (np.array) - a numpy array of minimum match value for each seq
     """
@@ -319,6 +318,17 @@ def add_seed_metadata(cats, seed):
     seed['enrichment'] = cats.calculate_enrichment(seed['discrete'])
 
 def print_top_seeds(seeds, n= 5, reverse=True):
+    """
+    Function to print the top seeds sorted by MI
+
+    Args
+        seeds (list) - seeds to sort
+        n (int) - number of seeds to print
+        reverse (bool) - sort in reverse
+    Modifys
+        stdout through the logging function
+    """
+
     sorted_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=reverse)
     if reverse:
         logging.debug("Printing top %s seeds."%(n))
@@ -329,6 +339,9 @@ def print_top_seeds(seeds, n= 5, reverse=True):
         logging.debug("Seed MI: %s\n Seed Mem: %s\n%s"%(seed['mi'],seed['seed'], seed['seed'].as_vector()))
 
 def save_mis(seeds, out_pre):
+    """
+    Function to save the MIs for each seed in a txt file
+    """
     all_mis = []
     for seed in seeds:
         all_mis.append(seed['mi'])
@@ -604,26 +617,26 @@ if __name__ == "__main__":
     parser.add_argument('--param_names', nargs="+", type=str,
                          help='parameter names')
     parser.add_argument('--kmer', type=int,
-                         help='kmer size to search for', default=15)
+                         help='kmer size to search for. Default=15', default=15)
     parser.add_argument('--ignorestart', type=int,
-                         help='# bp to ignore at start of each sequence', default=2)
+                         help='# bp to ignore at start of each sequence. Default=2', default=2)
     parser.add_argument('--ignoreend', type=int,
-                         help='# bp to ignore at end of each sequence', default=2)
+                         help='# bp to ignore at end of each sequence. Default=2', default=2)
+    parser.add_argument('--search_method', type=str, default="greedy", help="search method for initial seeds. Options: greedy, brute. Default=greedy")
     parser.add_argument('--num_seeds', type=int,
-                         help='cutoff for number of seeds to test. Default=1000', default=1000)
+                         help='cutoff for number of seeds to test. Default=1000. Only matters for greedy search', default=1000)
     parser.add_argument('--seeds_per_seq', type=int,
-                         help='max number of seeds to come from a single sequence. Default=1', default=1)
+                         help='max number of seeds to come from a single sequence. Default=1. Only matters for greedy search.', default=1)
     parser.add_argument('--seeds_per_seq_thresh', type=int,
                          help='max number of seeds to come from a single sequence. Default=1', default=1)
     parser.add_argument('--nonormalize', action="store_true",
                          help='don\'t normalize the input data by robustZ')
-    parser.add_argument('--search_method', type=str, default="greedy", help="search method for initial seeds. Options: greedy, brute")
     parser.add_argument('--threshold_perc', type=float, default=0.05,
             help="fraction of data to determine threshold on. Default=0.05")
     parser.add_argument('--threshold_seeds', type=float, default=2.0, 
-            help="std deviations below mean for seed finding. Default=2.0")
+            help="std deviations below mean for seed finding. Only matters for greedy search. Default=2.0")
     parser.add_argument('--threshold_match', type=float, default=2.0, 
-            help="std deviations below mean for match. Default=2.0")
+            help="std deviations below mean for match threshold. Default=2.0")
     parser.add_argument('--optimize_perc', type=float, default=0.1, 
             help="fraction of data to optimize on. Default=0.1")
     parser.add_argument('--seed_perc', type=float, default=1,
@@ -633,7 +646,7 @@ if __name__ == "__main__":
     parser.add_argument('--optimize', action="store_true",
             help="optimize seeds with Nelder Mead?")
     parser.add_argument('--mi_perc', type=float, default=5,
-            help="ratio of CMI/MI to include an additional seed. default=5")
+            help="ratio of CMI/MI to include an additional seed. Default=5")
     parser.add_argument('--infoz', type=int, default=2000, 
             help="Calculate Z-score for final motif MI with n data permutations. default=2000. Turn off by setting to 0")
     parser.add_argument('--inforobust', type=int, default=10, 
@@ -647,9 +660,9 @@ if __name__ == "__main__":
     parser.add_argument('--rc', action="store_true",
             help="search the reverse complement with each seed as well?")
     parser.add_argument('-o', type=str, default="motif_out_")
-    parser.add_argument('-p', type=int, default=1, help="number of processors")
+    parser.add_argument('-p', type=int, default=1, help="number of processors. Default=1")
     parser.add_argument("--debug", action="store_true",
-            help="print debugging information to stderr")
+            help="print debugging information to stderr. Write extra txt files.")
     parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
     
     args = parser.parse_args()
@@ -733,9 +746,9 @@ if __name__ == "__main__":
         other_cats = cats
     if args.debug:
         other_cats.write(args.o + "_lasso_seqs.txt")
-    logging.info("Distribution of sequences per class for seed screening")
+    logging.info("Distribution of sequences per class for seed screening and regression (train set)")
     logging.info(seqs_per_bin(this_cats))
-    logging.info("Distribution of sequences per class for regression")
+    logging.info("Distribution of sequences per class for CMI and final evaluation (test set)")
     logging.info(seqs_per_bin(other_cats))
     logging.info("Evaluating %s seeds over %s processor(s)"%(len(possible_motifs), args.p))
 
