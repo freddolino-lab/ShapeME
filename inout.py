@@ -512,7 +512,8 @@ class SeqDatabase(object):
                 self.names.append(linearr[0])
                 self.values.append(dtype(linearr[1]))
                 self.params.append(dsp.ShapeParams(data={},names=[]))
-            self.values = np.array(self.values)
+            self.values = np.asarray(self.values)
+
 
     def write(self, outfile):
         """ Method to write out the category file in FIRE/TEISER/IPAGE format"""
@@ -520,7 +521,6 @@ class SeqDatabase(object):
             outf.write("name\tval\n")
             for name, val in zip(self.names, self.values):
                 outf.write("%s\t%s\n"%(name, val))
-                
 
 
     def set_center_spread(self, center_spread):

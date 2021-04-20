@@ -4,8 +4,9 @@ import inout
 import dnashapeparams as dsp
 import numpy as np
 
-
+# FIRE format file with shape param for each position?
 infile1 = sys.argv[1] 
+# fasta sequence 
 infile2 = sys.argv[2]
 outfile = sys.argv[3]
 

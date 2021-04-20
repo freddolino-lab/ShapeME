@@ -129,7 +129,7 @@ class ShapeParams(object):
         else:
             self.names = []
 
-        self.vector= None
+        self.vector = None
         self.metric = manhattan_distance
 
     def __len__(self):

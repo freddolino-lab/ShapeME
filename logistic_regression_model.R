@@ -3,7 +3,7 @@ library(dplyr)
 library(optparse)
 library(PRROC)
 
-curve.points.for.model <- function(data, test.data, this.formula){
+curve.points.for.model <- function(data, test.data, this.formula) {
     model <- glm(this.formula, family=binomial(link="logit"), data=data)
     roc <- roc.curve(weights.class0=test.data$bound, scores.class0=predict(model, type="response", newdata=test.data), curve =TRUE)
     prc <- pr.curve(weights.class0=test.data$bound, scores.class0=predict(model, type="response", newdata=test.data), curve=TRUE)
