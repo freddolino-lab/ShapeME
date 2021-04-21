@@ -1,0 +1,13 @@
+name: motifer
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - python
+    - R
+    - numpy
+    - matplotlib
+    - numba
+    - ipython
+    - bioconductor-dnashaper
