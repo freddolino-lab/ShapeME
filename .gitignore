@@ -1,1 +1,2 @@
-tests
+tests/test/*_input
+tests/test/*_out
