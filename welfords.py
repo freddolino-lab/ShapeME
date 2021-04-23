@@ -34,9 +34,9 @@ if __name__ == "__main__":
     actual_mean = np.mean(data)
     actual_stdev = np.std(data, ddof=1)
     print("Mean")
-    print("Welfords: %s Actual: %s"%(welford_mean, actual_mean))
+    print(("Welfords: %s Actual: %s"%(welford_mean, actual_mean)))
     print("Stdev")
-    print("Welfords: %s Actual: %s"%(welford_stdev, actual_stdev))
+    print(("Welfords: %s Actual: %s"%(welford_stdev, actual_stdev)))
 
 
 

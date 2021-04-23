@@ -712,7 +712,7 @@ if __name__ == "__main__":
     else:
         cats.determine_center_spread()
         cats.normalize_params()
-    for name in cats.center_spread.keys():
+    for name in list(cats.center_spread.keys()):
         logging.info("%s: %s"%(name, cats.center_spread[name]))
 
     logging.info("Precomputing all windows")

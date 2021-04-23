@@ -100,7 +100,7 @@ class FastaEntry(object):
 
     def set_seq(self, seq, rm_na=None):
         if rm_na:
-            for key in rm_na.keys():
+            for key in list(rm_na.keys()):
                 seq = [rm_na[key] if x == key else float(x) for x in seq]
         self.seq = seq
 
@@ -289,7 +289,7 @@ class FastaFile(object):
             None
         """
         this_name = entry.chrm_name()
-        if this_name not in self.data.keys():
+        if this_name not in list(self.data.keys()):
             self.names.append(this_name)
         self.data[this_name]= entry
 
@@ -550,7 +550,7 @@ class SeqDatabase(object):
                 this_val.extend(this_param.params)
                 all_this_param[this_param.name] = this_val
         cent_spread = {}
-        for name in all_this_param.keys():
+        for name in list(all_this_param.keys()):
             these_vals = all_this_param[name]
             these_vals = np.array(these_vals) 
             cent_spread[name] = method(these_vals)
