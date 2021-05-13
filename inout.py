@@ -374,10 +374,14 @@ class SeqDatabase(object):
         # first convert values to robust Z score
         values = get_values(self)
         median = np.median(values)
-        mad = np.median(np.abs((values-median)))*1.4826
+        mad = np.median(np.abs((values-median))) * 1.4826
         values = (values-median)/mad
+        # I don't quite understand this method.
+        # Why is the middle bin so wide?
+        # And, why mad-standardize values, then digitize on these bins, which
+        #   are shifted by the median?
         bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
-        logging.warning("Discretizing on bins: %s"%bins)
+        logging.warning("Discretizing on bins: {}".format(bins))
         self.values = np.digitize(values, bins)
 
 
@@ -390,7 +394,7 @@ class SeqDatabase(object):
         Modifies:
             self.values (list): converts the values into their new categories
         """
-        quants = np.arange(0,100, 100.0/nbins)
+        quants = np.arange(0, 100, 100.0/nbins)
         values = self.get_values()
         bins = []
         for quant in quants:
@@ -501,8 +505,8 @@ class SeqDatabase(object):
             dtype (func): a function to convert the values, defaults to int
 
         Modifies:
-            names- adds in the name of each sequence
-            values- adds in the value for each sequence
+            names - adds in the name of each sequence
+            values - adds in the value for each sequence
             params - makes a new dsp.ShapeParams object for each sequence
         """
         with open(infile) as inf:

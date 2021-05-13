@@ -17,6 +17,7 @@ cats.read(infile1)
 
 with open(infile2) as f:
     indata.read_whole_datafile(f)
+
 for name, param in zip(cats.names, cats):
     param.add_shape_param(
         dsp.ShapeParamSeq(
@@ -45,11 +46,10 @@ for i, param in enumerate(cats):
                 print("Warning motif found in negative set")
 
 new_fasta = inout.FastaFile()
-outf = open(outfile, mode="w")
-for name, param in zip(cats.names, cats):
-    param.data["MGW"].unnormalize_values(center, spread)
-    outstr = param.as_vector()
-    outstr = ["NA" if np.isnan(x) else "%f"%x for x in outstr]
-    outf.write(">"+name+"\n"+",".join(outstr)+"\n")
-outf.close()
+with open(outfile, mode="w") as outf:
+    for name, param in zip(cats.names, cats):
+        param.data["MGW"].unnormalize_values(center, spread)
+        outstr = param.as_vector()
+        outstr = ["NA" if np.isnan(x) else "%f"%x for x in outstr]
+        outf.write(">"+name+"\n"+",".join(outstr)+"\n")
 

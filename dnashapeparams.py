@@ -273,6 +273,8 @@ class ShapeParams(object):
         Yields:
             a slice of the ShapeParams object
         """
+        print(len(self))
+        print(end)
         end = len(self)-end
         start_i = start
         end_i = start+size
