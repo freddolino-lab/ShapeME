@@ -11,3 +11,6 @@ dependencies:
     - numba
     - ipython
     - bioconductor-dnashaper
+    - jupyter
+    - scipy
+    - scikit-learn

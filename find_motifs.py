@@ -734,7 +734,11 @@ if __name__ == "__main__":
         logging.info("Testing all seeds by brute force")
         debugger = cats.shuffle()
         # double for loop list comprehension
-        possible_motifs = [motif for a_seq in cats.iterate_through_precompute() for motif in a_seq]
+        possible_motifs = [
+            motif
+            for a_seq in cats.iterate_through_precompute()
+            for motif in a_seq
+        ]
 
     logging.info("%s possible seeds"%(len(possible_motifs)))
     logging.info("Finding MI for seeds")

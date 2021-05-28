@@ -341,6 +341,9 @@ class SeqDatabase(object):
         for param in self.params:
             yield param
 
+    def __getitem__(self, item):
+        return(self.names[item], self.values[item], self.params[item], self.vectors[item])
+
     def __len__(self):
         """Length method returns the total number of sequences in the database
         as determined by the length of the names attribute
