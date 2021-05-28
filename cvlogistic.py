@@ -15,7 +15,7 @@ def plot_score(clf, outf):
     # make an empty array of size Cs and intercept + coefficients
     total_num = np.zeros((len(clf.Cs_), len(clf.coef_[0])+1))
     # find how many non-zero coefficients there are
-    for key in clf.coefs_paths_.keys():
+    for key in list(clf.coefs_paths_.keys()):
         these_coefs = clf.coefs_paths_[key]
         # determine the average over CV reps
         CV_avg = np.mean(these_coefs, axis=0)
@@ -175,11 +175,11 @@ if __name__ == "__main__":
     best_c = find_best_c(clf)
     clf_f = LogisticRegression(C=best_c, multi_class='multinomial', penalty='l1', solver='saga', max_iter=4000).fit(X, y)
     plot_coef_per_class(clf_f, "coef_per_class.png")
-    for cls in clf.scores_.keys():
+    for cls in list(clf.scores_.keys()):
         plot_coef_paths(clf, "coef_paths_class%s.png"%cls, cls=cls)
     plot_score(clf, "score_over_c.png")
     indices = choose_features(clf_f, tol=0)
     for i,val in enumerate(indices):
-        print("%i is variable %i"%(i, val))
+        print(("%i is variable %i"%(i, val)))
     write_coef_per_class(clf_f, "coef_per_class.txt")
 

@@ -100,7 +100,7 @@ class FastaEntry(object):
 
     def set_seq(self, seq, rm_na=None):
         if rm_na:
-            for key in rm_na.keys():
+            for key in list(rm_na.keys()):
                 seq = [rm_na[key] if x == key else float(x) for x in seq]
         self.seq = seq
 
@@ -289,7 +289,7 @@ class FastaFile(object):
             None
         """
         this_name = entry.chrm_name()
-        if this_name not in self.data.keys():
+        if this_name not in list(self.data.keys()):
             self.names.append(this_name)
         self.data[this_name]= entry
 
@@ -377,10 +377,14 @@ class SeqDatabase(object):
         # first convert values to robust Z score
         values = get_values(self)
         median = np.median(values)
-        mad = np.median(np.abs((values-median)))*1.4826
+        mad = np.median(np.abs((values-median))) * 1.4826
         values = (values-median)/mad
+        # I don't quite understand this method.
+        # Why is the middle bin so wide?
+        # And, why mad-standardize values, then digitize on these bins, which
+        #   are shifted by the median?
         bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
-        logging.warning("Discretizing on bins: %s"%bins)
+        logging.warning("Discretizing on bins: {}".format(bins))
         self.values = np.digitize(values, bins)
 
 
@@ -393,7 +397,7 @@ class SeqDatabase(object):
         Modifies:
             self.values (list): converts the values into their new categories
         """
-        quants = np.arange(0,100, 100.0/nbins)
+        quants = np.arange(0, 100, 100.0/nbins)
         values = self.get_values()
         bins = []
         for quant in quants:
@@ -504,8 +508,8 @@ class SeqDatabase(object):
             dtype (func): a function to convert the values, defaults to int
 
         Modifies:
-            names- adds in the name of each sequence
-            values- adds in the value for each sequence
+            names - adds in the name of each sequence
+            values - adds in the value for each sequence
             params - makes a new dsp.ShapeParams object for each sequence
         """
         with open(infile) as inf:
@@ -553,7 +557,7 @@ class SeqDatabase(object):
                 this_val.extend(this_param.params)
                 all_this_param[this_param.name] = this_val
         cent_spread = {}
-        for name in all_this_param.keys():
+        for name in list(all_this_param.keys()):
             these_vals = all_this_param[name]
             these_vals = np.array(these_vals) 
             cent_spread[name] = method(these_vals)

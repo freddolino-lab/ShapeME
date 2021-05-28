@@ -1,12 +1,17 @@
 import sys
+import os
 import argparse
-sys.path.append("/home/mbwolfe/src/circ_mapper/")
-import fasta as fa
-sys.path.append("/home/mbwolfe/src/peak_caller/")
-import peak as pk
 import numpy as np
 import logging
 import random
+import pathlib
+
+this_path = pathlib.Path(__file__).parent.absolute()
+utils_path = os.path.join(this_path, 'utils')
+sys.path.insert(0, utils_path)
+
+import fasta as fa
+import peak as pk
 
 class FIREfile(object):
 
@@ -143,6 +148,7 @@ if __name__ == "__main__":
             peak_center = peak.find_height_center()
         else:
             peak_center = peak.find_geometric_center()
+
         this_chrm = genome.pull_entry(peak.chrm)
         this_entry.set_seq(
             this_chrm.pull_seq(
@@ -176,4 +182,4 @@ if __name__ == "__main__":
     else:
         with open(args.outpre+".fa", mode="w") as outf:
             outfasta.write(outf)
-        outfire.write(args.outpre+"_fire.txt")
+        #outfire.write(args.outpre+"_fire.txt")

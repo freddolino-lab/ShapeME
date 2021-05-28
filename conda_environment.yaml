@@ -5,12 +5,12 @@ channels:
     - defaults
 dependencies:
     - python
+    - scipy
+    - scikit-learn
     - R
+    - pip
     - numpy
-    - matplotlib
     - numba
     - ipython
     - bioconductor-dnashaper
     - jupyter
-    - scipy
-    - scikit-learn
