@@ -18,16 +18,9 @@ import cvlogistic
 import numba
 from numba import jit,prange
 
-def constr(x):
-    """Returns sum of weights minus one to allow optimizer to 
-    constrain sum of weights to zero.
-    """
-    x = x[:-1]
-    return np.sum(x) - 1
-
-def make_linear_constraint(target,S,L):#,thresh_lower=-np.inf,thresh_upper=np.inf):
+def make_linear_constraint(target,S,L):
     """Sets up a LinearConstraint object to constrain the sum
-    of each shape's weights to one. 
+    of all shape weights to one. 
     """
 
     # Here we make a 1-by-L*S+1 matrix to get dot product of beta
@@ -48,7 +41,7 @@ def make_linear_constraint(target,S,L):#,thresh_lower=-np.inf,thresh_upper=np.in
     )
     return const
 
-def mp_optimize_weights(record_db, dist, r_subset=None, p=1):
+def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_tr_radius=1):
     """Perform seed optimization in a multiprocessed manner
     
     Args:
@@ -68,7 +61,7 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1):
 
         for w_idx in range(W):
 
-            helper_args = (r_idx, w_idx, dist, record_db)
+            helper_args = (r_idx, w_idx, dist, record_db, xtol, initial_tr_radius)
             final_weights = pool.apply_async(
                 mp_optimize_weights_helper, 
                 helper_args,
@@ -80,7 +73,7 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1):
 
     return results
 
-def mp_optimize_weights_helper(r_idx, w_idx, dist, db):
+def mp_optimize_weights_helper(r_idx, w_idx, dist, db, xtol=1e-8, initial_tr_radius=1):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -123,6 +116,8 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db):
         ), 
         method = "trust-constr",
         constraints = [lin_constr],
+        xtol = xtol,
+        initial_tr_radius = initial_tr_radius,
     )
 
     final = final_opt['x']
