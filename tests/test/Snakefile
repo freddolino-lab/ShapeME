@@ -1,0 +1,61 @@
+#configfile: "config.yaml"
+import numpy as np
+rule all:
+    input:
+        expand("E2F4_out/sampled_E2F4_30_bp_height_train_0_10kmer_0.1threshp_3threshm_0.2seedp_{miperc}miperc_42randseed_called_motifs.dsp", miperc = np.arange(2,5, 0.5))
+
+#rule all:
+#    input:
+#        "E2F4_out/E2F4_30_bp_height_train_0_10kmer_0.1threshp_3threshm_0.2seedp_5miperc_42randseed_called_motifs.dsp"
+
+rule FindMotifs:
+    input:
+        firefile="E2F4_input/{prefix}_train_{num}.txt",
+        mgw="E2F4_input/{prefix}_train_{num}.fa.MGW",
+        prot="E2F4_input/{prefix}_train_{num}.fa.ProT",
+        helt="E2F4_input/{prefix}_train_{num}.fa.HelT",
+        roll="E2F4_input/{prefix}_train_{num}.fa.Roll"
+    output:
+        "{outdir}/{prefix}_train_{num}_{kmer}kmer_{threshp}threshp_{threshm}threshm_{seedp}seedp_{miperc}miperc_{randseed}randseed_called_motifs.dsp"
+    threads:
+        10
+
+    benchmark:
+        "{outdir}/{prefix}_train_{num}_{kmer}kmer_{threshp}threshp_{threshm}threshm_{seedp}seedp_{miperc}miperc_{randseed}randseed_benchmark.tsv"
+        
+    params:
+        num="{num}",
+        kmer="{kmer}",
+        numseeds=10000,
+        threshp="{threshp}",
+        seedp="{seedp}",
+        miperc="{miperc}",
+        threshm="{threshm}",
+        randseed="{randseed}",
+        seedsperseq=1000,
+        searchmethod="brute",
+        suffix="{kmer}kmer_{threshp}threshp_{threshm}threshm_{seedp}seedp_{miperc}miperc_{randseed}randseed",
+        prefix="{prefix}",
+        outdir="{outdir}"
+ 
+    shell:
+        "python /home/mbwolfe/src/tinker_motif_finder/DNAshape_motif_finder/find_motifs.py {input.firefile} "
+        "--params {input.mgw} "
+        "{input.prot} "
+        "{input.helt} "
+        "{input.roll} "
+        "--param_names 'MGW' 'ProT' 'HelT' 'Roll' "
+        "--kmer {params.kmer}  --num_seeds {params.numseeds} "
+        "--threshold_perc {params.threshp} --seed_perc {params.seedp} "
+        "--mi_perc {params.miperc} "
+        "--seed {params.randseed} "
+        "-o {params.outdir}/{params.prefix}_train_{params.num}_{params.suffix} "
+        "--txt_only "
+        "--rc "
+        "--seeds_per_seq {params.seedsperseq} "
+        "--threshold_seeds {params.threshp} "
+        "--threshold_match {params.threshm} "
+        "-p {threads} "
+        "--search_method {params.searchmethod} "
+        "--debug "
+        "2> {params.outdir}/{params.prefix}_train_{params.num}_{params.suffix}.log "

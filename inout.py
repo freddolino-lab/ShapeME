@@ -1,6 +1,20 @@
 import numpy as np
 import dnashapeparams as dsp
 import logging
+from numba import jit
+import welfords
+
+@jit(nopython=True)
+def euclidean_distance(vec1, vec2):
+    return np.sqrt(np.sum((vec1 - vec2)**2))
+
+@jit(nopython=True)
+def manhattan_distance(vec1, vec2, w=1):
+    return np.sum(np.abs(vec1 - vec2) * w)
+
+@jit(nopython=True)
+def hamming_distance(vec1, vec2):
+    return np.sum(vec1 != vec2)
 
 def robust_z_csp(array):
     """Method to get the center and spread of an array based on the robustZ
@@ -100,7 +114,7 @@ class FastaEntry(object):
 
     def set_seq(self, seq, rm_na=None):
         if rm_na:
-            for key in rm_na.keys():
+            for key in list(rm_na.keys()):
                 seq = [rm_na[key] if x == key else float(x) for x in seq]
         self.seq = seq
 
@@ -289,7 +303,7 @@ class FastaFile(object):
             None
         """
         this_name = entry.chrm_name()
-        if this_name not in self.data.keys():
+        if this_name not in list(self.data.keys()):
             self.names.append(this_name)
         self.data[this_name]= entry
 
@@ -310,6 +324,446 @@ class FastaFile(object):
             entry = self.pull_entry(chrm)
             entry.write(fhandle, wrap, delim)
 
+def parse_shape_fasta(infile):
+    """Specifically for reading shape parameter fasta files,
+    which have comma-delimited positions in their sequences.
+    """
+
+    shape_info = {}
+    first_line = True
+
+    with open(infile, 'r') as f:
+
+        for line in f:
+
+            if line.startswith(">"):
+
+                if not first_line:
+                    store_record(shape_info, rec_seq, rec_name)
+
+                rec_name = line.strip('>').strip()
+                rec_seq = []
+                first_line = False
+
+            else:
+                rec_seq.extend(line.strip().split(','))
+
+    store_record(shape_info, rec_seq, rec_name)
+
+    return(shape_info)
+                
+def store_record(info, rec_seq, rec_name):
+    for i,val in enumerate(rec_seq):
+        try:
+            rec_seq[i] = float(val)
+        except:
+            rec_seq[i] = np.nan
+
+    info[rec_name] = np.asarray(rec_seq)
+
+
+class RecordDatabase(object):
+    """Class to store input information from tab separated value with
+    fasta name and a score
+
+    Attributes:
+    -----------
+    shape_name_lut : dict
+        A dictionary with shape names as keys and indices of the S
+        axis of data as values.
+    rec_name_lut : dict
+        A dictionary with record names as keys and indices of the R
+        axis of data as values.
+    y : np.array
+        A vector. Binary if looking at peak presence/absence,
+        categorical if looking at signal magnitude.
+    X : np.array
+        Array of shape (R,P,S), where R is the number of records in
+        the input data, P is the number of positions (the length of)
+        each record, and S is the number of shape parameters present.
+    windows : np.array
+        Array of shape (R,L,S,W), where R and S are described above
+        for the data attribute, L is the length of each window,
+        and W is the number of windows each record was chunked into.
+    weights : np.array
+        Array of shape (R,L,S,W), where the axis lengths are described
+        above for the windows attribute. Values are weights applied
+        during calculation of distance between a pair of sequences.
+    thresholds : np.array
+        Array of shape (R,W), where R is the number of records in the
+        database and W is the number of windows each record was
+        chuncked into.
+    """
+
+    def __init__(self, infile=None, shape_dict=None, y=None, X=None, shape_names=None, weights=None, windows=None, exclude_na=True):
+
+        self.record_name_lut = {}
+        self.shape_name_lut = {}
+        if X is None:
+            self.X = None
+        else:
+            if shape_names is None:
+                raise("X values were given without names for the shapes. Reinitialize, setting the shape_names agument")
+            self.X = X
+            self.shape_name_lut = {name:i for i,name in enumerate(shape_names)}
+        if y is not None:
+            self.y = y
+        if weights is not None:
+            self.weights = weights
+        if windows is not None:
+            self.windows = windows
+        if infile is not None:
+            self.read_infile(infile)
+        if shape_dict is not None:
+            self.read_shapes(shape_dict, exclude_na)
+
+    def __len__(self):
+        """Length method returns the total number of records in the database
+        as determined by the length of the records attribute.
+        """
+
+        return len(self.y)
+
+    def records_per_bin(self):
+        """Prints the number of records in each category of self.y
+        """
+
+        distinct_cats = np.unique(self.y)
+        print({cat:len(np.where(self.y == cat)[0]) for cat in distinct_cats})
+
+    def iter_records(self):
+        """Iter method iterates over the shape records
+
+        Acts as a generator
+
+        Yields:
+        -------
+        rec_shapes : np.array
+            A 2d array of shape (P,S), where P is the length of each record
+            and S is the number of shapes,
+            for each index in the first axis of self.X.
+            So, each record's shapes.
+        """
+        for rec_shapes in self.X:
+            yield rec_shapes
+
+    def iter_shapes(self):
+        """Iter method iterates over each type of shape parameter's X vals
+
+        Acts as a generator
+
+        Yields:
+        -------
+        shapes : np.array
+            A 2d array of shape (R,P), where R is the number of records in
+            the database and P is the length of each record
+        """
+        shape_count = self.X.shape[2]
+        for s in range(shape_count):
+            yield self.X[:,:,s]
+
+    def iter_y(self):
+        """Iter method iterates over the ground truth records
+
+        Acts as a generator
+
+        Yields:
+        -------
+        val : int
+        """
+        for val in self.y:
+            yield val
+
+    def discretize_quant(self,nbins=10):
+        """Discretize data into n equally populated bins according to the
+        n quantiles
+        
+        Prints bin divisions to the logger
+
+        Modifies:
+        ---------
+        self.y : np.array
+            converts the values into their new categories
+        """
+
+        quants = np.arange(0, 100, 100.0/nbins)
+        values = self.y
+        bins = []
+        for quant in quants:
+            bins.append(np.percentile(values, quant))
+        logging.warning("Discretizing on bins: {}".format(bins))
+        self.y = np.digitize(values, bins)
+
+    def read_infile(self, infile):#, keep_inds=None):
+        """Method to read a sequence file in FIRE/TEISER/iPAGE format
+
+        Args:
+            infile (str): input data file name
+
+        Modifies:
+            record_name_lut - creates lookup table for associating
+                record names in records with record indices in y and X.
+            y - adds in the value for each sequence
+        """
+        scores = []
+        with open(infile) as inf:
+            line = inf.readline()
+            for i,line in enumerate(inf):
+                #if keep_inds is not None:
+                #    if not i in keep_inds:
+                #        continue
+                linearr = line.rstrip().split("\t")
+                self.record_name_lut[linearr[0]] = i
+                scores.append(linearr[1])
+            self.y = np.asarray(
+                scores,
+                dtype=int,
+            )
+
+    def read_shapes(self, shape_dict, exclude_na=True):
+        """Parses info in shapefiles and inserts into database
+
+        Args:
+        -----
+        shape_dict: dict
+            Dictionary, values of which are shape parameter names,
+            keys of which are shape parameter fasta files.
+
+        Modifies:
+        ---------
+        shape_name_lut
+        X
+        """
+
+        self.normalized = False
+        shape_idx = 0
+        shape_count = len(shape_dict)
+
+        for shape_name,shape_infname in shape_dict.items():
+
+            if not shape_name in self.shape_name_lut:
+                self.shape_name_lut[shape_name] = shape_idx
+                s_idx = shape_idx
+                shape_idx += 1
+
+            this_shape_dict = parse_shape_fasta(shape_infname)
+
+            if self.X is None:
+
+                record_count = len(this_shape_dict)
+                for rec_idx,rec_data in enumerate(this_shape_dict.values()):
+                    if rec_idx > 0:
+                        break
+                    record_length = len(rec_data)
+
+                self.X = np.zeros((record_count,record_length,shape_count))
+
+            for rec_name,rec_data in this_shape_dict.items():
+                r_idx = self.record_name_lut[rec_name]
+                while len(rec_data) < self.X.shape[1]:
+                    rec_data = np.append(rec_data, np.nan)
+                self.X[r_idx,:,s_idx] = rec_data
+
+        if exclude_na:
+            # identifies which positions have at least one NA for any shape
+            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2))
+            # grabs complete cases from X
+            self.X = self.X[:,complete_positions,:]
+
+    def set_center_spread(self, center_spread):
+        """Method to set the center spread for the database for each
+        parameter
+
+        TODO check to make sure keys match all parameter names
+        """
+        self.center_spread = center_spread
+
+    def determine_center_spread(self, method=robust_z_csp):
+        """Method to get the center spread for each shape based on
+        all records in the database.
+
+        This will ignore any Nans in any shape sequence scores. First
+        calculates center (median of all scores) and spread (MAD of all scores)
+
+        Modifies:
+            self.center_spread - populates center spread with calculated values
+        """
+
+        shape_cent_spreads = []
+        # figure out center and spread
+        for shape_recs in self.iter_shapes():
+            shape_cent_spreads.append(method(shape_recs))
+
+        self.shape_centers = ([x[0] for x in shape_cent_spreads])
+        self.shape_spreads = ([x[1] for x in shape_cent_spreads])
+
+    def normalize_shape_values(self):
+        """Method to normalize each parameter based on self.center_spread
+
+        Modifies:
+            X - makes each index of the S axis a robust z score 
+        """
+
+        # normalize shape values
+        if not self.normalized:
+            self.X = ( self.X - self.shape_centers ) / self.shape_spreads
+            self.normalized = True
+        else:
+            print("X vals are already normalized. Doing nothing.")
+
+    def unnormalize_shape_values(self):
+        """Method to unnormalize each parameter from its RobustZ score back to
+        its original value
+
+        Modifies:
+            X - unnormalizes all the shape values
+        """
+    
+        # unnormalize shape values
+        if self.normalized:
+            self.X = ( self.X * self.shape_spreads ) + self.shape_centers
+            self.normalized = False
+        else:
+            print("X vals are not normalized. Doing nothing.")
+
+    def initialize_weights(self):
+
+        # create weights array of same shape as windows array
+        #   and fill it with 1/L.
+        self.weights = np.full_like(
+            self.windows,
+            1 / self.windows.shape[1]
+        )
+
+    def compute_windows(self, wsize):
+        """Method to precompute all nmers.
+
+        Modifies:
+            self.windows
+        """
+
+        #(R,L,S,W)
+        rec_num, rec_len, shape_num = self.X.shape
+        window_count = rec_len - wsize
+        
+        self.windows = np.zeros((rec_num, wsize, shape_num, window_count))
+
+        for i,rec in enumerate(self.iter_records()):
+            for j in range(window_count):
+                self.windows[i, :, :, j] = self.X[i, j:(j+wsize), :]
+
+    def permute_records(self):
+
+        rand_order = np.random.permutation(self.windows.shape[0])
+
+        permuted_windows = self.windows[rand_order,...]
+        permuted_weights = self.weights[rand_order,...]
+        permuted_shapes = self.X[rand_order,...]
+        permuted_vals = self.y[rand_order,...]
+
+        shape_count = self.X.shape[-1]
+        rev_lut = {val:k for k,val in self.shape_name_lut.items()}
+
+        permuted_records = RecordDatabase(
+            y = permuted_vals,
+            X = permuted_shapes,
+            shape_names = [rev_lut[idx] for idx in range(shape_count)],
+            weights = permuted_weights,
+            windows = permuted_windows,
+        )
+        return(permuted_records)
+
+    def set_initial_thresholds(self, threshold_sd_from_mean=2.0,
+                               seeds_per_seq=1, max_seeds=10000):
+        """Function to determine a reasonable starting threshold given a sample
+        of the data
+
+        Args:
+        -----
+        seeds_per_seq : int
+        max_seeds : int
+
+        Returns:
+        --------
+        threshold : float
+            A  threshold that is the
+            mean(distance)-2*stdev(distance))
+        """
+
+        online_mean = welfords.Welford()
+        total_seeds = []
+        seed_counter = 0
+        shuffled_db = self.permute_records()
+
+        for i,record_windows in enumerate(shuffled_db.windows):
+
+            record_weights = shuffled_db.weights[i,...]
+            rand_order = np.random.permutation(record_windows.shape[2])
+            curr_seeds_per_seq = 0
+            for index in rand_order:
+                window = record_windows[:,:,index]
+                window_weights = record_weights[:,:,index]
+                if curr_seeds_per_seq >= seeds_per_seq:
+                    break
+                total_seeds.append((window, window_weights))
+                curr_seeds_per_seq += 1
+                seed_counter += 1
+            if seed_counter >= max_seeds:
+                break
+
+        logging.info(
+            "Using {} random seeds to determine threshold from pairwise distances".format(
+                len(total_seeds)
+            )
+        )
+        distances = []
+        for i,seed_i in enumerate(total_seeds):
+            for j, seed_j in enumerate(total_seeds):
+                if i >= j:
+                    continue
+                dist = manhattan_distance(seed_i[0], seed_j[0], seed_i[1])
+                online_mean.update(dist)
+
+        mean = online_mean.final_mean()
+        stdev = online_mean.final_stdev()
+
+        logging.info("Threshold mean: {} and stdev {}".format(mean,stdev))
+        thresh = max(mean - threshold_sd_from_mean * stdev, 0)
+        logging.info("Setting initial threshold for each seed to {}".format(thresh))
+
+        # set up thresholds array of shape (R,W)
+        self.thresholds = np.zeros((self.windows.shape[0], self.windows.shape[-1]))
+        # set values to the calculated initial threshold
+        self.thresholds[...] = thresh
+
+    def mutual_information(self, arr):
+        """Method to calculate the MI between the values in the database and
+        an external vector of discrete values of the same length
+        
+        Uses log2 so MI is in bits
+
+        Args:
+        -----
+            arr : np.array
+                A 1D numpy array of integer values the same length as the database
+
+        Returns:
+        --------
+            mutual information between discrete and self.values
+        """
+        return mutual_information(self.y, arr)
+
+    def flatten_in_windows(self, attr):
+
+        arr = getattr(self, attr)
+        flat = arr.reshape(
+            (
+                arr.shape[0],
+                arr.shape[1]*arr.shape[2],
+                arr.shape[3]
+            )
+        ).copy()
+        return flat
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with
@@ -324,10 +778,14 @@ class SeqDatabase(object):
     """
 
     def __init__(self, names=None):
-        self.names = names
+        if names is None:
+            self.names = []
+        else:
+            self.names = names
         self.values = []
         self.params = []
         self.vectors = []
+        self.flat_windows = None
         self.center_spread = None
 
     def __iter__(self):
@@ -340,6 +798,9 @@ class SeqDatabase(object):
         """
         for param in self.params:
             yield param
+
+    def __getitem__(self, item):
+        return(self.names[item], self.values[item], self.params[item], self.vectors[item])
 
     def __len__(self):
         """Length method returns the total number of sequences in the database
@@ -374,10 +835,14 @@ class SeqDatabase(object):
         # first convert values to robust Z score
         values = get_values(self)
         median = np.median(values)
-        mad = np.median(np.abs((values-median)))*1.4826
+        mad = np.median(np.abs((values-median))) * 1.4826
         values = (values-median)/mad
+        # I don't quite understand this method.
+        # Why is the middle bin so wide?
+        # And, why mad-standardize values, then digitize on these bins, which
+        #   are shifted by the median?
         bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
-        logging.warning("Discretizing on bins: %s"%bins)
+        logging.warning("Discretizing on bins: {}".format(bins))
         self.values = np.digitize(values, bins)
 
 
@@ -390,7 +855,7 @@ class SeqDatabase(object):
         Modifies:
             self.values (list): converts the values into their new categories
         """
-        quants = np.arange(0,100, 100.0/nbins)
+        quants = np.arange(0, 100, 100.0/nbins)
         values = self.get_values()
         bins = []
         for quant in quants:
@@ -492,22 +957,25 @@ class SeqDatabase(object):
         else:
             return new_db
 
-
-    def read(self, infile, dtype=int):
+    def read(self, infile, dtype=int, keep_inds=None):
         """Method to read a sequence file in FIRE/TEISER/iPAGE format
 
         Args:
             infile (str): input data file name
             dtype (func): a function to convert the values, defaults to int
+            keep_inds (list): a list of indices to store
 
         Modifies:
-            names- adds in the name of each sequence
-            values- adds in the value for each sequence
+            names - adds in the name of each sequence
+            values - adds in the value for each sequence
             params - makes a new dsp.ShapeParams object for each sequence
         """
         with open(infile) as inf:
             line = inf.readline()
-            for line in inf:
+            for i,line in enumerate(inf):
+                if keep_inds is not None:
+                    if not i in keep_inds:
+                        continue
                 linearr = line.rstrip().split("\t")
                 self.names.append(linearr[0])
                 self.values.append(dtype(linearr[1]))
@@ -550,7 +1018,7 @@ class SeqDatabase(object):
                 this_val.extend(this_param.params)
                 all_this_param[this_param.name] = this_val
         cent_spread = {}
-        for name in all_this_param.keys():
+        for name in list(all_this_param.keys()):
             these_vals = all_this_param[name]
             these_vals = np.array(these_vals) 
             cent_spread[name] = method(these_vals)
@@ -599,6 +1067,66 @@ class SeqDatabase(object):
                 window.as_vector(cache=True)
                 this_seqs.append(window)
             self.vectors.append(this_seqs)
+
+    def shape_vectors_to_3d_array(self):
+        """Method to iterate through precomputed windows for each parameter
+        and flatten all parameters into a single long vector.
+
+        Modifies:
+            self.flat_windows : np.array
+                A 3d numpy array of shape (N, L*P, W), where N is the number
+                of records in the original input data,
+                L*P is the length of each window
+                times the number of shape parameters, and W is the number
+                of windows computed for each record.
+        """
+
+        param_names = self.params[0].names
+        param_count = len(param_names)
+        window_count = len(self.vectors[0])
+        record_count = len(self)
+        window_size = len(self.vectors[0][0].data['EP'].get_values())
+
+        self.flat_windows = np.zeros(
+            (
+                record_count,
+                window_size*param_count,
+                window_count
+            )
+        )
+        for i,val in enumerate(self.vectors):
+            for j,window in enumerate(val):
+                self.flat_windows[i,:,j] = window.as_vector()
+
+#    def shape_vectors_to_2d_array(self):
+#        """Method to iterate through precomputed windows for each parameter
+#        and flatten all parameters into a single long vector.
+#
+#        Modifies:
+#            self.flat_windows : np.array
+#                A 3d numpy array of shape (N*W, L*P), where N*W is the number
+#                of records in the original input data times the number of windows
+#                computed for each record and L*P*W is the length of each window
+#                times the number of shape parameters times.
+#        """
+#
+#        param_names = self.params[0].names
+#        param_count = len(param_names)
+#        window_count = len(self.vectors[0])
+#        record_count = len(self)
+#        window_size = len(self.vectors[0][0].data['EP'].get_values())
+#
+#        self.flat_2d_windows = np.zeros(
+#            (
+#                record_count*window_count,
+#                window_size*param_count
+#            )
+#        )
+#        this_idx = 0
+#        for i,val in enumerate(self.vectors):
+#            for j,window in enumerate(val):
+#                self.flat_2d_windows[this_idx,:] = window.as_vector()
+#                this_idx += 1
 
     def iterate_through_precompute(self):
         """Method to iterate through all precomputed motifs
@@ -879,11 +1407,6 @@ class ShapeMotifFile(object):
                 string += ",%d,%s\n"%(i,motif["name"])
                 f.write(string)
 
-
-
-                
-
-
 def entropy(array):
     """Method to calculate the entropy of any discrete numpy array
         
@@ -964,7 +1487,7 @@ def conditional_entropy(arrayx, arrayy):
                 entropy += p_x_y*np.log2(p_x/p_x_y)
     return -entropy
 
-
+@jit(nopython=True)
 def mutual_information(arrayx, arrayy):
     """Method to calculate the mutual information between two discrete
     numpy arrays I(X;Y)
@@ -980,10 +1503,11 @@ def mutual_information(arrayx, arrayy):
 
     total_x = arrayx.size 
     total_y = arrayy.size
-    if total_x != total_y:
-        raise ValueError("Array sizes must be the same %s %s"%(total_x, total_y))
-    else:
-        total = total_x + 0.0
+    #if total_x != total_y:
+    #    raise ValueError("Array sizes must be the same {} {}".format(total_x, total_y))
+    #else:
+    #    total = total_x + 0.0
+    total = total_x
     MI = 0
     for x in np.unique(arrayx):
         for y in np.unique(arrayy):

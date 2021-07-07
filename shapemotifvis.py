@@ -19,11 +19,11 @@ class MotifVis(inout.ShapeMotifFile):
            grid= total_grid[0]
         nested_gs = gs.GridSpecFromSubplotSpec(len(baseparams), 1, subplot_spec=grid, hspace=0.05)
         basepairs = len(motif['seed'])
-        for motif_part in xrange(len(baseparams)):
+        for motif_part in range(len(baseparams)):
             circs = []
             circ_vals=[]
             line_vals=[]
-            for base in xrange(basepairs):
+            for base in range(basepairs):
                 val_at_base = motif['seed'][base]
                 circ_vals.append(val_at_base.data[baseparams[motif_part]].params)
                 line_vals.append(val_at_base.data[lineparams[motif_part]].params)
@@ -52,8 +52,8 @@ class MotifVis(inout.ShapeMotifFile):
         nested_gs = gs.GridSpecFromSubplotSpec(len(param_names), 1, subplot_spec=grid, hspace=0.05)
         for i, name in enumerate(param_names):
             this_ax = plt.Subplot(fig, nested_gs[i])
-            this_ax.plot(range(len(mat[i,:])), mat[i,:])
-            this_ax.set_xticks(range(len(mat[i,:])))
+            this_ax.plot(list(range(len(mat[i,:]))), mat[i,:])
+            this_ax.set_xticks(list(range(len(mat[i,:]))))
             if i == 0:
                 this_ax.set_title("%s\n MI:%0.3f"%(motif['name'], motif['mi']))
             if ylim:
@@ -64,7 +64,7 @@ class MotifVis(inout.ShapeMotifFile):
                 this_ax.set_yticklabels([])
             this_ax.set_xticklabels([])
             fig.add_subplot(this_ax)
-        this_ax.set_xticklabels(range(len(mat[i,:])))
+        this_ax.set_xticklabels(list(range(len(mat[i,:]))))
         return fig
 
     def plot_motifs(self, grid = None, ylim=None, name= ""):
