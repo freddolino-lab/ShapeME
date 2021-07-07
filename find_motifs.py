@@ -116,8 +116,10 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, xtol=1e-8, initial_tr_rad
         ), 
         method = "trust-constr",
         constraints = [lin_constr],
-        xtol = xtol,
-        initial_tr_radius = initial_tr_radius,
+        options = {
+            'xtol': xtol,
+            'initial_tr_radius': initial_tr_radius,
+        }
     )
 
     final = final_opt['x']
