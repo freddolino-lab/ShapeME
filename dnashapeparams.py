@@ -1,12 +1,15 @@
 import numpy as np
+from numba import jit
 
-
+@jit(nopython=True)
 def euclidean_distance(vec1, vec2):
     return np.sqrt(np.sum((vec1 - vec2)**2))
 
+@jit(nopython=True)
 def manhattan_distance(vec1, vec2):
     return np.sum(np.abs(vec1 - vec2))
 
+@jit(nopython=True)
 def hamming_distance(vec1, vec2):
     return np.sum(vec1 != vec2)
 
@@ -273,8 +276,7 @@ class ShapeParams(object):
         Yields:
             a slice of the ShapeParams object
         """
-        print(len(self))
-        print(end)
+
         end = len(self)-end
         start_i = start
         end_i = start+size

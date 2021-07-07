@@ -13,4 +13,7 @@ dependencies:
     - numba
     - ipython
     - bioconductor-dnashaper
+    - r-glmnet
     - jupyter
+    - rpy2
+    - tensorflow
