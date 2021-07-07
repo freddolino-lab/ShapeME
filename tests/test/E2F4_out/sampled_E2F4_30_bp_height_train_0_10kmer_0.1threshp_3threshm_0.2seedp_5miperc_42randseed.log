@@ -1,0 +1,681 @@
+2020-05-07 15:37:31,848 Reading in files
+2020-05-07 15:37:32,040 Distribution of sequences per class:
+2020-05-07 15:37:32,040 
+Cat 0: 827
+Cat 1: 273
+2020-05-07 15:37:32,072 Normalizing parameters
+2020-05-07 15:37:32,156 MGW: (5.02, 0.5485619999999988)
+2020-05-07 15:37:32,156 ProT: (-7.0, 4.67019)
+2020-05-07 15:37:32,156 HelT: (34.6, 1.6012079999999973)
+2020-05-07 15:37:32,156 Roll: (-2.0, 1.6753379999999998)
+2020-05-07 15:37:32,157 Precomputing all windows
+2020-05-07 15:37:33,502 Determining initial threshold
+2020-05-07 15:37:33,503 Using 109 random seeds to determine threshold from pairwise distances
+2020-05-07 15:37:33,717 Threshold mean: 53.15305173223984 and stdev 11.269784797626512
+2020-05-07 15:37:33,717 Using 19.343697 as an initial match threshold
+2020-05-07 15:37:33,717 Testing all seeds by brute force
+2020-05-07 15:37:33,720 51700 possible seeds
+2020-05-07 15:37:33,721 Finding MI for seeds
+2020-05-07 15:37:33,723 Distribution of sequences per class for seed screening
+2020-05-07 15:37:33,723 
+Cat 0: 165
+Cat 1: 54
+2020-05-07 15:37:33,723 Distribution of sequences per class for regression
+2020-05-07 15:37:33,723 
+Cat 0: 662
+Cat 1: 219
+2020-05-07 15:37:33,723 Evaluating 51700 seeds over 10 processor(s)
+2020-05-07 15:58:27,525 Printing top 5 seeds.
+2020-05-07 15:58:27,526 Seed MI: 0.19483154599981078
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b45931d0>
+[-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:27,527 Seed MI: 0.17576521509692483
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1a38e9cf8>
+[-0.12760636  0.30990116  0.61980232  0.12760636  0.71094972  0.94793296
+  0.89324452  0.51042544 -0.12760636 -0.30990116  0.9143097   0.80082395
+  0.73230425  0.82009511  0.77298782  0.59526486  0.58884114  0.91002722
+  0.95071078  0.51389772 -0.78690589 -1.26779282 -0.68698133  1.02422671
+ -1.38645323  0.63701905 -1.41767965 -0.6994719  -0.49962278  0.66200019
+  0.20891307  2.38757791  0.3999193   0.25069568  2.97850344  0.53720503
+  2.69199409  0.10147206  0.62077026  0.16116151]
+2020-05-07 15:58:27,527 Seed MI: 0.17576521509692483
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b443da90>
+[-0.43750752 -0.7291792  -0.49219596 -0.3645896  -0.10937688  0.71094972
+  0.94793296  0.89324452  0.51042544 -0.12760636  1.49244463  1.21622461
+  1.27832058  1.04278413  0.88004985  0.77298782  0.59526486  0.58884114
+  0.91002722  0.9143097  -0.48088693 -0.73069832 -0.6994719  -0.51835864
+  1.00549085 -1.38645323  0.63701905 -1.41767965 -0.73694361 -0.4933775
+ -0.3461988  -0.19697518 -0.12534784  0.12534784  0.18503729  2.97850344
+  0.53720503  2.69199409  0.1730994   0.19697518]
+2020-05-07 15:58:27,528 Seed MI: 0.16994735755801077
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1a6cea358>
+[ 0.89324452  0.94793296  0.94793296  0.94793296  0.94793296  0.89324452
+  0.51042544 -0.12760636 -0.30990116 -0.52865492  0.58884114  0.59526486
+  0.59526486  0.59526486  0.59526486  0.58884114  0.91002722  0.95071078
+  0.51389772  0.05353101  0.63701905 -1.34898152  0.68698133 -1.34898152
+  0.63701905 -1.41767965 -0.6994719  -0.49962278  0.66824547 -1.73618918
+  0.53720503  3.05609972  0.50736031  3.05609972  0.53720503  2.69199409
+  0.10147206  0.62077026  0.02387578 -0.38201247]
+2020-05-07 15:58:27,529 Seed MI: 0.1647240145309034
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b429c518>
+[-0.5468844  -0.10937688  0.6380318   0.89324452  0.94793296  0.71094972
+ -0.10937688 -0.3645896  -0.49219596 -0.7291792   1.02779544  0.91645094
+  0.70018565  0.58884114  0.59526486  0.77298782  0.88004985  1.04278413
+  1.27832058  1.21622461  1.34273623 -0.79315117 -1.36771737  0.63701905
+ -1.38645323  1.00549085 -0.51835864 -0.6994719  -0.73069832 -0.37471709
+ -0.10147206  0.41185719  2.82331088  0.53720503  2.97850344  0.18503729
+  0.12534784 -0.12534784 -0.19697518 -0.62077026]
+2020-05-07 15:58:27,574 Printing bottom 5 seeds.
+2020-05-07 15:58:27,575 Seed MI: 0.0
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1a50515f8>
+[-0.0911474  -0.71094972 -1.20314568 -1.80471852 -1.60419424 -1.60419424
+ -0.01822948  0.83855608  1.822948    1.49481736  0.38542329 -0.66164332
+ -1.05563157 -0.7665641   1.16483484  1.16483484 -0.41111818 -0.75799914
+ -0.22697149  0.          1.03047199  0.83686816  1.08043427 -1.32400038
+  2.15462326 -1.52384949  0.21233968  0.14988684 -1.95477415  0.2872831
+  0.56704975 -0.70433548 -1.79665238 -0.95503116 -1.40270202 -0.53720503
+ -0.69836654  5.44367763 -0.75208704  4.38120546]
+2020-05-07 15:58:27,575 Seed MI: 0.0
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1a50517b8>
+[ 0.87501504  0.3645896  -0.92970348  0.92970348  0.47396648 -1.20314568
+ -2.31514396  0.3645896   1.67711216  0.69272024  0.19913537 -0.82009511
+ -0.64451339 -0.56742873 -0.9143097  -1.11344506 -0.89503853 -0.82009511
+  0.169158   -0.00856496  0.38096237  0.87433987 -1.19909468  0.19984911
+  0.81813231 -0.66824547  0.94928329  0.19360383 -0.0811887  -0.31850953
+  1.26541629 -0.46557769 -1.42060886  5.55708758 -0.34022985 -2.29804374
+ -0.60883237  1.46239147  3.55152214 -0.65658393]
+2020-05-07 15:58:27,576 Seed MI: 0.0
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1a5051ac8>
+[ 0.92970348  0.30990116 -1.25783412 -0.2734422   1.51304684  1.29429308
+  0.14583584 -0.67449076 -1.31252256 -1.367211    0.24196018  0.54815757
+ -0.39827073 -0.82009511 -0.73658673 -0.79225899 -1.40037129 -1.29545051
+ -0.68947944 -0.81795387 -0.28103782  0.02498114  0.42467937  0.2872831
+ -0.04996228  0.66824547  1.18660411  0.35598123  0.89307573 -1.10541541
+  2.94865872  0.82968332 -0.76402493 -0.56108081  5.1452304  -0.08953417
+ -0.54317397 -0.63270815  4.33942285 -2.10106856]
+2020-05-07 15:58:27,577 Seed MI: 0.0
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1a5051f98>
+[-1.22137516 -2.44275032 -1.822948   -2.04170176 -2.31514396 -0.38281908
+  0.51042544  0.98439192 -0.89324452 -0.12760636 -1.31900415 -1.64447271
+ -0.79440023  0.73872797 -0.70875061 -0.71303309 -0.79654147  0.67449076
+  0.90788597  1.24191949  1.50511364  1.46139665 -0.98050972  1.84235902
+ -0.986755    0.19984911 -0.02498114 -0.89307573  1.74243446 -2.21707611
+ -1.36091941 -2.16075801 -0.94309327 -0.59689448 -1.91006233 -0.0537205
+  4.02903772  0.10147206 -0.64464604 -0.32232302]
+2020-05-07 15:58:27,577 Seed MI: 0.0
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1a5058518>
+[ 0.74740868  0.98439192  0.21875376 -1.07553932 -0.92970348  0.92970348
+  1.16668672  0.14583584 -0.67449076 -1.31252256  0.78369403  0.19485289
+  0.7451517  -0.67449076 -0.64451339 -0.56742873 -1.14984615 -1.40037129
+ -1.29545051 -0.68947944 -0.31850953 -2.06094399  1.20533997  0.88683044
+ -1.19909468  0.07494342  0.76817003  1.18660411  0.35598123  0.76192475
+  2.87703138 -0.17906834  0.60883237 -0.88340383 -1.42060886  6.07041684
+  0.52526714 -0.54317397 -0.63270815  4.6259322 ]
+2020-05-07 15:58:27,797 Filtering seeds by AIC individually
+2020-05-07 15:58:28,253 Printing top 5 seeds.
+2020-05-07 15:58:28,254 Seed MI: 0.19483154599981078
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b45931d0>
+[-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:28,254 Printing bottom 5 seeds.
+2020-05-07 15:58:28,255 Seed MI: 0.19483154599981078
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b45931d0>
+[-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:28,255 1 seeds survived
+2020-05-07 15:58:28,255 Finding minimum match scores for each motif
+2020-05-07 15:58:28,255 Writing motifs before regression
+2020-05-07 15:58:28,495 Running L1 regularized logistic regression with CV to determine reg param
+2020-05-07 15:58:28,776 1 seeds survived
+2020-05-07 15:58:28,974 findfont: Matching sans\-serif:style=normal:variant=normal:weight=normal:stretch=normal:size=10.0.
+2020-05-07 15:58:28,975 findfont: score(<Font 'STIXNonUnicode' (STIXNonUni.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,975 findfont: score(<Font 'DejaVu Sans Mono' (DejaVuSansMono-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,975 findfont: score(<Font 'STIXNonUnicode' (STIXNonUniBol.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,975 findfont: score(<Font 'STIXSizeFiveSym' (STIXSizFiveSymReg.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,975 findfont: score(<Font 'STIXSizeTwoSym' (STIXSizTwoSymBol.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,975 findfont: score(<Font 'cmsy10' (cmsy10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,975 findfont: score(<Font 'STIXSizeOneSym' (STIXSizOneSymReg.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,975 findfont: score(<Font 'STIXSizeTwoSym' (STIXSizTwoSymReg.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,975 findfont: score(<Font 'DejaVu Sans Mono' (DejaVuSansMono-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,975 findfont: score(<Font 'DejaVu Sans' (DejaVuSans-Bold.ttf) normal normal bold normal>) = 0.33499999999999996
+2020-05-07 15:58:28,975 findfont: score(<Font 'STIXSizeOneSym' (STIXSizOneSymBol.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,975 findfont: score(<Font 'cmex10' (cmex10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'STIXGeneral' (STIXGeneralBol.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,976 findfont: score(<Font 'DejaVu Sans Mono' (DejaVuSansMono-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,976 findfont: score(<Font 'STIXNonUnicode' (STIXNonUniBolIta.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,976 findfont: score(<Font 'STIXSizeThreeSym' (STIXSizThreeSymBol.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,976 findfont: score(<Font 'DejaVu Sans Display' (DejaVuSansDisplay.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'DejaVu Sans' (DejaVuSans.ttf) normal normal 400 normal>) = 0.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'DejaVu Sans' (DejaVuSans-Oblique.ttf) oblique normal 400 normal>) = 1.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'DejaVu Serif' (DejaVuSerif.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'STIXNonUnicode' (STIXNonUniIta.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'DejaVu Serif' (DejaVuSerif-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'cmb10' (cmb10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,976 findfont: score(<Font 'DejaVu Serif' (DejaVuSerif-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,977 findfont: score(<Font 'cmmi10' (cmmi10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'cmr10' (cmr10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'cmss10' (cmss10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'DejaVu Sans Mono' (DejaVuSansMono.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'STIXGeneral' (STIXGeneralItalic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'cmtt10' (cmtt10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'STIXSizeThreeSym' (STIXSizThreeSymReg.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'DejaVu Serif Display' (DejaVuSerifDisplay.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'DejaVu Serif' (DejaVuSerif-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,977 findfont: score(<Font 'STIXGeneral' (STIXGeneralBolIta.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,977 findfont: score(<Font 'STIXGeneral' (STIXGeneral.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,977 findfont: score(<Font 'DejaVu Sans' (DejaVuSans-BoldOblique.ttf) oblique normal bold normal>) = 1.335
+2020-05-07 15:58:28,978 findfont: score(<Font 'STIXSizeFourSym' (STIXSizFourSymReg.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'STIXSizeFourSym' (STIXSizFourSymBol.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,978 findfont: score(<Font 'GFS Theokritos' (GFSTheokritos.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'Ubuntu' (Ubuntu-B.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,978 findfont: score(<Font 'Liberation Mono' (LiberationMono-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'Gillius ADF No2 Cd' (GilliusADFNo2Cd-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,978 findfont: score(<Font 'rsfs10' (rsfs10.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'wasy10' (wasy10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'FreeMono' (FreeMonoOblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'GFS Solomos' (GFSSolomos.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'FreeSerif' (FreeSerifItalic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,978 findfont: score(<Font 'Lato' (Lato-Bla.ttf) normal normal black normal>) = 10.525
+2020-05-07 15:58:28,978 findfont: score(<Font 'STIXGeneral' (STIXGeneral-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'Garuda' (Garuda.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'Gillius ADF No2 Cd' (GilliusADFNo2Cd-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'FreeMono' (FreeMono.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'CMU Typewriter Text' (cmuntt.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'Asana Math' (Asana-Math.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'Droid Sans Thai' (DroidSansThai.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'Kinnari' (Kinnari-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,979 findfont: score(<Font 'MathJax_Caligraphic' (MathJax_Caligraphic-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,979 findfont: score(<Font 'CMU Concrete' (cmunoti.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'CMU Typewriter Text' (cmunit.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'Linux Libertine O' (LinLibertine_R.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,979 findfont: score(<Font 'Accanthis ADF Std No3' (AccanthisADFStdNo3-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,979 findfont: score(<Font 'Sawasdee' (Sawasdee-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,980 findfont: score(<Font 'Pothana2000' (Pothana2000.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,980 findfont: score(<Font 'Droid Sans Armenian' (DroidSansArmenian.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,980 findfont: score(<Font 'esint10' (esint10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,980 findfont: score(<Font 'KacstDigital' (KacstDigital.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,980 findfont: score(<Font 'Lobster Two' (lobster.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,980 findfont: score(<Font 'FreeSerif' (FreeSerifItalic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,980 findfont: score(<Font 'MathJax_Script' (MathJax_Script-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,980 findfont: score(<Font 'CMU Classical Serif' (cmunci.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,980 findfont: score(<Font 'FreeSerif' (FreeSerifBold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,980 findfont: score(<Font 'Cabin' (Cabin-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,980 findfont: score(<Font 'Tlwg Typo' (TlwgTypo-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'Junicode' (Junicode.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'MathJax_Main' (MathJax_Main-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'Umpush' (Umpush.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'Amiri' (amiri-bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,981 findfont: score(<Font 'Purisa' (Purisa-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,981 findfont: score(<Font 'TlwgTypewriter' (TlwgTypewriter-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,981 findfont: score(<Font 'Lohit Devanagari' (lohit_hi.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'DejaVu Serif' (DejaVuSerifCondensed-BoldItalic.ttf) italic normal bold condensed>) = 11.535
+2020-05-07 15:58:28,981 findfont: score(<Font 'Amiri' (amiri-regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'Lato' (Lato-Hai.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'CMU Serif Extra' (cmunbl.ttf) italic normal roman normal>) = 11.145
+2020-05-07 15:58:28,981 findfont: score(<Font 'Liberation Sans' (LiberationSans-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,981 findfont: score(<Font 'MathJax_Typewriter' (MathJax_Typewriter-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,982 findfont: score(<Font 'GFS Didot Classic' (GFSDidotClassic.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,982 findfont: score(<Font 'FreeSerif' (FreeSerif.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,982 findfont: score(<Font 'MathJax_SansSerif' (MathJax_SansSerif-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,982 findfont: score(<Font 'Droid Serif' (DroidSerif-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,982 findfont: score(<Font 'Linux Libertine O' (LinLibertine_RB.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,982 findfont: score(<Font 'STIXNonUnicode' (STIXNonUnicode-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,982 findfont: score(<Font 'NanumGothic' (NanumGothic.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,982 findfont: score(<Font 'Rekha' (Rekha.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,982 findfont: score(<Font 'Umpush' (Umpush-LightOblique.ttf) oblique normal light normal>) = 11.24
+2020-05-07 15:58:28,982 findfont: score(<Font 'Accanthis ADF Std' (AccanthisADFStd-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,982 findfont: score(<Font 'OpenDyslexic' (OpenDyslexic-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,982 findfont: score(<Font 'Mallige' (Malige-b.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,982 findfont: score(<Font 'Norasi' (Norasi-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,983 findfont: score(<Font 'FreeSans' (FreeSansBold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,983 findfont: score(<Font 'FreeSans' (FreeSansBoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,983 findfont: score(<Font 'Liberation Sans' (LiberationSans-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,983 findfont: score(<Font 'DejaVu Serif' (DejaVuSerifCondensed-Bold.ttf) normal normal bold condensed>) = 10.535
+2020-05-07 15:58:28,983 findfont: score(<Font 'FreeSans' (FreeSansBold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,983 findfont: score(<Font 'Liberation Sans Narrow' (LiberationSansNarrow-BoldItalic.ttf) italic normal bold condensed>) = 11.535
+2020-05-07 15:58:28,983 findfont: score(<Font 'Saab' (Saab.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,983 findfont: score(<Font 'STIXSizeFourSym' (STIXSizeFourSym-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,983 findfont: score(<Font 'mry_KacstQurn' (mry_KacstQurn.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,983 findfont: score(<Font 'Norasi' (Norasi-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,983 findfont: score(<Font 'DejaVu Sans' (DejaVuSansCondensed-Oblique.ttf) oblique normal 400 condensed>) = 1.25
+2020-05-07 15:58:28,983 findfont: score(<Font 'Droid Sans Georgian' (DroidSansGeorgian.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,984 findfont: score(<Font 'OpenDyslexicAlta' (OpenDyslexicAlta-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,984 findfont: score(<Font 'Abyssinica SIL' (AbyssinicaSIL-R.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,984 findfont: score(<Font 'Lobster Two' (LobsterTwo-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,984 findfont: score(<Font 'Lato' (Lato-Bol.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,984 findfont: score(<Font 'Kinnari' (Kinnari-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,984 findfont: score(<Font 'GFS Neohellenic' (GFSNeohellenicBoldIt.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,984 findfont: score(<Font 'Junicode' (Junicode-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,984 findfont: score(<Font 'Tlwg Typist' (TlwgTypist-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,984 findfont: score(<Font 'Lato' (Lato-HaiIta.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,984 findfont: score(<Font 'Lato' (Lato-Reg.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,984 findfont: score(<Font 'STIXSizeTwoSym' (STIXSizeTwoSym-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'FreeSerif' (FreeSerifBold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,985 findfont: score(<Font 'Lato' (Lato-BolIta.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,985 findfont: score(<Font 'Ubuntu' (Ubuntu-LI.ttf) italic normal light normal>) = 11.24
+2020-05-07 15:58:28,985 findfont: score(<Font 'Lato' (Lato-Lig.ttf) normal normal light normal>) = 10.24
+2020-05-07 15:58:28,985 findfont: score(<Font 'GFS Baskerville' (GFSBaskerville.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'Umpush' (Umpush-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'OpenSymbol' (opens___.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'FreeMono' (FreeMono.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'Phetsarath OT' (Phetsarath_OT.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'STIXNonUnicode' (STIXNonUnicode-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'KacstPen' (KacstPen.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,985 findfont: score(<Font 'CMU Typewriter Text' (cmunbtl.ttf) normal normal light normal>) = 10.24
+2020-05-07 15:58:28,985 findfont: score(<Font 'Linux Libertine O' (LinLibertine_RI.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,986 findfont: score(<Font 'STIXIntegralsUp' (STIXIntegralsUp-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,986 findfont: score(<Font 'FontAwesome' (FontAwesome.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,986 findfont: score(<Font 'TlwgMono' (TlwgMono-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,986 findfont: score(<Font 'Rachana' (Rachana_04.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,986 findfont: score(<Font 'GFS Didot' (GFSArtemisiaBoldIt.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,986 findfont: score(<Font 'KacstFarsi' (KacstFarsi.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,986 findfont: score(<Font 'Linux Libertine Display O' (LinLibertine_DR.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,986 findfont: score(<Font 'Accanthis ADF Std No3' (AccanthisADFStdNo3-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,986 findfont: score(<Font 'Linux Libertine O' (LinLibertine_RZI.otf) italic normal semibold normal>) = 11.24
+2020-05-07 15:58:28,986 findfont: score(<Font 'CMU Typewriter Text Variable Width' (cmunvt.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,986 findfont: score(<Font 'MathJax_Caligraphic' (MathJax_Caligraphic-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,986 findfont: score(<Font 'STIXSizeTwoSym' (STIXSizeTwoSym-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,987 findfont: score(<Font 'Gillius ADF Cd' (GilliusADFCd-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,987 findfont: score(<Font 'GFS Porson' (GFSPorson.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,987 findfont: score(<Font 'KacstBook' (KacstBook.ttf) normal normal book normal>) = 10.05
+2020-05-07 15:58:28,987 findfont: score(<Font 'Junicode' (Junicode-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,987 findfont: score(<Font 'Ubuntu Mono' (UbuntuMono-R.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,987 findfont: score(<Font 'Gentium Basic' (GenBasR.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,987 findfont: score(<Font 'Gillius ADF No2' (GilliusADFNo2-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,987 findfont: score(<Font 'Waree' (Waree-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,987 findfont: score(<Font 'FreeSans' (FreeSans.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,987 findfont: score(<Font 'Droid Sans Ethiopic' (DroidSansEthiopic-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,987 findfont: score(<Font 'CMU Concrete' (cmunorm.ttf) normal normal roman normal>) = 10.145
+2020-05-07 15:58:28,987 findfont: score(<Font 'Lato' (Lato-BlaIta.ttf) italic normal black normal>) = 11.525
+2020-05-07 15:58:28,988 findfont: score(<Font 'OpenDyslexic' (OpenDyslexic-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,988 findfont: score(<Font 'Kinnari' (Kinnari-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,988 findfont: score(<Font 'CMU Bright' (cmunbxo.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,988 findfont: score(<Font 'KacstArt' (KacstArt.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,988 findfont: score(<Font 'OpenDyslexicMono' (OpenDyslexicMono-Regular.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,988 findfont: score(<Font 'LKLUG' (lklug.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,988 findfont: score(<Font 'Lato' (Lato-LigIta.ttf) italic normal light normal>) = 11.24
+2020-05-07 15:58:28,988 findfont: score(<Font 'Gillius ADF No2' (GilliusADFNo2-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,988 findfont: score(<Font 'CMU Sans Serif' (cmunso.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,988 findfont: score(<Font 'Loma' (Loma-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,988 findfont: score(<Font 'STIXNonUnicode' (STIXNonUnicode-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,988 findfont: score(<Font 'CMU Serif Extra' (cmunrb.ttf) normal normal roman normal>) = 10.145
+2020-05-07 15:58:28,989 findfont: score(<Font 'IPAexMincho' (ipaexm.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'STIXGeneral' (STIXGeneral-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,989 findfont: score(<Font 'Liberation Sans' (LiberationSans-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,989 findfont: score(<Font 'Padauk Book' (Padauk-book.ttf) normal normal book normal>) = 10.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'Accanthis ADF Std No2' (AccanthisADFStdNo2-Regular.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'KacstLetter' (KacstLetter.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'Accanthis ADF Std' (AccanthisADFStd-Regular.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'Droid Sans Hebrew' (DroidSansHebrew-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'Purisa' (Purisa.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'Linux Biolinum O' (LinBiolinum_RB.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,989 findfont: score(<Font 'Norasi' (Norasi-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,989 findfont: score(<Font 'Tlwg Typo' (TlwgTypo-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,990 findfont: score(<Font 'MathJax_Fraktur' (MathJax_Fraktur-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,990 findfont: score(<Font 'FontAwesome' (fontawesome-webfont.ttf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,990 findfont: score(<Font 'MathJax_Main' (MathJax_Main-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,990 findfont: score(<Font 'CMU Bright' (cmunbmr.ttf) normal normal roman normal>) = 10.145
+2020-05-07 15:58:28,990 findfont: score(<Font 'IPAMincho' (ipam.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,990 findfont: score(<Font 'STIXIntegralsUpD' (STIXIntegralsUpD-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,990 findfont: score(<Font 'Linux Libertine Initials O' (LinLibertine_I.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,990 findfont: score(<Font 'Mukti Narrow' (MuktiNarrow.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,990 findfont: score(<Font 'Sawasdee' (Sawasdee-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,990 findfont: score(<Font 'Droid Serif' (DroidSerif-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,990 findfont: score(<Font 'STIXGeneral' (STIXGeneral-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,990 findfont: score(<Font 'GFS Neohellenic' (GFSNeohellenicIt.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,990 findfont: score(<Font 'DejaVu Serif' (DejaVuSerifCondensed.ttf) normal normal 400 condensed>) = 10.25
+2020-05-07 15:58:28,991 findfont: score(<Font 'NanumBarunGothic' (NanumBarunGothicBold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,991 findfont: score(<Font 'msam10' (msam10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,991 findfont: score(<Font 'CMU Serif' (cmunrm.ttf) normal normal roman normal>) = 10.145
+2020-05-07 15:58:28,991 findfont: score(<Font 'NanumMyeongjo' (NanumMyeongjo.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,991 findfont: score(<Font 'Waree' (Waree-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,991 findfont: score(<Font 'FreeSans' (FreeSansOblique.otf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,991 findfont: score(<Font 'Cabin' (Cabin-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,991 findfont: score(<Font 'Umpush' (Umpush-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,991 findfont: score(<Font 'Amiri' (amiri-boldslanted.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,991 findfont: score(<Font 'MathJax_Size4' (MathJax_Size4-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,991 findfont: score(<Font 'MathJax_Size3' (MathJax_Size3-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,991 findfont: score(<Font 'Liberation Serif' (LiberationSerif-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'IPAGothic' (ipag.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'Khmer OS System' (KhmerOSsys.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'Accanthis ADF Std No3' (AccanthisADFStdNo3-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'MathJax_Main' (MathJax_Main-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'STIXSizeOneSym' (STIXSizeOneSym-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,992 findfont: score(<Font 'STIXSizeThreeSym' (STIXSizeThreeSym-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,992 findfont: score(<Font 'OpenDyslexic' (OpenDyslexic-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,992 findfont: score(<Font 'Kedage' (Kedage-b.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,992 findfont: score(<Font 'STIXIntegralsUp' (STIXIntegralsUp-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'Ubuntu' (Ubuntu-R.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'Lohit Gujarati' (lohit_gu.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,992 findfont: score(<Font 'Garuda' (Garuda-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,993 findfont: score(<Font 'Sawasdee' (Sawasdee.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,993 findfont: score(<Font 'Droid Sans' (DroidSans-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,993 findfont: score(<Font 'FreeSans' (FreeSansOblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,993 findfont: score(<Font 'MathJax_WinIE6' (MathJax_WinIE6-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,993 findfont: score(<Font 'STIXGeneral' (STIXGeneral-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,993 findfont: score(<Font 'Gentium Book Basic' (GenBkBasB.ttf) normal normal book normal>) = 10.05
+2020-05-07 15:58:28,993 findfont: score(<Font 'STIXIntegralsUpSm' (STIXIntegralsUpSm-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,993 findfont: score(<Font 'STIXIntegralsSm' (STIXIntegralsSm-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,993 findfont: score(<Font 'Droid Serif' (DroidSerif-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,993 findfont: score(<Font 'Gillius ADF' (GilliusADF-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,993 findfont: score(<Font 'Liberation Sans Narrow' (LiberationSansNarrow-Italic.ttf) italic normal 400 condensed>) = 11.25
+2020-05-07 15:58:28,993 findfont: score(<Font 'Gillius ADF' (GilliusADF-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Accanthis ADF Std' (AccanthisADFStd-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'STIXIntegralsUpD' (STIXIntegralsUpD-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Khmer OS' (KhmerOS.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Lato' (Lato-RegIta.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Liberation Sans' (LiberationSans-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Norasi' (Norasi.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'NanumMyeongjo' (NanumMyeongjoBold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,994 findfont: score(<Font 'KacstScreen' (KacstScreen.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Liberation Mono' (LiberationMono-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'STIXSizeThreeSym' (STIXSizeThreeSym-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Gentium Book Basic' (GenBkBasI.ttf) italic normal book normal>) = 11.05
+2020-05-07 15:58:28,994 findfont: score(<Font 'Lohit Bengali' (lohit_bn.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'STIXNonUnicode' (STIXNonUnicode-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'Liberation Sans Narrow' (LiberationSansNarrow-Bold.ttf) normal normal bold condensed>) = 10.535
+2020-05-07 15:58:28,995 findfont: score(<Font 'DejaVu Sans' (DejaVuSansCondensed-BoldOblique.ttf) oblique normal bold condensed>) = 1.535
+2020-05-07 15:58:28,995 findfont: score(<Font 'NanumBarunGothic' (NanumBarunGothic.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'Inconsolata' (Inconsolata.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'Gillius ADF No2' (GilliusADFNo2-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'Tlwg Typist' (TlwgTypist.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'GFS Artemisia' (GFSArtemisia.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'Meera' (Meera_04.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'Linux Libertine O' (LinLibertine_RZ.otf) normal normal semibold normal>) = 10.24
+2020-05-07 15:58:28,995 findfont: score(<Font 'Ubuntu' (Ubuntu-L.ttf) normal normal light normal>) = 10.24
+2020-05-07 15:58:28,995 findfont: score(<Font 'KacstDecorative' (KacstDecorative.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,995 findfont: score(<Font 'Cabin' (Cabin-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,996 findfont: score(<Font 'Kinnari' (Kinnari.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,996 findfont: score(<Font 'Gillius ADF Cd' (GilliusADFCd-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,996 findfont: score(<Font 'Kinnari' (Kinnari-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,996 findfont: score(<Font 'Cabin' (Cabin-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,996 findfont: score(<Font 'CMU Serif' (cmunbx.ttf) normal normal roman normal>) = 10.145
+2020-05-07 15:58:28,996 findfont: score(<Font 'Cabin' (Cabin-MediumItalic.otf) italic normal medium normal>) = 11.145
+2020-05-07 15:58:28,996 findfont: score(<Font 'STIXSizeFourSym' (STIXSizeFourSym-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,996 findfont: score(<Font 'KacstTitleL' (KacstTitleL.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,996 findfont: score(<Font 'STIXSizeFiveSym' (STIXSizeFiveSym-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,996 findfont: score(<Font 'DejaVu Sans' (DejaVuSans-ExtraLight.ttf) normal normal light normal>) = 0.24
+2020-05-07 15:58:28,996 findfont: score(<Font 'FreeMono' (FreeMonoBold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,997 findfont: score(<Font 'Linux Biolinum O' (LinBiolinum_R.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,997 findfont: score(<Font 'Ubuntu' (Ubuntu-M.ttf) normal normal medium normal>) = 10.145
+2020-05-07 15:58:28,997 findfont: score(<Font 'IPAPMincho' (ipamp.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,997 findfont: score(<Font 'Liberation Mono' (LiberationMono-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,997 findfont: score(<Font 'Liberation Mono' (LiberationMono-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,997 findfont: score(<Font 'GFS Complutum' (GFSPolyglot.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,997 findfont: score(<Font 'MathJax_WinChrome' (MathJax_WinChrome-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,997 findfont: score(<Font 'FreeMono' (FreeMonoBoldOblique.otf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,997 findfont: score(<Font 'TlwgTypewriter' (TlwgTypewriter-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,997 findfont: score(<Font 'MathJax_Fraktur' (MathJax_Fraktur-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,997 findfont: score(<Font 'FreeMono' (FreeMonoOblique.otf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,997 findfont: score(<Font 'KacstTitle' (KacstTitle.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,998 findfont: score(<Font 'MathJax_Math' (MathJax_Math-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:28,998 findfont: score(<Font 'Kinnari' (Kinnari-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,998 findfont: score(<Font 'Padauk' (Padauk.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,998 findfont: score(<Font 'IPAexMincho' (fonts-japanese-mincho.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,998 findfont: score(<Font 'Kedage' (Kedage-n.ttf) normal normal normal normal>) = 10.0
+2020-05-07 15:58:28,998 findfont: score(<Font 'Comfortaa' (Comfortaa-Light.ttf) normal normal light normal>) = 10.24
+2020-05-07 15:58:28,998 findfont: score(<Font 'Gillius ADF' (GilliusADF-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,998 findfont: score(<Font 'CMU Bright' (cmunbbx.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,998 findfont: score(<Font 'GFS Neohellenic' (GFSNeohellenic.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,998 findfont: score(<Font 'Loma' (Loma-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,998 findfont: score(<Font 'DejaVu Serif' (DejaVuSerifCondensed-Italic.ttf) italic normal 400 condensed>) = 11.25
+2020-05-07 15:58:28,998 findfont: score(<Font 'Gillius ADF No2' (GilliusADFNo2-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,998 findfont: score(<Font 'Tlwg Typo' (TlwgTypo-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:28,999 findfont: score(<Font 'MathJax_Math' (MathJax_Math-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,999 findfont: score(<Font 'Ubuntu Condensed' (Ubuntu-C.ttf) normal normal 400 condensed>) = 10.25
+2020-05-07 15:58:28,999 findfont: score(<Font 'Sawasdee' (Sawasdee-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:28,999 findfont: score(<Font 'Liberation Serif' (LiberationSerif-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,999 findfont: score(<Font 'Accanthis ADF Std' (AccanthisADFStd-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,999 findfont: score(<Font 'Gillius ADF Cd' (GilliusADFCd-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:28,999 findfont: score(<Font 'Linux Libertine O' (LinLibertine_RBI.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:28,999 findfont: score(<Font 'Liberation Serif' (LiberationSerif-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,999 findfont: score(<Font 'Droid Sans Ethiopic' (DroidSansEthiopic-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,999 findfont: score(<Font 'KacstQurn' (KacstQurn.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:28,999 findfont: score(<Font 'STIXIntegralsD' (STIXIntegralsD-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:28,999 findfont: score(<Font 'Tlwg Typist' (TlwgTypist-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,000 findfont: score(<Font 'Gentium Basic' (GenBasB.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,000 findfont: score(<Font 'GFS Didot' (GFSDidotBoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,000 findfont: score(<Font 'Accanthis ADF Std No2' (AccanthisADFStdNo2-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,000 findfont: score(<Font 'Accanthis ADF Std No2' (AccanthisADFStdNo2-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,000 findfont: score(<Font 'Gentium' (GenI102.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,000 findfont: score(<Font 'Gentium Book Basic' (GenBkBasBI.ttf) italic normal book normal>) = 11.05
+2020-05-07 15:58:29,000 findfont: score(<Font 'OpenDyslexicAlta' (OpenDyslexicAlta-Regular.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,000 findfont: score(<Font 'GFS Neohellenic' (GFSNeohellenicBold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,000 findfont: score(<Font 'TakaoPGothic' (fonts-japanese-gothic.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,000 findfont: score(<Font 'CMU Serif' (cmunbi.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,000 findfont: score(<Font 'IPAPGothic' (ipagp.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,000 findfont: score(<Font 'TlwgMono' (TlwgMono-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'CMU Concrete' (cmunobi.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,001 findfont: score(<Font 'IPAexGothic' (ipaexg.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'eufm10' (eufm10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'Garuda' (Garuda-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'Ubuntu Mono' (UbuntuMono-BI.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,001 findfont: score(<Font 'Droid Sans Japanese' (DroidSansJapanese.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'GFS Didot' (GFSDidot.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'Cabin' (Cabin-Medium.otf) normal normal medium normal>) = 10.145
+2020-05-07 15:58:29,001 findfont: score(<Font 'Vemana2000' (Vemana.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'FreeSans' (FreeSans.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'GentiumAlt' (GenAR102.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,001 findfont: score(<Font 'Umpush' (Umpush-Light.ttf) normal normal light normal>) = 10.24
+2020-05-07 15:58:29,002 findfont: score(<Font 'KacstOne' (KacstOne-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,002 findfont: score(<Font 'STIXIntegralsUpSm' (STIXIntegralsUpSm-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'CMU Typewriter Text Variable Width' (cmunvi.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'GFS Artemisia' (GFSArtemisiaIt.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'FreeSerif' (FreeSerifBoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,002 findfont: score(<Font 'STIXIntegralsSm' (STIXIntegralsSm-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'Gentium Book Basic' (GenBkBasR.ttf) normal normal book normal>) = 10.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'Waree' (Waree.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'OpenDyslexicAlta' (OpenDyslexicAlta-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,002 findfont: score(<Font 'Loma' (Loma.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'TlwgTypewriter' (TlwgTypewriter-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'Linux Biolinum O' (LinBiolinum_RI.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,002 findfont: score(<Font 'Gentium Basic' (GenBasBI.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,003 findfont: score(<Font 'gargi' (gargi.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,003 findfont: score(<Font 'OpenDyslexicAlta' (OpenDyslexicAlta-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,003 findfont: score(<Font 'Droid Arabic Naskh' (DroidNaskh-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,003 findfont: score(<Font 'CMU Bright' (cmunbso.ttf) oblique normal semibold normal>) = 11.24
+2020-05-07 15:58:29,003 findfont: score(<Font 'Ubuntu' (Ubuntu-BI.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,003 findfont: score(<Font 'GFS BodoniClassic' (GFSBodoniClassic.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,003 findfont: score(<Font 'Droid Serif' (DroidSerif-Italic.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,003 findfont: score(<Font 'Ubuntu' (Ubuntu-MI.ttf) italic normal medium normal>) = 11.145
+2020-05-07 15:58:29,003 findfont: score(<Font 'Tibetan Machine Uni' (TibetanMachineUni.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,003 findfont: score(<Font 'Waree' (Waree-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,003 findfont: score(<Font 'MathJax_Math' (MathJax_Math-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,003 findfont: score(<Font 'GFS Olga' (GFSOlga.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'KacstNaskh' (KacstNaskh.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'Lohit Tamil' (lohit_ta.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'CMU Bright' (cmunbsr.ttf) normal normal semibold normal>) = 10.24
+2020-05-07 15:58:29,004 findfont: score(<Font 'CMU Concrete' (cmunobx.ttf) normal normal roman normal>) = 10.145
+2020-05-07 15:58:29,004 findfont: score(<Font 'Amiri' (amiri-slanted.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'MathJax_Size1' (MathJax_Size1-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'CMU Sans Serif' (cmunss.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'Ubuntu' (Ubuntu-RI.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'OpenDyslexic' (OpenDyslexic-Regular.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'Padauk' (Padauk-bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,004 findfont: score(<Font 'Ubuntu Mono' (UbuntuMono-RI.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,004 findfont: score(<Font 'Linux Libertine Mono O' (LinLibertine_M.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,005 findfont: score(<Font 'KacstOffice' (KacstOffice.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,005 findfont: score(<Font 'Droid Arabic Naskh' (DroidNaskh-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,005 findfont: score(<Font 'TlwgTypewriter' (TlwgTypewriter.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,005 findfont: score(<Font 'GFS Gazis' (GFSGazis.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,005 findfont: score(<Font 'DejaVu Sans' (DejaVuSansCondensed.ttf) normal normal 400 condensed>) = 0.25
+2020-05-07 15:58:29,005 findfont: score(<Font 'STIXIntegralsD' (STIXIntegralsD-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,005 findfont: score(<Font 'Droid Sans' (DroidSans.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,005 findfont: score(<Font 'Mukti Narrow' (MuktiNarrowBold.ttf) normal normal 700 normal>) = 10.335
+2020-05-07 15:58:29,005 findfont: score(<Font 'Purisa' (Purisa-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,005 findfont: score(<Font 'STIXVariants' (STIXVariants-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,005 findfont: score(<Font 'Gillius ADF No2 Cd' (GilliusADFNo2Cd-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,005 findfont: score(<Font 'TakaoPGothic' (TakaoPGothic.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,006 findfont: score(<Font 'Norasi' (Norasi-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,006 findfont: score(<Font 'Comfortaa' (Comfortaa-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,006 findfont: score(<Font 'CMU Typewriter Text' (cmuntx.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,006 findfont: score(<Font 'CMU Serif' (cmunti.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,006 findfont: score(<Font 'FreeSerif' (FreeSerif.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,006 findfont: score(<Font 'DejaVu Sans' (DejaVuSansCondensed-Bold.ttf) normal normal bold condensed>) = 0.5349999999999999
+2020-05-07 15:58:29,006 findfont: score(<Font 'Junicode' (Junicode-BoldItalic.ttf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,006 findfont: score(<Font 'Lobster Two' (LobsterTwo-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,006 findfont: score(<Font 'FreeSerif' (FreeSerifBoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,006 findfont: score(<Font 'TlwgMono' (TlwgMono-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:29,006 findfont: score(<Font 'Purisa' (Purisa-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,006 findfont: score(<Font 'CMU Sans Serif Demi Condensed' (cmunssdc.ttf) normal normal demi condensed>) = 10.44
+2020-05-07 15:58:29,007 findfont: score(<Font 'Lohit Punjabi' (lohit_pa.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'Lobster Two' (LobsterTwo-Regular.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'CMU Typewriter Text' (cmuntb.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,007 findfont: score(<Font 'Linux Biolinum Keyboard O' (LinBiolinum_K.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'GFS Artemisia' (GFSArtemisiaBold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,007 findfont: score(<Font 'msbm10' (msbm10.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'Liberation Serif' (LiberationSerif-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'KacstOne' (KacstOne.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'Norasi' (Norasi-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'Padauk Book' (Padauk-bookbold.ttf) normal normal book normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'Droid Sans Mono' (DroidSansMono.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'MathJax_Size2' (MathJax_Size2-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,007 findfont: score(<Font 'Tlwg Typist' (TlwgTypist-Oblique.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,008 findfont: score(<Font 'Tlwg Typo' (TlwgTypo.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,008 findfont: score(<Font 'Accanthis ADF Std No3' (AccanthisADFStdNo3-Regular.otf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,008 findfont: score(<Font 'MathJax_AMS' (MathJax_AMS-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,008 findfont: score(<Font 'Gentium' (GenR102.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,008 findfont: score(<Font 'Loma' (Loma-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,008 findfont: score(<Font 'CMU Sans Serif' (cmunsx.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,008 findfont: score(<Font 'FreeMono' (FreeMonoBold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,008 findfont: score(<Font 'Ubuntu Mono' (UbuntuMono-B.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,008 findfont: score(<Font 'Gillius ADF No2 Cd' (GilliusADFNo2Cd-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,008 findfont: score(<Font 'Droid Sans Fallback' (DroidSansFallbackFull.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,008 findfont: score(<Font 'Comfortaa' (Comfortaa-Regular.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,009 findfont: score(<Font 'GFS Didot' (GFSDidotBold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,009 findfont: score(<Font 'Liberation Sans Narrow' (LiberationSansNarrow-Regular.ttf) normal normal 400 condensed>) = 10.25
+2020-05-07 15:58:29,009 findfont: score(<Font 'NanumGothic' (NanumGothicBold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,009 findfont: score(<Font 'FreeSans' (FreeSansBoldOblique.otf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:29,009 findfont: score(<Font 'Droid Sans Hebrew' (DroidSansHebrew-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,009 findfont: score(<Font 'Lobster Two' (LobsterTwo-BoldItalic.otf) italic normal bold normal>) = 11.335
+2020-05-07 15:58:29,009 findfont: score(<Font 'GFS Didot' (GFSDidotItalic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,009 findfont: score(<Font 'Umpush' (Umpush-Bold.ttf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,009 findfont: score(<Font 'CMU Bright' (cmunbmo.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,009 findfont: score(<Font 'Cabin' (Cabin-SemiBoldItalic.otf) italic normal semibold normal>) = 11.24
+2020-05-07 15:58:29,009 findfont: score(<Font 'GentiumAlt' (GenAI102.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,009 findfont: score(<Font 'MathJax_SansSerif' (MathJax_SansSerif-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,010 findfont: score(<Font 'Accanthis ADF Std No2' (AccanthisADFStdNo2-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,010 findfont: score(<Font 'Gillius ADF Cd' (GilliusADFCd-Italic.otf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,010 findfont: score(<Font 'Garuda' (Garuda-BoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:29,010 findfont: score(<Font 'ori1Uni' (utkal.ttf) normal normal medium normal>) = 10.145
+2020-05-07 15:58:29,010 findfont: score(<Font 'Mallige' (Malige-n.ttf) normal normal normal normal>) = 10.0
+2020-05-07 15:58:29,010 findfont: score(<Font 'STIXSizeOneSym' (STIXSizeOneSym-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,010 findfont: score(<Font 'CMU Typewriter Text' (cmunbto.ttf) oblique normal light normal>) = 11.24
+2020-05-07 15:58:29,010 findfont: score(<Font 'MathJax_SansSerif' (MathJax_SansSerif-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,010 findfont: score(<Font 'Cabin' (Cabin-SemiBold.otf) normal normal semibold normal>) = 10.24
+2020-05-07 15:58:29,010 findfont: score(<Font 'Gentium Basic' (GenBasI.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,010 findfont: score(<Font 'CMU Serif Extra' (cmunsl.ttf) italic normal roman normal>) = 11.145
+2020-05-07 15:58:29,010 findfont: score(<Font 'TlwgMono' (TlwgMono.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,010 findfont: score(<Font 'Amiri Quran' (amiri-quran.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,011 findfont: score(<Font 'KacstPoster' (KacstPoster.ttf) normal normal 400 normal>) = 10.05
+2020-05-07 15:58:29,011 findfont: score(<Font 'CMU Sans Serif' (cmunsi.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,011 findfont: score(<Font 'CMU Serif Upright Italic' (cmunui.ttf) italic normal 400 normal>) = 11.05
+2020-05-07 15:58:29,011 findfont: score(<Font 'FreeMono' (FreeMonoBoldOblique.ttf) oblique normal bold normal>) = 11.335
+2020-05-07 15:58:29,011 findfont: score(<Font 'Gillius ADF' (GilliusADF-Regular.otf) normal normal regular normal>) = 10.05
+2020-05-07 15:58:29,011 findfont: score(<Font 'STIXVariants' (STIXVariants-Bold.otf) normal normal bold normal>) = 10.335
+2020-05-07 15:58:29,011 findfont: score(<Font 'CMU Typewriter Text' (cmunst.ttf) oblique normal 400 normal>) = 11.05
+2020-05-07 15:58:29,011 findfont: Matching sans\-serif:style=normal:variant=normal:weight=normal:stretch=normal:size=10.0 to DejaVu Sans ('/home/mbwolfe/miniconda3/envs/shape_py3/lib/python3.6/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf') with score of 0.050000.
+2020-05-07 15:58:33,351 Printing top 5 seeds.
+2020-05-07 15:58:33,352 Seed MI: 0.19483154599981078
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b45931d0>
+[-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:33,352 Printing bottom 5 seeds.
+2020-05-07 15:58:33,353 Seed MI: 0.19483154599981078
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b45931d0>
+[-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:33,353 Writing motifs after regression
+2020-05-07 15:58:33,379 Seed: [-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:33,379 MI: 0.194832
+2020-05-07 15:58:33,379 Motif Entropy: 0.425555
+2020-05-07 15:58:33,379 Category Entropy: 0.805805
+2020-05-07 15:58:33,380 Two way table for cat 0 is [0, 19, 165, 35]
+/home/mbwolfe/src/tinker_motif_finder/DNAshape_motif_finder/find_motifs.py:189: RuntimeWarning: divide by zero encountered in log
+  return np.log(num/denom)
+2020-05-07 15:58:33,380 Enrichment for Cat 0 is -inf
+2020-05-07 15:58:33,380 Two way table for cat 1 is [19, 0, 35, 165]
+/home/mbwolfe/src/tinker_motif_finder/DNAshape_motif_finder/find_motifs.py:187: RuntimeWarning: divide by zero encountered in true_divide
+  num = np.array(two_way[0], dtype=float)/np.array(two_way[1],dtype=float)
+2020-05-07 15:58:33,381 Enrichment for Cat 1 is inf
+2020-05-07 15:58:33,381 Generating initial heatmap for passing seeds
+/home/mbwolfe/src/tinker_motif_finder/DNAshape_motif_finder/find_motifs.py:189: RuntimeWarning: divide by zero encountered in log
+  return np.log(num/denom)
+/home/mbwolfe/src/tinker_motif_finder/DNAshape_motif_finder/find_motifs.py:187: RuntimeWarning: divide by zero encountered in true_divide
+  num = np.array(two_way[0], dtype=float)/np.array(two_way[1],dtype=float)
+2020-05-07 15:58:33,382 Testing final optimized seeds on held out database
+2020-05-07 15:58:33,382 Computing MI for motif 0
+2020-05-07 15:58:34,341 Filtering seeds by Conditional MI using 5.000000 as a cutoff
+2020-05-07 15:58:34,341 Printing top 5 seeds.
+2020-05-07 15:58:34,342 Seed MI: 0.1366074250119731
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b45931d0>
+[-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:34,342 Printing bottom 5 seeds.
+2020-05-07 15:58:34,343 Seed MI: 0.1366074250119731
+ Seed Mem: <dnashapeparams.ShapeParams object at 0x7fb1b45931d0>
+[-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:34,343 1 seeds survived
+2020-05-07 15:58:34,343 Seed: [-0.34636012  0.6380318   0.89324452  0.94793296  0.71094972  0.12760636
+  0.61980232  0.67449076 -0.01822948 -0.1822948   0.84793124  0.70018565
+  0.58884114  0.59526486  0.77298782  0.82009511  0.73230425  0.81581263
+  0.41325942  0.19271165 -0.77441532 -1.36771737  0.63701905 -1.38645323
+  1.02422671 -0.68698133 -1.16786826 -0.65575491  0.74318889 -1.86109487
+  0.37007458  2.82331088  0.53720503  2.97850344  0.25069568  0.3999193
+  2.20850957  0.82968332  0.04178261  0.09550312]
+2020-05-07 15:58:34,344 MI: 0.136607
+2020-05-07 15:58:34,344 Calculating Z-score for motif 0
+2020-05-07 15:58:35,065 Z-score: 118.204108
+2020-05-07 15:58:35,065 Calculating Robustness for motif 0
+2020-05-07 15:58:41,910 Robustness: 10/10
+2020-05-07 15:58:41,911 Motif Entropy: 0.404256
+2020-05-07 15:58:41,911 Category Entropy: 0.809022
+2020-05-07 15:58:41,911 Two way table for cat 0 is [5, 66, 657, 153]
+2020-05-07 15:58:41,911 Enrichment for Cat 0 is -4.0374629266845
+2020-05-07 15:58:41,911 Two way table for cat 1 is [66, 5, 153, 657]
+2020-05-07 15:58:41,911 Enrichment for Cat 1 is 4.0374629266845
+2020-05-07 15:58:41,911 Generating final heatmap for seeds
+2020-05-07 15:58:41,912 Writing final motifs
