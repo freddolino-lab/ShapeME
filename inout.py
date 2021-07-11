@@ -3,6 +3,7 @@ import dnashapeparams as dsp
 import logging
 from numba import jit
 import welfords
+from scipy import stats
 
 @jit(nopython=True)
 def euclidean_distance(vec1, vec2):
@@ -10,6 +11,12 @@ def euclidean_distance(vec1, vec2):
 
 @jit(nopython=True)
 def manhattan_distance(vec1, vec2, w=1):
+    return np.sum(np.abs(vec1 - vec2) * w)
+
+@jit(nopython=True)
+def constrained_manhattan_distance(vec1, vec2, w=1):
+    w_exp = np.exp(w)
+    w = w_exp/np.sum(w_exp)
     return np.sum(np.abs(vec1 - vec2) * w)
 
 @jit(nopython=True)
@@ -627,13 +634,24 @@ class RecordDatabase(object):
             print("X vals are not normalized. Doing nothing.")
 
     def initialize_weights(self):
+        """Provides the weights attribute, with a beta distrubuted
+        weight over the length of the windows. Normalized such
+        that the weights for all shapes/positions in a given
+        record/window sum to one.
+        """
 
-        # create weights array of same shape as windows array
-        #   and fill it with 1/L.
-        self.weights = np.full_like(
-            self.windows,
-            1 / self.windows.shape[1]
-        )
+        #self.weights = np.full_like(self.windows, 1.0)
+
+        x_vals = np.linspace(0,1,self.windows.shape[1])
+        w = stats.beta.pdf(x_vals, 2, 2)
+        w = w/np.sum(w)/self.windows.shape[2]
+        w_list = [w for _ in range(self.windows.shape[2])]
+        w = np.stack(w_list,axis=1)
+        
+        self.weights = np.zeros_like(self.windows)
+        for rec in range(self.weights.shape[0]):
+            for win in range(self.weights.shape[-1]):
+                self.weights[rec,:,:,win] = w
 
     def compute_windows(self, wsize):
         """Method to precompute all nmers.
