@@ -27,12 +27,12 @@ def make_linear_constraint(target,S,L):
     #   and weights and threshold
     beta = np.zeros((1,L*S+1))
     # lower and upper bounds on sum of weights are 1
-    lower_bound = np.ones(1,)
-    upper_bound = np.ones(1,)
+    lower_bound = np.array([S*L])
+    upper_bound = np.array([S*L])
 
     # set appropriate values in beta to 1, leave the -1 index as 0, since
     #   we're not constraining the threshold
-    beta[:-1] = 1
+    beta[0,:-1] = 1.0
 
     const = LinearConstraint(
         beta,
@@ -41,7 +41,7 @@ def make_linear_constraint(target,S,L):
     )
     return const
 
-def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_tr_radius=1):
+def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_tr_radius=1, initial_constr_penalty=1):
     """Perform seed optimization in a multiprocessed manner
     
     Args:
@@ -61,7 +61,7 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_
 
         for w_idx in range(W):
 
-            helper_args = (r_idx, w_idx, dist, record_db, xtol, initial_tr_radius)
+            helper_args = (r_idx, w_idx, dist, record_db, xtol, initial_tr_radius, initial_constr_penalty)
             final_weights = pool.apply_async(
                 mp_optimize_weights_helper, 
                 helper_args,
@@ -73,7 +73,7 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_
 
     return results
 
-def mp_optimize_weights_helper(r_idx, w_idx, dist, db, xtol=1e-8, initial_tr_radius=1):
+def mp_optimize_weights_helper(r_idx, w_idx, dist, db, xtol=1e-8, initial_tr_radius=1, initial_constr_penalty=1):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -95,11 +95,11 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, xtol=1e-8, initial_tr_rad
     ref_shapes = db.windows
     y_vals = db.y
 
-    lin_constr = make_linear_constraint(
-        target,
-        seed_shapes.shape[0],
-        seed_shapes.shape[1]
-    )
+    #lin_constr = make_linear_constraint(
+    #    target,
+    #    seed_shapes.shape[0],
+    #    seed_shapes.shape[1]
+    #)
 
     final_weights_dict = {}
     func_info = {"NFeval":0, "eval":[], "value":[]}
@@ -114,12 +114,14 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, xtol=1e-8, initial_tr_rad
             dist,
             func_info,
         ), 
-        method = "trust-constr",
-        constraints = [lin_constr],
-        options = {
-            'xtol': xtol,
-            'initial_tr_radius': initial_tr_radius,
-        }
+        #method = "trust-constr",
+        method = "nelder-mead",
+        #constraints = [lin_constr],
+        #options = {
+        #    'xtol': xtol,
+        #    'initial_tr_radius': initial_tr_radius,
+        #    'initial_constr_penalty': initial_constr_penalty,
+        #}
     )
 
     final = final_opt['x']
