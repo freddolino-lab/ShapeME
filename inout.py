@@ -739,8 +739,8 @@ class RecordDatabase(object):
             for j, seed_j in enumerate(total_seeds):
                 if i >= j:
                     continue
-                dist = dist(seed_i[0], seed_j[0], seed_i[1])
-                online_mean.update(dist)
+                distance = dist(seed_i[0], seed_j[0], seed_i[1])
+                online_mean.update(distance)
 
         mean = online_mean.final_mean()
         stdev = online_mean.final_stdev()
