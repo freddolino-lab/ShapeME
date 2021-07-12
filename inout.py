@@ -577,13 +577,13 @@ class RecordDatabase(object):
             # grabs complete cases from X
             self.X = self.X[:,complete_positions,:]
 
-    def set_center_spread(self, center_spread):
-        """Method to set the center spread for the database for each
-        parameter
+    #def set_center_spread(self, center_spread):
+    #    """Method to set the center spread for the database for each
+    #    parameter
 
-        TODO check to make sure keys match all parameter names
-        """
-        self.center_spread = center_spread
+    #    TODO check to make sure keys match all parameter names
+    #    """
+    #    self.center_spread = center_spread
 
     def determine_center_spread(self, method=robust_z_csp):
         """Method to get the center spread for each shape based on
@@ -691,7 +691,7 @@ class RecordDatabase(object):
         )
         return(permuted_records)
 
-    def set_initial_thresholds(self, threshold_sd_from_mean=2.0,
+    def set_initial_thresholds(self, dist, threshold_sd_from_mean=2.0,
                                seeds_per_seq=1, max_seeds=10000):
         """Function to determine a reasonable starting threshold given a sample
         of the data
@@ -739,7 +739,7 @@ class RecordDatabase(object):
             for j, seed_j in enumerate(total_seeds):
                 if i >= j:
                     continue
-                dist = manhattan_distance(seed_i[0], seed_j[0], seed_i[1])
+                dist = dist(seed_i[0], seed_j[0], seed_i[1])
                 online_mean.update(dist)
 
         mean = online_mean.final_mean()
@@ -1529,15 +1529,17 @@ def mutual_information(arrayx, arrayy):
     MI = 0
     for x in np.unique(arrayx):
         for y in np.unique(arrayy):
+            # p(x_i)
             p_x = np.sum(arrayx == x)/total
+            # p(y_j)
             p_y = np.sum(arrayy == y)/total
+            # p(x_i,y_j)
             p_x_y = np.sum(np.logical_and(arrayx == x, arrayy == y))/total
             if p_x_y == 0 or p_x == 0 or p_y == 0:
-                MI+= 0
+                MI += 0
             else:
                 MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
     return MI
-
 
 def conditional_mutual_information(arrayx, arrayy, arrayz):
     """Method to calculate the conditional mutual information I(X;Y|Z)
@@ -1557,24 +1559,46 @@ def conditional_mutual_information(arrayx, arrayy, arrayz):
     total_y = arrayy.size
     total_z = arrayz.size
     if total_x != total_y or total_y != total_z:
-        raise ValueError("Array sizes must be the same %s %s %s"%(total_x, total_y, total_z))
+        raise ValueError(
+            "Array sizes must be the same {} {} {}".format(
+                total_x,
+                total_y,
+                total_z
+            )
+        )
     else:
-        total = total_x + 0.0
+        total = total_x
     CMI = 0
+    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
     for z in np.unique(arrayz):
+        # set the indices we will look at in arr_x and arr_y
         subset = arrayz == z
-        total_subset = np.sum(subset) + 0.0
+        # set number of vals == z in arr_z as denominator
+        total_subset = np.sum(subset)
         p_z = total_subset/total
         this_MI = 0
+
         for x in np.unique(arrayx):
             for y in np.unique(arrayy):
+                # calculate the probability that the indices of arr_x and arr_y
+                #  corresponding to those in arr_z == z are equal to x or y.
+                # so essentially, in english, we're saying the following:
+                #  given that arr_z is what it is, what is the MI between
+                #  arr_x and arr_y?
                 p_x = np.sum(arrayx[subset] == x)/total_subset
                 p_y = np.sum(arrayy[subset] == y)/total_subset
-                p_x_y = np.sum(np.logical_and(arrayx[subset] == x, arrayy[subset] == y))/total_subset
+                p_x_y = np.sum(
+                    np.logical_and(
+                        arrayx[subset] == x,
+                        arrayy[subset] == y
+                    )
+                ) / total_subset
                 if p_x_y == 0 or p_x == 0 or p_y == 0:
-                    this_MI+= 0
+                    this_MI += 0
                 else:
                     this_MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
+
         CMI += p_z*this_MI
+
     return CMI
 

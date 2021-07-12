@@ -41,8 +41,8 @@ def make_linear_constraint(target,S,L):
     )
     return const
 
-def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_tr_radius=1, initial_constr_penalty=1):
-    """Perform seed optimization in a multiprocessed manner
+def mp_optimize_weights(record_db, dist, r_subset=None, p=1):
+    """Perform motif optimization in a multiprocessed manner
     
     Args:
     
@@ -61,7 +61,12 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_
 
         for w_idx in range(W):
 
-            helper_args = (r_idx, w_idx, dist, record_db, xtol, initial_tr_radius, initial_constr_penalty)
+            helper_args = (
+                r_idx,
+                w_idx,
+                dist,
+                record_db
+            )
             final_weights = pool.apply_async(
                 mp_optimize_weights_helper, 
                 helper_args,
@@ -73,72 +78,96 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1, xtol=1e-8, initial_
 
     return results
 
-def mp_optimize_weights_helper(r_idx, w_idx, dist, db, xtol=1e-8, initial_tr_radius=1, initial_constr_penalty=1):
+def mp_optimize_weights_helper(r_idx, w_idx, dist, db):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
     -----
     args : list
-        List containing starting seed dict, category, and sample percentage
+        List containing starting motif dict, category, and sample percentage
     
     Returns:
     --------
-        final_seed_dict (dict) - A dictionary containing final motif and
+        final_motif_dict (dict) - A dictionary containing final motif and
                                  additional values that go with it
     """
 
-    seed_weights = db.weights[r_idx,:,:,w_idx].flatten()
-    seed_thresh = db.thresholds[r_idx,w_idx]
-    target = np.append(seed_weights, seed_thresh)
+    motif_weights = db.weights[r_idx,:,:,w_idx].flatten()
+    motif_thresh = db.thresholds[r_idx,w_idx]
+    # scipy.optimize.minimize requires the target to optimize be a 1d array
+    target = np.append(motif_weights, motif_thresh)
 
-    seed_shapes = db.windows[r_idx,:,:,w_idx]
+    motif_shapes = db.windows[r_idx,:,:,w_idx]
+    # will compare motif_shapes to all reference shapes
     ref_shapes = db.windows
     y_vals = db.y
 
-    #lin_constr = make_linear_constraint(
-    #    target,
-    #    seed_shapes.shape[0],
-    #    seed_shapes.shape[1]
-    #)
-
-    final_weights_dict = {}
+    final_motifs_dict = {}
     func_info = {"NFeval":0, "eval":[], "value":[]}
 
     final_opt = opt.minimize(
         optimize_weights_worker,
         target, 
         args = (
-            seed_shapes,
+            motif_shapes,
             ref_shapes,
             y_vals,
             dist,
             func_info,
         ), 
-        #method = "trust-constr",
         method = "nelder-mead",
-        #constraints = [lin_constr],
-        #options = {
-        #    'xtol': xtol,
-        #    'initial_tr_radius': initial_tr_radius,
-        #    'initial_constr_penalty': initial_constr_penalty,
-        #}
     )
 
     final = final_opt['x']
     threshold_opt = final[-1]
     weights_opt = final[:-1]
 
-    final_weights_dict['weights'] = weights_opt
-    final_weights_dict['threshold'] = threshold_opt
-    final_weights_dict['orig_weights'] = seed_weights
-    final_weights_dict['orig_threshold'] = seed_thresh
-    final_weights_dict['r_idx'] = r_idx
-    final_weights_dict['w_idx'] = w_idx
-    final_weights_dict['opt_success'] = final_opt['success']
-    final_weights_dict['opt_message'] = final_opt['message']
-    final_weights_dict['opt_info'] = func_info
+    R,L,S,W = ref_shapes.shape
+    hits = np.zeros(R)
+    # hits is modified in place here
+    optim_generate_peak_array(
+        ref_shapes,
+        motif_shapes,
+        weights_opt,
+        threshold_opt,
+        hits,
+        R,
+        W,
+        dist,
+    )
+    # get mutual info for optimized motif's hits and y values
+    mi_opt = inout.mutual_information(y_vals, hits)
+    final_motifs_dict['hits'] = hits
+    final_motifs_dict['mi'] = mi_opt
+    final_motifs_dict['weights'] = weights_opt
+    final_motifs_dict['threshold'] = threshold_opt
+    final_motifs_dict['motif'] = motif_shapes
 
-    return final_weights_dict
+    hits = np.zeros(R)
+    # hits is modified in place here
+    optim_generate_peak_array(
+        ref_shapes,
+        motif_shapes,
+        motif_weights,
+        motif_thresh,
+        hits,
+        R,
+        W,
+        dist,
+    )
+    # get mutual info for optimized motif's hits and y values
+    mi_orig = inout.mutual_information(y_vals, hits)
+
+    final_motifs_dict['mi_orig'] = mi_orig
+    final_motifs_dict['orig_weights'] = motif_weights
+    final_motifs_dict['orig_threshold'] = motif_thresh
+    final_motifs_dict['r_idx'] = r_idx
+    final_motifs_dict['w_idx'] = w_idx
+    final_motifs_dict['opt_success'] = final_opt['success']
+    final_motifs_dict['opt_message'] = final_opt['message']
+    final_motifs_dict['opt_info'] = func_info
+
+    return final_motifs_dict
 
 def optimize_weights_worker(targets, window_shapes, all_shapes,
                             y, dist_func, info):
@@ -356,7 +385,7 @@ def fast_generate_peak_array(data, threshold, results, N, W, dist):
                         results[row_idx, r_n] = 1
                         break
 
-def generate_match_vector(data, motif, rc=False):
+def generate_dist_vector(data, motif, rc=False):
     """ Function to calculate the best possible match value for each seq
     Args:
         data (SeqDatabase) - database to calculate over, must already have
@@ -456,9 +485,9 @@ def seqs_per_bin(records):
         outstring - a string enumerating the number of seqs in each category
     """
     string = ""
-    for value in np.unique(records.values):
+    for value in np.unique(records.y):
         string += "\nCat {}: {}".format(
-            value, np.sum(np.array(records.values) ==  value)
+            value, np.sum(records.y ==  value)
         )
     return string
 
@@ -602,7 +631,7 @@ def evaluate_seeds(records, motifs, threshold_match, rc):
         this_entry = {}
         this_discrete = generate_peak_vector(records, motif, threshold_match, rc=rc)
         this_entry['mi'] = records.mutual_information(this_discrete)
-        this_entry['seed'] = motif
+        this_entry['motif'] = motif
         this_entry['discrete'] = this_discrete
         this_entry['threshold'] = threshold_match
         seeds.append(this_entry)
@@ -647,7 +676,7 @@ def fast_evaluate_seeds(recs, possible_motifs, threshold, rc, dist):
         seed_info = {}
         these_hits = hits[i,:]
         seed_info['mi'] = recs.mutual_information(these_hits)
-        seed_info['seed'] = possible_motifs[i]
+        seed_info['motif'] = possible_motifs[i]
         seed_info['discrete'] = these_hits
         seed_info['threshold'] = threshold
         seeds.append(seed_info)
@@ -659,174 +688,177 @@ def add_seed_metadata(records, seed):
     seed['category_entropy'] = records.shannon_entropy()
     seed['enrichment'] = records.calculate_enrichment(seed['discrete'])
 
-def print_top_seeds(seeds, n= 5, reverse=True):
+def print_top_motifs(motifs, n= 5, reverse=True):
     """
-    Function to print the top seeds sorted by MI
+    Function to print the top motifs sorted by MI
 
     Args
-        seeds (list) - seeds to sort
-        n (int) - number of seeds to print
+        motifs (list) - motifs to sort
+        n (int) - number of motifs to print
         reverse (bool) - sort in reverse
     Modifys
         stdout through the logging function
     """
 
-    sorted_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=reverse)
+    sorted_motifs = sorted(
+        motifs,
+        key=lambda x: x['mi'],
+        reverse=reverse,
+    )
     if reverse:
-        logging.debug("Printing top %s seeds."%(n))
+        logging.debug("Printing top {} motifs.".format(n))
     else:
-        logging.debug("Printing bottom %s seeds."%(n))
+        logging.debug("Printing bottom {} motifs.".format(n))
 
-    for seed in sorted_seeds[0:n]:
-        logging.debug("Seed MI: {}\n Seed Mem: {}\n{}".format(
-            seed['mi'],
-            seed['seed'],
-            seed['seed'].as_vector(),
+    for motif in sorted_motifs[0:n]:
+        logging.debug("Motif MI: {}\n Motif Mem: {}\n{}".format(
+            motif['mi'],
+            motif['motif'],
+            motif['motif'].as_vector(),
         ))
 
-def save_mis(seeds, out_pre):
+def save_mis(motifs, out_pre):
     """
-    Function to save the MIs for each seed in a txt file
+    Function to save the MIs for each motif in a txt file
     """
     all_mis = []
-    for seed in seeds:
-        all_mis.append(seed['mi'])
+    for motif in motifs:
+        all_mis.append(motif['mi'])
     np.savetxt(out_pre+".txt", all_mis)
 
-
-def mp_optimize_seeds_helper(args):
-    """ Helper function to allow seed optimization to be multiprocessed
+def mp_optimize_motifs_helper(args):
+    """ Helper function to allow motif optimization to be multiprocessed
     
     Args:
-        args (list) - list containing starting seed dict, category, and sample
+        args (list) - list containing starting motif dict, category, and sample
                       percentage
     
     Returns:
-        final_seed_dict (dict) - A dictionary containing final motif and
+        final_motif_dict (dict) - A dictionary containing final motif and
                                  additional values that go with it
     """
-    seed, data, sample_perc = args
+    motif, data, sample_perc = args
     #this_data = data.random_subset_by_class(sample_perc)
-    final_seed_dict = {}
+    final_motif_dict = {}
     func_info = {"NFeval":0, "eval":[], "value":[]}
-    motif_to_optimize = list(seed['seed'].as_vector(cache=True))
-    motif_to_optimize.append(seed['threshold'])
+    motif_to_optimize = list(motif['motif'].as_vector(cache=True))
+    motif_to_optimize.append(motif['threshold'])
     final_opt = opt.minimize(optimize_mi,motif_to_optimize, 
                              args=(data, sample_perc, func_info), 
                              method="nelder-mead")
     final = final_opt['x']
     threshold = final[-1]
-    final_seed = dsp.ShapeParams()
-    final_seed.from_vector(seed['seed'].names, final[:-1])
-    final_seed_dict['seed'] = final_seed
-    discrete = generate_peak_vector(data, final_seed.as_vector(cache=True), 
+    final_motif = dsp.ShapeParams()
+    final_motif.from_vector(motif['motif'].names, final[:-1])
+    final_motif_dict['motif'] = final_motif
+    discrete = generate_peak_vector(data, final_motif.as_vector(cache=True), 
                                     threshold = threshold, rc=args.rc)
-    final_seed_dict['threshold'] = threshold
-    final_seed_dict['enrichment'] = data.calculate_enrichment(discrete)
-    final_seed_dict['motif_entropy'] = inout.entropy(discrete)
-    final_seed_dict['category_entropy'] = data.shannon_entropy()
-    final_seed_dict['mi'] = data.mutual_information(discrete)
-    final_seed_dict['discrete'] = discrete
-    final_seed_dict['opt_success'] = final_opt['success']
-    final_seed_dict['opt_message'] = final_opt['message']
-    final_seed_dict['opt_iter'] = final_opt['nit']
-    final_seed_dict['opt_func'] = final_opt['nfev']
-    final_seed_dict['opt_info'] = func_info
+    final_motif_dict['threshold'] = threshold
+    final_motif_dict['enrichment'] = data.calculate_enrichment(discrete)
+    final_motif_dict['motif_entropy'] = inout.entropy(discrete)
+    final_motif_dict['category_entropy'] = data.shannon_entropy()
+    final_motif_dict['mi'] = data.mutual_information(discrete)
+    final_motif_dict['discrete'] = discrete
+    final_motif_dict['opt_success'] = final_opt['success']
+    final_motif_dict['opt_message'] = final_opt['message']
+    final_motif_dict['opt_iter'] = final_opt['nit']
+    final_motif_dict['opt_func'] = final_opt['nfev']
+    final_motif_dict['opt_info'] = func_info
 
-    return final_seed_dict
+    return final_motif_dict
 
-def mp_evaluate_seeds(data, seeds, threshold_match, rc, p=1):
-    """Perform seed evaluation in a multiprocessed manner
+def mp_evaluate_motifs(data, motifs, threshold_match, rc, p=1):
+    """Perform motif evaluation in a multiprocessed manner
 
     Args:
-        seeds (list) - seeds to evaluate
+        motifs (list) - motifs to evaluate
         data (cat) - A sequence category object
         p (int) - number of processors
 
     Returns:
-        list of evaluated seed dictionaries
+        list of evaluated motif dictionaries
     """
-    # determine how to chunk the seeds:
-    seeds_chunked = [seeds[i::p] for i in range(0,p)]
+    # determine how to chunk the motifs:
+    motifs_chunked = [motifs[i::p] for i in range(0,p)]
     pool = mp.Pool(processes=p)
-    out_seeds = pool.map(mp_evaluate_seeds_helper, 
-            ((data, seeds, threshold_match, rc) for seeds in seeds_chunked))
+    out_motifs = pool.map(mp_evaluate_motifs_helper, 
+            ((data, motifs, threshold_match, rc) for motifs in motifs_chunked))
     pool.close()
     pool.join()
     # flatten list
-    final_seeds = []
-    for processor in out_seeds:
-        for seed in processor:
-            final_seeds.append(seed)
-    return final_seeds
+    final_motifs = []
+    for processor in out_motifs:
+        for motif in processor:
+            final_motifs.append(motif)
+    return final_motifs
 
-def mp_evaluate_seeds_helper(these_args):
+def mp_evaluate_motifs_helper(these_args):
     """ Helper function for doing evaluation in a multiprocessed way
     
     Args:
-        these_args (list) - list of args i.e. database, list of seeds,
+        these_args (list) - list of args i.e. database, list of motifs,
                             match cutoff, reverse complement
 
     Returns:
-        list of evaluated seed dictionaries
+        list of evaluated motif dictionaries
     """
-    data, seeds, threshold_match, rc = these_args
-    these_seeds = evaluate_seeds(data, seeds, threshold_match, rc)
-    return these_seeds
+    data, motifs, threshold_match, rc = these_args
+    these_motifs = evaluate_motifs(data, motifs, threshold_match, rc)
+    return these_motifs
 
         
-def mp_optimize_seeds(seeds, data, sample_perc, p=1):
-    """Perform seed optimization in a multiprocessed manner
+def mp_optimize_motifs(motifs, data, sample_perc, p=1):
+    """Perform motif optimization in a multiprocessed manner
     
     Args:
-        seeds (list) - List containing seed dictionaries
+        motifs (list) - List containing motif dictionaries
         data (SeqDatabase) - Full dataset to train on
         sample_perc (float) - percentage of data to sample for optimization
     
     Returns:
-        final_seed_dict (dict) - A dictionary containing final motif and
+        final_motif_dict (dict) - A dictionary containing final motif and
                                  additional values that go with it
     """
     pool = mp.Pool(processes=p)
     this_data = data.random_subset_by_class(sample_perc)
-    final_seeds = pool.map(mp_optimize_seeds_helper, 
-                           ((seed, this_data, sample_perc) for seed in seeds))
+    final_motifs = pool.map(mp_optimize_motifs_helper, 
+                           ((motif, this_data, sample_perc) for motif in motifs))
     pool.close()
     pool.join()
-    return final_seeds
+    return final_motifs
 
-def filter_seeds(seeds, records, mi_threshold):
-    """ Select initial seeds through conditional mutual information
+def filter_motifs(motifs, records, mi_threshold):
+    """ Select initial motifs through conditional mutual information
 
     Args:
-        seeds (list of dicts) - list of motif dictionaries
+        motifs (list of dicts) - list of motif dictionaries
         records (SeqDatabase Class) - sequences motifs are compared against
         mi_threshold (float) - percentage of total entropy CMI must be >
     
     Returns:
-        final_seeds (list of dicts) - list of passing motif dictionaries
+        final_motifs (list of dicts) - list of passing motif dictionaries
     """
-    these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
-    top_seeds = [these_seeds[0]]
-    for cand_seed in these_seeds[1:]:
-        seed_pass = True
-        for good_seed in top_seeds:
+    these_motifs = sorted(motifs, key=lambda x: x['mi'], reverse=True)
+    top_motifs = [these_motifs[0]]
+    for cand_motif in these_motifs[1:]:
+        motif_pass = True
+        for good_motif in top_motifs:
             cmi = inout.conditional_mutual_information(records.get_values(), 
-                                                 cand_seed['discrete'], 
-                                                 good_seed['discrete'])
+                                                 cand_motif['discrete'], 
+                                                 good_motif['discrete'])
 
-            mi_btwn_seeds = inout.mutual_information(cand_seed['discrete'], 
-                    good_seed['discrete'])
-            if mi_btwn_seeds == 0:
+            mi_btwn_motifs = inout.mutual_information(cand_motif['discrete'], 
+                    good_motif['discrete'])
+            if mi_btwn_motifs == 0:
                 ratio = 0
             else:
-                ratio = cmi/mi_btwn_seeds
+                ratio = cmi/mi_btwn_motifs
             if ratio < mi_threshold:
-                seed_pass = False
+                motif_pass = False
                 break
-        if seed_pass:
-            top_seeds.append(cand_seed)
-    return top_seeds
+        if motif_pass:
+            top_motifs.append(cand_motif)
+    return top_motifs
 
 def info_zscore(vec1, vec2, n=10000):
     """ Similar to FIRE determine a Z score for vec1 based on MI scores
@@ -879,80 +911,101 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
             num_passed += 1
     return num_passed
 
-def aic_seeds(seeds, records):
-    """ Select final seeds through AIC
+def calc_aic(delta_k, rec_num, mi):
+    aic = 2*delta_k - 2*rec_num*mi
+    return aic
+
+def aic_motifs(motifs, records):
+    """Select final motifs through AIC
 
     Args:
-        seeds (list of dicts) - list of final motif dictionaries
+        motifs (list of dicts) - list of final motif dictionaries
         records (SeqDatabase Class) - sequences motifs are compared against
     
     Returns:
-        final_seeds (list of dicts) - list of passing motif dictionaries
+        final_motifs (list of dicts) - list of passing motif dictionaries
     """
 
-    # get number of parameters based on length of motif vector
-    delta_k = len(seeds[0]['seed'].as_vector(cache=True))
-    # get number of sequences
-    n = len(records)
-    # sort seeds by mutual information
-    these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
-    # Make sure first seed passes AIC
-    if (2*delta_k - 2*n*these_seeds[0]['mi']) < 0:
-        top_seeds = [these_seeds[0]]
+    # get number of parameters based on window length * shape number * 2 + 1
+    #  We multiply by 2 because for each shape value we have a weight,
+    #  and we add 1 because the motif's threshold was a parameter.
+    rec_num,win_len,shape_num,win_num = records.windows.shape
+    delta_k = win_len * shape_num * 2 + 1
+
+    # sort motifs by mutual information
+    these_motifs = sorted(
+        motifs,
+        key=lambda x: x['mi'],
+        reverse=True,
+    )
+
+    # Make sure first motif passes AIC
+    if calc_aic(delta_k, rec_num, these_motifs[0]['mi']) < 0:
+        top_motifs = [these_motifs[0]]
     else:
         return []
-    # loop through candidate seeds
-    for cand_seed in these_seeds[1:]:
-        seed_pass = True
-        # if the total MI for this seed doesn't pass AIC skip it
-        if (2*delta_k - 2*n*cand_seed['mi']) > 0:
+
+    # loop through candidate motifs
+    for cand_motif in these_motifs[1:]:
+        motif_pass = True
+
+        # if the total MI for this motif doesn't pass AIC skip it
+        if calc_aic(delta_k, rec_num, cand_motif['mi']) > 0:
             continue
-        for good_seed in top_seeds:
-            # check the conditional mutual information for this seed with
-            # each of the chosen seeds
-            this_mi = inout.conditional_mutual_information(records.get_values(), 
-                                             cand_seed['discrete'], 
-                                             good_seed['discrete'])
-            # if candidate seed doesn't improve model as added to each of the 
-            # chosen seeds, skip it
-            if (2*delta_k- 2*n*this_mi) > 0:
-                seed_pass = False
+
+        for good_motif in top_motifs:
+            # check the conditional mutual information for this motif with
+            # each of the chosen motifs
+            this_mi = inout.conditional_mutual_information(
+                records.y, 
+                cand_motif['hits'], 
+                good_motif['hits'],
+            )
+
+            # if candidate motif doesn't improve model as added to each of the
+            # chosen motifs, skip it
+            if calc_aic(delta_k, rec_num, this_mi) > 0:
+                motif_pass = False
                 break
-        if seed_pass:
-            top_seeds.append(cand_seed)
-    return top_seeds
 
-def bic_seeds(seeds, records):
-    """ Select final seeds through BIC
+        if motif_pass:
+            top_motifs.append(cand_motif)
+
+    return top_motifs
+
+def bic_motifs(motifs, records):
+    """ Select final motifs through BIC
 
     Args:
-        seeds (list of dicts) - list of final motif dictionaries
+        motifs (list of dicts) - list of final motif dictionaries
         records (SeqDatabase Class) - sequences motifs are compared against
     
     Returns:
-        final_seeds (list of dicts) - list of passing motif dictionaries
+        final_motifs (list of dicts) - list of passing motif dictionaries
     """
-    delta_k = len(seeds[0]['seed'].as_vector(cache=True))
+    delta_k = len(motifs[0]['motif'].as_vector(cache=True))
     n = len(records)
-    these_seeds = sorted(seeds, key=lambda x: x['mi'], reverse=True)
-    if 2*delta_k*np.log2(n) - 2*n*these_seeds[0]['mi'] < 0:
-        top_seeds = [these_seeds[0]]
+    these_motifs = sorted(motifs, key=lambda x: x['mi'], reverse=True)
+    if 2*delta_k*np.log2(n) - 2*n*these_motifs[0]['mi'] < 0:
+        top_motifs = [these_motifs[0]]
     else:
         return []
-    for cand_seed in these_seeds[1:]:
-        seed_pass = True
-        if 2*delta_k*np.log2(n) - 2*n*cand_seed['mi'] > 0:
+    for cand_motif in these_motifs[1:]:
+        motif_pass = True
+        if 2*delta_k*np.log2(n) - 2*n*cand_motif['mi'] > 0:
             continue
-        for good_seed in top_seeds:
-            this_mi = inout.conditional_mutual_information(records.get_values(), 
-                                             cand_seed['discrete'], 
-                                             good_seed['discrete'])
+        for good_motif in top_motifs:
+            this_mi = inout.conditional_mutual_information(
+                records.get_values(), 
+                cand_motif['discrete'], 
+                good_motif['discrete'],
+            )
             if 2*delta_k*np.log2(n) - 2*n*this_mi > 0:
-                seed_pass = False
+                motif_pass = False
                 break
-        if seed_pass:
-            top_seeds.append(cand_seed)
-    return top_seeds
+        if motif_pass:
+            top_motifs.append(cand_motif)
+    return top_motifs
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -991,31 +1044,32 @@ if __name__ == "__main__":
             help="std deviations below mean for match threshold. Default=2.0")
     parser.add_argument('--optimize_perc', type=float, default=0.1, 
             help="fraction of data to optimize on. Default=0.1")
-    parser.add_argument('--seed_perc', type=float, default=1,
-            help="fraction of data to EVALUATE seeds on. Default=1")
+    parser.add_argument('--motif_perc', type=float, default=1,
+            help="fraction of data to EVALUATE motifs on. Default=1")
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
     parser.add_argument('--optimize', action="store_true",
-            help="optimize seeds with Nelder Mead?")
+            help="optimize motifs with Nelder Mead?")
     parser.add_argument('--mi_perc', type=float, default=5,
-            help="ratio of CMI/MI to include an additional seed. Default=5")
+            help="ratio of CMI/MI to include an additional motif. Default=5")
     parser.add_argument('--infoz', type=int, default=2000, 
             help="Calculate Z-score for final motif MI with n data permutations. default=2000. Turn off by setting to 0")
     parser.add_argument('--inforobust', type=int, default=10, 
             help="Calculate robustness of final motif with x jacknifes. Default=10. Requires infoz to be > 0.")
     parser.add_argument('--fracjack', type=int, default=0.3, 
             help="Fraction of data to hold out in jacknifes. Default=0.3.")
-    parser.add_argument('--distance_metric', type=str, default="manhattan",
-            help="distance metric to use, manhattan is the only supported one for now")
+    parser.add_argument('--distance_metric', type=str, default="constrained_manhattan",
+            help="distance metric to use, manhattan using constrained weights is the only supported one for now")
     parser.add_argument('--seed', type=int, default=None,
             help="set the random seed, default=None, based on system time")
     parser.add_argument('--rc', action="store_true",
-            help="search the reverse complement with each seed as well?")
+            help="search the reverse complement with each motif as well?")
     parser.add_argument('-o', type=str, default="motif_out_")
     parser.add_argument('-p', type=int, default=1, help="number of processors. Default=1")
     parser.add_argument("--debug", action="store_true",
             help="print debugging information to stderr. Write extra txt files.")
     parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
+    parser.add_argument('--save_opt', action='store_true', help="write motifs to pickle file after initial weights optimization step?")
 
     numba.set_num_threads(p)
     
@@ -1036,51 +1090,61 @@ if __name__ == "__main__":
     # returns an inout.FastaFile obj for each param
     all_params = [read_parameter_file(x) for x in args.params]
     # possible distance metrics that could be used
-    dist_met = {"manhattan": dsp.manhattan_distance, 
-                "hamming": dsp.hamming_distance,
-                "euclidean": dsp.euclidean_distance}
+    dist_met = {"constrained_manhattan": inout.constrained_manhattan_distance,
+                "manhattan": inout.manhattan_distance, 
+                "hamming": inout.hamming_distance,
+                "euclidean": inout.euclidean_distance}
     # store the distance metric chosen
     this_dist = dist_met[args.distance_metric]
+    shape_fname_dict = {n:fn for n,fn in zip(args.param_names, args.params)}
+    logging.info("Reading input data and shape info.")
+    records = inout.RecordDatabase(args.infile, shape_fname_dict)
+
     # create an empty sequence database to store the sequences in
-    records = inout.SeqDatabase()
+    #records = inout.SeqDatabase()
     
     # read in the values associated with each sequence and store them
     # in the sequence database
     if args.continuous is not None:
-        records.read(args.infile, float)
+        #records.read(args.infile, float)
         logging.info("Discretizing data")
         records.discretize_quant(args.continuous)
-    else:
-        records.read(args.infile, int)
+    #else:
+    #    records.read(args.infile, int)
     logging.info("Distribution of sequences per class:")
     logging.info(seqs_per_bin(records))
 
     # add parameter values for each sequence
-    for name, record in zip(records.names, records):
-        for param, param_name in zip(all_params, args.param_names):
-            record.add_shape_param(
-                dsp.ShapeParamSeq(
-                    param_name,
-                    param.pull_entry(name).seq,
-                ),
-            )
-            record.metric = this_dist
+    #for name, record in zip(records.names, records):
+    #    for param, param_name in zip(all_params, args.param_names):
+    #        record.add_shape_param(
+    #            dsp.ShapeParamSeq(
+    #                param_name,
+    #                param.pull_entry(name).seq,
+    #            ),
+    #        )
+    #        record.metric = this_dist
 
     logging.info("Normalizing parameters")
     if args.nonormalize:
-        records.determine_center_spread(inout.identity_csp)
+        records.determine_center_spread(method=inout.identity_csp)
     else:
         records.determine_center_spread()
-        records.normalize_params()
-    for name in list(records.center_spread.keys()):
-        logging.info("{}: {}".format(name, records.center_spread[name]))
+        records.normalize_shape_values()
+    for name,shape_idx in records.shape_name_lut.items():
+        this_center = records.shape_centers[shape_idx]
+        this_spread = records.shape_spreads[shape_idx]
+        logging.info(
+            "{}: center={}, spread={}".format(
+                name,
+                this_center,
+                this_spread
+            )
+        )
 
-    logging.info("Precomputing all windows")
-    records.pre_compute_windows(
-        wsize = args.kmer,
-        wstart = args.ignorestart,
-        wend = args.ignoreend,
-    )
+    logging.info("Computing all windows and initializing weights array for distance calculation.")
+    records.compute_windows(wsize = args.kmer)
+    records.initialize_weights()
 
     logging.info("Determining initial threshold")
     if args.distance_metric == "hamming":
@@ -1089,94 +1153,122 @@ if __name__ == "__main__":
             "Using {} as an initial match threshold".format(threshold_match)
         )
     else:
-        mean,stdev = find_initial_threshold(
-            records.random_subset_by_class(args.threshold_perc),
-            args.seeds_per_seq_thresh,
+        records.set_initial_thresholds(
+            dist = dist_met,
+            threshold_sd_from_mean = args.threshold_seeds
         )
-        threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
-        threshold_match = max(mean - args.threshold_match*stdev, 0)
+        #mean,stdev = find_initial_threshold(
+        #    records.random_subset_by_class(args.threshold_perc),
+        #    args.seeds_per_seq_thresh,
+        #)
+        #threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
+        #threshold_match = max(mean - args.threshold_match*stdev, 0)
         logging.info("Using {} as an initial match threshold".format(threshold_match))
-    if args.search_method == "greedy":
-        logging.info(
-            "Greedy search for possible motifs with threshold {}".format(threshold_seeds)
-        )
-        possible_motifs = greedy_search2(
-            records,
-            threshold_seeds,
-            args.num_seeds,
-            args.seeds_per_seq,
-        )
-    else:
-        logging.info("Testing all seeds by brute force")
-        debugger = records.shuffle()
-        # double for loop list comprehension
-        possible_motifs = [
-            motif
-            for a_seq in records.iterate_through_precompute()
-            for motif in a_seq
-        ]
+    #if args.search_method == "greedy":
+    #    logging.info(
+    #        "Greedy search for possible motifs with threshold {}".format(threshold_seeds)
+    #    )
+    #    possible_motifs = greedy_search2(
+    #        records,
+    #        threshold_seeds,
+    #        args.num_seeds,
+    #        args.seeds_per_seq,
+    #    )
+    #else:
+    logging.info("Testing all seeds and optimizing weights to generate motifs")
+    #debugger = records.shuffle()
+    # double for loop list comprehension
+    #possible_motifs = [
+    #    motif
+    #    for a_seq in records.iterate_through_precompute()
+    #    for motif in a_seq
+    #]
 
-    logging.info("{} possible seeds".format(len(possible_motifs)))
-    logging.info("Finding MI for seeds")
+    rec_num, win_length, shape_num, win_num = records.windows.shape
+    motif_num = rec_num * win_num
+    logging.info("{} motifs to optimize".format(motif_num))
+    logging.info("Optimizing weights and calculating MI for all optimized motifs")
 
-    if args.seed_perc != 1:
-        this_records, other_records = records.random_subset_by_class(args.seed_perc, split=True)
-    else:
-        this_records = records
-        other_records = records
-    if args.debug:
-        other_records.write(args.o + "_lasso_seqs.txt")
-    logging.info("Distribution of sequences per class for seed screening and regression (train set)")
+    #if args.seed_perc != 1:
+    #    this_records, other_records = records.random_subset_by_class(args.motif_perc, split=True)
+    #else:
+    #    this_records = records
+    #    other_records = records
+    this_records = records
+    other_records = records
+    #if args.debug:
+    #    other_records.write(outpre + "_lasso_seqs.txt")
+    logging.info("Distribution of sequences per class for motif screening and regression (train set)")
     logging.info(seqs_per_bin(this_records))
-    logging.info("Distribution of sequences per class for CMI and final evaluation (test set)")
-    logging.info(seqs_per_bin(other_records))
-    logging.info("Evaluating {} seeds over {} processor(s)".format(
-        len(possible_motifs), args.p
+    #logging.info("Distribution of sequences per class for CMI and final evaluation (test set)")
+    #logging.info(seqs_per_bin(other_records))
+    logging.info("Optimizing {} motifs over {} processor(s)".format(
+        motif_num, args.p
     ))
 
-    #all_seeds = mp_evaluate_seeds(
+    # actually run the optimization of weights, returns
+    #   a list of dictionaries, each dictionary containing a motif's
+    #   shapes, original weights, optimized weights, original MI,
+    #   optimized MI, and other information.
+    all_motifs = mp_optimize_weights(
+        records,
+        dist_met,
+        p = args.p,
+    )
+
+    if args.save_opt:
+        with open(outpre+"_optimized_motifs.pkl", "wb") as pkl_f:
+            pickle.dump(all_motifs, pkl_f)
+
+    #all_motifs = mp_evaluate_seeds(
     #    this_records,
     #    possible_motifs,
     #    threshold_match,
     #    args.rc,
     #    p=args.p,
     #)
-    all_seeds = fast_evaluate_seeds(
-        this_records,
-        possible_motifs,
-        threshold_match,
-        args.rc,
-        this_dist,
-    )
-    if args.debug:
-        print_top_seeds(all_seeds)
-        print_top_seeds(all_seeds, reverse=False)
-        save_mis(all_seeds, args.o+"_all_seeds_mi")
+    #all_motifs = fast_evaluate_seeds(
+    #    this_records,
+    #    possible_motifs,
+    #    threshold_match,
+    #    args.rc,
+    #    this_dist,
+    #)
 
-    logging.info("Filtering seeds by AIC individually")
-    good_seeds = []
-    for seed in all_seeds:
-        passed = aic_seeds([seed], this_records)
+    if args.debug:
+        print_top_motifs(all_motifs)
+        print_top_motifs(all_motifs, reverse=False)
+        save_mis(all_motifs, outpre+"_all_motifs_mi")
+
+    logging.info("Filtering motifs by AIC individually")
+
+    good_motifs = []
+    for motif in all_motifs:
+        passed = aic_motifs([motif], this_records)
         if len(passed) > 0:
-            good_seeds.append(seed) 
-    if len(good_seeds) < 1: 
+            good_motifs.append(motif) 
+    if len(good_motifs) < 1: 
         logging.info("No motifs found")
         sys.exit()
     if args.debug:
-        print_top_seeds(good_seeds)
-        print_top_seeds(good_seeds, reverse=False)
-    logging.info("{} seeds survived".format(len(good_seeds)))
+        print_top_motifs(good_motifs)
+        print_top_motifs(good_motifs, reverse=False)
+
+    logging.info("{} motifs survived".format(len(good_motifs)))
 
     logging.info("Finding minimum match scores for each motif")
     if args.debug:
-        logging.info("Writing motifs before regression")
-        outmotifs = inout.ShapeMotifFile()
-        outmotifs.add_motifs(good_seeds)
-        outmotifs.write_file(outpre+"_called_motifs_before_regression.dsp", records)
+        good_motif_pkl_fname = "{}_good_motifs.pkl".format(outpre)
+        logging.info("Writing motifs after CMI filter and prior to regression to {}.".format(good_motif_pkl_fname))
+        with open(good_motif_pkl_fname, "wb") as pkl_f:
+            pickle.dump(good_motifs, pkl_f)
+        #outmotifs = inout.ShapeMotifFile()
+        #outmotifs.add_motifs(good_motifs)
+        #outmotifs.write_file(outpre+"_called_motifs_before_regression.dsp", records)
 
     X = [
-        generate_match_vector(this_records, this_motif['seed'], rc=args.rc)
-        for this_motif in good_seeds
+        generate_dist_vector(this_records, this_motif['motif'], rc=args.rc)
+        for this_motif in good_motifs
     ] 
     X = np.stack(X, axis=1)
     X = StandardScaler().fit_transform(X)
@@ -1202,28 +1294,28 @@ if __name__ == "__main__":
         max_iter=10000,
     ).fit(X,y)
 
-    good_seed_index = cvlogistic.choose_features(clf_f, tol=0)
-    if len(good_seed_index) < 1:
+    good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
+    if len(good_motif_index) < 1:
         logging.info("No motifs found")
         sys.exit()
 
-    cvlogistic.write_coef_per_class(clf_f, args.o + "_coef_per_class.txt")
-    final_good_seeds = [good_seeds[index] for index in good_seed_index]
-    logging.info("{} seeds survived".format(len(final_good_seeds)))
+    cvlogistic.write_coef_per_class(clf_f, outpre + "_coef_per_class.txt")
+    final_good_motifs = [good_motifs[index] for index in good_motif_index]
+    logging.info("{} motifs survived".format(len(final_good_motifs)))
     if args.debug:
-        cvlogistic.plot_score(clf, args.o+"_score_logit.png")
+        cvlogistic.plot_score(clf, outpre+"_score_logit.png")
         for cls in clf.classes_:
-            cvlogistic.plot_coef_paths(clf, args.o+"_coef_path%s.png"%cls)
-        print_top_seeds(final_good_seeds)
-        print_top_seeds(final_good_seeds, reverse=False)
+            cvlogistic.plot_coef_paths(clf, outpre+"_coef_path%s.png"%cls)
+        print_top_motifs(final_good_motifs)
+        print_top_motifs(final_good_motifs, reverse=False)
         logging.info("Writing motifs after regression")
         outmotifs = inout.ShapeMotifFile()
-        outmotifs.add_motifs(final_good_seeds)
+        outmotifs.add_motifs(final_good_motifs)
         outmotifs.write_file(outpre+"_called_motifs_after_regression.dsp", records)
 
-    for motif in final_good_seeds:
-        add_seed_metadata(this_records, motif) 
-        logging.info("Seed: {}".format(motif['seed'].as_vector(cache=True)))
+    for motif in final_good_motifs:
+        add_motif_metadata(this_records, motif) 
+        logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
         logging.info("MI: {}".format(motif['mi']))
         logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
         logging.info("Category Entropy: {}".format(motif['category_entropy']))
@@ -1236,32 +1328,32 @@ if __name__ == "__main__":
                 key,
                 two_way_to_log_odds(motif['enrichment'][key])
             ))
-    logging.info("Generating initial heatmap for passing seeds")
-    if len(final_good_seeds) > 25:
-        logging.info("Only plotting first 25 seeds")
-        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds[:25])
+    logging.info("Generating initial heatmap for passing motifs")
+    if len(final_good_motifs) > 25:
+        logging.info("Only plotting first 25 motifs")
+        enrich_hm = smv.EnrichmentHeatmap(final_good_motifs[:25])
     else:
-        enrich_hm = smv.EnrichmentHeatmap(final_good_seeds)
+        enrich_hm = smv.EnrichmentHeatmap(final_good_motifs)
 
     enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
     if not args.txt_only:
         enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
         enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
     if args.optimize:
-        logging.info("Optimizing seeds using {} processors".format(args.p))
-        final_seeds = mp_optimize_seeds(
-            final_good_seeds,
+        logging.info("Optimizing motifs using {} processors".format(args.p))
+        final_motifs = mp_optimize_motifs(
+            final_good_motifs,
             other_records,
             args.optimize_perc,
             p=args.p,
         )
         if args.optimize_perc != 1:
-            logging.info("Testing final optimized seeds on full database")
-            for i,this_entry in enumerate(final_seeds):
+            logging.info("Testing final optimized motifs on full database")
+            for i,this_entry in enumerate(final_motifs):
                 logging.info("Computing MI for motif {}".format(i))
                 this_discrete = generate_peak_vector(
                     other_records,
-                    this_entry['seed'],
+                    this_entry['motif'],
                     this_entry['threshold'],
                     args.rc,
                 )
@@ -1271,13 +1363,13 @@ if __name__ == "__main__":
                 this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
     else:
-        if args.seed_perc != 1:
-            logging.info("Testing final optimized seeds on held out database")
-            for i,this_entry in enumerate(final_good_seeds):
+        if args.motif_perc != 1:
+            logging.info("Testing final optimized motifs on held out database")
+            for i,this_entry in enumerate(final_good_motifs):
                 logging.info("Computing MI for motif {}".format(i))
                 this_discrete = generate_peak_vector(
                     other_records,
-                    this_entry['seed'],
+                    this_entry['motif'],
                     this_entry['threshold'],
                     args.rc,
                 )
@@ -1286,23 +1378,23 @@ if __name__ == "__main__":
                 this_entry['category_entropy'] = other_records.shannon_entropy()
                 this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
                 this_entry['discrete'] = this_discrete
-        final_seeds = final_good_seeds
+        final_motifs = final_good_motifs
 
     logging.info(
-        "Filtering seeds by Conditional MI using {} as a cutoff".format(args.mi_perc)
+        "Filtering motifs by Conditional MI using {} as a cutoff".format(args.mi_perc)
     )
-    novel_seeds = filter_seeds(
-        final_seeds,
+    novel_motifs = filter_motifs(
+        final_motifs,
         other_records,
         args.mi_perc,
     )
 
     if args.debug:
-        print_top_seeds(novel_seeds)
-        print_top_seeds(novel_seeds, reverse=False)
-    logging.info("{} seeds survived".format(len(novel_seeds)))
-    for i, motif in enumerate(novel_seeds):
-        logging.info("Seed: {}".format(motif['seed'].as_vector(cache=True)))
+        print_top_motifs(novel_motifs)
+        print_top_motifs(novel_motifs, reverse=False)
+    logging.info("{} motifs survived".format(len(novel_motifs)))
+    for i, motif in enumerate(novel_motifs):
+        logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
         logging.info("MI: {}".format(motif['mi']))
         if args.infoz > 0:
             logging.info("Calculating Z-score for motif {}".format(i))
@@ -1340,8 +1432,8 @@ if __name__ == "__main__":
             logging.info("Optimize Success?: {}".format(motif['opt_success']))
             logging.info("Optimize Message: {}".format(motif['opt_message']))
             logging.info("Optimize Iterations: {}".format(motif['opt_iter']))
-    logging.info("Generating final heatmap for seeds")
-    enrich_hm = smv.EnrichmentHeatmap(novel_seeds)
+    logging.info("Generating final heatmap for motifs")
+    enrich_hm = smv.EnrichmentHeatmap(novel_motifs)
     enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
 
     if not args.txt_only:
@@ -1353,7 +1445,7 @@ if __name__ == "__main__":
 
     logging.info("Writing final motifs")
     outmotifs = inout.ShapeMotifFile()
-    outmotifs.add_motifs(novel_seeds)
+    outmotifs.add_motifs(novel_motifs)
     outmotifs.write_file(outpre+"_called_motifs.dsp", records)
     #final = opt.minimize(lambda x: -optimize_mi(x, data=records, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=records), motif_to_optimize)
