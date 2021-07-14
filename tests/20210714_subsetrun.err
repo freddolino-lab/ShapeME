@@ -1,0 +1,20 @@
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 128, in mp_optimize_weights_helper
+    optim_generate_peak_array(
+ValueError: unable to broadcast argument 2 to output array
+File "/home/schroedj/src/DNAshape_motif_finder/tests/../inout.py", line 1, 
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/test_on_subset.py", line 76, in <module>
+    final_results.append(res.get())
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 771, in get
+    raise self._value
+ValueError: unable to broadcast argument 2 to output array
+File "/home/schroedj/src/DNAshape_motif_finder/tests/../inout.py", line 1, 

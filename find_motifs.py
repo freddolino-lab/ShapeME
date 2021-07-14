@@ -912,6 +912,8 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
     return num_passed
 
 def calc_aic(delta_k, rec_num, mi):
+    # Peter came up with this version of aic
+    #  Look up wiki definition for hypergeometric case
     aic = 2*delta_k - 2*rec_num*mi
     return aic
 
