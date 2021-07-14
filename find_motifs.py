@@ -41,7 +41,8 @@ def make_linear_constraint(target,S,L):
     )
     return const
 
-def mp_optimize_weights(record_db, dist, r_subset=None, p=1):
+def mp_optimize_weights(record_db, dist, fatol=0.0001,
+                        adapt=False, r_subset=None, p=1):
     """Perform motif optimization in a multiprocessed manner
     
     Args:
@@ -65,7 +66,9 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1):
                 r_idx,
                 w_idx,
                 dist,
-                record_db
+                record_db,
+                fatol,
+                adapt
             )
             final_weights = pool.apply_async(
                 mp_optimize_weights_helper, 
@@ -78,7 +81,7 @@ def mp_optimize_weights(record_db, dist, r_subset=None, p=1):
 
     return results
 
-def mp_optimize_weights_helper(r_idx, w_idx, dist, db):
+def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -116,6 +119,10 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db):
             func_info,
         ), 
         method = "nelder-mead",
+        options = {
+            'fatol': fatol,
+            'adaptive': adapt,
+        }
     )
 
     final = final_opt['x']
