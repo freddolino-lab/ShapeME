@@ -1,0 +1,242 @@
+Traceback (most recent call last):
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/./test_code.py", line 65, in <module>
+Process ForkPoolWorker-4:
+Process ForkPoolWorker-7:
+Process ForkPoolWorker-10:
+    results = fm.mp_optimize_weights(
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 77, in mp_optimize_weights
+    pool.join()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 662, in join
+    self._worker_handler.join()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/threading.py", line 1033, in join
+Process ForkPoolWorker-11:
+    self._wait_for_tstate_lock()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/threading.py", line 1049, in _wait_for_tstate_lock
+    elif lock.acquire(block, timeout):
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Process ForkPoolWorker-9:
+Process ForkPoolWorker-3:
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 739, in _minimize_neldermead
+    fxr = func(xr)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Process ForkPoolWorker-6:
+Process ForkPoolWorker-8:
+Process ForkPoolWorker-1:
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 739, in _minimize_neldermead
+    fxr = func(xr)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Process ForkPoolWorker-12:
+Process ForkPoolWorker-5:
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 723, in _minimize_neldermead
+    fsim[k] = func(sim[k])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 108, in mp_optimize_weights_helper
+    final_opt = opt.minimize(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 209, in optimize_weights_worker
+    optim_generate_peak_array(
+KeyboardInterrupt
+Process ForkPoolWorker-2:
+Error in atexit._run_exitfuncs:
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/util.py", line 300, in _run_finalizers
+    finalizer()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/util.py", line 224, in __call__
+    res = self._callback(*self._args, **self._kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/pool.py", line 729, in _terminate_pool
+    p.join()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/process.py", line 149, in join
+    res = self._popen.wait(timeout)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/popen_fork.py", line 43, in wait
+    return self.poll(os.WNOHANG if timeout == 0.0 else 0)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/multiprocessing/popen_fork.py", line 27, in poll
+    pid, sts = os.waitpid(self.pid, flag)
+KeyboardInterrupt
+Error in atexit._run_exitfuncs:
+Traceback (most recent call last):
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/numba/core/utils.py", line 153, in _at_shutdown
+    def _at_shutdown():
+KeyboardInterrupt

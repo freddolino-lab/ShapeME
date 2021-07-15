@@ -833,12 +833,12 @@ class RecordDatabase(object):
         
         rec_num,win_len,shape_num,win_num = self.windows.shape
         mi_arr = np.zeros((rec_num,win_num))
-        hits = np.zeros(rec_num)
         threshold = self.thresholds[0,0]
 
         for r in range(rec_num):
             for w in range(win_num):
                 
+                hits = np.zeros(rec_num)
                 # hits is modified in place here
                 optim_generate_peak_array(
                     self.windows,
@@ -850,8 +850,8 @@ class RecordDatabase(object):
                     win_num,
                     dist,
                 )
-                mis[r,w] = mutual_information(self.y, hits)
-        self.mi = mis
+                mi_arr[r,w] = mutual_information(self.y, hits)
+        self.mi = mi_arr
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with

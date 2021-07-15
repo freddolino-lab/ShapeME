@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/./test_on_subset.py", line 67, in <module>
+    rec_db[0],
+TypeError: 'RecordDatabase' object is not subscriptable
