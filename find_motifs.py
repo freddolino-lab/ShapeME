@@ -1095,7 +1095,7 @@ if __name__ == "__main__":
     logging.info("Reading in files")
     # read in the fasta files containing parameter information
     # returns an inout.FastaFile obj for each param
-    all_params = [read_parameter_file(x) for x in args.params]
+    # all_params = [read_parameter_file(x) for x in args.params]
     # possible distance metrics that could be used
     dist_met = {"constrained_manhattan": inout.constrained_manhattan_distance,
                 "manhattan": inout.manhattan_distance, 
@@ -1171,6 +1171,12 @@ if __name__ == "__main__":
         #threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
         #threshold_match = max(mean - args.threshold_match*stdev, 0)
         logging.info("Using {} as an initial match threshold".format(threshold_match))
+    # generate initial MI score for the given shapes, weights, and threshold
+    records.compute_mi(dist_met)
+    with open('initial_mutual_information.pkl','wb') as f:
+        pickle.dump(records.mi, f)
+
+    raise()
     #if args.search_method == "greedy":
     #    logging.info(
     #        "Greedy search for possible motifs with threshold {}".format(threshold_seeds)
