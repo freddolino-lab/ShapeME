@@ -51,6 +51,7 @@ seeds_per_seq = 2
 num_seeds = 5000
 rc = False
 numprocs = 12
+numba.set_num_threads(numprocs)
 shape_fname_dict = {n:fn for n,fn in zip(param_names, params)}
 rec_db = inout.RecordDatabase(in_file, shape_fname_dict)
 rec_db.determine_center_spread()
@@ -62,6 +63,9 @@ rec_db.set_initial_thresholds(
     threshold_sd_from_mean = thresh_sd_from_mean
 )
 rec_db.compute_mi(this_dist)
+with open('initial_mutual_information.pkl','wb') as f:
+    pickle.dump(records.mi, f)
+
 
 #with open('rec_subset.pkl','rb') as f:
 #    rec_subset = pickle.load(f)
