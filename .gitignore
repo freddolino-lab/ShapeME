@@ -1,2 +1,5 @@
 tests/test/*_input
 tests/test/*_out
+*.pkl
+tests/*.pkl
+tests/test/*.pkl

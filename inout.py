@@ -1,9 +1,55 @@
 import numpy as np
 import dnashapeparams as dsp
 import logging
-from numba import jit
+from numba import jit,prange
 import welfords
 from scipy import stats
+
+@jit(nopython=True, parallel=True)
+def optim_generate_peak_array(ref, query, weights, threshold,
+                              results, R, W, dist):
+    """Does same thing as generate_peak_vector, but hopefully faster
+    
+    Args:
+    -----
+    ref : np.array
+        The windows attribute of an inout.RecordDatabase object. Will be an
+        array of shape (R,L,S,W), where R is the number of records,
+        L is the window size, S is the number of shape parameters, and
+        W is the number of windows for each record.
+    query : np.array
+        A slice of the first and final indices of the windows attribute of
+        an inout.RecordDatabase object to check for matches in ref.
+        Should be an array of shape (L,S).
+    weights : np.array
+        A slice of the first and final indices of the weights attribute of
+        and inout.RecordDatabase object. Will be applied to the distance
+        calculation. Should be an array of shape (L,S).
+    threshold : np.array
+        Minimum distance to consider a match.
+    results : 1d np.array
+        Array of shape (R), where R is the number of records in ref.
+        This array should be populated with zeros, and will be filled
+        with 1's where matches are found.
+    R : int
+        Number of records
+    W : int
+        Number of windows for each record
+    dist : function
+        The distance function to use for distance calculation.
+    """
+    
+    for r in prange(R):
+        for w in range(W):
+            
+            ref_seq = ref[r,:,:,w]
+            distance = dist(query, ref_seq, weights)
+            
+            if distance < threshold:
+                # if a window has a distance low enough,
+                #   set this record's result to 1
+                results[r] = 1
+                break
 
 @jit(nopython=True)
 def euclidean_distance(vec1, vec2):
@@ -782,6 +828,30 @@ class RecordDatabase(object):
             )
         ).copy()
         return flat
+
+    def compute_mi(self, dist):
+        
+        rec_num,win_len,shape_num,win_num = self.windows.shape
+        mi_arr = np.zeros((rec_num,win_num))
+        hits = np.zeros(rec_num)
+        threshold = self.thresholds[0,0]
+
+        for r in range(rec_num):
+            for w in range(win_num):
+                
+                # hits is modified in place here
+                optim_generate_peak_array(
+                    self.windows,
+                    self.windows[r,:,:,w],
+                    self.weights[r,:,:,w],
+                    threshold,
+                    hits,
+                    rec_num,
+                    win_num,
+                    dist,
+                )
+                mis[r,w] = mutual_information(self.y, hits)
+        self.mi = mis
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with
