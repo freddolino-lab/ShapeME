@@ -42,7 +42,7 @@ def make_linear_constraint(target,S,L):
     return const
 
 def mp_optimize_weights(record_db, dist, fatol=0.0001,
-                        adapt=False, r_subset=None, p=1):
+                        adapt=False, window_inds=None, p=1):
     """Perform motif optimization in a multiprocessed manner
     
     Args:
@@ -50,34 +50,62 @@ def mp_optimize_weights(record_db, dist, fatol=0.0001,
     Returns:
     """
 
-    pool = mp.Pool(processes=p)
+    #pool = mp.Pool(processes=p)
     results = []
     R,L,S,W = record_db.windows.shape 
 
-    for r_idx in range(R):
+    if window_inds is not None:
+        for r_idx in window_inds[0]:
+            for w_idx in window_inds[1]:
+                final_weights = mp_optimize_weights_helper(
+                    r_idx,
+                    w_idx,
+                    dist,
+                    record_db,
+                    fatol,
+                    adapt
+                )
+                #helper_args = (
+                #    r_idx,
+                #    w_idx,
+                #    dist,
+                #    record_db,
+                #    fatol,
+                #    adapt
+                #)
+                #final_weights = pool.apply_async(
+                #    mp_optimize_weights_helper, 
+                #    helper_args,
+                #)
+                results.append(final_weights)
 
-        if r_subset is not None:
-            if not r_idx in r_subset:
-                continue
+    else:
+        for r_idx in range(R):
+            for w_idx in range(W):
+                #helper_args = (
+                #    r_idx,
+                #    w_idx,
+                #    dist,
+                #    record_db,
+                #    fatol,
+                #    adapt
+                #)
+                final_weights = mp_optimize_weights_helper(
+                    r_idx,
+                    w_idx,
+                    dist,
+                    record_db,
+                    fatol,
+                    adapt
+                )
+                #final_weights = pool.apply_async(
+                #    mp_optimize_weights_helper, 
+                #    helper_args,
+                #)
+                results.append(final_weights)
 
-        for w_idx in range(W):
-
-            helper_args = (
-                r_idx,
-                w_idx,
-                dist,
-                record_db,
-                fatol,
-                adapt
-            )
-            final_weights = pool.apply_async(
-                mp_optimize_weights_helper, 
-                helper_args,
-            )
-            results.append(final_weights)
-
-    pool.close()
-    pool.join()
+    #pool.close()
+    #pool.join()
 
     return results
 
@@ -132,7 +160,7 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     R,L,S,W = ref_shapes.shape
     hits = np.zeros(R)
     # hits is modified in place here
-    optim_generate_peak_array(
+    inout.optim_generate_peak_array(
         ref_shapes,
         motif_shapes,
         weights_opt,
@@ -152,7 +180,7 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
 
     hits = np.zeros(R)
     # hits is modified in place here
-    optim_generate_peak_array(
+    inout.optim_generate_peak_array(
         ref_shapes,
         motif_shapes,
         motif_weights,
@@ -213,7 +241,7 @@ def optimize_weights_worker(targets, window_shapes, all_shapes,
     weights = targets[:-1].reshape((L,S))
     hits = np.zeros(R)
 
-    optim_generate_peak_array(
+    inout.optim_generate_peak_array(
         all_shapes,
         window_shapes,
         weights,

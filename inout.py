@@ -448,7 +448,9 @@ class RecordDatabase(object):
         chuncked into.
     """
 
-    def __init__(self, infile=None, shape_dict=None, y=None, X=None, shape_names=None, weights=None, windows=None, exclude_na=True):
+    def __init__(self, infile=None, shape_dict=None, y=None, X=None,
+                 shape_names=None, record_names=None, weights=None, windows=None,
+                 exclude_na=True):
 
         self.record_name_lut = {}
         self.shape_name_lut = {}
@@ -456,11 +458,14 @@ class RecordDatabase(object):
             self.X = None
         else:
             if shape_names is None:
-                raise("X values were given without names for the shapes. Reinitialize, setting the shape_names agument")
+                raise("X values were given without names for the shapes. Reinitialize, setting the shape_names argument")
             self.X = X
             self.shape_name_lut = {name:i for i,name in enumerate(shape_names)}
         if y is not None:
+            #if record_names is None:
+            #    raise("y values were given without names for the records. Reinitialize, setting the record_names argument")
             self.y = y
+            #self.record_name_lut = {name:i for i,name in enumerate(record_names)}
         if weights is not None:
             self.weights = weights
         if windows is not None:

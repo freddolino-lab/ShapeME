@@ -19,8 +19,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.linear_model import LogisticRegression
 import cvlogistic
+from scipy import stats
 from scipy.stats import sem
 from scipy import optimize as opt
+
 params = [
     "test/BRCA1_input/BRCA1_30_bp_height_train_4.fa.EP",
     "test/BRCA1_input/BRCA1_30_bp_height_train_4.fa.HelT",
@@ -61,30 +63,45 @@ rec_db.set_initial_thresholds(
     dist = this_dist,
     threshold_sd_from_mean = thresh_sd_from_mean
 )
-start = time.time()
-print(start)
-rec_db.compute_mi(this_dist)
-end = time.time()
-print(end)
-print("Time elapsed: {} minutes".format((end-start)/60))
-with open('initial_mutual_information.pkl','wb') as f:
-    pickle.dump(rec_db.mi, f)
+#start = time.time()
+#print(start)
+#rec_db.compute_mi(this_dist)
+#end = time.time()
+#print(end)
+#print("Time elapsed: {} minutes".format((end-start)/60))
+with open('initial_mutual_information.pkl','rb') as f:
+    rec_db.mi = pickle.load(f)
 
+quant_vals = stats.scoreatpercentile(
+    rec_db.mi,
+    np.linspace(0,100,40),
+    interpolation_method = 'lower',
+)
 
-#with open('rec_subset.pkl','rb') as f:
-#    rec_subset = pickle.load(f)
-#print("Running optimization")
-#results = fm.mp_optimize_weights(
-#    rec_db,
-#    inout.constrained_manhattan_distance,
-#    rec_subset[0:2],
-#    p = numprocs,
-#)
-#print("Finished optimization of weights, gathering results")
+row_inds = []
+col_inds = []
+
+for qval in quant_vals:
+    qinds = np.where(rec_db.mi == qval)
+    #print(qinds)
+    row_inds.append(qinds[0][0])
+    col_inds.append(qinds[1][0])
+
+windows_for_opt = (row_inds, col_inds)
+
+print("Running optimization")
+start_time = time.time()
+final_results = fm.mp_optimize_weights(
+    rec_db,
+    inout.constrained_manhattan_distance,
+    window_inds = windows_for_opt,
+)
+end_time = time.time()
+print("Finished optimization of weights.")
 #final_results = []
 #for res in results:
 #    final_results.append(res.get())
-#print("Writing results to file")
-#with open("test_subset_optim.pkl", "wb") as f:
-#    pickle.dump(dict_results, f)
-#print(time.time())
+print("Writing results to file")
+with open("test_subset_optim.pkl", "wb") as f:
+    pickle.dump(final_results, f)
+print("Time for optimization: {} minutes".format((end_time-start_time)/60))
