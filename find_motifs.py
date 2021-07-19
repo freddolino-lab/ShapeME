@@ -42,7 +42,7 @@ def make_linear_constraint(target,S,L):
     return const
 
 def mp_optimize_weights(record_db, dist, fatol=0.0001,
-                        adapt=False, r_subset=None, p=1):
+                        adapt=False, window_inds=None, p=1):
     """Perform motif optimization in a multiprocessed manner
     
     Args:
@@ -50,34 +50,62 @@ def mp_optimize_weights(record_db, dist, fatol=0.0001,
     Returns:
     """
 
-    pool = mp.Pool(processes=p)
+    #pool = mp.Pool(processes=p)
     results = []
     R,L,S,W = record_db.windows.shape 
 
-    for r_idx in range(R):
+    if window_inds is not None:
+        for r_idx in window_inds[0]:
+            for w_idx in window_inds[1]:
+                final_weights = mp_optimize_weights_helper(
+                    r_idx,
+                    w_idx,
+                    dist,
+                    record_db,
+                    fatol,
+                    adapt
+                )
+                #helper_args = (
+                #    r_idx,
+                #    w_idx,
+                #    dist,
+                #    record_db,
+                #    fatol,
+                #    adapt
+                #)
+                #final_weights = pool.apply_async(
+                #    mp_optimize_weights_helper, 
+                #    helper_args,
+                #)
+                results.append(final_weights)
 
-        if r_subset is not None:
-            if not r_idx in r_subset:
-                continue
+    else:
+        for r_idx in range(R):
+            for w_idx in range(W):
+                #helper_args = (
+                #    r_idx,
+                #    w_idx,
+                #    dist,
+                #    record_db,
+                #    fatol,
+                #    adapt
+                #)
+                final_weights = mp_optimize_weights_helper(
+                    r_idx,
+                    w_idx,
+                    dist,
+                    record_db,
+                    fatol,
+                    adapt
+                )
+                #final_weights = pool.apply_async(
+                #    mp_optimize_weights_helper, 
+                #    helper_args,
+                #)
+                results.append(final_weights)
 
-        for w_idx in range(W):
-
-            helper_args = (
-                r_idx,
-                w_idx,
-                dist,
-                record_db,
-                fatol,
-                adapt
-            )
-            final_weights = pool.apply_async(
-                mp_optimize_weights_helper, 
-                helper_args,
-            )
-            results.append(final_weights)
-
-    pool.close()
-    pool.join()
+    #pool.close()
+    #pool.join()
 
     return results
 
