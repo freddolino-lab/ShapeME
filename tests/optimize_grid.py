@@ -51,7 +51,7 @@ seeds_per_seq_thresh = 1
 seeds_per_seq = 2
 num_seeds = 5000
 rc = False
-numprocs = 24
+numprocs = 18
 numba.set_num_threads(numprocs)
 shape_fname_dict = {n:fn for n,fn in zip(param_names, params)}
 rec_db = inout.RecordDatabase(in_file, shape_fname_dict)
