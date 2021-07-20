@@ -55,29 +55,30 @@ def mp_optimize_weights(record_db, dist, fatol=0.0001,
     R,L,S,W = record_db.windows.shape 
 
     if window_inds is not None:
-        for r_idx in window_inds[0]:
-            for w_idx in window_inds[1]:
-                final_weights = mp_optimize_weights_helper(
-                    r_idx,
-                    w_idx,
-                    dist,
-                    record_db,
-                    fatol,
-                    adapt
-                )
-                #helper_args = (
-                #    r_idx,
-                #    w_idx,
-                #    dist,
-                #    record_db,
-                #    fatol,
-                #    adapt
-                #)
-                #final_weights = pool.apply_async(
-                #    mp_optimize_weights_helper, 
-                #    helper_args,
-                #)
-                results.append(final_weights)
+        for i in range(len(window_inds[0])):
+            r_idx = window_inds[0][i]
+            w_idx = window_inds[1][i]
+            final_weights = mp_optimize_weights_helper(
+                r_idx,
+                w_idx,
+                dist,
+                record_db,
+                fatol,
+                adapt
+            )
+            #helper_args = (
+            #    r_idx,
+            #    w_idx,
+            #    dist,
+            #    record_db,
+            #    fatol,
+            #    adapt
+            #)
+            #final_weights = pool.apply_async(
+            #    mp_optimize_weights_helper, 
+            #    helper_args,
+            #)
+            results.append(final_weights)
 
     else:
         for r_idx in range(R):
@@ -163,7 +164,7 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     inout.optim_generate_peak_array(
         ref_shapes,
         motif_shapes,
-        weights_opt,
+        weights_opt.reshape((L,S)),
         threshold_opt,
         hits,
         R,
@@ -174,7 +175,7 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     mi_opt = inout.mutual_information(y_vals, hits)
     final_motifs_dict['hits'] = hits
     final_motifs_dict['mi'] = mi_opt
-    final_motifs_dict['weights'] = weights_opt
+    final_motifs_dict['weights'] = weights_opt.reshape((L,S))
     final_motifs_dict['threshold'] = threshold_opt
     final_motifs_dict['motif'] = motif_shapes
 
@@ -183,7 +184,7 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     inout.optim_generate_peak_array(
         ref_shapes,
         motif_shapes,
-        motif_weights,
+        motif_weights.reshape((L,S)),
         motif_thresh,
         hits,
         R,
@@ -194,7 +195,7 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     mi_orig = inout.mutual_information(y_vals, hits)
 
     final_motifs_dict['mi_orig'] = mi_orig
-    final_motifs_dict['orig_weights'] = motif_weights
+    final_motifs_dict['orig_weights'] = motif_weights.reshape((L,S))
     final_motifs_dict['orig_threshold'] = motif_thresh
     final_motifs_dict['r_idx'] = r_idx
     final_motifs_dict['w_idx'] = w_idx
@@ -260,6 +261,52 @@ def optimize_weights_worker(targets, window_shapes, all_shapes,
     info["NFeval"] += 1
 
     return -this_mi
+
+#@jit(nopython=True, parallel=False)
+#def optim_generate_peak_array(ref, query, weights, threshold,
+#                              results, R, W, dist):
+#    """Does same thing as generate_peak_vector, but hopefully faster
+#    
+#    Args:
+#    -----
+#    ref : np.array
+#        The windows attribute of an inout.RecordDatabase object. Will be an
+#        array of shape (R,L,S,W), where R is the number of records,
+#        L is the window size, S is the number of shape parameters, and
+#        W is the number of windows for each record.
+#    query : np.array
+#        A slice of the first and final indices of the windows attribute of
+#        an inout.RecordDatabase object to check for matches in ref.
+#        Should be an array of shape (L,S).
+#    weights : np.array
+#        A slice of the first and final indices of the weights attribute of
+#        and inout.RecordDatabase object. Will be applied to the distance
+#        calculation. Should be an array of shape (L,S).
+#    threshold : np.array
+#        Minimum distance to consider a match.
+#    results : 1d np.array
+#        Array of shape (R), where R is the number of records in ref.
+#        This array should be populated with zeros, and will be filled
+#        with 1's where matches are found.
+#    R : int
+#        Number of records
+#    W : int
+#        Number of windows for each record
+#    dist : function
+#        The distance function to use for distance calculation.
+#    """
+#    
+#    for r in range(R):
+#        for w in range(W):
+#            
+#            ref_seq = ref[r,:,:,w]
+#            distance = dist(query, ref_seq, weights)
+#            
+#            if distance < threshold:
+#                # if a window has a distance low enough,
+#                #   set this record's result to 1
+#                results[r] = 1
+#                break
 
 def make_initial_seeds(records, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
