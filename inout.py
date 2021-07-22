@@ -691,18 +691,20 @@ class RecordDatabase(object):
         record/window sum to one.
         """
 
-        #self.weights = np.full_like(self.windows, 1.0)
+        L = self.windows.shape[1]
+        S = self.windows.shape[2]
+        self.weights = np.full_like(self.windows, 1.0/L/S)
 
-        x_vals = np.linspace(0,1,self.windows.shape[1])
-        w = stats.beta.pdf(x_vals, 2, 2)
-        w = w/np.sum(w)/self.windows.shape[2]
-        w_list = [w for _ in range(self.windows.shape[2])]
-        w = np.stack(w_list,axis=1)
-        
-        self.weights = np.zeros_like(self.windows)
-        for rec in range(self.weights.shape[0]):
-            for win in range(self.weights.shape[-1]):
-                self.weights[rec,:,:,win] = w
+        #x_vals = np.linspace(0,1,self.windows.shape[1])
+        #w = stats.beta.pdf(x_vals, 2, 2)
+        #w = w/np.sum(w)/self.windows.shape[2]
+        #w_list = [w for _ in range(self.windows.shape[2])]
+        #w = np.stack(w_list,axis=1)
+        #
+        #self.weights = np.zeros_like(self.windows)
+        #for rec in range(self.weights.shape[0]):
+        #    for win in range(self.weights.shape[-1]):
+        #        self.weights[rec,:,:,win] = w
 
     def compute_windows(self, wsize):
         """Method to precompute all nmers.
