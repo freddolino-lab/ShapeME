@@ -18,6 +18,30 @@ import cvlogistic
 import numba
 from numba import jit,prange
 
+def retrieve_vals_from_target_vec(threshold, weights, shapes, targets_order,
+                                  target_breaks, targets, L, S):
+
+    vals_dict = {}
+    if threshold is not None:
+        vals_dict['threshold'] = threshold
+    if weights is not None:
+        vals_dict['weights'] = weights.reshape((L,S))
+    if shapes is not None:
+        vals_dict['shapes'] = shapes.reshape((L,S))
+
+    for i,target in enumerate(targets_order):
+        if i == 0:
+            left_break = 0
+        right_break = target_breaks[i]
+        if target in ['weights', 'shapes']:
+            vals_dict[target] = targets[left_break:right_break].reshape((L,S))
+        else:
+            vals_dict[target] = targets[left_break:right_break]
+        left_break = right_break
+    
+
+    return vals_dict
+
 def make_linear_constraint(target,S,L):
     """Sets up a LinearConstraint object to constrain the sum
     of all shape weights to one. 
@@ -41,8 +65,8 @@ def make_linear_constraint(target,S,L):
     )
     return const
 
-def mp_optimize_weights(record_db, dist, fatol=0.0001,
-                        adapt=False, window_inds=None, p=1):
+def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
+                        adapt=False, window_inds=None, p=1, maxfev=None):
     """Perform motif optimization in a multiprocessed manner
     
     Args:
@@ -58,13 +82,15 @@ def mp_optimize_weights(record_db, dist, fatol=0.0001,
         for i in range(len(window_inds[0])):
             r_idx = window_inds[0][i]
             w_idx = window_inds[1][i]
-            final_weights = mp_optimize_weights_helper(
+            final_weights = mp_optimize_helper(
                 r_idx,
                 w_idx,
                 dist,
                 record_db,
                 fatol,
-                adapt
+                adapt,
+                maxfev,
+                opt_params,
             )
             #helper_args = (
             #    r_idx,
@@ -75,7 +101,7 @@ def mp_optimize_weights(record_db, dist, fatol=0.0001,
             #    adapt
             #)
             #final_weights = pool.apply_async(
-            #    mp_optimize_weights_helper, 
+            #    mp_optimize_helper, 
             #    helper_args,
             #)
             results.append(final_weights)
@@ -91,16 +117,18 @@ def mp_optimize_weights(record_db, dist, fatol=0.0001,
                 #    fatol,
                 #    adapt
                 #)
-                final_weights = mp_optimize_weights_helper(
+                final_weights = mp_optimize_helper(
                     r_idx,
                     w_idx,
                     dist,
                     record_db,
                     fatol,
-                    adapt
+                    adapt,
+                    maxfev,
+                    opt_params,
                 )
                 #final_weights = pool.apply_async(
-                #    mp_optimize_weights_helper, 
+                #    mp_optimize_helper, 
                 #    helper_args,
                 #)
                 results.append(final_weights)
@@ -110,13 +138,28 @@ def mp_optimize_weights(record_db, dist, fatol=0.0001,
 
     return results
 
-def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
+def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
+                              maxfev, targets = ['weights']):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
     -----
-    args : list
-        List containing starting motif dict, category, and sample percentage
+    r_idx : int
+        Record index of this motif within the db
+    w_idx : int
+        Window index of this motif within its record in the db
+    dist : func
+        Function defining the distance metric used for determining matches
+    db : inout.RecordDatabse
+    fatol : float
+        MI tolerance used to set convergence criterion
+    adapt : bool
+        Set nelder-mead to 'adaptive' if True.
+    maxfev : int
+        Maximum number of function evaluations to perform.
+    targets : list
+        Contains only 'weights' by default. Add 'shapes' and/or 'threshold'
+        to also optimize those.
     
     Returns:
     --------
@@ -124,48 +167,93 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
                                  additional values that go with it
     """
 
-    motif_weights = db.weights[r_idx,:,:,w_idx].flatten()
-    motif_thresh = db.thresholds[r_idx,w_idx]
-    # scipy.optimize.minimize requires the target to optimize be a 1d array
-    target = np.append(motif_weights, motif_thresh)
-
+    motif_weights = db.weights[r_idx,:,:,w_idx]
+    L,S = motif_weights.shape
     motif_shapes = db.windows[r_idx,:,:,w_idx]
+    motif_thresh = db.thresholds[r_idx,w_idx]
+
+    motif_dict = {
+        'weights': motif_weights.flatten(),
+        'threshold': motif_thresh,
+        'shapes': motif_shapes.flatten(),
+    }
+
+    # scipy.optimize.minimize requires the target to optimize be a 1d array
+    #target = np.append(motif_weights, motif_thresh)
+    idx_breaks = []
+    for i,thing in enumerate(targets):
+        if i == 0:
+            target = motif_dict[thing]
+            idx_breaks.append(len(target))
+        else:
+            target = np.append(target, motif_dict[thing])
+            idx_breaks.append(len(target))
+
     # will compare motif_shapes to all reference shapes
     ref_shapes = db.windows
     y_vals = db.y
 
     final_motifs_dict = {}
-    func_info = {"NFeval":0, "eval":[], "value":[]}
+    func_info = {"NFeval":0, "eval":[], "value":[], "threshold":[]}
+
+    if 'threshold' in targets:
+        thresh_arg = None
+    else: thresh_arg = motif_dict['threshold']
+
+    if 'weights' in targets:
+        weights_arg = None
+    else: weights_arg = motif_dict['weights']
+
+    if 'shapes' in targets:
+        shapes_arg = None
+    else: shapes_arg = motif_dict['shapes']
 
     final_opt = opt.minimize(
-        optimize_weights_worker,
+        optimize_worker,
         target, 
         args = (
-            motif_shapes,
             ref_shapes,
             y_vals,
             dist,
             func_info,
+            idx_breaks,
+            targets,
+            thresh_arg,
+            shapes_arg,
+            weights_arg,
         ), 
         method = "nelder-mead",
         options = {
             'fatol': fatol,
             'adaptive': adapt,
+            'maxfev': maxfev,
         }
     )
 
     final = final_opt['x']
-    threshold_opt = final[-1]
-    weights_opt = final[:-1]
+
+    vals_dict = retrieve_vals_from_target_vec(
+        thresh_arg,
+        weights_arg,
+        shapes_arg,
+        targets,
+        idx_breaks,
+        final,
+        L,
+        S,
+    )
+    threshold_final = vals_dict['threshold']
+    weights_final = vals_dict['weights']
+    shapes_final = vals_dict['shapes']
 
     R,L,S,W = ref_shapes.shape
     hits = np.zeros(R)
     # hits is modified in place here
     inout.optim_generate_peak_array(
         ref_shapes,
-        motif_shapes,
-        weights_opt.reshape((L,S)),
-        threshold_opt,
+        shapes_final,
+        weights_final,
+        threshold_final,
         hits,
         R,
         W,
@@ -175,16 +263,16 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     mi_opt = inout.mutual_information(y_vals, hits)
     final_motifs_dict['hits'] = hits
     final_motifs_dict['mi'] = mi_opt
-    final_motifs_dict['weights'] = weights_opt.reshape((L,S))
-    final_motifs_dict['threshold'] = threshold_opt
-    final_motifs_dict['motif'] = motif_shapes
+    final_motifs_dict['weights'] = weights_final
+    final_motifs_dict['threshold'] = threshold_final
+    final_motifs_dict['motif'] = shapes_final
 
     hits = np.zeros(R)
     # hits is modified in place here
     inout.optim_generate_peak_array(
         ref_shapes,
         motif_shapes,
-        motif_weights.reshape((L,S)),
+        motif_weights,
         motif_thresh,
         hits,
         R,
@@ -195,8 +283,9 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
     mi_orig = inout.mutual_information(y_vals, hits)
 
     final_motifs_dict['mi_orig'] = mi_orig
-    final_motifs_dict['orig_weights'] = motif_weights.reshape((L,S))
+    final_motifs_dict['orig_weights'] = motif_weights
     final_motifs_dict['orig_threshold'] = motif_thresh
+    final_motifs_dict['orig_shapes'] = motif_shapes
     final_motifs_dict['r_idx'] = r_idx
     final_motifs_dict['w_idx'] = w_idx
     final_motifs_dict['opt_success'] = final_opt['success']
@@ -205,23 +294,36 @@ def mp_optimize_weights_helper(r_idx, w_idx, dist, db, fatol, adapt):
 
     return final_motifs_dict
 
-def optimize_weights_worker(targets, window_shapes, all_shapes,
-                            y, dist_func, info):
+def optimize_worker(targets, all_shapes, y, dist_func, info,
+                            target_breaks, targets_order,
+                            threshold=None, shapes=None, weights=None):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
     Args:
     -----
         targets : np.array
-            Targets to optimize. 1D array of shape ( S*L+1, ), where S
-            is the number of shape parameters and L is the window length.
-            One is added because the final value to optimize is the threshold.
-        window_shapes : np.array
+            Targets to optimize. 1D array, the shape of which will vary
+            depending on whether we're optimizing weights, shapes, thresholds,
+            or some combination of those parameters.
+        shapes : np.array
             Array of shape (L,S), where L is the length of each window
-            and S is the number of shape parameters.
+            and S is the number of shape parameters. Present only if
+            we're not optimizing shape values. If we are optimizing shape
+            values, then the values are wrapped into targets and this argument
+            is None.
+        weights : np.array
+            Array of shape (L,S), where L is the length of each window
+            and S is the number of shape parameters. Present only if
+            we're not optimizing weights values. If we are optimizing weights
+            values, then the values are wrapped into targets and this argument
+            is None.
+        threshold : float
+            Maximum distance to reference to call a comparison a match.
+            If we're optimizing the threshold, then this argument is None.
         all_shapes : np.array
             Array of shape (R, L, S, W), where R is the number of records,
-            L and S are described in window_shapes, and W is the number
+            L and S are described in shapes, and W is the number
             of windows per record/shape.
         y : np.array
             1D numpy array of length R containing the ground truth y values.
@@ -230,6 +332,11 @@ def optimize_weights_worker(targets, window_shapes, all_shapes,
         info : dict
             Store number of function evals and value associated with it.
             keys must include NFeval: int, value: list, eval: list
+        target_breaks : list
+            A list of break-points in targets to be able to slice appropriate
+            values from targets vector.
+        targets_order : list
+            List of target types represented by the values in targets.
 
     Returns:
     --------
@@ -238,15 +345,42 @@ def optimize_weights_worker(targets, window_shapes, all_shapes,
 
     R,L,S,W = all_shapes.shape
 
-    threshold = targets[-1]
-    weights = targets[:-1].reshape((L,S))
+    vals_dict = retrieve_vals_from_target_vec(
+        threshold,
+        weights,
+        shapes,
+        targets_order,
+        target_breaks,
+        targets,
+        L,
+        S,
+    )
+
+    #vals_dict = {
+    #    'threshold' : threshold,
+    #    'weights' : weights,
+    #    'shapes' : shapes,
+    #}
+
+    #for i,target in enumerate(targets_order):
+    #    if i == 0:
+    #        left_break = 0
+    #    right_break = target_breaks[i]
+    #    if target in ['weights', 'shapes']:
+    #        vals_dict[target] = targets[left_break:right_break].reshape((L,S))
+    #    else:
+    #        vals_dict[target] = targets[left_break:right_break]
+    #    left_break = right_break
+
+    #threshold = targets[-1]
+    #weights = targets[:-1].reshape((L,S))
     hits = np.zeros(R)
 
     inout.optim_generate_peak_array(
         all_shapes,
-        window_shapes,
-        weights,
-        threshold,
+        vals_dict['shapes'],
+        vals_dict['weights'],
+        vals_dict['threshold'],
         hits,
         R,
         W,
@@ -258,6 +392,7 @@ def optimize_weights_worker(targets, window_shapes, all_shapes,
     if info["NFeval"] % 10 == 0:
         info["value"].append(this_mi)
         info["eval"].append(info["NFeval"])
+        info["threshold"].append(threshold)
     info["NFeval"] += 1
 
     return -this_mi
@@ -1254,7 +1389,7 @@ if __name__ == "__main__":
     #   a list of dictionaries, each dictionary containing a motif's
     #   shapes, original weights, optimized weights, original MI,
     #   optimized MI, and other information.
-    all_motifs = mp_optimize_weights(
+    all_motifs = mp_optimize(
         records,
         dist_met,
         p = args.p,

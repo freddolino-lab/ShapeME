@@ -51,7 +51,7 @@ seeds_per_seq_thresh = 1
 seeds_per_seq = 2
 num_seeds = 5000
 rc = False
-numprocs = 18
+numprocs = 12
 numba.set_num_threads(numprocs)
 shape_fname_dict = {n:fn for n,fn in zip(param_names, params)}
 rec_db = inout.RecordDatabase(in_file, shape_fname_dict)
@@ -72,8 +72,10 @@ rec_db.set_initial_thresholds(
 with open('initial_mutual_information.pkl','rb') as f:
     rec_db.mi = pickle.load(f)
 
+min_mi = 0.2
+
 quant_vals = stats.scoreatpercentile(
-    rec_db.mi,
+    rec_db.mi[rec_db.mi >= min_mi],
     np.linspace(0,100,40),
     interpolation_method = 'lower',
 )
@@ -89,12 +91,18 @@ for qval in quant_vals:
 
 windows_for_opt = (row_inds, col_inds)
 
+params_for_opt = sys.argv[1:]
+print("Optimizing {}".format(params_for_opt))
+max_evals = None
+
 print("Running optimization")
 start_time = time.time()
-final_results = fm.mp_optimize_weights(
+final_results = fm.mp_optimize(
     rec_db,
     inout.constrained_manhattan_distance,
     window_inds = windows_for_opt,
+    opt_params = params_for_opt,
+    maxfev = max_evals,
 )
 end_time = time.time()
 print("Finished optimization of weights.")
@@ -102,6 +110,10 @@ print("Finished optimization of weights.")
 #for res in results:
 #    final_results.append(res.get())
 print("Writing results to file")
-with open("test_subset_optim.pkl", "wb") as f:
+optim_str = "_".join(params_for_opt)
+with open(
+    "test_subset_optim_{}_flat_init_w_min_mi_{}.pkl".format(optim_str,min_mi),
+    "wb",
+) as f:
     pickle.dump(final_results, f)
-print("Time for optimization: {} minutes".format((end_time-start_time)/60))
+print("Time for optimization: {:.2f} minutes".format((end_time-start_time)/60))
