@@ -6,21 +6,33 @@ import welfords
 from scipy import stats
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func):
+                       ref, R, W, dist_func, binary=False):
 
     # R for record number, 2 for one forward count and one reverse count
     hits = np.zeros((R,2))
 
-    optim_generate_peak_array(
-        ref,
-        query_shapes,
-        query_weights,
-        threshold,
-        hits,
-        R,
-        W,
-        dist_func,
-    )
+    if not binary:
+        optim_generate_peak_array(
+            ref,
+            query_shapes,
+            query_weights,
+            threshold,
+            hits,
+            R,
+            W,
+            dist_func,
+        )
+    else:
+        binary_optim_generate_peak_array(
+            ref,
+            query_shapes,
+            query_weights,
+            threshold,
+            hits,
+            R,
+            W,
+            dist_func,
+        )
 
     # sort the counts such that for each record, the
     #  smaller of the two numbers comes first.
@@ -30,6 +42,66 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
     this_mi = mutual_information(y_vals, hits, unique_hits)
 
     return this_mi,hits
+
+@jit(nopython=True, parallel=True)
+def binary_optim_generate_peak_array(ref, query, weights, threshold,
+                                     results, R, W, dist):
+    """Does same thing as generate_peak_vector, but hopefully faster
+    
+    Args:
+    -----
+    ref : np.array
+        The windows attribute of an inout.RecordDatabase object. Will be an
+        array of shape (R,L,S,W), where R is the number of records,
+        L is the window size, S is the number of shape parameters, and
+        W is the number of windows for each record.
+    query : np.array
+        A slice of the first and final indices of the windows attribute of
+        an inout.RecordDatabase object to check for matches in ref.
+        Should be an array of shape (L,S).
+    weights : np.array
+        A slice of the first and final indices of the weights attribute of
+        and inout.RecordDatabase object. Will be applied to the distance
+        calculation. Should be an array of shape (L,S).
+    threshold : np.array
+        Minimum distance to consider a match.
+    results : 2d np.array
+        Array of shape (R,2), where R is the number of records in ref.
+        This array should be populated with zeros, will be set to 1
+        when a match is found. The final axis is of length 2 so that
+        we can do the reverse-complement and the forward.
+    R : int
+        Number of records
+    W : int
+        Number of windows for each record
+    dist : function
+        The distance function to use for distance calculation.
+    """
+    
+    for r in prange(R):
+        f_hit = False
+        r_hit = False
+        for w in range(W):
+
+            if f_hit and r_hit:
+                break
+            
+            ref_seq = ref[r,:,:,w]
+
+            if not f_hit:
+                distance = dist(query, ref_seq, weights)
+                if distance < threshold:
+                    # if a window has a distance low enough,
+                    #   add 1 to this result's index
+                    results[r,0] = 1
+                    f_hit = True
+
+            if not r_hit:
+                # slice query backward to do rc comparison
+                rc_distance = dist(query[::-1,:], ref_seq, weights)
+                if rc_distance < threshold:
+                    results[r,1] = 1
+                    r_hit = True
 
 
 @jit(nopython=True, parallel=True)
@@ -868,7 +940,7 @@ class RecordDatabase(object):
         ).copy()
         return flat
 
-    def compute_mi(self, dist):
+    def compute_mi(self, dist, binary=False):
         
         rec_num,win_len,shape_num,win_num = self.windows.shape
         mi_arr = np.zeros((rec_num,win_num))
@@ -886,6 +958,7 @@ class RecordDatabase(object):
                     rec_num,
                     win_num,
                     dist,
+                    binary,
                 )
 
         self.mi = mi_arr
@@ -1651,7 +1724,8 @@ def mutual_information(arrayx, arrayy, uniquey):
                 MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
     return MI
 
-def conditional_mutual_information(arrayx, arrayy, arrayz):
+@jit(nopython=True)
+def conditional_mutual_information(arrayx, uniquex, arrayy, uniquey, arrayz, uniquez):
     """Method to calculate the conditional mutual information I(X;Y|Z)
         
     Uses log2 so mutual information is in bits. This is O(X*Y*Z) where
@@ -1681,7 +1755,7 @@ def conditional_mutual_information(arrayx, arrayy, arrayz):
     #    total = total_x
     CMI = 0
     # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
-    for z in np.unique(arrayz, axis=0):
+    for z in uniquez:
         # set the indices we will look at in arr_x and arr_y
         subset = (arrayz == z)[:,0]
         # set number of vals == z in arr_z as denominator
@@ -1689,15 +1763,16 @@ def conditional_mutual_information(arrayx, arrayy, arrayz):
         p_z = total_subset/total
         this_MI = 0
 
-        for x in np.unique(arrayx):
-            for y in np.unique(arrayy, axis=0):
+        for x in uniquex:
+            for y in uniquey:
                 # calculate the probability that the indices of arr_x and arr_y
                 #  corresponding to those in arr_z == z are equal to x or y.
                 # so essentially, in english, we're saying the following:
                 #  given that arr_z is what it is, what is the MI between
                 #  arr_x and arr_y?
                 row_is_y = (arrayy[subset] == y)[:,0]
-                p_x = np.sum(arrayx[subset] == x)/total_subset
+                row_is_x = arrayx[subset] == x
+                p_x = np.sum(row_is_x)/total_subset
                 p_y = np.sum(row_is_y)/total_subset
                 p_x_y = np.sum(
                     np.logical_and(

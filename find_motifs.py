@@ -232,7 +232,7 @@ def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
 
 def stochastic_opt_helper(r_idx, w_idx, dist, db,
                           temperature, stepsize, fatol, adapt,
-                          maxfev, targets = ['weights'], method='nelder-mead',
+                          maxfev, binary=False, targets = ['weights'], method='nelder-mead',
                           n_iter_success = 100):
     """Helper function to allow weight optimization to be multiprocessed
     
@@ -255,6 +255,10 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         Set nelder-mead to 'adaptive' if True.
     maxfev : int
         Maximum number of function evaluations to perform.
+    binary: bool
+        Sets whether to do a binary search for matches on each strand,
+        or to count the number of matches on each strand. Default is
+        False, which counts.
     targets : list
         Contains only 'weights' by default. Add 'shapes' and/or 'threshold'
         to also optimize those.
@@ -366,6 +370,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         R,
         W,
         dist,
+        binary,
     )
 
     final_motifs_dict['hits'] = hits
@@ -383,6 +388,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         R,
         W,
         dist,
+        binary,
     )
 
     final_motifs_dict['mi_orig'] = mi_orig
@@ -516,6 +522,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
+        binary,
     )
 
     final_motifs_dict['hits'] = hits
@@ -533,6 +540,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
+        binary,
     )
 
     final_motifs_dict['mi_orig'] = mi_orig
@@ -549,7 +557,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
 
 
 def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
-                          y, dist_func, info):
+                          y, dist_func, binary, info):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
@@ -577,6 +585,9 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
             1D numpy array of length R containing the ground truth y values.
         dist_func : function
             Function to use in distance calculation
+        binary : bool
+            Sets whether to do a binary search for matches on each strand,
+            or whether to count the number of matches on each strand.
         info : dict
             Store number of function evals and value associated with it.
             keys must include NFeval: int, value: list, eval: list
@@ -597,6 +608,7 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
         R,
         W,
         dist_func,
+        binary,
     )
 
     if info["NFeval"] % 10 == 0:
@@ -609,7 +621,7 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
 
 
 def optimize_worker(targets, all_shapes, y, dist_func, info,
-                            target_breaks, targets_order,
+                            target_breaks, targets_order, binary=False,
                             threshold=None, shapes=None, weights=None):
     """Function to optimize a particular motif's weights
     for distance calculation.
@@ -651,6 +663,9 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
             values from targets vector.
         targets_order : list
             List of target types represented by the values in targets.
+        binary : bool
+            Whether to do binary search (True) for matches on each strand,
+            or to do counts (False, the default) of matches on each strand.
 
     Returns:
     --------
@@ -679,6 +694,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         R,
         W,
         dist_func,
+        binary,
     )
 
     #hits = np.zeros(R)
@@ -1411,6 +1427,7 @@ def aic_motifs2(records):
     #  and we add 1 because the motif's threshold was a parameter.
     rec_num,win_len,shape_num,win_num = records.windows.shape
     delta_k = win_len * shape_num * 2 + 1
+    print(delta_k)
 
     # get sorted order of mi values
     # returns a tuple of arrays corresponding to (row_idx, col_idx)
@@ -1422,13 +1439,21 @@ def aic_motifs2(records):
 
     top_motif_inds = []
     # Make sure first motif passes AIC
-    if calc_aic(delta_k, rec_num, records.mi[sort_r_inds[0],sort_c_inds[0]]) < 0:
+    top_mi = records.mi[sort_r_inds[0],sort_c_inds[0]]
+    print(rec_num)
+    top_aic = calc_aic(delta_k, rec_num, top_mi)
+    if top_aic < 0:
         top_motif_inds = [(sort_r_inds[0],sort_c_inds[0])]
     else:
         return []
+    print(top_mi)
+    print(top_aic)
 
     # loop through candidate motifs
     for cand_idx in range(1,len(sort_r_inds)):
+
+        if cand_idx % 10 == 0:
+            print("Working on candidate index: {}".format(cand_idx))
 
         cand_r_idx = sort_r_inds[cand_idx]
         cand_c_idx = sort_c_inds[cand_idx]
@@ -1438,28 +1463,44 @@ def aic_motifs2(records):
         motif_pass = True
 
         # if the total MI for this motif doesn't pass AIC skip it
-        if calc_aic(delta_k, rec_num, cand_mi) > 0:
+        cand_aic = calc_aic(delta_k, rec_num, cand_mi)
+        print("Candidate {} AIC: {}".format(cand_idx,cand_aic))
+        if cand_aic > 0:
             continue
 
         for good_motif_r,good_motif_c in top_motif_inds:
+
             good_motif_hits = records.hits[good_motif_r, good_motif_c, :, :]
 
             # check the conditional mutual information for this motif with
             # each of the chosen motifs
-            this_mi = inout.conditional_mutual_information(
+            distinct_good_motif_hits = np.unique(good_motif_hits, axis=0)
+            distinct_y = np.unique(records.y)
+            distinct_cand_hits = np.unique(cand_hits, axis=0)
+            print(distinct_cand_hits)
+            this_cmi = inout.conditional_mutual_information(
                 records.y, 
+                distinct_y,
                 cand_hits, 
+                distinct_cand_hits,
                 good_motif_hits,
+                distinct_good_motif_hits,
             )
+            this_aic = calc_aic(delta_k, rec_num, this_cmi)
+            print(this_cmi)
+            print(this_aic)
 
             # if candidate motif doesn't improve model as added to each of the
             # chosen motifs, skip it
-            if calc_aic(delta_k, rec_num, this_mi) > 0:
+            if this_aic > 0:
                 motif_pass = False
                 break
 
         if motif_pass:
             top_motif_inds.append((cand_r_idx,cand_c_idx))
+
+        if cand_idx > 50:
+            return top_motif_inds
 
     return top_motif_inds
 
