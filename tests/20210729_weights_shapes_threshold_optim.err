@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/stochastic_opt_subset.py", line 89, in <module>
+    final_results = fm.stochastic_optimize(
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 86, in stochastic_optimize
+    final_weights = stochastic_opt_helper(
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 263, in stochastic_opt_helper
+    final_opt = opt.basinhopping(
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_basinhopping.py", line 693, in basinhopping
+    new_global_min = bh.one_cycle()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_basinhopping.py", line 152, in one_cycle
+    accept, minres = self._monte_carlo_step()
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_basinhopping.py", line 104, in _monte_carlo_step
+    minres = self.minimizer(x_after_step)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_basinhopping.py", line 284, in __call__
+    return self.minimizer(self.func, x0, **self.kwargs)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/_minimize.py", line 608, in minimize
+    return _minimize_neldermead(fun, x0, args, callback, **options)
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 781, in _minimize_neldermead
+    fsim[j] = func(sim[j])
+  File "/home/schroedj/miniconda3/envs/motifer/lib/python3.9/site-packages/scipy/optimize/optimize.py", line 461, in function_wrapper
+    return function(*(wrapper_args + args))
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 593, in optimize_worker
+    this_mi,hits = inout.run_query_over_ref(
+  File "/home/schroedj/src/DNAshape_motif_finder/tests/../inout.py", line 14, in run_query_over_ref
+    optim_generate_peak_array(
+KeyboardInterrupt

@@ -5,6 +5,33 @@ from numba import jit,prange
 import welfords
 from scipy import stats
 
+def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
+                       ref, R, W, dist_func):
+
+    # R for record number, 2 for one forward count and one reverse count
+    hits = np.zeros((R,2))
+
+    optim_generate_peak_array(
+        ref,
+        query_shapes,
+        query_weights,
+        threshold,
+        hits,
+        R,
+        W,
+        dist_func,
+    )
+
+    # sort the counts such that for each record, the
+    #  smaller of the two numbers comes first.
+    hits = np.sort(hits, axis=1)
+    unique_hits = np.unique(hits, axis=0)
+
+    this_mi = mutual_information(y_vals, hits, unique_hits)
+
+    return this_mi,hits
+
+
 @jit(nopython=True, parallel=True)
 def optim_generate_peak_array(ref, query, weights, threshold,
                               results, R, W, dist):
@@ -27,10 +54,11 @@ def optim_generate_peak_array(ref, query, weights, threshold,
         calculation. Should be an array of shape (L,S).
     threshold : np.array
         Minimum distance to consider a match.
-    results : 1d np.array
-        Array of shape (R), where R is the number of records in ref.
-        This array should be populated with zeros, and will be filled
-        with 1's where matches are found.
+    results : 2d np.array
+        Array of shape (R,2), where R is the number of records in ref.
+        This array should be populated with zeros, and will be incremented
+        by 1 when matches are found. The final axis is of length 2 so that
+        we can do the reverse-complement and the forward.
     R : int
         Number of records
     W : int
@@ -44,12 +72,15 @@ def optim_generate_peak_array(ref, query, weights, threshold,
             
             ref_seq = ref[r,:,:,w]
             distance = dist(query, ref_seq, weights)
+            # slice query backward to do rc comparison
+            rc_distance = dist(query[::-1,:], ref_seq, weights)
             
             if distance < threshold:
                 # if a window has a distance low enough,
-                #   set this record's result to 1
-                results[r] = 1
-                break
+                #   add 1 to this result's index
+                results[r,0] += 1
+            if rc_distance < threshold:
+                results[r,1] += 1
 
 @jit(nopython=True)
 def euclidean_distance(vec1, vec2):
@@ -691,9 +722,10 @@ class RecordDatabase(object):
         record/window sum to one.
         """
 
-        L = self.windows.shape[1]
-        S = self.windows.shape[2]
-        self.weights = np.full_like(self.windows, 1.0/L/S)
+        #L = self.windows.shape[1]
+        #S = self.windows.shape[2]
+        #self.weights = np.full_like(self.windows, 1.0/L/S)
+        self.weights = np.zeros_like(self.windows)
 
         #x_vals = np.linspace(0,1,self.windows.shape[1])
         #w = stats.beta.pdf(x_vals, 2, 2)
@@ -840,25 +872,24 @@ class RecordDatabase(object):
         
         rec_num,win_len,shape_num,win_num = self.windows.shape
         mi_arr = np.zeros((rec_num,win_num))
-        threshold = self.thresholds[0,0]
+        hits_arr = np.zeros((rec_num,win_num,rec_num,2))
 
         for r in range(rec_num):
             for w in range(win_num):
-                
-                hits = np.zeros(rec_num)
-                # hits is modified in place here
-                optim_generate_peak_array(
-                    self.windows,
+
+                mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
+                    self.y,
                     self.windows[r,:,:,w],
                     self.weights[r,:,:,w],
-                    threshold,
-                    hits,
+                    self.thresholds[r,w],
+                    self.windows,
                     rec_num,
                     win_num,
                     dist,
                 )
-                mi_arr[r,w] = mutual_information(self.y, hits)
+
         self.mi = mi_arr
+        self.hits = hits_arr
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with
@@ -1583,7 +1614,7 @@ def conditional_entropy(arrayx, arrayy):
     return -entropy
 
 @jit(nopython=True)
-def mutual_information(arrayx, arrayy):
+def mutual_information(arrayx, arrayy, uniquey):
     """Method to calculate the mutual information between two discrete
     numpy arrays I(X;Y)
         
@@ -1592,6 +1623,7 @@ def mutual_information(arrayx, arrayy):
     Args:
         arrayx (np.array): an array of discrete categories
         arrayy (np.array): an array of discrete categories
+        uniquey (np.array): array of distinct values found in arrayy
     Returns:
         mutual information between array1 and array2
     """
@@ -1605,13 +1637,14 @@ def mutual_information(arrayx, arrayy):
     total = total_x
     MI = 0
     for x in np.unique(arrayx):
-        for y in np.unique(arrayy):
+        for y in uniquey:
             # p(x_i)
             p_x = np.sum(arrayx == x)/total
             # p(y_j)
-            p_y = np.sum(arrayy == y)/total
+            row_is_y = (arrayy == y)[:,0]
+            p_y = np.sum(row_is_y)/total
             # p(x_i,y_j)
-            p_x_y = np.sum(np.logical_and(arrayx == x, arrayy == y))/total
+            p_x_y = np.sum(np.logical_and(arrayx == x, row_is_y))/total
             if p_x_y == 0 or p_x == 0 or p_y == 0:
                 MI += 0
             else:
@@ -1635,39 +1668,41 @@ def conditional_mutual_information(arrayx, arrayy, arrayz):
     total_x = arrayx.size 
     total_y = arrayy.size
     total_z = arrayz.size
-    if total_x != total_y or total_y != total_z:
-        raise ValueError(
-            "Array sizes must be the same {} {} {}".format(
-                total_x,
-                total_y,
-                total_z
-            )
-        )
-    else:
-        total = total_x
+    total = total_x
+    #if total_x != total_y or total_y != total_z:
+    #    raise ValueError(
+    #        "Array sizes must be the same {} {} {}".format(
+    #            total_x,
+    #            total_y,
+    #            total_z
+    #        )
+    #    )
+    #else:
+    #    total = total_x
     CMI = 0
     # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
-    for z in np.unique(arrayz):
+    for z in np.unique(arrayz, axis=0):
         # set the indices we will look at in arr_x and arr_y
-        subset = arrayz == z
+        subset = (arrayz == z)[:,0]
         # set number of vals == z in arr_z as denominator
         total_subset = np.sum(subset)
         p_z = total_subset/total
         this_MI = 0
 
         for x in np.unique(arrayx):
-            for y in np.unique(arrayy):
+            for y in np.unique(arrayy, axis=0):
                 # calculate the probability that the indices of arr_x and arr_y
                 #  corresponding to those in arr_z == z are equal to x or y.
                 # so essentially, in english, we're saying the following:
                 #  given that arr_z is what it is, what is the MI between
                 #  arr_x and arr_y?
+                row_is_y = (arrayy[subset] == y)[:,0]
                 p_x = np.sum(arrayx[subset] == x)/total_subset
-                p_y = np.sum(arrayy[subset] == y)/total_subset
+                p_y = np.sum(row_is_y)/total_subset
                 p_x_y = np.sum(
                     np.logical_and(
                         arrayx[subset] == x,
-                        arrayy[subset] == y
+                        row_is_y
                     )
                 ) / total_subset
                 if p_x_y == 0 or p_x == 0 or p_y == 0:
