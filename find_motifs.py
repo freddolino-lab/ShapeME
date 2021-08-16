@@ -232,7 +232,7 @@ def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
 
 def stochastic_opt_helper(r_idx, w_idx, dist, db,
                           temperature, stepsize, fatol, adapt,
-                          maxfev, binary=False, targets = ['weights'], method='nelder-mead',
+                          maxfev, max_count=4, targets = ['weights'], method='nelder-mead',
                           n_iter_success = 100):
     """Helper function to allow weight optimization to be multiprocessed
     
@@ -255,10 +255,9 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         Set nelder-mead to 'adaptive' if True.
     maxfev : int
         Maximum number of function evaluations to perform.
-    binary: bool
-        Sets whether to do a binary search for matches on each strand,
-        or to count the number of matches on each strand. Default is
-        False, which counts.
+    max_count : int
+        Sets the maximum number of hits to be counted for each strand.
+        Default is 4.
     targets : list
         Contains only 'weights' by default. Add 'shapes' and/or 'threshold'
         to also optimize those.
@@ -370,7 +369,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         R,
         W,
         dist,
-        binary,
+        max_count,
     )
 
     final_motifs_dict['hits'] = hits
@@ -388,7 +387,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         R,
         W,
         dist,
-        binary,
+        max_count,
     )
 
     final_motifs_dict['mi_orig'] = mi_orig
@@ -522,7 +521,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
-        binary,
+        max_count,
     )
 
     final_motifs_dict['hits'] = hits
@@ -540,7 +539,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
-        binary,
+        max_count,
     )
 
     final_motifs_dict['mi_orig'] = mi_orig
@@ -557,7 +556,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
 
 
 def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
-                          y, dist_func, binary, info):
+                          y, dist_func, max_count, info):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
@@ -585,9 +584,8 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
             1D numpy array of length R containing the ground truth y values.
         dist_func : function
             Function to use in distance calculation
-        binary : bool
-            Sets whether to do a binary search for matches on each strand,
-            or whether to count the number of matches on each strand.
+        max_count : int
+            Sets the maximum number of hits to count for each strand.
         info : dict
             Store number of function evals and value associated with it.
             keys must include NFeval: int, value: list, eval: list
@@ -608,7 +606,7 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
         R,
         W,
         dist_func,
-        binary,
+        max_count,
     )
 
     if info["NFeval"] % 10 == 0:
@@ -621,7 +619,7 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
 
 
 def optimize_worker(targets, all_shapes, y, dist_func, info,
-                            target_breaks, targets_order, binary=False,
+                            target_breaks, targets_order, max_count=4,
                             threshold=None, shapes=None, weights=None):
     """Function to optimize a particular motif's weights
     for distance calculation.
@@ -663,9 +661,9 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
             values from targets vector.
         targets_order : list
             List of target types represented by the values in targets.
-        binary : bool
-            Whether to do binary search (True) for matches on each strand,
-            or to do counts (False, the default) of matches on each strand.
+        max_count : int
+            Default is 4. Sets the maximum number of hits to count
+            for each strand.
 
     Returns:
     --------
@@ -694,7 +692,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         R,
         W,
         dist_func,
-        binary,
+        max_count,
     )
 
     #hits = np.zeros(R)

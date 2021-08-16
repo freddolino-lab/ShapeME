@@ -6,33 +6,22 @@ import welfords
 from scipy import stats
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func, binary=False):
+                       ref, R, W, dist_func, max_count=4):
 
     # R for record number, 2 for one forward count and one reverse count
     hits = np.zeros((R,2))
 
-    if not binary:
-        optim_generate_peak_array(
-            ref,
-            query_shapes,
-            query_weights,
-            threshold,
-            hits,
-            R,
-            W,
-            dist_func,
-        )
-    else:
-        binary_optim_generate_peak_array(
-            ref,
-            query_shapes,
-            query_weights,
-            threshold,
-            hits,
-            R,
-            W,
-            dist_func,
-        )
+    optim_generate_peak_array(
+        ref,
+        query_shapes,
+        query_weights,
+        threshold,
+        hits,
+        R,
+        W,
+        dist_func,
+        max_count,
+    )
 
     # sort the counts such that for each record, the
     #  smaller of the two numbers comes first.
@@ -106,7 +95,7 @@ def binary_optim_generate_peak_array(ref, query, weights, threshold,
 
 @jit(nopython=True, parallel=True)
 def optim_generate_peak_array(ref, query, weights, threshold,
-                              results, R, W, dist):
+                              results, R, W, dist, max_count):
     """Does same thing as generate_peak_vector, but hopefully faster
     
     Args:
@@ -137,22 +126,35 @@ def optim_generate_peak_array(ref, query, weights, threshold,
         Number of windows for each record
     dist : function
         The distance function to use for distance calculation.
+    max_count : int
+        The maximum number of hits to count for each strand.
     """
     
     for r in prange(R):
+        f_maxed = False
+        r_maxed = False
         for w in range(W):
             
-            ref_seq = ref[r,:,:,w]
-            distance = dist(query, ref_seq, weights)
-            # slice query backward to do rc comparison
-            rc_distance = dist(query[::-1,:], ref_seq, weights)
-            
-            if distance < threshold:
-                # if a window has a distance low enough,
-                #   add 1 to this result's index
-                results[r,0] += 1
-            if rc_distance < threshold:
-                results[r,1] += 1
+            if f_maxed and r_maxed:
+                break
+
+            if not f_maxed:
+                distance = dist(query, ref_seq, weights)
+                if distance < threshold:
+                    # if a window has a distance low enough,
+                    #   add 1 to this result's index
+                    results[r,0] += 1
+                    if results[r,0] == max_count:
+                        f_maxed = True
+
+            if not r_maxed:
+                # slice query backward to do rc comparison
+                rc_distance = dist(query[::-1,:], ref_seq, weights)
+                if rc_distance < threshold:
+                    results[r,1] += 1
+                    if results[r,1] == max_count:
+                        r_maxed = True
+
 
 @jit(nopython=True)
 def euclidean_distance(vec1, vec2):

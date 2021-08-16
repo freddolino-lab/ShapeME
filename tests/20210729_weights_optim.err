@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/home/schroedj/src/DNAshape_motif_finder/tests/stochastic_opt_subset.py", line 89, in <module>
-    final_results = fm.stochastic_optimize(
-  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 86, in stochastic_optimize
-    final_weights = stochastic_opt_helper(
-  File "/home/schroedj/src/DNAshape_motif_finder/tests/../find_motifs.py", line 322, in stochastic_opt_helper
-    final_motifs_dict['opt_success'] = final_opt['success']
-KeyError: 'success'

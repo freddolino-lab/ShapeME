@@ -1,5 +1,0 @@
-#mkdir E2F4_input
-#bash create_input_files.sh E2F4_input/ E2F4 /home/mbwolfe/src/DNAshape_motif_finder/ENCODE_uniformly_processed_ChIP/wgEncodeAwgTfbsSydhGm12878E2f4IggmusUniPk.narrowPeak /home/mbwolfe/src/tinker_motif_finder/DNAshape_motif_finder
-python3 scripts/sample_fasta.py E2F4_input/E2F4_30_bp_height_train_0.txt E2F4_input/sampled_ E2F4_input/E2F4_30_bp_height_train_0.fa.*
-#mkdir ELK1_input
-#bash create_input_files.sh ELK1_input/ ELK1 /home/mbwolfe/src/DNAshape_motif_finder/ENCODE_uniformly_processed_ChIP/wgEncodeAwgTfbsSydhGm12878Elk112771IggmusUniPk.narrowPeak /home/mbwolfe/src/tinker_motif_finder/DNAshape_motif_finder
