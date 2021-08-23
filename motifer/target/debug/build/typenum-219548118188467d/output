@@ -1,0 +1,2 @@
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/home/jeremy/src/DNAshape_motif_finder/motifer/target/debug/build/typenum-219548118188467d/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/home/jeremy/src/DNAshape_motif_finder/motifer/target/debug/build/typenum-219548118188467d/out/op.rs
