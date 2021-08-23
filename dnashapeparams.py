@@ -1,12 +1,15 @@
 import numpy as np
+from numba import jit
 
-
+@jit(nopython=True)
 def euclidean_distance(vec1, vec2):
     return np.sqrt(np.sum((vec1 - vec2)**2))
 
+@jit(nopython=True)
 def manhattan_distance(vec1, vec2):
     return np.sum(np.abs(vec1 - vec2))
 
+@jit(nopython=True)
 def hamming_distance(vec1, vec2):
     return np.sum(vec1 != vec2)
 
@@ -129,7 +132,7 @@ class ShapeParams(object):
         else:
             self.names = []
 
-        self.vector= None
+        self.vector = None
         self.metric = manhattan_distance
 
     def __len__(self):
@@ -273,6 +276,7 @@ class ShapeParams(object):
         Yields:
             a slice of the ShapeParams object
         """
+
         end = len(self)-end
         start_i = start
         end_i = start+size
@@ -305,9 +309,9 @@ class ShapeParams(object):
 
         Converts values to (values-center)/spread
         """
-        if center_spread_dict.keys() != self.data.keys():
-            raise ValueError("Parameter names don't match %s %s")%(center_spread_dict.keys(), self.data.keys())
-        for name in center_spread_dict.keys():
+        if list(center_spread_dict.keys()) != list(self.data.keys()):
+            raise ValueError("Parameter names don't match %s %s")%(list(center_spread_dict.keys()), list(self.data.keys()))
+        for name in list(center_spread_dict.keys()):
             center, spread = center_spread_dict[name]
             self.data[name].normalize_values(center, spread)
 
@@ -320,9 +324,9 @@ class ShapeParams(object):
 
         Converts values to (values*spread)+center
         """
-        if center_spread_dict.keys() != self.data.keys():
-            raise ValueError("Parameter names don't match %s %s")%(center_spread_dict.keys(), self.data.keys())
-        for name in center_spread_dict.keys():
+        if list(center_spread_dict.keys()) != list(self.data.keys()):
+            raise ValueError("Parameter names don't match %s %s")%(list(center_spread_dict.keys()), list(self.data.keys()))
+        for name in list(center_spread_dict.keys()):
             center, spread = center_spread_dict[name]
             self.data[name].unnormalize_values(center, spread)
 
@@ -344,7 +348,7 @@ if __name__ == "__main__":
     ProT = ShapeParamSeq(name="ProT", params=[0,1,2,3,4,4,3,2,1,0,2,3])
     params = ShapeParams(data = {Roll.name:Roll, MGW.name:MGW, HelT.name: HelT, ProT.name: ProT}, names= ["Roll", "MGW", "HelT", "ProT"])
     for window1 in params.sliding_windows(4, start=0, end=0):
-        print(window1.as_vector())
+        print((window1.as_vector()))
 #    for window1 in params.sliding_windows(4, start=0, end=0):
 #        print(window1.matrix())
 #        for window2 in params.sliding_windows(4, start=1, end=10):

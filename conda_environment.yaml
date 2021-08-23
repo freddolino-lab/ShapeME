@@ -1,0 +1,19 @@
+name: motifer
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
+dependencies:
+    - python
+    - scipy
+    - scikit-learn
+    - R
+    - pip
+    - numpy
+    - numba
+    - ipython
+    - bioconductor-dnashaper
+    - r-glmnet
+    - jupyter
+    - rpy2
+    - tensorflow

@@ -1,6 +1,178 @@
 import numpy as np
 import dnashapeparams as dsp
 import logging
+from numba import jit,prange
+import welfords
+from scipy import stats
+
+def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
+                       ref, R, W, dist_func, max_count=4):
+
+    # R for record number, 2 for one forward count and one reverse count
+    hits = np.zeros((R,2))
+
+    optim_generate_peak_array(
+        ref,
+        query_shapes,
+        query_weights,
+        threshold,
+        hits,
+        R,
+        W,
+        dist_func,
+        max_count,
+    )
+
+    # sort the counts such that for each record, the
+    #  smaller of the two numbers comes first.
+    hits = np.sort(hits, axis=1)
+    unique_hits = np.unique(hits, axis=0)
+
+    this_mi = mutual_information(y_vals, hits, unique_hits)
+
+    return this_mi,hits
+
+@jit(nopython=True, parallel=True)
+def binary_optim_generate_peak_array(ref, query, weights, threshold,
+                                     results, R, W, dist):
+    """Does same thing as generate_peak_vector, but hopefully faster
+    
+    Args:
+    -----
+    ref : np.array
+        The windows attribute of an inout.RecordDatabase object. Will be an
+        array of shape (R,L,S,W), where R is the number of records,
+        L is the window size, S is the number of shape parameters, and
+        W is the number of windows for each record.
+    query : np.array
+        A slice of the first and final indices of the windows attribute of
+        an inout.RecordDatabase object to check for matches in ref.
+        Should be an array of shape (L,S).
+    weights : np.array
+        A slice of the first and final indices of the weights attribute of
+        and inout.RecordDatabase object. Will be applied to the distance
+        calculation. Should be an array of shape (L,S).
+    threshold : np.array
+        Minimum distance to consider a match.
+    results : 2d np.array
+        Array of shape (R,2), where R is the number of records in ref.
+        This array should be populated with zeros, will be set to 1
+        when a match is found. The final axis is of length 2 so that
+        we can do the reverse-complement and the forward.
+    R : int
+        Number of records
+    W : int
+        Number of windows for each record
+    dist : function
+        The distance function to use for distance calculation.
+    """
+    
+    for r in prange(R):
+        f_hit = False
+        r_hit = False
+        for w in range(W):
+
+            if f_hit and r_hit:
+                break
+            
+            ref_seq = ref[r,:,:,w]
+
+            if not f_hit:
+                distance = dist(query, ref_seq, weights)
+                if distance < threshold:
+                    # if a window has a distance low enough,
+                    #   add 1 to this result's index
+                    results[r,0] = 1
+                    f_hit = True
+
+            if not r_hit:
+                # slice query backward to do rc comparison
+                rc_distance = dist(query[::-1,:], ref_seq, weights)
+                if rc_distance < threshold:
+                    results[r,1] = 1
+                    r_hit = True
+
+
+@jit(nopython=True, parallel=True)
+def optim_generate_peak_array(ref, query, weights, threshold,
+                              results, R, W, dist, max_count):
+    """Does same thing as generate_peak_vector, but hopefully faster
+    
+    Args:
+    -----
+    ref : np.array
+        The windows attribute of an inout.RecordDatabase object. Will be an
+        array of shape (R,L,S,W), where R is the number of records,
+        L is the window size, S is the number of shape parameters, and
+        W is the number of windows for each record.
+    query : np.array
+        A slice of the first and final indices of the windows attribute of
+        an inout.RecordDatabase object to check for matches in ref.
+        Should be an array of shape (L,S).
+    weights : np.array
+        A slice of the first and final indices of the weights attribute of
+        and inout.RecordDatabase object. Will be applied to the distance
+        calculation. Should be an array of shape (L,S).
+    threshold : np.array
+        Minimum distance to consider a match.
+    results : 2d np.array
+        Array of shape (R,2), where R is the number of records in ref.
+        This array should be populated with zeros, and will be incremented
+        by 1 when matches are found. The final axis is of length 2 so that
+        we can do the reverse-complement and the forward.
+    R : int
+        Number of records
+    W : int
+        Number of windows for each record
+    dist : function
+        The distance function to use for distance calculation.
+    max_count : int
+        The maximum number of hits to count for each strand.
+    """
+    
+    for r in prange(R):
+        f_maxed = False
+        r_maxed = False
+        for w in range(W):
+            
+            if f_maxed and r_maxed:
+                break
+
+            if not f_maxed:
+                distance = dist(query, ref_seq, weights)
+                if distance < threshold:
+                    # if a window has a distance low enough,
+                    #   add 1 to this result's index
+                    results[r,0] += 1
+                    if results[r,0] == max_count:
+                        f_maxed = True
+
+            if not r_maxed:
+                # slice query backward to do rc comparison
+                rc_distance = dist(query[::-1,:], ref_seq, weights)
+                if rc_distance < threshold:
+                    results[r,1] += 1
+                    if results[r,1] == max_count:
+                        r_maxed = True
+
+
+@jit(nopython=True)
+def euclidean_distance(vec1, vec2):
+    return np.sqrt(np.sum((vec1 - vec2)**2))
+
+@jit(nopython=True)
+def manhattan_distance(vec1, vec2, w=1):
+    return np.sum(np.abs(vec1 - vec2) * w)
+
+@jit(nopython=True)
+def constrained_manhattan_distance(vec1, vec2, w=1):
+    w_exp = np.exp(w)
+    w = w_exp/np.sum(w_exp)
+    return np.sum(np.abs(vec1 - vec2) * w)
+
+@jit(nopython=True)
+def hamming_distance(vec1, vec2):
+    return np.sum(vec1 != vec2)
 
 def robust_z_csp(array):
     """Method to get the center and spread of an array based on the robustZ
@@ -100,7 +272,7 @@ class FastaEntry(object):
 
     def set_seq(self, seq, rm_na=None):
         if rm_na:
-            for key in rm_na.keys():
+            for key in list(rm_na.keys()):
                 seq = [rm_na[key] if x == key else float(x) for x in seq]
         self.seq = seq
 
@@ -289,7 +461,7 @@ class FastaFile(object):
             None
         """
         this_name = entry.chrm_name()
-        if this_name not in self.data.keys():
+        if this_name not in list(self.data.keys()):
             self.names.append(this_name)
         self.data[this_name]= entry
 
@@ -310,6 +482,489 @@ class FastaFile(object):
             entry = self.pull_entry(chrm)
             entry.write(fhandle, wrap, delim)
 
+def parse_shape_fasta(infile):
+    """Specifically for reading shape parameter fasta files,
+    which have comma-delimited positions in their sequences.
+    """
+
+    shape_info = {}
+    first_line = True
+
+    with open(infile, 'r') as f:
+
+        for line in f:
+
+            if line.startswith(">"):
+
+                if not first_line:
+                    store_record(shape_info, rec_seq, rec_name)
+
+                rec_name = line.strip('>').strip()
+                rec_seq = []
+                first_line = False
+
+            else:
+                rec_seq.extend(line.strip().split(','))
+
+    store_record(shape_info, rec_seq, rec_name)
+
+    return(shape_info)
+                
+def store_record(info, rec_seq, rec_name):
+    for i,val in enumerate(rec_seq):
+        try:
+            rec_seq[i] = float(val)
+        except:
+            rec_seq[i] = np.nan
+
+    info[rec_name] = np.asarray(rec_seq)
+
+
+class RecordDatabase(object):
+    """Class to store input information from tab separated value with
+    fasta name and a score
+
+    Attributes:
+    -----------
+    shape_name_lut : dict
+        A dictionary with shape names as keys and indices of the S
+        axis of data as values.
+    rec_name_lut : dict
+        A dictionary with record names as keys and indices of the R
+        axis of data as values.
+    y : np.array
+        A vector. Binary if looking at peak presence/absence,
+        categorical if looking at signal magnitude.
+    X : np.array
+        Array of shape (R,P,S), where R is the number of records in
+        the input data, P is the number of positions (the length of)
+        each record, and S is the number of shape parameters present.
+    windows : np.array
+        Array of shape (R,L,S,W), where R and S are described above
+        for the data attribute, L is the length of each window,
+        and W is the number of windows each record was chunked into.
+    weights : np.array
+        Array of shape (R,L,S,W), where the axis lengths are described
+        above for the windows attribute. Values are weights applied
+        during calculation of distance between a pair of sequences.
+    thresholds : np.array
+        Array of shape (R,W), where R is the number of records in the
+        database and W is the number of windows each record was
+        chuncked into.
+    """
+
+    def __init__(self, infile=None, shape_dict=None, y=None, X=None,
+                 shape_names=None, record_names=None, weights=None, windows=None,
+                 exclude_na=True):
+
+        self.record_name_lut = {}
+        self.shape_name_lut = {}
+        if X is None:
+            self.X = None
+        else:
+            if shape_names is None:
+                raise("X values were given without names for the shapes. Reinitialize, setting the shape_names argument")
+            self.X = X
+            self.shape_name_lut = {name:i for i,name in enumerate(shape_names)}
+        if y is not None:
+            #if record_names is None:
+            #    raise("y values were given without names for the records. Reinitialize, setting the record_names argument")
+            self.y = y
+            #self.record_name_lut = {name:i for i,name in enumerate(record_names)}
+        if weights is not None:
+            self.weights = weights
+        if windows is not None:
+            self.windows = windows
+        if infile is not None:
+            self.read_infile(infile)
+        if shape_dict is not None:
+            self.read_shapes(shape_dict, exclude_na)
+
+    def __len__(self):
+        """Length method returns the total number of records in the database
+        as determined by the length of the records attribute.
+        """
+
+        return len(self.y)
+
+    def records_per_bin(self):
+        """Prints the number of records in each category of self.y
+        """
+
+        distinct_cats = np.unique(self.y)
+        print({cat:len(np.where(self.y == cat)[0]) for cat in distinct_cats})
+
+    def iter_records(self):
+        """Iter method iterates over the shape records
+
+        Acts as a generator
+
+        Yields:
+        -------
+        rec_shapes : np.array
+            A 2d array of shape (P,S), where P is the length of each record
+            and S is the number of shapes,
+            for each index in the first axis of self.X.
+            So, each record's shapes.
+        """
+        for rec_shapes in self.X:
+            yield rec_shapes
+
+    def iter_shapes(self):
+        """Iter method iterates over each type of shape parameter's X vals
+
+        Acts as a generator
+
+        Yields:
+        -------
+        shapes : np.array
+            A 2d array of shape (R,P), where R is the number of records in
+            the database and P is the length of each record
+        """
+        shape_count = self.X.shape[2]
+        for s in range(shape_count):
+            yield self.X[:,:,s]
+
+    def iter_y(self):
+        """Iter method iterates over the ground truth records
+
+        Acts as a generator
+
+        Yields:
+        -------
+        val : int
+        """
+        for val in self.y:
+            yield val
+
+    def discretize_quant(self,nbins=10):
+        """Discretize data into n equally populated bins according to the
+        n quantiles
+        
+        Prints bin divisions to the logger
+
+        Modifies:
+        ---------
+        self.y : np.array
+            converts the values into their new categories
+        """
+
+        quants = np.arange(0, 100, 100.0/nbins)
+        values = self.y
+        bins = []
+        for quant in quants:
+            bins.append(np.percentile(values, quant))
+        logging.warning("Discretizing on bins: {}".format(bins))
+        self.y = np.digitize(values, bins)
+
+    def read_infile(self, infile):#, keep_inds=None):
+        """Method to read a sequence file in FIRE/TEISER/iPAGE format
+
+        Args:
+            infile (str): input data file name
+
+        Modifies:
+            record_name_lut - creates lookup table for associating
+                record names in records with record indices in y and X.
+            y - adds in the value for each sequence
+        """
+        scores = []
+        with open(infile) as inf:
+            line = inf.readline()
+            for i,line in enumerate(inf):
+                #if keep_inds is not None:
+                #    if not i in keep_inds:
+                #        continue
+                linearr = line.rstrip().split("\t")
+                self.record_name_lut[linearr[0]] = i
+                scores.append(linearr[1])
+            self.y = np.asarray(
+                scores,
+                dtype=int,
+            )
+
+    def read_shapes(self, shape_dict, exclude_na=True):
+        """Parses info in shapefiles and inserts into database
+
+        Args:
+        -----
+        shape_dict: dict
+            Dictionary, values of which are shape parameter names,
+            keys of which are shape parameter fasta files.
+
+        Modifies:
+        ---------
+        shape_name_lut
+        X
+        """
+
+        self.normalized = False
+        shape_idx = 0
+        shape_count = len(shape_dict)
+
+        for shape_name,shape_infname in shape_dict.items():
+
+            if not shape_name in self.shape_name_lut:
+                self.shape_name_lut[shape_name] = shape_idx
+                s_idx = shape_idx
+                shape_idx += 1
+
+            this_shape_dict = parse_shape_fasta(shape_infname)
+
+            if self.X is None:
+
+                record_count = len(this_shape_dict)
+                for rec_idx,rec_data in enumerate(this_shape_dict.values()):
+                    if rec_idx > 0:
+                        break
+                    record_length = len(rec_data)
+
+                self.X = np.zeros((record_count,record_length,shape_count))
+
+            for rec_name,rec_data in this_shape_dict.items():
+                r_idx = self.record_name_lut[rec_name]
+                while len(rec_data) < self.X.shape[1]:
+                    rec_data = np.append(rec_data, np.nan)
+                self.X[r_idx,:,s_idx] = rec_data
+
+        if exclude_na:
+            # identifies which positions have at least one NA for any shape
+            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2))
+            # grabs complete cases from X
+            self.X = self.X[:,complete_positions,:]
+
+    #def set_center_spread(self, center_spread):
+    #    """Method to set the center spread for the database for each
+    #    parameter
+
+    #    TODO check to make sure keys match all parameter names
+    #    """
+    #    self.center_spread = center_spread
+
+    def determine_center_spread(self, method=robust_z_csp):
+        """Method to get the center spread for each shape based on
+        all records in the database.
+
+        This will ignore any Nans in any shape sequence scores. First
+        calculates center (median of all scores) and spread (MAD of all scores)
+
+        Modifies:
+            self.center_spread - populates center spread with calculated values
+        """
+
+        shape_cent_spreads = []
+        # figure out center and spread
+        for shape_recs in self.iter_shapes():
+            shape_cent_spreads.append(method(shape_recs))
+
+        self.shape_centers = ([x[0] for x in shape_cent_spreads])
+        self.shape_spreads = ([x[1] for x in shape_cent_spreads])
+
+    def normalize_shape_values(self):
+        """Method to normalize each parameter based on self.center_spread
+
+        Modifies:
+            X - makes each index of the S axis a robust z score 
+        """
+
+        # normalize shape values
+        if not self.normalized:
+            self.X = ( self.X - self.shape_centers ) / self.shape_spreads
+            self.normalized = True
+        else:
+            print("X vals are already normalized. Doing nothing.")
+
+    def unnormalize_shape_values(self):
+        """Method to unnormalize each parameter from its RobustZ score back to
+        its original value
+
+        Modifies:
+            X - unnormalizes all the shape values
+        """
+    
+        # unnormalize shape values
+        if self.normalized:
+            self.X = ( self.X * self.shape_spreads ) + self.shape_centers
+            self.normalized = False
+        else:
+            print("X vals are not normalized. Doing nothing.")
+
+    def initialize_weights(self):
+        """Provides the weights attribute, with a beta distrubuted
+        weight over the length of the windows. Normalized such
+        that the weights for all shapes/positions in a given
+        record/window sum to one.
+        """
+
+        #L = self.windows.shape[1]
+        #S = self.windows.shape[2]
+        #self.weights = np.full_like(self.windows, 1.0/L/S)
+        self.weights = np.zeros_like(self.windows)
+
+        #x_vals = np.linspace(0,1,self.windows.shape[1])
+        #w = stats.beta.pdf(x_vals, 2, 2)
+        #w = w/np.sum(w)/self.windows.shape[2]
+        #w_list = [w for _ in range(self.windows.shape[2])]
+        #w = np.stack(w_list,axis=1)
+        #
+        #self.weights = np.zeros_like(self.windows)
+        #for rec in range(self.weights.shape[0]):
+        #    for win in range(self.weights.shape[-1]):
+        #        self.weights[rec,:,:,win] = w
+
+    def compute_windows(self, wsize):
+        """Method to precompute all nmers.
+
+        Modifies:
+            self.windows
+        """
+
+        #(R,L,S,W)
+        rec_num, rec_len, shape_num = self.X.shape
+        window_count = rec_len - wsize
+        
+        self.windows = np.zeros((rec_num, wsize, shape_num, window_count))
+
+        for i,rec in enumerate(self.iter_records()):
+            for j in range(window_count):
+                self.windows[i, :, :, j] = self.X[i, j:(j+wsize), :]
+
+    def permute_records(self):
+
+        rand_order = np.random.permutation(self.windows.shape[0])
+
+        permuted_windows = self.windows[rand_order,...]
+        permuted_weights = self.weights[rand_order,...]
+        permuted_shapes = self.X[rand_order,...]
+        permuted_vals = self.y[rand_order,...]
+
+        shape_count = self.X.shape[-1]
+        rev_lut = {val:k for k,val in self.shape_name_lut.items()}
+
+        permuted_records = RecordDatabase(
+            y = permuted_vals,
+            X = permuted_shapes,
+            shape_names = [rev_lut[idx] for idx in range(shape_count)],
+            weights = permuted_weights,
+            windows = permuted_windows,
+        )
+        return(permuted_records)
+
+    def set_initial_thresholds(self, dist, threshold_sd_from_mean=2.0,
+                               seeds_per_seq=1, max_seeds=10000):
+        """Function to determine a reasonable starting threshold given a sample
+        of the data
+
+        Args:
+        -----
+        seeds_per_seq : int
+        max_seeds : int
+
+        Returns:
+        --------
+        threshold : float
+            A  threshold that is the
+            mean(distance)-2*stdev(distance))
+        """
+
+        online_mean = welfords.Welford()
+        total_seeds = []
+        seed_counter = 0
+        shuffled_db = self.permute_records()
+
+        for i,record_windows in enumerate(shuffled_db.windows):
+
+            record_weights = shuffled_db.weights[i,...]
+            rand_order = np.random.permutation(record_windows.shape[2])
+            curr_seeds_per_seq = 0
+            for index in rand_order:
+                window = record_windows[:,:,index]
+                window_weights = record_weights[:,:,index]
+                if curr_seeds_per_seq >= seeds_per_seq:
+                    break
+                total_seeds.append((window, window_weights))
+                curr_seeds_per_seq += 1
+                seed_counter += 1
+            if seed_counter >= max_seeds:
+                break
+
+        logging.info(
+            "Using {} random seeds to determine threshold from pairwise distances".format(
+                len(total_seeds)
+            )
+        )
+        distances = []
+        for i,seed_i in enumerate(total_seeds):
+            for j, seed_j in enumerate(total_seeds):
+                if i >= j:
+                    continue
+                distance = dist(seed_i[0], seed_j[0], seed_i[1])
+                online_mean.update(distance)
+
+        mean = online_mean.final_mean()
+        stdev = online_mean.final_stdev()
+
+        logging.info("Threshold mean: {} and stdev {}".format(mean,stdev))
+        thresh = max(mean - threshold_sd_from_mean * stdev, 0)
+        logging.info("Setting initial threshold for each seed to {}".format(thresh))
+
+        # set up thresholds array of shape (R,W)
+        self.thresholds = np.zeros((self.windows.shape[0], self.windows.shape[-1]))
+        # set values to the calculated initial threshold
+        self.thresholds[...] = thresh
+
+    def mutual_information(self, arr):
+        """Method to calculate the MI between the values in the database and
+        an external vector of discrete values of the same length
+        
+        Uses log2 so MI is in bits
+
+        Args:
+        -----
+            arr : np.array
+                A 1D numpy array of integer values the same length as the database
+
+        Returns:
+        --------
+            mutual information between discrete and self.values
+        """
+        return mutual_information(self.y, arr)
+
+    def flatten_in_windows(self, attr):
+
+        arr = getattr(self, attr)
+        flat = arr.reshape(
+            (
+                arr.shape[0],
+                arr.shape[1]*arr.shape[2],
+                arr.shape[3]
+            )
+        ).copy()
+        return flat
+
+    def compute_mi(self, dist, binary=False):
+        
+        rec_num,win_len,shape_num,win_num = self.windows.shape
+        mi_arr = np.zeros((rec_num,win_num))
+        hits_arr = np.zeros((rec_num,win_num,rec_num,2))
+
+        for r in range(rec_num):
+            for w in range(win_num):
+
+                mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
+                    self.y,
+                    self.windows[r,:,:,w],
+                    self.weights[r,:,:,w],
+                    self.thresholds[r,w],
+                    self.windows,
+                    rec_num,
+                    win_num,
+                    dist,
+                    binary,
+                )
+
+        self.mi = mi_arr
+        self.hits = hits_arr
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with
@@ -324,10 +979,14 @@ class SeqDatabase(object):
     """
 
     def __init__(self, names=None):
-        self.names = names
+        if names is None:
+            self.names = []
+        else:
+            self.names = names
         self.values = []
         self.params = []
         self.vectors = []
+        self.flat_windows = None
         self.center_spread = None
 
     def __iter__(self):
@@ -340,6 +999,9 @@ class SeqDatabase(object):
         """
         for param in self.params:
             yield param
+
+    def __getitem__(self, item):
+        return(self.names[item], self.values[item], self.params[item], self.vectors[item])
 
     def __len__(self):
         """Length method returns the total number of sequences in the database
@@ -374,10 +1036,14 @@ class SeqDatabase(object):
         # first convert values to robust Z score
         values = get_values(self)
         median = np.median(values)
-        mad = np.median(np.abs((values-median)))*1.4826
+        mad = np.median(np.abs((values-median))) * 1.4826
         values = (values-median)/mad
+        # I don't quite understand this method.
+        # Why is the middle bin so wide?
+        # And, why mad-standardize values, then digitize on these bins, which
+        #   are shifted by the median?
         bins = [-2*mad + median, -1*mad + median, 1*mad + median, 2*mad + median]
-        logging.warning("Discretizing on bins: %s"%bins)
+        logging.warning("Discretizing on bins: {}".format(bins))
         self.values = np.digitize(values, bins)
 
 
@@ -390,7 +1056,7 @@ class SeqDatabase(object):
         Modifies:
             self.values (list): converts the values into their new categories
         """
-        quants = np.arange(0,100, 100.0/nbins)
+        quants = np.arange(0, 100, 100.0/nbins)
         values = self.get_values()
         bins = []
         for quant in quants:
@@ -492,27 +1158,31 @@ class SeqDatabase(object):
         else:
             return new_db
 
-
-    def read(self, infile, dtype=int):
+    def read(self, infile, dtype=int, keep_inds=None):
         """Method to read a sequence file in FIRE/TEISER/iPAGE format
 
         Args:
             infile (str): input data file name
             dtype (func): a function to convert the values, defaults to int
+            keep_inds (list): a list of indices to store
 
         Modifies:
-            names- adds in the name of each sequence
-            values- adds in the value for each sequence
+            names - adds in the name of each sequence
+            values - adds in the value for each sequence
             params - makes a new dsp.ShapeParams object for each sequence
         """
         with open(infile) as inf:
             line = inf.readline()
-            for line in inf:
+            for i,line in enumerate(inf):
+                if keep_inds is not None:
+                    if not i in keep_inds:
+                        continue
                 linearr = line.rstrip().split("\t")
                 self.names.append(linearr[0])
                 self.values.append(dtype(linearr[1]))
                 self.params.append(dsp.ShapeParams(data={},names=[]))
-            self.values = np.array(self.values)
+            self.values = np.asarray(self.values)
+
 
     def write(self, outfile):
         """ Method to write out the category file in FIRE/TEISER/IPAGE format"""
@@ -520,7 +1190,6 @@ class SeqDatabase(object):
             outf.write("name\tval\n")
             for name, val in zip(self.names, self.values):
                 outf.write("%s\t%s\n"%(name, val))
-                
 
 
     def set_center_spread(self, center_spread):
@@ -550,7 +1219,7 @@ class SeqDatabase(object):
                 this_val.extend(this_param.params)
                 all_this_param[this_param.name] = this_val
         cent_spread = {}
-        for name in all_this_param.keys():
+        for name in list(all_this_param.keys()):
             these_vals = all_this_param[name]
             these_vals = np.array(these_vals) 
             cent_spread[name] = method(these_vals)
@@ -599,6 +1268,66 @@ class SeqDatabase(object):
                 window.as_vector(cache=True)
                 this_seqs.append(window)
             self.vectors.append(this_seqs)
+
+    def shape_vectors_to_3d_array(self):
+        """Method to iterate through precomputed windows for each parameter
+        and flatten all parameters into a single long vector.
+
+        Modifies:
+            self.flat_windows : np.array
+                A 3d numpy array of shape (N, L*P, W), where N is the number
+                of records in the original input data,
+                L*P is the length of each window
+                times the number of shape parameters, and W is the number
+                of windows computed for each record.
+        """
+
+        param_names = self.params[0].names
+        param_count = len(param_names)
+        window_count = len(self.vectors[0])
+        record_count = len(self)
+        window_size = len(self.vectors[0][0].data['EP'].get_values())
+
+        self.flat_windows = np.zeros(
+            (
+                record_count,
+                window_size*param_count,
+                window_count
+            )
+        )
+        for i,val in enumerate(self.vectors):
+            for j,window in enumerate(val):
+                self.flat_windows[i,:,j] = window.as_vector()
+
+#    def shape_vectors_to_2d_array(self):
+#        """Method to iterate through precomputed windows for each parameter
+#        and flatten all parameters into a single long vector.
+#
+#        Modifies:
+#            self.flat_windows : np.array
+#                A 3d numpy array of shape (N*W, L*P), where N*W is the number
+#                of records in the original input data times the number of windows
+#                computed for each record and L*P*W is the length of each window
+#                times the number of shape parameters times.
+#        """
+#
+#        param_names = self.params[0].names
+#        param_count = len(param_names)
+#        window_count = len(self.vectors[0])
+#        record_count = len(self)
+#        window_size = len(self.vectors[0][0].data['EP'].get_values())
+#
+#        self.flat_2d_windows = np.zeros(
+#            (
+#                record_count*window_count,
+#                window_size*param_count
+#            )
+#        )
+#        this_idx = 0
+#        for i,val in enumerate(self.vectors):
+#            for j,window in enumerate(val):
+#                self.flat_2d_windows[this_idx,:] = window.as_vector()
+#                this_idx += 1
 
     def iterate_through_precompute(self):
         """Method to iterate through all precomputed motifs
@@ -879,11 +1608,6 @@ class ShapeMotifFile(object):
                 string += ",%d,%s\n"%(i,motif["name"])
                 f.write(string)
 
-
-
-                
-
-
 def entropy(array):
     """Method to calculate the entropy of any discrete numpy array
         
@@ -964,8 +1688,8 @@ def conditional_entropy(arrayx, arrayy):
                 entropy += p_x_y*np.log2(p_x/p_x_y)
     return -entropy
 
-
-def mutual_information(arrayx, arrayy):
+@jit(nopython=True)
+def mutual_information(arrayx, arrayy, uniquey):
     """Method to calculate the mutual information between two discrete
     numpy arrays I(X;Y)
         
@@ -974,30 +1698,36 @@ def mutual_information(arrayx, arrayy):
     Args:
         arrayx (np.array): an array of discrete categories
         arrayy (np.array): an array of discrete categories
+        uniquey (np.array): array of distinct values found in arrayy
     Returns:
         mutual information between array1 and array2
     """
 
     total_x = arrayx.size 
     total_y = arrayy.size
-    if total_x != total_y:
-        raise ValueError("Array sizes must be the same %s %s"%(total_x, total_y))
-    else:
-        total = total_x + 0.0
+    #if total_x != total_y:
+    #    raise ValueError("Array sizes must be the same {} {}".format(total_x, total_y))
+    #else:
+    #    total = total_x + 0.0
+    total = total_x
     MI = 0
     for x in np.unique(arrayx):
-        for y in np.unique(arrayy):
+        for y in uniquey:
+            # p(x_i)
             p_x = np.sum(arrayx == x)/total
-            p_y = np.sum(arrayy == y)/total
-            p_x_y = np.sum(np.logical_and(arrayx == x, arrayy == y))/total
+            # p(y_j)
+            row_is_y = (arrayy == y)[:,0]
+            p_y = np.sum(row_is_y)/total
+            # p(x_i,y_j)
+            p_x_y = np.sum(np.logical_and(arrayx == x, row_is_y))/total
             if p_x_y == 0 or p_x == 0 or p_y == 0:
-                MI+= 0
+                MI += 0
             else:
                 MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
     return MI
 
-
-def conditional_mutual_information(arrayx, arrayy, arrayz):
+@jit(nopython=True)
+def conditional_mutual_information(arrayx, uniquex, arrayy, uniquey, arrayz, uniquez):
     """Method to calculate the conditional mutual information I(X;Y|Z)
         
     Uses log2 so mutual information is in bits. This is O(X*Y*Z) where
@@ -1014,25 +1744,50 @@ def conditional_mutual_information(arrayx, arrayy, arrayz):
     total_x = arrayx.size 
     total_y = arrayy.size
     total_z = arrayz.size
-    if total_x != total_y or total_y != total_z:
-        raise ValueError("Array sizes must be the same %s %s %s"%(total_x, total_y, total_z))
-    else:
-        total = total_x + 0.0
+    total = total_x
+    #if total_x != total_y or total_y != total_z:
+    #    raise ValueError(
+    #        "Array sizes must be the same {} {} {}".format(
+    #            total_x,
+    #            total_y,
+    #            total_z
+    #        )
+    #    )
+    #else:
+    #    total = total_x
     CMI = 0
-    for z in np.unique(arrayz):
-        subset = arrayz == z
-        total_subset = np.sum(subset) + 0.0
+    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
+    for z in uniquez:
+        # set the indices we will look at in arr_x and arr_y
+        subset = (arrayz == z)[:,0]
+        # set number of vals == z in arr_z as denominator
+        total_subset = np.sum(subset)
         p_z = total_subset/total
         this_MI = 0
-        for x in np.unique(arrayx):
-            for y in np.unique(arrayy):
-                p_x = np.sum(arrayx[subset] == x)/total_subset
-                p_y = np.sum(arrayy[subset] == y)/total_subset
-                p_x_y = np.sum(np.logical_and(arrayx[subset] == x, arrayy[subset] == y))/total_subset
+
+        for x in uniquex:
+            for y in uniquey:
+                # calculate the probability that the indices of arr_x and arr_y
+                #  corresponding to those in arr_z == z are equal to x or y.
+                # so essentially, in english, we're saying the following:
+                #  given that arr_z is what it is, what is the MI between
+                #  arr_x and arr_y?
+                row_is_y = (arrayy[subset] == y)[:,0]
+                row_is_x = arrayx[subset] == x
+                p_x = np.sum(row_is_x)/total_subset
+                p_y = np.sum(row_is_y)/total_subset
+                p_x_y = np.sum(
+                    np.logical_and(
+                        arrayx[subset] == x,
+                        row_is_y
+                    )
+                ) / total_subset
                 if p_x_y == 0 or p_x == 0 or p_y == 0:
-                    this_MI+= 0
+                    this_MI += 0
                 else:
                     this_MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
+
         CMI += p_z*this_MI
+
     return CMI
 

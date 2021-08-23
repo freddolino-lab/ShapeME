@@ -57,7 +57,7 @@ class FimoSeq(object):
         return len(self.data)
 
     def find_lines(self, findfunc, findall=True):
-        matches = filter(findfunc, self.data)
+        matches = list(filter(findfunc, self.data))
         new_seq = FimoSeq(self.name)
         if len(matches) == 0:
             return new_seq
