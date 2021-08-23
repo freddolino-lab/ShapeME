@@ -73,9 +73,9 @@ def make_kfold_datasets(k, fastafile, firefile, outpre):
     np.random.shuffle(fastafile.names)
     # create k folds out of the names as a list of lists
     size = len(fastafile.names)
-    folds = [firefile.names[i::k] for i in xrange(k)]
+    folds = [firefile.names[i::k] for i in range(k)]
     # loop through each fold
-    for test_idx in xrange(len(folds)):
+    for test_idx in range(len(folds)):
         # make a seperate fasta file and fire file for the test fold
         this_test_fasta = fa.FastaFile()
         this_test_fire = FIREfile()
@@ -91,7 +91,7 @@ def make_kfold_datasets(k, fastafile, firefile, outpre):
         this_train_fasta = fa.FastaFile()
         this_train_fire = FIREfile()
         
-        for train_idx in xrange(len(folds)):
+        for train_idx in range(len(folds)):
             if train_idx != test_idx:
                 for name in folds[train_idx]:
                     this_train_fasta.add_entry(fastafile.pull_entry(name))
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         else:
             realfire.add_entry(this_entry.chrm_name(), 1)
 
-        for j in xrange(args.nrand):
+        for j in range(args.nrand):
             this_rand = fa.FastaEntry()
             this_seq = "N"*(args.wsize*2 + 1)
             while this_seq.count("N") > args.wsize:
