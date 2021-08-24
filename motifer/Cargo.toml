@@ -1,0 +1,14 @@
+cargo-features = ["test-dummy-unstable"]
+
+[package]
+name = "motifer"
+version = "0.1.0"
+authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc.edu>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ndarray = "0.15.0"
+argmin = { version = "0.4.7", features = ["ctrlc", "ndarrayl", "nalgebral"] }
+clap = {version = "~2.27.0", features = ["yaml"]}
