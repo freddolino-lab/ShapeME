@@ -5,7 +5,14 @@ mod tests {
     use super::*
 
     #[test]
-    
+    fn test_const_dist() {
+        // make the Motif struct
+        
+        // make the Other Motif struct
+
+
+        assert_eq!(Motif.distance(other), 2.0);
+    }
 }
 
 //fn run_query_over_ref(
@@ -73,13 +80,19 @@ impl Motif {
     ) -> f32 {
 
         let mut dist = 0;
+        //NOTE: needs type here
+        let mut self_vals = Vec::new();
+        let mut other_vals = Vec::new();
+        let mut w_exp_sum = 0;
 
         for (param_name,param_info) in self.info {
             // normalize the weights here
             
             for pos in 0..len(param_info) {
                 let x = param_info[pos][0];
-                let w = 
+                let w = param_info[pos][1];
+                let w_exp = exp(w);
+
                 let y = other.get(param_name)[pos];
                 let dist += abs(x - y) * w
             }
@@ -166,17 +179,17 @@ impl Motif {
 //    return args
 //}
 
-/// Parses a CLI match from clap crate and converts to u32
-pub fn fetch_int_arg(arg_val: &str) -> u32 {
-    let int_val: u32 = arg_val.parse().unwrap();
-    return int_val
-}
-
-/// Parses a CLI match from clap crate and converst to f32
-pub fn fetch_float_arg(arg_val: &str) -> f32 {
-    let float_val: f32 = arg_val.parse().unwrap();
-    return float_val
-}
+///// Parses a CLI match from clap crate and converts to u32
+//pub fn fetch_int_arg(arg_val: &str) -> u32 {
+//    let int_val: u32 = arg_val.parse().unwrap();
+//    return int_val
+//}
+//
+///// Parses a CLI match from clap crate and converst to f32
+//pub fn fetch_float_arg(arg_val: &str) -> f32 {
+//    let float_val: f32 = arg_val.parse().unwrap();
+//    return float_val
+//}
 
 //fn parse_cli_yaml(cfg_fname: &str) -> Args {
 //

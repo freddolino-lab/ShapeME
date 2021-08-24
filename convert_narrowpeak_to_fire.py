@@ -183,4 +183,3 @@ if __name__ == "__main__":
         with open(args.outpre+".fa", mode="w") as outf:
             outfasta.write(outf)
         #outfire.write(args.outpre+"_fire.txt")
-
