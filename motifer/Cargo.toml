@@ -11,3 +11,4 @@ edition = "2018"
 [dependencies]
 ndarray = "0.15.0"
 argmin = { version = "0.4.7", features = ["ctrlc", "ndarrayl", "nalgebral"] }
+numeric = "0.1.4"
