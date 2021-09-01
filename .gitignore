@@ -1,4 +1,5 @@
 tests/test/*_input
+tests
 tests/test/*_out
 *.pkl
 tests/*.pkl

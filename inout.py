@@ -4,6 +4,7 @@ import logging
 from numba import jit,prange
 import welfords
 from scipy import stats
+from collections import OrderedDict
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
                        ref, R, W, dist_func, max_count=4):
@@ -354,9 +355,8 @@ class FastaFile(object):
     """
 
     def __init__(self):
-        self.data = {}
+        self.data = OrderedDict()
         self.names = []
-
 
     def __iter__(self):
         for name in self.names:
