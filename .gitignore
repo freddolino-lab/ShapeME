@@ -7,4 +7,6 @@ tests/test/*.pkl
 __pycache__
 utils/__pycache__
 motifer/target
+optim/target
 motifer/Cargo.lock
+optim/Cargo.lock

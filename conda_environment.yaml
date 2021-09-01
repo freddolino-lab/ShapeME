@@ -16,4 +16,3 @@ dependencies:
     - r-glmnet
     - jupyter
     - rpy2
-    - tensorflow

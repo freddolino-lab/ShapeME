@@ -942,7 +942,7 @@ class RecordDatabase(object):
         ).copy()
         return flat
 
-    def compute_mi(self, dist, binary=False):
+    def compute_mi(self, dist, max_count):
         
         rec_num,win_len,shape_num,win_num = self.windows.shape
         mi_arr = np.zeros((rec_num,win_num))
@@ -960,7 +960,7 @@ class RecordDatabase(object):
                     rec_num,
                     win_num,
                     dist,
-                    binary,
+                    max_count,
                 )
 
         self.mi = mi_arr
