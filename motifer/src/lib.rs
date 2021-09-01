@@ -1,17 +1,68 @@
+use std::collections::HashMap;
+use numeric::math;
 // use ndarray::prelude::*;
 
 #[cfg(test)]
 mod tests {
-    use super::*
+    use super::*;
+
+    fn set_up_motif() -> Motif {
+        let ep_param = Param{
+            name: Params::EP,
+            vals: vec![1.0, 1.0],
+            weights: vec![0.0, 0.0],
+        };
+        let prot_param = Param{
+            name: Params::ProT,
+            vals: vec![1.0, 1.0],
+            weights: vec![0.0, 0.0],
+        };
+        let helt_param = Param{
+            name: Params::HelT,
+            vals: vec![1.0, 1.0],
+            weights: vec![0.0, 0.0],
+        };
+        let roll_param = Param{
+            name: Params::Roll,
+            vals: vec![1.0, 1.0],
+            weights: vec![0.0, 0.0],
+        };
+        let mgw_param = Param{
+            name: Params::MGW,
+            vals: vec![1.0, 1.0],
+            weights: vec![0.0, 0.0],
+        };
+
+        // make the Motif struct
+        let mut this_motif = Motif{
+            params: HashMap::new(),
+        };
+        this_motif.params.insert(Params::EP, ep_param);
+        
+        this_motif
+    }
+
+    fn set_up_other() -> Motif {
+    
+        let ref_ep_param = Param{
+            name: Params::EP,
+            vals: vec![0.0, 0.0],
+            weights: vec![0.0, 0.0],
+        };
+        // make the reference motif
+        let mut that_motif = Motif{
+            params: HashMap::new(),
+        };
+        that_motif.params.insert(Params::EP, ref_ep_param);
+
+        that_motif
+    }
 
     #[test]
     fn test_const_dist() {
-        // make the Motif struct
-        
-        // make the Other Motif struct
-
-
-        assert_eq!(Motif.distance(other), 2.0);
+        let this_motif = set_up_motif();
+        let that_motif = set_up_other();
+        assert_eq!(this_motif.constrained_manhattan_distance(&that_motif), 2.0);
     }
 }
 
@@ -29,6 +80,7 @@ mod tests {
 //}
 
 /// An enumeration of parameter names
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum Params {
     EP,
     MGW,
@@ -39,8 +91,9 @@ enum Params {
 
 /// struct for parameters
 struct Param {
-    name: Params, // name must be one of the enum Params
+    name: Params, // name must be one of the enumerated Params
     vals: Vec<f32>, // vals is a vector of floating point 32-bit precision
+    weights: Vec<f32>, // weights is a vector
 }
 
 /// For Motif, the idea here is that info has a key for each parameter.
@@ -48,24 +101,25 @@ struct Param {
 ///  The first element of each tuple is the parameter's value, the second
 ///  is the weight.
 struct Motif {
-    info: Hashmap,
+    params: HashMap<Params, Param>,
 }
 
-/// For Window, we have an info attribute that is simpler than that of Motif.
-///  Window.info is a Hashmap, the keys of which are Params, and the values
-///  of which are simple vectors of shape values.
-struct Window {
-    info: Hashmap,
-}
+///// For Window, we have an info attribute that is simpler than that of Motif.
+/////  Window.info is a HashMap, the keys of which are Params, and the values
+/////  of which are simple vectors of shape values.
+//#[derive(Debug)]
+//struct Window {
+//    info: HashMap,
+//}
 
-/// Record contains a single piece of DNA's shape values and y-value
-///  Also has a windows attribute, which is a vector of the windows
-///  for the split up parameter values.
-struct Record {
-    params: Hashmap,
-    windows: Vec<Hashmap>,
-    y: u8,
-}
+///// Record contains a single piece of DNA's shape values and y-value
+/////  Also has a windows attribute, which is a vector of the windows
+/////  for the split up parameter values.
+//#[derive(Debug)]
+//struct Record {
+//    windows: Vec<HashMap>,
+//    y: u8,
+//}
 
 impl Motif {
     /// Returns weighted distance between two Motif structs.
@@ -76,35 +130,39 @@ impl Motif {
     /// ```
     fn constrained_manhattan_distance(
         &self,
-        other: Window
+        other: &Motif,
     ) -> f32 {
 
-        let mut dist = 0;
+        let mut dist: f32 = 0.0;
+
+        let mut dist_vec = Vec::new();
         //NOTE: needs type here
         let mut self_vals = Vec::new();
         let mut other_vals = Vec::new();
+        let mut w_exp_vec = Vec::new();
         let mut w_exp_sum = 0;
 
-        for (param_name,param_info) in self.info {
+        for (param_name,param) in self.params {
             // normalize the weights here
             
-            for pos in 0..len(param_info) {
-                let x = param_info[pos][0];
-                let w = param_info[pos][1];
-                let w_exp = exp(w);
+            for pos in 0..param.vals.len() {
+                let self_val = param.vals[pos];
+                let w = param.weights[pos];
+                let w_exp = math::exp(w);
+                w_exp_vec.push(w_exp);
+                w_exp_sum += w_exp;
 
-                let y = other.get(param_name)[pos];
-                let dist += abs(x - y) * w
+                let other_val = other.params.get(&param_name).vals[pos];
+                let dist = math::abs(self_val - other_val);
+                dist_vec.push(dist);
             }
         }
+        
+        for idx in 0..dist_vec.len() {
+            let w_exp = w_exp_vec[idx] / w_exp_sum;
+            dist += w_exp * dist_vec[idx];
+        }
 
-        let w_exp = exp(w);
-        let w = w_exp / sum(w_exp);
-        let diff: Vec<f32> = 
-            vec1.iter().zip(
-                vec2.iter()
-            ).map(|(&b, &v)| (b - v).abs()).collect();
-        let dist = sum(diff * w);
         return dist
     }
 }
