@@ -1,8 +1,9 @@
 [package]
-name = "motifer"
+name = "DNAshape_motif_finder"
 version = "0.1.0"
-authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc.edu>"]
+authors = ["Mike B. Wolfe <mikewolfe.490@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dependencies]
