@@ -12,6 +12,7 @@ dependencies:
     - numpy
     - numba
     - ipython
+    - matplotlib
     - bioconductor-dnashaper
     - r-glmnet
     - jupyter
