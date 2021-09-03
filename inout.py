@@ -4,6 +4,28 @@ import logging
 from numba import jit,prange
 import welfords
 from scipy import stats
+from collections import OrderedDict
+
+#@jit(nopython=True, parallel=True)
+#def get_all_mi(indices, rec_num, win_num, y_vals,
+#               windows, weights, thresholds, mi_arr,
+#               hits_arr, dist, max_count):
+#    
+#    for i in prange(len(indices)):
+#        r,w = indices[i]
+#
+#        mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
+#            y_vals,
+#            windows[r,:,:,w],
+#            weights[r,:,:,w],
+#            thresholds[r,w],
+#            windows,
+#            rec_num,
+#            win_num,
+#            dist,
+#            max_count,
+#        )
+
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
                        ref, R, W, dist_func, max_count=4):
@@ -138,6 +160,8 @@ def optim_generate_peak_array(ref, query, weights, threshold,
             if f_maxed and r_maxed:
                 break
 
+            ref_seq = ref[r,:,:,w]
+
             if not f_maxed:
                 distance = dist(query, ref_seq, weights)
                 if distance < threshold:
@@ -169,6 +193,16 @@ def constrained_manhattan_distance(vec1, vec2, w=1):
     w_exp = np.exp(w)
     w = w_exp/np.sum(w_exp)
     return np.sum(np.abs(vec1 - vec2) * w)
+
+@jit(nopython=True)
+def inv_logit(x):
+    return np.exp(x) / (1 + np.exp(x))
+
+@jit(nopython=True)
+def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
+    w_floor_inv_logit = a + (1-a) * inv_logit(w)
+    w_trans = w_floor_inv_logit/np.sum(w_floor_inv_logit)
+    return np.sum(np.abs(vec1 - vec2) * w_trans)
 
 @jit(nopython=True)
 def hamming_distance(vec1, vec2):
@@ -354,9 +388,8 @@ class FastaFile(object):
     """
 
     def __init__(self):
-        self.data = {}
+        self.data = OrderedDict()
         self.names = []
-
 
     def __iter__(self):
         for name in self.names:
@@ -942,7 +975,7 @@ class RecordDatabase(object):
         ).copy()
         return flat
 
-    def compute_mi(self, dist, binary=False):
+    def compute_mi(self, dist, max_count):
         
         rec_num,win_len,shape_num,win_num = self.windows.shape
         mi_arr = np.zeros((rec_num,win_num))
@@ -960,7 +993,7 @@ class RecordDatabase(object):
                     rec_num,
                     win_num,
                     dist,
-                    binary,
+                    max_count,
                 )
 
         self.mi = mi_arr

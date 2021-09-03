@@ -133,7 +133,7 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
                         fatol=0.0001, adapt=False,
                         maxfev=None, opt_params=['weights'],
                         window_inds=None, method = 'nelder-mead',
-                        n_iter_success = 100):
+                        n_iter_success = 100, constraints_dict = {}):
     """Perform motif optimization stochastically
     
     Args:
@@ -145,9 +145,9 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
     R,L,S,W = record_db.windows.shape 
 
     if window_inds is not None:
-        for i in range(len(window_inds[0])):
-            r_idx = window_inds[0][i]
-            w_idx = window_inds[1][i]
+        for i in range(len(window_inds)):
+            r_idx = window_inds[i][0]
+            w_idx = window_inds[i][1]
             final = stochastic_opt_helper(
                 r_idx,
                 w_idx,
@@ -161,6 +161,7 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
                 targets = opt_params,
                 method = method,
                 n_iter_success = n_iter_success,
+                constraints_dict={},
             )
             results.append((final,r_idx,w_idx))
 
@@ -232,8 +233,9 @@ def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
 
 def stochastic_opt_helper(r_idx, w_idx, dist, db,
                           temperature, stepsize, fatol, adapt,
-                          maxfev, max_count=4, targets = ['weights'], method='nelder-mead',
-                          n_iter_success = 100):
+                          maxfev, max_count=4, targets = ['weights'],
+                          method='nelder-mead',
+                          n_iter_success = 100, constraints_dict={}):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -266,7 +268,10 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     n_iter_success : int
         Stop the run if the global minimum candidate remains the same
         for this number of iterations.
-    
+    constraints_dict : dict
+        Keys are target types ("threshold", "weights", and "shapes")
+        and values are tuples of (lower_bound, upper_bound)
+
     Returns:
     --------
         final_motif_dict (dict) - A dictionary containing final motif and
@@ -322,9 +327,11 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
             func_info,
             idx_breaks,
             targets,
+            max_count,
             thresh_arg,
             shapes_arg,
             weights_arg,
+            constraints_dict,
         ), 
         'method': method,
         'options' : {
@@ -619,8 +626,9 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
 
 
 def optimize_worker(targets, all_shapes, y, dist_func, info,
-                            target_breaks, targets_order, max_count=4,
-                            threshold=None, shapes=None, weights=None):
+                    target_breaks, targets_order, max_count=4,
+                    threshold=None, shapes=None, weights=None,
+                    constraints_dict={}):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
@@ -664,6 +672,10 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         max_count : int
             Default is 4. Sets the maximum number of hits to count
             for each strand.
+        constraints_dict : dict
+            Defines the constraints for each target. Has the keys 'threshold',
+            'weights', and 'shapes'. Each key's value is a tupple of (lower, upper)
+            limits on that target.
 
     Returns:
     --------
@@ -672,6 +684,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
 
     R,L,S,W = all_shapes.shape
 
+    # vals_dict has 'threshold', 'weights', and 'shapes' keys.
     vals_dict = retrieve_vals_from_target_vec(
         threshold,
         weights,
@@ -682,6 +695,48 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         L,
         S,
     )
+
+    # insert logic here to handle constraints
+    for target_name,target_constraints in constraints_dict.items():
+        target_vals = vals_dict[target_name]
+
+        garbage_mi = 0
+        below = False
+        above = False
+
+        # Which are below lower bound?
+        below_sane = target_vals < target_constraints[0]
+        # if a value is below the lower bound, calculate how far out
+        #  to determine what to set garbage MI to.
+        if np.any(below_sane):
+            below = True
+            distance_below = np.max(
+                np.abs(
+                    target_vals[below_sane] - target_constraints[0]
+                )
+            )
+            garbage_mi = -500 + -10_000 * distance_below
+            
+        # Which are above upper bound?
+        above_sane = target_vals > target_constraints[1]
+        # If any values were above the upper bound, calculate how far,
+        #  then calculate the garbage MI, comparing the the one
+        #  calculated for the values violating the lower constraint,
+        #  if they exist, and finally, return the garbage MI
+        if np.any(above_sane):
+            above = True
+            distance_above = np.max(
+                np.abs(
+                    target_vals[above_sane] - target_constraints[1]
+                )
+            )
+            if below:
+                above_garbage = -500 + -10_000 * distance_above
+                garbage_mi = np.min([garbage_mi, above_garbage])
+            else:
+                garbage_mi = -500 + -10_000 * distance_below
+
+        return -garbage_mi
 
     this_mi,hits = inout.run_query_over_ref(
         y,
@@ -694,21 +749,6 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         dist_func,
         max_count,
     )
-
-    #hits = np.zeros(R)
-
-    #inout.optim_generate_peak_array(
-    #    all_shapes,
-    #    vals_dict['shapes'],
-    #    vals_dict['weights'],
-    #    vals_dict['threshold'],
-    #    hits,
-    #    R,
-    #    W,
-    #    dist_func,
-    #)
-
-    #this_mi = inout.mutual_information(y, hits)
 
     if info["NFeval"] % 10 == 0:
         info["value"].append(this_mi)
@@ -1425,7 +1465,6 @@ def aic_motifs2(records):
     #  and we add 1 because the motif's threshold was a parameter.
     rec_num,win_len,shape_num,win_num = records.windows.shape
     delta_k = win_len * shape_num * 2 + 1
-    print(delta_k)
 
     # get sorted order of mi values
     # returns a tuple of arrays corresponding to (row_idx, col_idx)
@@ -1438,14 +1477,11 @@ def aic_motifs2(records):
     top_motif_inds = []
     # Make sure first motif passes AIC
     top_mi = records.mi[sort_r_inds[0],sort_c_inds[0]]
-    print(rec_num)
     top_aic = calc_aic(delta_k, rec_num, top_mi)
     if top_aic < 0:
         top_motif_inds = [(sort_r_inds[0],sort_c_inds[0])]
     else:
         return []
-    print(top_mi)
-    print(top_aic)
 
     # loop through candidate motifs
     for cand_idx in range(1,len(sort_r_inds)):
@@ -1475,7 +1511,6 @@ def aic_motifs2(records):
             distinct_good_motif_hits = np.unique(good_motif_hits, axis=0)
             distinct_y = np.unique(records.y)
             distinct_cand_hits = np.unique(cand_hits, axis=0)
-            print(distinct_cand_hits)
             this_cmi = inout.conditional_mutual_information(
                 records.y, 
                 distinct_y,
@@ -1485,8 +1520,6 @@ def aic_motifs2(records):
                 distinct_good_motif_hits,
             )
             this_aic = calc_aic(delta_k, rec_num, this_cmi)
-            print(this_cmi)
-            print(this_aic)
 
             # if candidate motif doesn't improve model as added to each of the
             # chosen motifs, skip it
@@ -1496,9 +1529,6 @@ def aic_motifs2(records):
 
         if motif_pass:
             top_motif_inds.append((cand_r_idx,cand_c_idx))
-
-        if cand_idx > 50:
-            return top_motif_inds
 
     return top_motif_inds
 

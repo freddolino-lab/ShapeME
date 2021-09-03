@@ -1,0 +1,55 @@
+name: find_motifs
+version: "0.0"
+author: Mike Wolfe <mwolfe6@wisc.edu>, Jeremy Schroeder <schroedj@umich.edu>
+about: Identifies motifs enriched or depleted in regions of interest.
+args:
+    - infile:
+        long: infile
+        value_name: FILE
+        help: Input text file with names and scores
+        takes_value: true
+        required: true
+    - params:
+        long: params
+        required: true
+        takes_value: true
+    - param_names:
+        long: param_names
+        required: true
+        takes_value: true
+    - kmer:
+        long: kmer
+        takes_value: true
+        default_value: 15
+        help: Sets window length for establishing initial seeds.
+    - threshold_perc:
+        long: threshold_perc
+        takes_value: true
+        default_value: 0.05
+        help: Sets fraction of seeds to calculate distances and set initial threshold for matches.
+    - threshold_match:
+        long: threshold_match
+        takes_value: true
+        default_value: 2.0
+        help: Sets number of standard deviations from the mean initial threshold to offest the initial match.
+    - continuous:
+        long: continuous
+        takes_value: true
+        required: false
+        help: Discretize continuous y values into this many bins. Apply this flag if the y values are continuous data. These types of data will be discretized.
+    - inforobust:
+        long: inforobust
+        takes_value: true
+        default_value: 10
+        help: Calculate robustness of final motif with x jacknifes.
+    - fracjack:
+        long: frackjack
+        takes_value: true
+        required: false
+        default_value: 0.3
+        help: Fraction of data to hold out in jacknifes. Default=0.3.
+    - out_pref:
+        long: out_pref
+        takes_value: true
+        default_value: motif_out_
+        help: Prefix to prepend to output file names.
