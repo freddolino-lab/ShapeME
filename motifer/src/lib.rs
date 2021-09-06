@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 // use ndarray::prelude::*;
 
@@ -103,7 +102,6 @@ impl Sequence {
     }
 }
 
-
 impl Param {
     pub fn new(name: ParamType, vals: Vec<f32>) -> Result<Param, Box<dyn Error>> {
         Ok(Param {name, vals})
@@ -113,8 +111,35 @@ impl Param {
         if self.name != other.name {
             panic!("Can't subtract params of different types")
         } else {
-            self.vals.iter().zip(&other.vals).map(|(a, b)| a - b).collect()
+            self.iter().zip(other).map(|(a, b)| a - b).collect()
         }
+    }
+    fn iter(&self) -> ParamIterator {
+        ParamIterator{slice: self.vals.iter()}
+    }
+}
+
+// Allow for iteration over the Param without directly accessing the
+// values vector. We need lifetime annotations throughout to tell Rust
+// not to drop the Param while its being iterated through
+pub struct ParamIterator<'a>{slice: std::slice::Iter<'a, f32>}
+
+// This makes iter work for the Param. 
+impl<'a> Iterator for ParamIterator<'a> {
+    type Item = &'a f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.slice.next()
+    }
+}
+
+// This allows the syntatic sugar of 'for val in param' to work
+impl<'a> IntoIterator for &'a Param {
+    type Item = &'a f32;
+    type IntoIter = ParamIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
