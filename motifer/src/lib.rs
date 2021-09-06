@@ -7,20 +7,20 @@ mod tests {
     use super::*;
 
     fn set_up_motif(val: f32, size: usize) -> Sequence {
-        let ep_param = Param::new(ParamType::EP, vec![val; size], Some(vec![0.0; size])).unwrap();
-        let prot_param = Param::new(ParamType::ProT, vec![val; size], None).unwrap();
-        let helt_param = Param::new(ParamType::HelT, vec![val; size], None).unwrap();
-        let roll_param = Param::new(ParamType::Roll, vec![val; size], None).unwrap();
-        let mgw_param = Param::new(ParamType::MGW, vec![val; size],None).unwrap();
-        let mut hashmap = HashMap::new();
-        hashmap.insert(ParamType::EP, ep_param);
-        hashmap.insert(ParamType::ProT, prot_param);
-        hashmap.insert(ParamType::HelT, helt_param);
-        hashmap.insert(ParamType::Roll, roll_param);
-        hashmap.insert(ParamType::MGW, mgw_param);
+        let ep_param = Param::new(ParamType::EP, vec![val; size]).unwrap();
+        let prot_param = Param::new(ParamType::ProT, vec![val; size]).unwrap();
+        let helt_param = Param::new(ParamType::HelT, vec![val; size]).unwrap();
+        let roll_param = Param::new(ParamType::Roll, vec![val; size]).unwrap();
+        let mgw_param = Param::new(ParamType::MGW, vec![val; size]).unwrap();
+        let mut seq_vec = Vec::new();
+        seq_vec.push(ep_param);
+        seq_vec.push(prot_param);
+        seq_vec.push(helt_param);
+        seq_vec.push(roll_param);
+        seq_vec.push(mgw_param);
 
         // make the Motif struct
-        let this_sequence = Sequence::new(hashmap);
+        let this_sequence = Sequence::new(seq_vec);
         
         this_sequence.unwrap()
     }
@@ -47,7 +47,10 @@ mod tests {
 //) {
 //}
 
-/// An enumeration of parameter names
+/// An enumeration of possible parameter names
+/// Supported parameters could be added here in the future
+/// We could also generalize it to be just a String type to take
+/// anyones name for a parameter
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum ParamType {
     EP,
@@ -57,19 +60,24 @@ pub enum ParamType {
     HelT,
 }
 
-/// struct for parameters
+/// container struct for parameters. This should be read only
 pub struct Param {
     name: ParamType, // name must be one of the enumerated Params
     vals: Vec<f32>, // vals is a vector of floating point 32-bit precision
-    weights: Vec<f32>, // weights is a vector
+}
+
+/// container struct for a sequence or combo of params. This should be read only
+pub struct Sequence {
+    params: Vec<Param>
 }
 
 /// For Motif, the idea here is that info has a key for each parameter.
 ///  The value associated with each parameter is a vector of tuples.
 ///  The first element of each tuple is the parameter's value, the second
 ///  is the weight.
-pub struct Sequence {
-    params: HashMap<ParamType, Param>,
+pub struct Motif {
+    seq: Sequence,
+    weights: Vec<f32>,
 }
 
 ///// For Window, we have an info attribute that is simpler than that of Motif.
@@ -90,19 +98,15 @@ pub struct Sequence {
 //}
 
 impl Sequence {
-    pub fn new(params: HashMap<ParamType, Param>) -> Result<Sequence, Box<dyn Error>> {
+    pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
         Ok(Sequence { params })
     }
 }
 
+
 impl Param {
-    pub fn new(name: ParamType, vals: Vec<f32>, weights: Option<Vec<f32>>) -> Result<Param, Box<dyn Error>> {
-        if let Some(weights)  = weights {
-            Ok(Param { name, vals, weights: weights })
-        } else {
-            let size = vals.len();
-            Ok(Param { name, vals, weights: vec![0.0; size] })
-        }
+    pub fn new(name: ParamType, vals: Vec<f32>) -> Result<Param, Box<dyn Error>> {
+        Ok(Param {name, vals})
     }
 
     pub fn subtract(&self, other: &Param) -> Vec<f32> {
@@ -114,12 +118,11 @@ impl Param {
     }
 }
 
+
 pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
     let mut distance: f32 = 0.0;
-    for (paramtype, _) in seq1.params.iter(){
-        let p1 = seq1.params.get(paramtype).unwrap();
-        let p2 = seq2.params.get(paramtype).unwrap();
-        distance += p1.subtract(p2).iter().map(|x| x.abs()).sum::<f32>();
+    for (p1, p2) in seq1.params.iter().zip(&seq2.params){
+        distance += p1.subtract(&p2).iter().map(|x| x.abs()).sum::<f32>();
     }
     distance
 }
