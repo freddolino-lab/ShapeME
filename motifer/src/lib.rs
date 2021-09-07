@@ -1,16 +1,17 @@
 use std::error::Error;
-// use ndarray::prelude::*;
+use ndarray::prelude::*;
+use ndarray::Array;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn set_up_motif(val: f32, size: usize) -> Sequence {
-        let ep_param = Param::new(ParamType::EP, vec![val; size]).unwrap();
-        let prot_param = Param::new(ParamType::ProT, vec![val; size]).unwrap();
-        let helt_param = Param::new(ParamType::HelT, vec![val; size]).unwrap();
-        let roll_param = Param::new(ParamType::Roll, vec![val; size]).unwrap();
-        let mgw_param = Param::new(ParamType::MGW, vec![val; size]).unwrap();
+        let ep_param = Param::new(ParamType::EP, Array::from_vec(vec![val; size])).unwrap();
+        let prot_param = Param::new(ParamType::ProT, Array::from_vec(vec![val; size])).unwrap();
+        let helt_param = Param::new(ParamType::HelT, Array::from_vec(vec![val; size])).unwrap();
+        let roll_param = Param::new(ParamType::Roll, Array::from_vec(vec![val; size])).unwrap();
+        let mgw_param = Param::new(ParamType::MGW, Array::from_vec(vec![val; size])).unwrap();
         let mut seq_vec = Vec::new();
         seq_vec.push(ep_param);
         seq_vec.push(prot_param);
@@ -62,7 +63,7 @@ pub enum ParamType {
 /// container struct for parameters. This should be read only
 pub struct Param {
     name: ParamType, // name must be one of the enumerated Params
-    vals: Vec<f32>, // vals is a vector of floating point 32-bit precision
+    vals: Array::<f32,Dim<[usize; 1]>>, // vals is a vector of floating point 32-bit precision
 }
 
 /// container struct for a sequence or combo of params. This should be read only
@@ -98,12 +99,12 @@ pub struct Motif {
 
 impl Sequence {
     pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
-        Ok(Sequence { params })
+        Ok(Sequence{ params })
     }
 }
 
 impl Param {
-    pub fn new(name: ParamType, vals: Vec<f32>) -> Result<Param, Box<dyn Error>> {
+    pub fn new(name: ParamType, vals: Array::<f32, Dim<[usize; 1]>>) -> Result<Param, Box<dyn Error>> {
         Ok(Param {name, vals})
     }
 
@@ -122,7 +123,7 @@ impl Param {
 // Allow for iteration over the Param without directly accessing the
 // values vector. We need lifetime annotations throughout to tell Rust
 // not to drop the Param while its being iterated through
-pub struct ParamIterator<'a>{slice: std::slice::Iter<'a, f32>}
+pub struct ParamIterator<'a>{slice: ndarray::iter::Iter<'a, f32, Dim<[usize; 1]>>}
 
 // This makes iter work for the Param. 
 impl<'a> Iterator for ParamIterator<'a> {
