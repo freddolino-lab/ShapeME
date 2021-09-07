@@ -133,7 +133,8 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
                         fatol=0.0001, adapt=False,
                         maxfev=None, opt_params=['weights'],
                         window_inds=None, method = 'nelder-mead',
-                        n_iter_success = 100, constraints_dict = {}):
+                        n_iter_success = 100, constraints_dict = {},
+                        alpha = 0.1):
     """Perform motif optimization stochastically
     
     Args:
@@ -161,7 +162,8 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
                 targets = opt_params,
                 method = method,
                 n_iter_success = n_iter_success,
-                constraints_dict={},
+                constraints_dict = constraints_dict,
+                alpha = alpha,
             )
             results.append((final,r_idx,w_idx))
 
@@ -181,6 +183,8 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
                     targets = opt_params,
                     method = method,
                     n_iter_success = n_iter_success,
+                    constraints_dict = constraints_dict,
+                    alpha = alpha,
                 )
                 results.append((final,r_idx,w_idx))
 
@@ -235,7 +239,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
                           temperature, stepsize, fatol, adapt,
                           maxfev, max_count=4, targets = ['weights'],
                           method='nelder-mead',
-                          n_iter_success = 100, constraints_dict={}):
+                          n_iter_success = 100, constraints_dict={}, alpha = 0.1):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -271,6 +275,9 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     constraints_dict : dict
         Keys are target types ("threshold", "weights", and "shapes")
         and values are tuples of (lower_bound, upper_bound)
+    alpha : float
+        Between 0.0 and 1.0, set lower limit for transforming weights
+        prior to normalization to sum to 1 and calculating distance.
 
     Returns:
     --------
@@ -332,6 +339,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
             shapes_arg,
             weights_arg,
             constraints_dict,
+            alpha,
         ), 
         'method': method,
         'options' : {
@@ -628,7 +636,7 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
 def optimize_worker(targets, all_shapes, y, dist_func, info,
                     target_breaks, targets_order, max_count=4,
                     threshold=None, shapes=None, weights=None,
-                    constraints_dict={}):
+                    constraints_dict={}, alpha=0.1):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
@@ -676,6 +684,9 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
             Defines the constraints for each target. Has the keys 'threshold',
             'weights', and 'shapes'. Each key's value is a tupple of (lower, upper)
             limits on that target.
+        alpha : float
+            Between 0.0 and 1.0, set lower limit for transforming weights
+            prior to normalization to sum to 1 and calculating distance.
 
     Returns:
     --------
@@ -700,7 +711,8 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
     for target_name,target_constraints in constraints_dict.items():
         target_vals = vals_dict[target_name]
 
-        garbage_mi = 0
+        garbage_mi = 0.0
+        distance_below = 0.0
         below = False
         above = False
 
@@ -736,7 +748,8 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
             else:
                 garbage_mi = -500 + -10_000 * distance_below
 
-        return -garbage_mi
+        if above or below:
+            return -garbage_mi
 
     this_mi,hits = inout.run_query_over_ref(
         y,
@@ -748,6 +761,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         W,
         dist_func,
         max_count,
+        alpha,
     )
 
     if info["NFeval"] % 10 == 0:

@@ -28,7 +28,7 @@ from collections import OrderedDict
 
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func, max_count=4):
+                       ref, R, W, dist_func, max_count=4, alpha=0.1):
 
     # R for record number, 2 for one forward count and one reverse count
     hits = np.zeros((R,2))
@@ -43,6 +43,7 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
         W,
         dist_func,
         max_count,
+        alpha,
     )
 
     # sort the counts such that for each record, the
@@ -117,7 +118,7 @@ def binary_optim_generate_peak_array(ref, query, weights, threshold,
 
 @jit(nopython=True, parallel=True)
 def optim_generate_peak_array(ref, query, weights, threshold,
-                              results, R, W, dist, max_count):
+                              results, R, W, dist, max_count, alpha):
     """Does same thing as generate_peak_vector, but hopefully faster
     
     Args:
@@ -150,6 +151,9 @@ def optim_generate_peak_array(ref, query, weights, threshold,
         The distance function to use for distance calculation.
     max_count : int
         The maximum number of hits to count for each strand.
+    alpha : float
+        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+        prior to normalizing the sum of weights to one and calculating distance.
     """
     
     for r in prange(R):
@@ -163,7 +167,7 @@ def optim_generate_peak_array(ref, query, weights, threshold,
             ref_seq = ref[r,:,:,w]
 
             if not f_maxed:
-                distance = dist(query, ref_seq, weights)
+                distance = dist(query, ref_seq, weights, alpha)
                 if distance < threshold:
                     # if a window has a distance low enough,
                     #   add 1 to this result's index
@@ -173,7 +177,7 @@ def optim_generate_peak_array(ref, query, weights, threshold,
 
             if not r_maxed:
                 # slice query backward to do rc comparison
-                rc_distance = dist(query[::-1,:], ref_seq, weights)
+                rc_distance = dist(query[::-1,:], ref_seq, weights, alpha)
                 if rc_distance < threshold:
                     results[r,1] += 1
                     if results[r,1] == max_count:
