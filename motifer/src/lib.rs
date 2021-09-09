@@ -32,6 +32,17 @@ mod tests {
         let that_motif = set_up_motif(1.0, 10);
         assert_eq!(manhattan_distance(&this_motif, &that_motif), 1.0*10.0*5.0);
     }
+    #[test]
+    fn test_window_over_param() {
+        let param = Param::new(ParamType::EP, Array::<f32, _>::linspace(0.0, 20.0, 21)).unwrap();
+        let mut i = 0.0;
+        for window in param.windows(5){
+            assert_eq!(window, Array::<f32, _>::linspace(i, i + 4.0, 5));
+            i += 1.0;
+        }
+    }
+
+        
 }
 
 //fn run_query_over_ref(
@@ -63,13 +74,14 @@ pub enum ParamType {
 /// container struct for parameters. This should be read only
 pub struct Param {
     name: ParamType, // name must be one of the enumerated Params
-    vals: Array::<f32,Dim<[usize; 1]>>, // vals is a vector of floating point 32-bit precision
+    vals: Array::<f32,Dim<[usize; 1]>>, // vals is an array of floating point 32-bit precision and dimension 1
 }
 
 /// container struct for a sequence or combo of params. This should be read only
 pub struct Sequence {
     params: Vec<Param>
 }
+
 
 /// For Motif, the idea here is that info has a key for each parameter.
 ///  The value associated with each parameter is a vector of tuples.
@@ -79,6 +91,7 @@ pub struct Motif {
     seq: Sequence,
     weights: Vec<f32>,
 }
+
 
 ///// For Window, we have an info attribute that is simpler than that of Motif.
 /////  Window.info is a HashMap, the keys of which are Params, and the values
@@ -101,6 +114,10 @@ impl Sequence {
     pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
         Ok(Sequence{ params })
     }
+
+ //    pub fn window_iter(&self, start: usize, end: usize, size: u64) -> SequenceIter {
+ //        SequenceIter{start, end, size, sequence: self.params}
+ //    }
 }
 
 impl Param {
@@ -115,29 +132,19 @@ impl Param {
             self.iter().zip(other).map(|(a, b)| a - b).collect()
         }
     }
-    fn iter(&self) -> ParamIterator {
-        ParamIterator{slice: self.vals.iter()}
+    fn iter(&self) -> ndarray::iter::Iter<f32, Dim<[usize; 1]>> {
+        self.vals.iter()
+    }
+    fn windows(&self, size: usize) -> ndarray::iter::Windows<f32, Dim<[usize;1]>>{
+        self.vals.windows(size)
     }
 }
 
-// Allow for iteration over the Param without directly accessing the
-// values vector. We need lifetime annotations throughout to tell Rust
-// not to drop the Param while its being iterated through
-pub struct ParamIterator<'a>{slice: ndarray::iter::Iter<'a, f32, Dim<[usize; 1]>>}
-
-// This makes iter work for the Param. 
-impl<'a> Iterator for ParamIterator<'a> {
-    type Item = &'a f32;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.slice.next()
-    }
-}
 
 // This allows the syntatic sugar of 'for val in param' to work
 impl<'a> IntoIterator for &'a Param {
     type Item = &'a f32;
-    type IntoIter = ParamIterator<'a>;
+    type IntoIter = ndarray::iter::Iter<'a, f32, Dim<[usize; 1]>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
