@@ -83,6 +83,13 @@ pub struct Sequence {
 }
 
 
+pub struct SequenceIter<'a>{
+    start: usize,
+    end: usize,
+    size: usize,
+    sequence: &'a Sequence
+}
+
 /// For Motif, the idea here is that info has a key for each parameter.
 ///  The value associated with each parameter is a vector of tuples.
 ///  The first element of each tuple is the parameter's value, the second
@@ -114,11 +121,30 @@ impl Sequence {
     pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
         Ok(Sequence{ params })
     }
-
- //    pub fn window_iter(&self, start: usize, end: usize, size: u64) -> SequenceIter {
- //        SequenceIter{start, end, size, sequence: self.params}
- //    }
+    pub fn window_iter(&self, start: usize, end: usize, size: usize) -> SequenceIter {
+        SequenceIter{start, end, size, sequence: self}
+    }
 }
+
+impl<'a> Iterator for SequenceIter<'a> {
+    type Item = Vec<ndarray::ArrayView::<'a, f32, Ix1>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this_start = self.start;
+        let this_end = self.start + self.size;
+        if this_end == self.end{
+            None
+        } else {
+            let mut out = Vec::new();
+            for param in self.sequence.params.iter() {
+                out.push(param.vals.slice(s![this_start..this_end]));
+            }
+            self.start += 1;
+            Some(out)
+        }
+    }
+}
+
 
 impl Param {
     pub fn new(name: ParamType, vals: Array::<f32, Dim<[usize; 1]>>) -> Result<Param, Box<dyn Error>> {
@@ -139,6 +165,7 @@ impl Param {
         self.vals.windows(size)
     }
 }
+
 
 
 // This allows the syntatic sugar of 'for val in param' to work
