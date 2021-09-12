@@ -46,9 +46,9 @@ mod tests {
     fn test_window_over_seq(){
         let this_motif = set_up_motif(2.0, 10);
         for window in this_motif.window_iter(0, 10, 3){
-            println!("{:?}", window);
+            assert_eq!(vec![array![2.0, 2.0, 2.0]; 5],
+                       window.params)
         }
-        assert_eq!(2, 1)
     }
     
 }
@@ -248,7 +248,6 @@ pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
     distance
 }
         
-
 
 
  //impl Motif {
