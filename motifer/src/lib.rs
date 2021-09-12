@@ -42,7 +42,15 @@ mod tests {
         }
     }
 
-        
+    #[test]
+    fn test_window_over_seq(){
+        let this_motif = set_up_motif(2.0, 10);
+        for window in this_motif.window_iter(0, 10, 3){
+            println!("{:?}", window);
+        }
+        assert_eq!(2, 1)
+    }
+    
 }
 
 //fn run_query_over_ref(
@@ -71,23 +79,41 @@ pub enum ParamType {
     HelT,
 }
 
-/// container struct for parameters. This should be read only
+
+/// Container struct for a single parameter vector.
+#[derive(Debug)]
 pub struct Param {
-    name: ParamType, // name must be one of the enumerated Params
-    vals: Array::<f32,Ix1>, // vals is an array of floating point 32-bit precision and dimension 1
+    /// Must have an associated name of type [ParamType]
+    name: ParamType,
+    /// Values are stored as a 1 dimensional ndarray of floating point numbers
+    vals: Array::<f32,Ix1>,
 }
 
-/// container struct for a sequence or combo of params. This should be read only
+/// Represents a single sequence as a combination of [Param] objects
+#[derive(Debug)]
 pub struct Sequence {
     params: Vec<Param>
 }
 
-
+/// Represents the state needed for windowed iteration over a [Sequence]
 pub struct SequenceIter<'a>{
+    /// Stores an initial start to the iteration
     start: usize,
+    /// The ending point of the iteration
     end: usize,
+    /// The size of the window to iterate over
     size: usize,
+    /// A reference to the [Sequence] that is getting iterated over
     sequence: &'a Sequence
+}
+
+
+/// Represents an unmutable windowed view to a [Sequence]
+#[derive(Debug)]
+pub struct SequenceView<'a> {
+    /// The view is stored as a vector of 1 [ndarray::ArrayView] for each
+    /// parameter in the sequence
+    params: Vec<ndarray::ArrayView::<'a, f32, Ix1>>
 }
 
 /// For Motif, the idea here is that info has a key for each parameter.
@@ -100,13 +126,6 @@ pub struct Motif {
 }
 
 
-///// For Window, we have an info attribute that is simpler than that of Motif.
-/////  Window.info is a HashMap, the keys of which are Params, and the values
-/////  of which are simple vectors of shape values.
-//#[derive(Debug)]
-//struct Window {
-//    info: HashMap,
-//}
 
 ///// Record contains a single piece of DNA's shape values and y-value
 /////  Also has a windows attribute, which is a vector of the windows
@@ -118,16 +137,42 @@ pub struct Motif {
 //}
 
 impl Sequence {
+    /// Returns a Result containing a new sequence or any errors that 
+    /// occur in attempting to create it.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - A vector of [Param] objects
     pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
         Ok(Sequence{ params })
     }
+
+    /// Creates a read-only windowed iterator over the sequence. Automatically
+    /// slides by 1 unit.
+    ///
+    /// # Arguments
+    /// * `start` - the starting position in the sequence to begin iteration
+    /// * `end` - the ending position in the sequence to stop iteration. End is excluded
+    /// * `size` - the size of the window to slide over
     pub fn window_iter(&self, start: usize, end: usize, size: usize) -> SequenceIter {
         SequenceIter{start, end, size, sequence: self}
     }
 }
 
+impl<'a> SequenceView<'a> {
+    /// Creates a immutable view from a subset of a [Sequence]
+    ///
+    /// # Arguments
+    /// * `params` - a vector of ndarray slices representing a subset of the given sequence
+    pub fn new(params: Vec<ndarray::ArrayView::<'a,f32, Ix1>>) -> SequenceView<'a> {
+        SequenceView { params }
+    }
+}
+
+/// Enables iteration over a given sequence. Returns a [SequenceView] at each
+/// iteration
 impl<'a> Iterator for SequenceIter<'a> {
-    type Item = Vec<ndarray::ArrayView::<'a, f32, Ix1>>;
+    type Item = SequenceView<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let this_start = self.start;
@@ -140,17 +185,27 @@ impl<'a> Iterator for SequenceIter<'a> {
                 out.push(param.vals.slice(s![this_start..this_end]));
             }
             self.start += 1;
-            Some(out)
+            Some(SequenceView::new(out))
         }
     }
 }
 
 
 impl Param {
+    /// Returns a new container for a single parameter
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a type for the parameter. Must be one of [ParamType]
+    /// * `vals` - an 1 dimensional array of floating point values for the parameter
     pub fn new(name: ParamType, vals: Array::<f32, Ix1>) -> Result<Param, Box<dyn Error>> {
         Ok(Param {name, vals})
     }
 
+    /// Enables subtraction between two full parameter vectors without
+    /// direct access to the inner values.
+    ///
+    /// Returns the element-wise subtraction.
     pub fn subtract(&self, other: &Param) -> Vec<f32> {
         if self.name != other.name {
             panic!("Can't subtract params of different types")
@@ -158,9 +213,15 @@ impl Param {
             self.iter().zip(other).map(|(a, b)| a - b).collect()
         }
     }
+    /// Returns an iterator over the individual values in the inner array
     fn iter(&self) -> ndarray::iter::Iter<f32, Ix1> {
         self.vals.iter()
     }
+    /// Returns a windowed iterator over the inner values array
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - size of the window to iterate over
     fn windows(&self, size: usize) -> ndarray::iter::Windows<f32, Ix1>{
         self.vals.windows(size)
     }
@@ -168,7 +229,7 @@ impl Param {
 
 
 
-// This allows the syntatic sugar of 'for val in param' to work
+/// This allows the syntatic sugar of `for val in param` to work
 impl<'a> IntoIterator for &'a Param {
     type Item = &'a f32;
     type IntoIter = ndarray::iter::Iter<'a, f32, Ix1>;
