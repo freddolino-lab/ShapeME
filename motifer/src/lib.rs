@@ -74,7 +74,7 @@ pub enum ParamType {
 /// container struct for parameters. This should be read only
 pub struct Param {
     name: ParamType, // name must be one of the enumerated Params
-    vals: Array::<f32,Dim<[usize; 1]>>, // vals is an array of floating point 32-bit precision and dimension 1
+    vals: Array::<f32,Ix1>, // vals is an array of floating point 32-bit precision and dimension 1
 }
 
 /// container struct for a sequence or combo of params. This should be read only
@@ -147,7 +147,7 @@ impl<'a> Iterator for SequenceIter<'a> {
 
 
 impl Param {
-    pub fn new(name: ParamType, vals: Array::<f32, Dim<[usize; 1]>>) -> Result<Param, Box<dyn Error>> {
+    pub fn new(name: ParamType, vals: Array::<f32, Ix1>) -> Result<Param, Box<dyn Error>> {
         Ok(Param {name, vals})
     }
 
@@ -158,10 +158,10 @@ impl Param {
             self.iter().zip(other).map(|(a, b)| a - b).collect()
         }
     }
-    fn iter(&self) -> ndarray::iter::Iter<f32, Dim<[usize; 1]>> {
+    fn iter(&self) -> ndarray::iter::Iter<f32, Ix1> {
         self.vals.iter()
     }
-    fn windows(&self, size: usize) -> ndarray::iter::Windows<f32, Dim<[usize;1]>>{
+    fn windows(&self, size: usize) -> ndarray::iter::Windows<f32, Ix1>{
         self.vals.windows(size)
     }
 }
@@ -171,7 +171,7 @@ impl Param {
 // This allows the syntatic sugar of 'for val in param' to work
 impl<'a> IntoIterator for &'a Param {
     type Item = &'a f32;
-    type IntoIter = ndarray::iter::Iter<'a, f32, Dim<[usize; 1]>>;
+    type IntoIter = ndarray::iter::Iter<'a, f32, Ix1>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
