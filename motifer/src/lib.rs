@@ -51,6 +51,19 @@ mod tests {
         }
     }
     
+    #[test]
+    fn test_pairwise_comparison(){
+        let this_seq = set_up_motif(2.0, 30);
+        let mut out = Vec::new();
+        for window1 in this_seq.window_iter(0, 31, 3){
+            for window2 in this_seq.window_iter(0, 31, 3){
+                out.push(manhattan_distance2(&window1, &window2));
+            }
+        }
+        println!("{:?}", out);
+        assert_eq!(2, 1);
+    }
+ 
 }
 
 //fn run_query_over_ref(
@@ -120,12 +133,15 @@ pub struct SequenceView<'a> {
 ///  The value associated with each parameter is a vector of tuples.
 ///  The first element of each tuple is the parameter's value, the second
 ///  is the weight.
-pub struct Motif {
-    seq: Sequence,
-    weights: Vec<f32>,
+pub struct Motif<'a> {
+    params: SequenceView<'a>,
+    weights: MotifWeights,
 }
 
-
+/// Store the weights for a motif in it's own structure
+pub struct MotifWeights {
+    weights: Vec<Array::<f32, Ix1>>
+}
 
 ///// Record contains a single piece of DNA's shape values and y-value
 /////  Also has a windows attribute, which is a vector of the windows
@@ -166,6 +182,10 @@ impl<'a> SequenceView<'a> {
     /// * `params` - a vector of ndarray slices representing a subset of the given sequence
     pub fn new(params: Vec<ndarray::ArrayView::<'a,f32, Ix1>>) -> SequenceView<'a> {
         SequenceView { params }
+    }
+
+    pub fn iter(&self) -> core::slice::Iter<ndarray::ArrayView::<'a, f32, Ix1>>{
+        self.params.iter()
     }
 }
 
@@ -239,6 +259,25 @@ impl<'a> IntoIterator for &'a Param {
     }
 }
 
+impl<'a> Motif<'a> {
+
+    pub fn new(params: SequenceView<'a>) -> Motif {
+        let weights = MotifWeights::new(&params);
+        Motif{params, weights}
+    }
+}
+
+impl MotifWeights {
+    pub fn new(params: &SequenceView) -> MotifWeights {
+        let mut weights = Vec::new();
+        for val in params.iter(){
+            weights.push(Array::ones(val.len()));
+        }
+        MotifWeights{weights}
+    }
+}
+
+
 
 pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
     let mut distance: f32 = 0.0;
@@ -247,6 +286,21 @@ pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
     }
     distance
 }
+
+pub fn manhattan_distance2(seq1: &SequenceView, seq2: &SequenceView) -> f32 {
+    let mut distance: f32 = 0.0;
+    for (p1, p2) in seq1.params.iter().zip(&seq2.params){
+        distance += (p1 - p2).iter().map(|x| x.abs()).sum::<f32>();
+    }
+    distance
+}
+
+//pub fn constrained_manhattan_distance(seq1: &SequenceView, seq2: &SequenceView,
+//                                      weights: &MotifWeights) -> f32 {
+//    let mut distance: f32 = 0.0;
+//    let norm_weights = weights.iter()
+//}
+
         
 
 
