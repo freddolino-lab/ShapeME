@@ -61,7 +61,26 @@ mod tests {
             }
         }
         println!("{:?}", out);
-        assert_eq!(2, 1);
+        assert_eq!(out.len(), (30-2)*(30-2));
+    }
+
+    #[test]
+    fn test_pairwise_motif(){
+        let this_seq = set_up_motif(2.0, 30);
+        let mut out = Vec::new();
+        for seed in this_seq.window_iter(0, 31, 3){
+            // get the motif weights through type conversion
+            let this_motif: Motif  = seed.into();
+            for window in this_seq.window_iter(0, 31, 3){
+                out.push(
+                    constrained_manhattan_distance(
+                        &this_motif.params, 
+                        &window, 
+                        &this_motif.weights));
+            }
+        }
+        println!("{:?}", out);
+        assert_eq!(out.len(), (30-2)*(30-2));
     }
  
 }
@@ -94,51 +113,71 @@ pub enum ParamType {
 
 
 /// Container struct for a single parameter vector.
+///
+/// # Fields
+///
+/// * `name` - An associated name of type [ParamType]
+/// * `vals` - Values are stored as a 1 dimensional ndarray of floating point numbers
 #[derive(Debug)]
 pub struct Param {
-    /// Must have an associated name of type [ParamType]
     name: ParamType,
-    /// Values are stored as a 1 dimensional ndarray of floating point numbers
     vals: Array::<f32,Ix1>,
 }
 
 /// Represents a single sequence as a combination of [Param] objects
+///
+/// # Fields
+///
+/// * `params` - Stores the [Param] arrays in a vector
 #[derive(Debug)]
 pub struct Sequence {
     params: Vec<Param>
 }
 
 /// Represents the state needed for windowed iteration over a [Sequence]
+///
+/// # Fields
+///
+/// * `start` - start position of the iteration
+/// * `end` - exclusive end of the iteration
+/// * `size` - size of the window to iterate over
+/// * `sequence` - reference to the [Sequence] to iterate over
 pub struct SequenceIter<'a>{
-    /// Stores an initial start to the iteration
     start: usize,
-    /// The ending point of the iteration
     end: usize,
-    /// The size of the window to iterate over
     size: usize,
-    /// A reference to the [Sequence] that is getting iterated over
     sequence: &'a Sequence
 }
 
 
-/// Represents an unmutable windowed view to a [Sequence]
+/// Represents an immutable windowed view to a [Sequence]
+///
+/// # Fields
+///
+/// * `params` - The view is stored as a vector of 1 [ndarray::ArrayView] 
+///              for each parameter in the sequence
 #[derive(Debug)]
 pub struct SequenceView<'a> {
-    /// The view is stored as a vector of 1 [ndarray::ArrayView] for each
-    /// parameter in the sequence
     params: Vec<ndarray::ArrayView::<'a, f32, Ix1>>
 }
 
-/// For Motif, the idea here is that info has a key for each parameter.
-///  The value associated with each parameter is a vector of tuples.
-///  The first element of each tuple is the parameter's value, the second
-///  is the weight.
+/// Represents a motif as a [SequenceView] with associated [MotifWeights]
+///
+/// # Fields
+///
+/// * `params` - Stores the sequence values as a [SequenceView]
+/// * `weights` - Stores the associated weights as a [MotifWeights]
 pub struct Motif<'a> {
     params: SequenceView<'a>,
     weights: MotifWeights,
 }
 
-/// Store the weights for a motif in it's own structure
+/// Represents the weights for a [Motif] in it's own structure
+///
+/// # Fields
+///
+/// * `weights` - Stores the weights as a vector of 1 [ndarray::Array] for each
+///               parameter in the sequence
 pub struct MotifWeights {
     weights: Vec<Array::<f32, Ix1>>
 }
@@ -167,6 +206,7 @@ impl Sequence {
     /// slides by 1 unit.
     ///
     /// # Arguments
+    ///
     /// * `start` - the starting position in the sequence to begin iteration
     /// * `end` - the ending position in the sequence to stop iteration. End is excluded
     /// * `size` - the size of the window to slide over
@@ -179,11 +219,13 @@ impl<'a> SequenceView<'a> {
     /// Creates a immutable view from a subset of a [Sequence]
     ///
     /// # Arguments
+    ///
     /// * `params` - a vector of ndarray slices representing a subset of the given sequence
     pub fn new(params: Vec<ndarray::ArrayView::<'a,f32, Ix1>>) -> SequenceView<'a> {
         SequenceView { params }
     }
-
+    
+    /// Returns an iterator over the views of each [Param]
     pub fn iter(&self) -> core::slice::Iter<ndarray::ArrayView::<'a, f32, Ix1>>{
         self.params.iter()
     }
@@ -247,8 +289,6 @@ impl Param {
     }
 }
 
-
-
 /// This allows the syntatic sugar of `for val in param` to work
 impl<'a> IntoIterator for &'a Param {
     type Item = &'a f32;
@@ -260,14 +300,34 @@ impl<'a> IntoIterator for &'a Param {
 }
 
 impl<'a> Motif<'a> {
-
+    /// Returns a new motif instance by bundling with a weight vector
+    /// of [MotifWeights] type. 
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - a [SequenceView] that defines the motif
     pub fn new(params: SequenceView<'a>) -> Motif {
         let weights = MotifWeights::new(&params);
         Motif{params, weights}
     }
 }
 
+/// Allow conversion from a [SequenceView] to a [Motif]
+impl<'a> From<SequenceView<'a>> for Motif<'a> {
+    fn from(sv : SequenceView<'a>) -> Motif<'a>{
+        Motif::new(sv)
+    }
+}
+
+
 impl MotifWeights {
+    /// Returns a new motif weight instance based on the size of a
+    /// [SequenceView]. Intializes all weights with one.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - a [SequenceView] used strictly to define the 
+    ///              size of the weights
     pub fn new(params: &SequenceView) -> MotifWeights {
         let mut weights = Vec::new();
         for val in params.iter(){
@@ -275,10 +335,27 @@ impl MotifWeights {
         }
         MotifWeights{weights}
     }
+    
+    /// Returns a Vector containing normalized weights for each 
+    /// param in 1-dimensional arrays
+    ///
+    /// Weights are normalized as exp(weight)/sum(exp(weights))
+    pub fn normalize(&self) -> Vec<Array::<f32, Ix1>> {
+        let mut out = Vec::new();
+        let mut total = 0.0;
+        for array in &self.weights{
+            total += array.mapv(|x| f32::exp(x)).sum()
+        }
+        for array in &self.weights{
+            out.push(array.mapv(|x| f32::exp(x)/total))
+        }
+        out
+    }
 }
 
 
-
+/// Function to compute manhattan distance between two whole sequences.
+/// Likely will be deprecated.
 pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
     let mut distance: f32 = 0.0;
     for (p1, p2) in seq1.params.iter().zip(&seq2.params){
@@ -287,6 +364,14 @@ pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
     distance
 }
 
+
+/// Function to compute manhattan distance between two sequence
+/// views
+///
+/// # Arguments
+///
+/// - `seq1` - a [SequenceView], typically a [Motif] `param` field
+/// - `seq1` - a [SequenceView], typically a window on a sequence to be compared
 pub fn manhattan_distance2(seq1: &SequenceView, seq2: &SequenceView) -> f32 {
     let mut distance: f32 = 0.0;
     for (p1, p2) in seq1.params.iter().zip(&seq2.params){
@@ -295,11 +380,24 @@ pub fn manhattan_distance2(seq1: &SequenceView, seq2: &SequenceView) -> f32 {
     distance
 }
 
-//pub fn constrained_manhattan_distance(seq1: &SequenceView, seq2: &SequenceView,
-//                                      weights: &MotifWeights) -> f32 {
-//    let mut distance: f32 = 0.0;
-//    let norm_weights = weights.iter()
-//}
+/// Function to compute a constrained manhattan distance between two sequence
+/// views with a single associated set of weights. Weights are internally
+/// normalized to sum to one using the [MotifWeights] `normalize` method.
+///
+/// # Arguments
+///
+/// - `seq1` - a [SequenceView], typically a [Motif] `param` field
+/// - `seq1` - a [SequenceView], typically a window on a sequence to be compared
+/// - `weights` - a [MotifWeights], typically a [Motif] `weights` field
+pub fn constrained_manhattan_distance(seq1: &SequenceView, seq2: &SequenceView,
+                                      weights: &MotifWeights) -> f32 {
+    let mut out: f32 = 0.0;
+    let norm_weights = weights.normalize();
+    for ((p1,p2), weight) in seq1.params.iter().zip(&seq2.params).zip(&norm_weights){
+        out += (p1 - p2).iter().map(|x| x.abs()).zip(weight).map(|(a,b)| a * b).sum::<f32>();
+    }
+    out
+}
 
         
 
