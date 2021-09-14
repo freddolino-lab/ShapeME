@@ -1,26 +1,26 @@
-use std::collections::HashMap;
 use std::error::Error;
-// use ndarray::prelude::*;
+use ndarray::prelude::*;
+use ndarray::Array;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn set_up_motif(val: f32, size: usize) -> Sequence {
-        let ep_param = Param::new(ParamType::EP, vec![val; size], Some(vec![0.0; size])).unwrap();
-        let prot_param = Param::new(ParamType::ProT, vec![val; size], None).unwrap();
-        let helt_param = Param::new(ParamType::HelT, vec![val; size], None).unwrap();
-        let roll_param = Param::new(ParamType::Roll, vec![val; size], None).unwrap();
-        let mgw_param = Param::new(ParamType::MGW, vec![val; size],None).unwrap();
-        let mut hashmap = HashMap::new();
-        hashmap.insert(ParamType::EP, ep_param);
-        hashmap.insert(ParamType::ProT, prot_param);
-        hashmap.insert(ParamType::HelT, helt_param);
-        hashmap.insert(ParamType::Roll, roll_param);
-        hashmap.insert(ParamType::MGW, mgw_param);
+        let ep_param = Param::new(ParamType::EP, Array::from_vec(vec![val; size])).unwrap();
+        let prot_param = Param::new(ParamType::ProT, Array::from_vec(vec![val; size])).unwrap();
+        let helt_param = Param::new(ParamType::HelT, Array::from_vec(vec![val; size])).unwrap();
+        let roll_param = Param::new(ParamType::Roll, Array::from_vec(vec![val; size])).unwrap();
+        let mgw_param = Param::new(ParamType::MGW, Array::from_vec(vec![val; size])).unwrap();
+        let mut seq_vec = Vec::new();
+        seq_vec.push(ep_param);
+        seq_vec.push(prot_param);
+        seq_vec.push(helt_param);
+        seq_vec.push(roll_param);
+        seq_vec.push(mgw_param);
 
         // make the Motif struct
-        let this_sequence = Sequence::new(hashmap);
+        let this_sequence = Sequence::new(seq_vec);
         
         this_sequence.unwrap()
     }
@@ -32,6 +32,57 @@ mod tests {
         let that_motif = set_up_motif(1.0, 10);
         assert_eq!(manhattan_distance(&this_motif, &that_motif), 1.0*10.0*5.0);
     }
+    #[test]
+    fn test_window_over_param() {
+        let param = Param::new(ParamType::EP, Array::<f32, _>::linspace(0.0, 20.0, 21)).unwrap();
+        let mut i = 0.0;
+        for window in param.windows(5){
+            assert_eq!(window, Array::<f32, _>::linspace(i, i + 4.0, 5));
+            i += 1.0;
+        }
+    }
+
+    #[test]
+    fn test_window_over_seq(){
+        let this_motif = set_up_motif(2.0, 10);
+        for window in this_motif.window_iter(0, 10, 3){
+            assert_eq!(vec![array![2.0, 2.0, 2.0]; 5],
+                       window.params)
+        }
+    }
+    
+    #[test]
+    fn test_pairwise_comparison(){
+        let this_seq = set_up_motif(2.0, 30);
+        let mut out = Vec::new();
+        for window1 in this_seq.window_iter(0, 31, 3){
+            for window2 in this_seq.window_iter(0, 31, 3){
+                out.push(manhattan_distance2(&window1, &window2));
+            }
+        }
+        println!("{:?}", out);
+        assert_eq!(out.len(), (30-2)*(30-2));
+    }
+
+    #[test]
+    fn test_pairwise_motif(){
+        let this_seq = set_up_motif(2.0, 30);
+        let mut out = Vec::new();
+        for seed in this_seq.window_iter(0, 31, 3){
+            // get the motif weights through type conversion
+            let this_motif: Motif  = seed.into();
+            for window in this_seq.window_iter(0, 31, 3){
+                out.push(
+                    constrained_manhattan_distance(
+                        &this_motif.params, 
+                        &window, 
+                        &this_motif.weights));
+            }
+        }
+        println!("{:?}", out);
+        assert_eq!(out.len(), (30-2)*(30-2));
+    }
+ 
 }
 
 //fn run_query_over_ref(
@@ -47,7 +98,10 @@ mod tests {
 //) {
 //}
 
-/// An enumeration of parameter names
+/// An enumeration of possible parameter names
+/// Supported parameters could be added here in the future
+/// We could also generalize it to be just a String type to take
+/// anyones name for a parameter
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum ParamType {
     EP,
@@ -57,28 +111,76 @@ pub enum ParamType {
     HelT,
 }
 
-/// struct for parameters
+
+/// Container struct for a single parameter vector.
+///
+/// # Fields
+///
+/// * `name` - An associated name of type [ParamType]
+/// * `vals` - Values are stored as a 1 dimensional ndarray of floating point numbers
+#[derive(Debug)]
 pub struct Param {
-    name: ParamType, // name must be one of the enumerated Params
-    vals: Vec<f32>, // vals is a vector of floating point 32-bit precision
-    weights: Vec<f32>, // weights is a vector
+    name: ParamType,
+    vals: Array::<f32,Ix1>,
 }
 
-/// For Motif, the idea here is that info has a key for each parameter.
-///  The value associated with each parameter is a vector of tuples.
-///  The first element of each tuple is the parameter's value, the second
-///  is the weight.
+/// Represents a single sequence as a combination of [Param] objects
+///
+/// # Fields
+///
+/// * `params` - Stores the [Param] arrays in a vector
+#[derive(Debug)]
 pub struct Sequence {
-    params: HashMap<ParamType, Param>,
+    params: Vec<Param>
 }
 
-///// For Window, we have an info attribute that is simpler than that of Motif.
-/////  Window.info is a HashMap, the keys of which are Params, and the values
-/////  of which are simple vectors of shape values.
-//#[derive(Debug)]
-//struct Window {
-//    info: HashMap,
-//}
+/// Represents the state needed for windowed iteration over a [Sequence]
+///
+/// # Fields
+///
+/// * `start` - start position of the iteration
+/// * `end` - exclusive end of the iteration
+/// * `size` - size of the window to iterate over
+/// * `sequence` - reference to the [Sequence] to iterate over
+pub struct SequenceIter<'a>{
+    start: usize,
+    end: usize,
+    size: usize,
+    sequence: &'a Sequence
+}
+
+
+/// Represents an immutable windowed view to a [Sequence]
+///
+/// # Fields
+///
+/// * `params` - The view is stored as a vector of 1 [ndarray::ArrayView] 
+///              for each parameter in the sequence
+#[derive(Debug)]
+pub struct SequenceView<'a> {
+    params: Vec<ndarray::ArrayView::<'a, f32, Ix1>>
+}
+
+/// Represents a motif as a [SequenceView] with associated [MotifWeights]
+///
+/// # Fields
+///
+/// * `params` - Stores the sequence values as a [SequenceView]
+/// * `weights` - Stores the associated weights as a [MotifWeights]
+pub struct Motif<'a> {
+    params: SequenceView<'a>,
+    weights: MotifWeights,
+}
+
+/// Represents the weights for a [Motif] in it's own structure
+///
+/// # Fields
+///
+/// * `weights` - Stores the weights as a vector of 1 [ndarray::Array] for each
+///               parameter in the sequence
+pub struct MotifWeights {
+    weights: Vec<Array::<f32, Ix1>>
+}
 
 ///// Record contains a single piece of DNA's shape values and y-value
 /////  Also has a windows attribute, which is a vector of the windows
@@ -90,41 +192,214 @@ pub struct Sequence {
 //}
 
 impl Sequence {
-    pub fn new(params: HashMap<ParamType, Param>) -> Result<Sequence, Box<dyn Error>> {
-        Ok(Sequence { params })
+    /// Returns a Result containing a new sequence or any errors that 
+    /// occur in attempting to create it.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - A vector of [Param] objects
+    pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
+        Ok(Sequence{ params })
+    }
+
+    /// Creates a read-only windowed iterator over the sequence. Automatically
+    /// slides by 1 unit.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - the starting position in the sequence to begin iteration
+    /// * `end` - the ending position in the sequence to stop iteration. End is excluded
+    /// * `size` - the size of the window to slide over
+    pub fn window_iter(&self, start: usize, end: usize, size: usize) -> SequenceIter {
+        SequenceIter{start, end, size, sequence: self}
     }
 }
 
-impl Param {
-    pub fn new(name: ParamType, vals: Vec<f32>, weights: Option<Vec<f32>>) -> Result<Param, Box<dyn Error>> {
-        if let Some(weights)  = weights {
-            Ok(Param { name, vals, weights: weights })
+impl<'a> SequenceView<'a> {
+    /// Creates a immutable view from a subset of a [Sequence]
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - a vector of ndarray slices representing a subset of the given sequence
+    pub fn new(params: Vec<ndarray::ArrayView::<'a,f32, Ix1>>) -> SequenceView<'a> {
+        SequenceView { params }
+    }
+    
+    /// Returns an iterator over the views of each [Param]
+    pub fn iter(&self) -> core::slice::Iter<ndarray::ArrayView::<'a, f32, Ix1>>{
+        self.params.iter()
+    }
+}
+
+/// Enables iteration over a given sequence. Returns a [SequenceView] at each
+/// iteration
+impl<'a> Iterator for SequenceIter<'a> {
+    type Item = SequenceView<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this_start = self.start;
+        let this_end = self.start + self.size;
+        if this_end == self.end{
+            None
         } else {
-            let size = vals.len();
-            Ok(Param { name, vals, weights: vec![0.0; size] })
+            let mut out = Vec::new();
+            for param in self.sequence.params.iter() {
+                out.push(param.vals.slice(s![this_start..this_end]));
+            }
+            self.start += 1;
+            Some(SequenceView::new(out))
         }
     }
+}
 
+
+impl Param {
+    /// Returns a new container for a single parameter
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - a type for the parameter. Must be one of [ParamType]
+    /// * `vals` - an 1 dimensional array of floating point values for the parameter
+    pub fn new(name: ParamType, vals: Array::<f32, Ix1>) -> Result<Param, Box<dyn Error>> {
+        Ok(Param {name, vals})
+    }
+
+    /// Enables subtraction between two full parameter vectors without
+    /// direct access to the inner values.
+    ///
+    /// Returns the element-wise subtraction.
     pub fn subtract(&self, other: &Param) -> Vec<f32> {
         if self.name != other.name {
             panic!("Can't subtract params of different types")
         } else {
-            self.vals.iter().zip(&other.vals).map(|(a, b)| a - b).collect()
+            self.iter().zip(other).map(|(a, b)| a - b).collect()
         }
+    }
+    /// Returns an iterator over the individual values in the inner array
+    fn iter(&self) -> ndarray::iter::Iter<f32, Ix1> {
+        self.vals.iter()
+    }
+    /// Returns a windowed iterator over the inner values array
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - size of the window to iterate over
+    fn windows(&self, size: usize) -> ndarray::iter::Windows<f32, Ix1>{
+        self.vals.windows(size)
     }
 }
 
+/// This allows the syntatic sugar of `for val in param` to work
+impl<'a> IntoIterator for &'a Param {
+    type Item = &'a f32;
+    type IntoIter = ndarray::iter::Iter<'a, f32, Ix1>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a> Motif<'a> {
+    /// Returns a new motif instance by bundling with a weight vector
+    /// of [MotifWeights] type. 
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - a [SequenceView] that defines the motif
+    pub fn new(params: SequenceView<'a>) -> Motif {
+        let weights = MotifWeights::new(&params);
+        Motif{params, weights}
+    }
+}
+
+/// Allow conversion from a [SequenceView] to a [Motif]
+impl<'a> From<SequenceView<'a>> for Motif<'a> {
+    fn from(sv : SequenceView<'a>) -> Motif<'a>{
+        Motif::new(sv)
+    }
+}
+
+
+impl MotifWeights {
+    /// Returns a new motif weight instance based on the size of a
+    /// [SequenceView]. Intializes all weights with one.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - a [SequenceView] used strictly to define the 
+    ///              size of the weights
+    pub fn new(params: &SequenceView) -> MotifWeights {
+        let mut weights = Vec::new();
+        for val in params.iter(){
+            weights.push(Array::ones(val.len()));
+        }
+        MotifWeights{weights}
+    }
+    
+    /// Returns a Vector containing normalized weights for each 
+    /// param in 1-dimensional arrays
+    ///
+    /// Weights are normalized as exp(weight)/sum(exp(weights))
+    pub fn normalize(&self) -> Vec<Array::<f32, Ix1>> {
+        let mut out = Vec::new();
+        let mut total = 0.0;
+        for array in &self.weights{
+            total += array.mapv(|x| f32::exp(x)).sum()
+        }
+        for array in &self.weights{
+            out.push(array.mapv(|x| f32::exp(x)/total))
+        }
+        out
+    }
+}
+
+
+/// Function to compute manhattan distance between two whole sequences.
+/// Likely will be deprecated.
 pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
     let mut distance: f32 = 0.0;
-    for (paramtype, _) in seq1.params.iter(){
-        let p1 = seq1.params.get(paramtype).unwrap();
-        let p2 = seq2.params.get(paramtype).unwrap();
-        distance += p1.subtract(p2).iter().map(|x| x.abs()).sum::<f32>();
+    for (p1, p2) in seq1.params.iter().zip(&seq2.params){
+        distance += p1.subtract(&p2).iter().map(|x| x.abs()).sum::<f32>();
     }
     distance
 }
-        
 
+
+/// Function to compute manhattan distance between two sequence
+/// views
+///
+/// # Arguments
+///
+/// - `seq1` - a [SequenceView], typically a [Motif] `param` field
+/// - `seq1` - a [SequenceView], typically a window on a sequence to be compared
+pub fn manhattan_distance2(seq1: &SequenceView, seq2: &SequenceView) -> f32 {
+    let mut distance: f32 = 0.0;
+    for (p1, p2) in seq1.params.iter().zip(&seq2.params){
+        distance += (p1 - p2).iter().map(|x| x.abs()).sum::<f32>();
+    }
+    distance
+}
+
+/// Function to compute a constrained manhattan distance between two sequence
+/// views with a single associated set of weights. Weights are internally
+/// normalized to sum to one using the [MotifWeights] `normalize` method.
+///
+/// # Arguments
+///
+/// - `seq1` - a [SequenceView], typically a [Motif] `param` field
+/// - `seq1` - a [SequenceView], typically a window on a sequence to be compared
+/// - `weights` - a [MotifWeights], typically a [Motif] `weights` field
+pub fn constrained_manhattan_distance(seq1: &SequenceView, seq2: &SequenceView,
+                                      weights: &MotifWeights) -> f32 {
+    let mut out: f32 = 0.0;
+    let norm_weights = weights.normalize();
+    for ((p1,p2), weight) in seq1.params.iter().zip(&seq2.params).zip(&norm_weights){
+        out += (p1 - p2).iter().map(|x| x.abs()).zip(weight).map(|(a,b)| a * b).sum::<f32>();
+    }
+    out
+}
+
+        
 
 
  //impl Motif {

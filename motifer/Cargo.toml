@@ -4,5 +4,8 @@ version = "0.1.0"
 authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc.edu>"]
 edition = "2018"
 
+[dependencies]
+ndarray = "0.15.0"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
