@@ -192,6 +192,7 @@ pub struct Motif<'a> {
 /// # Fields
 ///
 /// * `weights` - Stores the weights as a 2d array
+/// * `weights_norm` - Caches normalized weights as needed
 pub struct MotifWeights {
     weights: ndarray::Array2::<f32>,
     weights_norm: ndarray::Array2::<f32>,
@@ -349,7 +350,8 @@ impl<'a> From<SequenceView<'a>> for Motif<'a> {
 
 impl MotifWeights {
     /// Returns a new motif weight instance based on the size of a
-    /// [SequenceView]. Intializes all weights with one.
+    /// [SequenceView]. Initializes all weights with one.
+    /// Initializes a weights_norm array to all zeros.
     ///
     /// # Arguments
     ///
@@ -375,8 +377,7 @@ impl MotifWeights {
 }
 
 
-/// Function to compute manhattan distance between two sequence
-/// views
+/// Function to compute manhattan distance between two 2D array views
 ///
 /// # Arguments
 ///
@@ -390,7 +391,7 @@ pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>,
         fold(0.0, |acc, a, b| acc + (a-b).abs())
 }
 
-/// Function to compute a constrained manhattan distance between two array 
+/// Function to compute a constrained manhattan distance between two 2D array 
 /// views with a single associated set of weights. Views are used so that this
 /// can eventually be parallelized if needed.
 ///
@@ -408,68 +409,6 @@ pub fn weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>,
         fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
 }
 
-        
-
-
- //impl Motif {
- //    /// Returns weighted distance between two Motif structs.
- //    ///
- //    /// # Examples
- //    ///
- //    /// ```
- //    /// ```
- //    fn constrained_manhattan_distance(
- //        &self,
- //        other: &Motif,
- //    ) -> f32 {
- //
- //        let mut dist: f32 = 0.0;
- //
- //        let mut dist_vec = Vec::new();
- //        //NOTE: needs type here
- //        let mut self_vals = Vec::new();
- //        let mut other_vals = Vec::new();
- //        let mut w_exp_vec = Vec::new();
- //        let mut w_exp_sum = 0;
- //
- //        for (param_name,param) in self.params {
- //            // normalize the weights here
- //            
- //            for pos in 0..param.vals.len() {
- //                let self_val = param.vals[pos];
- //                let w = param.weights[pos];
- //                let w_exp = math::exp(w);
- //                w_exp_vec.push(w_exp);
- //                w_exp_sum += w_exp;
- //
- //                let other_val = other.params.get(&param_name).vals[pos];
- //                let dist = math::abs(self_val - other_val);
- //                dist_vec.push(dist);
- //            }
- //        }
- //        
- //        for idx in 0..dist_vec.len() {
- //            let w_exp = w_exp_vec[idx] / w_exp_sum;
- //            dist += w_exp * dist_vec[idx];
- //        }
- //
- //        return dist
- //    }
- //}
-
-// NOTE: we can start from this to implement subtraction of two motifs
-// I'm basically thinking we have `sub` be a method of a struct, `Motif`.
-// We wouldn't have the output be another `Motif` struct, as defined here,
-// but at least this gives us a start.
-//impl Sub for Motif {
-//
-//    fn sub(self, other: &Motif) -> f64 {
-//        for (param_name, param_vals) in other.vals {
-//            let self_vals = self.vals.get(&param_name)
-//            let dist = // implement Sub for params
-//        }
-//    }
-//}
 
 //fn parse_all_args(mat: clap::ArgMatches) -> Args {
 //    
