@@ -27,12 +27,6 @@ mod tests {
  
 
     #[test]
-    fn test_const_dist() {
-        let this_motif = set_up_motif(2.0, 10);
-        let that_motif = set_up_motif(1.0, 10);
-        assert_eq!(manhattan_distance(&this_motif, &that_motif), 1.0*10.0*5.0);
-    }
-    #[test]
     fn test_window_over_param() {
         let param = Param::new(ParamType::EP, Array::<f32, _>::linspace(0.0, 20.0, 21)).unwrap();
         let mut i = 0.0;
@@ -44,9 +38,9 @@ mod tests {
 
     #[test]
     fn test_window_over_seq(){
-        let this_motif = set_up_motif(2.0, 10);
-        for window in this_motif.window_iter(0, 10, 3){
-            assert_eq!(vec![array![2.0, 2.0, 2.0]; 5],
+        let this_seq = set_up_motif(2.0, 30);
+        for window in this_seq.window_iter(0, 10, 3){
+            assert_eq!(Array2::from_elem((5, 3), 2.0),
                        window.params)
         }
     }
@@ -57,7 +51,7 @@ mod tests {
         let mut out = Vec::new();
         for window1 in this_seq.window_iter(0, 31, 3){
             for window2 in this_seq.window_iter(0, 31, 3){
-                out.push(manhattan_distance2(&window1, &window2));
+                out.push(manhattan_distance(&window1.params, &window2.params));
             }
         }
         println!("{:?}", out);
@@ -65,18 +59,40 @@ mod tests {
     }
 
     #[test]
+    fn test_motif_normalization() {
+        let this_seq = set_up_motif(2.0, 31);
+        let mut this_motif: Motif = this_seq.window_iter(0, 31, 12).next().unwrap().into();
+        // check that it initializes to 1
+        assert_eq!(this_motif.weights.weights.sum(), 1.0*12.0*5.0);
+        // check that normed weights intialize to 0
+        assert_eq!(this_motif.weights.weights_norm.sum(), 0.0);
+        this_motif.weights.normalize();
+        // check that when normalized weights are basically 1
+        let sum_normed = this_motif.weights.weights_norm.sum();
+        assert!((sum_normed > 0.99999) && (sum_normed < 1.00001));
+        // check that when normalized. Unnormalized weights are untouched
+        assert_eq!(this_motif.weights.weights.sum(), 1.0*12.0*5.0);
+    }
+
+
+    #[test]
     fn test_pairwise_motif(){
         let this_seq = set_up_motif(2.0, 30);
         let mut out = Vec::new();
         for seed in this_seq.window_iter(0, 31, 3){
             // get the motif weights through type conversion
-            let this_motif: Motif  = seed.into();
+            let mut this_motif: Motif  = seed.into();
+            // normalize the weights before using them
+            this_motif.weights.normalize();
             for window in this_seq.window_iter(0, 31, 3){
                 out.push(
-                    constrained_manhattan_distance(
-                        &this_motif.params, 
-                        &window, 
-                        &this_motif.weights));
+                    weighted_manhattan_distance(
+                        // I don't like how much we have to access internal
+                        // struct fields here but we can revisit
+                        &this_motif.params.params, 
+                        &window.params, 
+                        // use normalized weights. Need to explicitly get a view
+                        &this_motif.weights.weights_norm.view()));
             }
         }
         println!("{:?}", out);
@@ -121,17 +137,17 @@ pub enum ParamType {
 #[derive(Debug)]
 pub struct Param {
     name: ParamType,
-    vals: Array::<f32,Ix1>,
+    vals: ndarray::Array::<f32,Ix1>,
 }
 
 /// Represents a single sequence as a combination of [Param] objects
 ///
 /// # Fields
 ///
-/// * `params` - Stores the [Param] arrays in a vector
+/// * `params` - Stores the full set of params in a single 2d Array
 #[derive(Debug)]
 pub struct Sequence {
-    params: Vec<Param>
+    params: ndarray::Array2<f32>
 }
 
 /// Represents the state needed for windowed iteration over a [Sequence]
@@ -154,11 +170,10 @@ pub struct SequenceIter<'a>{
 ///
 /// # Fields
 ///
-/// * `params` - The view is stored as a vector of 1 [ndarray::ArrayView] 
-///              for each parameter in the sequence
+/// * `params` - The view is stored as a 2d ndarray
 #[derive(Debug)]
 pub struct SequenceView<'a> {
-    params: Vec<ndarray::ArrayView::<'a, f32, Ix1>>
+    params: ndarray::ArrayView::<'a, f32, Ix2>
 }
 
 /// Represents a motif as a [SequenceView] with associated [MotifWeights]
@@ -176,10 +191,10 @@ pub struct Motif<'a> {
 ///
 /// # Fields
 ///
-/// * `weights` - Stores the weights as a vector of 1 [ndarray::Array] for each
-///               parameter in the sequence
+/// * `weights` - Stores the weights as a 2d array
 pub struct MotifWeights {
-    weights: Vec<Array::<f32, Ix1>>
+    weights: ndarray::Array2::<f32>,
+    weights_norm: ndarray::Array2::<f32>,
 }
 
 ///// Record contains a single piece of DNA's shape values and y-value
@@ -198,8 +213,23 @@ impl Sequence {
     /// # Arguments
     ///
     /// * `params` - A vector of [Param] objects
+    ///
+    /// This is volatile code and likely to change based on how we read
+    /// in the initial parameters
     pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
-        Ok(Sequence{ params })
+        // figure out how many rows and columns we will need
+        let nrows = params.len();
+        let ncols = params[0].vals.len();
+        // Allocate an array to store the whole sequence
+        let mut arr = ndarray::Array2::zeros((nrows, ncols));
+        // iterate over the row axis pull each row (from ndarray docs)
+        for (i, mut row) in arr.axis_iter_mut(Axis(0)).enumerate() {
+            // get a pointer to the inner array for the param
+            let this_param = &params[i].vals;
+            // copy the data into the new array
+            row.assign(this_param);
+        }
+        Ok(Sequence{ params: arr })
     }
 
     /// Creates a read-only windowed iterator over the sequence. Automatically
@@ -221,13 +251,13 @@ impl<'a> SequenceView<'a> {
     /// # Arguments
     ///
     /// * `params` - a vector of ndarray slices representing a subset of the given sequence
-    pub fn new(params: Vec<ndarray::ArrayView::<'a,f32, Ix1>>) -> SequenceView<'a> {
+    pub fn new(params: ndarray::ArrayView::<'a,f32, Ix2>) -> SequenceView<'a> {
         SequenceView { params }
     }
     
     /// Returns an iterator over the views of each [Param]
-    pub fn iter(&self) -> core::slice::Iter<ndarray::ArrayView::<'a, f32, Ix1>>{
-        self.params.iter()
+    pub fn iter(&self) -> ndarray::iter::AxisIter<f32, Ix1>{
+        self.params.axis_iter(Axis(0))
     }
 }
 
@@ -242,10 +272,7 @@ impl<'a> Iterator for SequenceIter<'a> {
         if this_end == self.end{
             None
         } else {
-            let mut out = Vec::new();
-            for param in self.sequence.params.iter() {
-                out.push(param.vals.slice(s![this_start..this_end]));
-            }
+            let out = self.sequence.params.slice(s![..,this_start..this_end]);
             self.start += 1;
             Some(SequenceView::new(out))
         }
@@ -329,39 +356,22 @@ impl MotifWeights {
     /// * `params` - a [SequenceView] used strictly to define the 
     ///              size of the weights
     pub fn new(params: &SequenceView) -> MotifWeights {
-        let mut weights = Vec::new();
-        for val in params.iter(){
-            weights.push(Array::ones(val.len()));
-        }
-        MotifWeights{weights}
+        let weights = Array::<f32, Ix2>::ones(params.params.raw_dim());
+        let weights_norm = Array::<f32, Ix2>::zeros(params.params.raw_dim());
+        MotifWeights{ weights, weights_norm }
     }
     
-    /// Returns a Vector containing normalized weights for each 
-    /// param in 1-dimensional arrays
+    /// Updates the weights_norm field in place based on the weights field.
+    /// The motif must be mutably borrowed to be able to use this method
     ///
     /// Weights are normalized as exp(weight)/sum(exp(weights))
-    pub fn normalize(&self) -> Vec<Array::<f32, Ix1>> {
-        let mut out = Vec::new();
-        let mut total = 0.0;
-        for array in &self.weights{
-            total += array.mapv(|x| f32::exp(x)).sum()
-        }
-        for array in &self.weights{
-            out.push(array.mapv(|x| f32::exp(x)/total))
-        }
-        out
+    pub fn normalize(&mut self) {
+        let total = ndarray::Zip::from(&self.weights).
+            fold(0.0, |acc, a| acc + f32::exp(*a));
+        // trying to do this in place consuming the old values
+        ndarray::Zip::from(&mut self.weights_norm)
+            .and(&self.weights).for_each(|a, b| *a = f32::exp(*b)/total);
     }
-}
-
-
-/// Function to compute manhattan distance between two whole sequences.
-/// Likely will be deprecated.
-pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
-    let mut distance: f32 = 0.0;
-    for (p1, p2) in seq1.params.iter().zip(&seq2.params){
-        distance += p1.subtract(&p2).iter().map(|x| x.abs()).sum::<f32>();
-    }
-    distance
 }
 
 
@@ -370,33 +380,32 @@ pub fn manhattan_distance(seq1: &Sequence, seq2: &Sequence) -> f32 {
 ///
 /// # Arguments
 ///
-/// - `seq1` - a [SequenceView], typically a [Motif] `param` field
-/// - `seq1` - a [SequenceView], typically a window on a sequence to be compared
-pub fn manhattan_distance2(seq1: &SequenceView, seq2: &SequenceView) -> f32 {
-    let mut distance: f32 = 0.0;
-    for (p1, p2) in seq1.params.iter().zip(&seq2.params){
-        distance += (p1 - p2).iter().map(|x| x.abs()).sum::<f32>();
-    }
-    distance
+///
+/// - `arr1` - a reference to a view of a 2D array, typically a window on a sequence
+/// - `arr2` - a reference to a view of a 2D array, typically a window on a sequence to be compared
+pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>, 
+                          arr2: &ndarray::ArrayView::<f32, Ix2>) -> f32 {
+    ndarray::Zip::from(arr1).
+        and(arr2).
+        fold(0.0, |acc, a, b| acc + (a-b).abs())
 }
 
-/// Function to compute a constrained manhattan distance between two sequence
-/// views with a single associated set of weights. Weights are internally
-/// normalized to sum to one using the [MotifWeights] `normalize` method.
+/// Function to compute a constrained manhattan distance between two array 
+/// views with a single associated set of weights. Views are used so that this
+/// can eventually be parallelized if needed.
 ///
 /// # Arguments
 ///
-/// - `seq1` - a [SequenceView], typically a [Motif] `param` field
-/// - `seq1` - a [SequenceView], typically a window on a sequence to be compared
-/// - `weights` - a [MotifWeights], typically a [Motif] `weights` field
-pub fn constrained_manhattan_distance(seq1: &SequenceView, seq2: &SequenceView,
-                                      weights: &MotifWeights) -> f32 {
-    let mut out: f32 = 0.0;
-    let norm_weights = weights.normalize();
-    for ((p1,p2), weight) in seq1.params.iter().zip(&seq2.params).zip(&norm_weights){
-        out += (p1 - p2).iter().map(|x| x.abs()).zip(weight).map(|(a,b)| a * b).sum::<f32>();
-    }
-    out
+/// - `arr1` - a reference to a view of a 2D array, typically a [Motif] `param` field
+/// - `arr2` - a reference to a view of a 2D array, typically a window on a sequence to be compared
+/// - `weights` - a view of a 2D array, typically a [Motif] `weights` field
+pub fn weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>, 
+                                   arr2: &ndarray::ArrayView::<f32, Ix2>,
+                                   weights: &ndarray::ArrayView::<f32, Ix2>) -> f32 {
+    ndarray::Zip::from(arr1).
+        and(arr2).
+        and(weights).
+        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
 }
 
         
