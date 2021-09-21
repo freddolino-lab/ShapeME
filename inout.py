@@ -399,6 +399,12 @@ class FastaFile(object):
         for name in self.names:
             yield self.pull_entry(name)
 
+    def copy(self):
+        new_fa = FastaFile()
+        for name,entry in self.data.items():
+            new_fa.add_entry(entry)
+        return new_fa
+
     def read_whole_file(self, fhandle):
         """ 
         Read an entire fasta file into memory and store it in the data attribute
