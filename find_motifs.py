@@ -129,12 +129,12 @@ def brent_optimize_threshold(record_db, dist, window_inds=None):
                 record_db.thresholds[r_idx,w_idx] = final_threshold
 
 
-def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
+def stochastic_optimize(out_fname, record_db, dist, temp=1.0, stepsize=0.5,
                         fatol=0.0001, adapt=False,
                         maxfev=None, opt_params=['weights'],
                         window_inds=None, method = 'nelder-mead',
                         n_iter_success = 100, constraints_dict = {},
-                        alpha = 0.1):
+                        max_count = 4, alpha = 0.1):
     """Perform motif optimization stochastically
     
     Args:
@@ -142,30 +142,43 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
     Returns:
     """
 
-    results = []
     R,L,S,W = record_db.windows.shape 
 
     if window_inds is not None:
         for i in range(len(window_inds)):
-            r_idx = window_inds[i][0]
-            w_idx = window_inds[i][1]
+            r_idx,w_idx = window_inds[i]
             final = stochastic_opt_helper(
                 r_idx,
                 w_idx,
-                dist,
-                record_db,
+                dist = dist,
+                db = record_db,
                 temperature = temp,
                 stepsize = stepsize,
                 fatol = fatol,
                 adapt = adapt,
                 maxfev = maxfev,
+                max_count = max_count,
+                alpha = alpha,
                 targets = opt_params,
                 method = method,
                 n_iter_success = n_iter_success,
                 constraints_dict = constraints_dict,
-                alpha = alpha,
             )
-            results.append((final,r_idx,w_idx))
+            
+            if os.path.isfile(out_fname):
+
+                with open(out_fname, 'rb') as outf:
+                    results = pickle.load(outf)
+
+                results.append((final,r_idx,w_idx))
+
+                with open(out_fname, 'wb') as outf:
+                    pickle.dump(results, outf)
+
+            else:
+                results = [(final,r_idx,w_idx)]
+                with open(out_fname, 'wb') as outf:
+                    pickle.dump(results, outf)
 
     else:
         for r_idx in range(R):
@@ -173,22 +186,36 @@ def stochastic_optimize(record_db, dist, temp=1.0, stepsize=0.5,
                 final = stochastic_opt_helper(
                     r_idx,
                     w_idx,
-                    dist,
-                    record_db,
+                    dist = dist,
+                    db = record_db,
                     temperature = temp,
                     stepsize = stepsize,
                     fatol = fatol,
                     adapt = adapt,
                     maxfev = maxfev,
+                    max_count = max_count,
+                    alpha = alpha,
                     targets = opt_params,
                     method = method,
                     n_iter_success = n_iter_success,
                     constraints_dict = constraints_dict,
-                    alpha = alpha,
                 )
-                results.append((final,r_idx,w_idx))
+                if os.path.isfile(out_fname):
 
-    return results
+                    with open(out_fname, 'rb') as outf:
+                        results = pickle.load(outf)
+
+                    results.append((final,r_idx,w_idx))
+
+                    with open(out_fname, 'wb') as outf:
+                        pickle.dump(results, outf)
+
+                else:
+                    results = [(final,r_idx,w_idx)]
+                    with open(out_fname, 'wb') as outf:
+                        pickle.dump(results, outf)
+
+
 
 def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
                         adapt=False, window_inds=None, p=1, maxfev=None):
@@ -237,9 +264,10 @@ def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
 
 def stochastic_opt_helper(r_idx, w_idx, dist, db,
                           temperature, stepsize, fatol, adapt,
-                          maxfev, max_count=4, targets = ['weights'],
+                          maxfev, max_count=4, alpha=0.1,
+                          targets = ['weights'],
                           method='nelder-mead',
-                          n_iter_success = 100, constraints_dict={}, alpha = 0.1):
+                          n_iter_success = 100, constraints_dict={}):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -264,6 +292,9 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     max_count : int
         Sets the maximum number of hits to be counted for each strand.
         Default is 4.
+    alpha : float
+        Between 0 and 1, sets the minimum value weights will acheive
+        after inv-logit and prior to normalization to sum to one.
     targets : list
         Contains only 'weights' by default. Add 'shapes' and/or 'threshold'
         to also optimize those.
@@ -275,9 +306,6 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     constraints_dict : dict
         Keys are target types ("threshold", "weights", and "shapes")
         and values are tuples of (lower_bound, upper_bound)
-    alpha : float
-        Between 0.0 and 1.0, set lower limit for transforming weights
-        prior to normalization to sum to 1 and calculating distance.
 
     Returns:
     --------
@@ -299,13 +327,19 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     # scipy.optimize.minimize requires the target to optimize be a 1d array
     #target = np.append(motif_weights, motif_thresh)
     idx_breaks = []
+    bounds = []
     for i,thing in enumerate(targets):
+        this_bound = constraints_dict[thing]
+        print("{} bounds are: ".format(thing))
+        print(this_bound)
         if i == 0:
             target = motif_dict[thing]
             idx_breaks.append(len(target))
         else:
             target = np.append(target, motif_dict[thing])
             idx_breaks.append(len(target))
+        this_bound = [this_bound] * motif_dict[thing].size
+        bounds.extend(this_bound)
 
     # will compare motif_shapes to all reference shapes
     ref_shapes = db.windows
@@ -338,15 +372,16 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
             thresh_arg,
             shapes_arg,
             weights_arg,
-            constraints_dict,
             alpha,
+            constraints_dict,
         ), 
         'method': method,
         'options' : {
             'fatol': fatol,
             'adaptive': adapt,
             'maxfev': maxfev,
-        }
+        },
+        'bounds': bounds,
     }
 
     final_opt = opt.basinhopping(
@@ -385,6 +420,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         W,
         dist,
         max_count,
+        alpha,
     )
 
     final_motifs_dict['hits'] = hits
@@ -403,6 +439,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         W,
         dist,
         max_count,
+        alpha,
     )
 
     final_motifs_dict['mi_orig'] = mi_orig
@@ -537,6 +574,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         W,
         dist,
         max_count,
+        alpha,
     )
 
     final_motifs_dict['hits'] = hits
@@ -555,6 +593,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         W,
         dist,
         max_count,
+        alpha,
     )
 
     final_motifs_dict['mi_orig'] = mi_orig
@@ -571,7 +610,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
 
 
 def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
-                          y, dist_func, max_count, info):
+                          y, dist_func, max_count, alpha, info):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
@@ -601,6 +640,9 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
             Function to use in distance calculation
         max_count : int
             Sets the maximum number of hits to count for each strand.
+        alpha : float
+            Between 0 and 1, sets the minimum value weights will acheive
+            after inv-logit and prior to normalization to sum to one.
         info : dict
             Store number of function evals and value associated with it.
             keys must include NFeval: int, value: list, eval: list
@@ -622,6 +664,7 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
         W,
         dist_func,
         max_count,
+        alpha,
     )
 
     if info["NFeval"] % 10 == 0:
@@ -636,7 +679,8 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
 def optimize_worker(targets, all_shapes, y, dist_func, info,
                     target_breaks, targets_order, max_count=4,
                     threshold=None, shapes=None, weights=None,
-                    constraints_dict={}, alpha=0.1):
+                    alpha=0.1,
+                    constraints_dict={}):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
@@ -680,13 +724,13 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         max_count : int
             Default is 4. Sets the maximum number of hits to count
             for each strand.
+        alpha : float
+            Between 0 and 1, sets the minimum value weights will acheive
+            after inv-logit and prior to normalization to sum to one.
         constraints_dict : dict
             Defines the constraints for each target. Has the keys 'threshold',
             'weights', and 'shapes'. Each key's value is a tupple of (lower, upper)
             limits on that target.
-        alpha : float
-            Between 0.0 and 1.0, set lower limit for transforming weights
-            prior to normalization to sum to 1 and calculating distance.
 
     Returns:
     --------
@@ -711,8 +755,6 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
     for target_name,target_constraints in constraints_dict.items():
         target_vals = vals_dict[target_name]
 
-        garbage_mi = 0.0
-        distance_below = 0.0
         below = False
         above = False
 
@@ -727,7 +769,8 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
                     target_vals[below_sane] - target_constraints[0]
                 )
             )
-            garbage_mi = -500 + -10_000 * distance_below
+            print("{} value of {} was {} far below the constraint ({}).".format(target_name, np.min(target_vals[below_sane]), distance_below, target_constraints[0]))
+            garbage_val = 10_000 * distance_below
             
         # Which are above upper bound?
         above_sane = target_vals > target_constraints[1]
@@ -742,14 +785,15 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
                     target_vals[above_sane] - target_constraints[1]
                 )
             )
+            print("{} value of {} was {} far above the constraint ({}).".format(target_name, np.max(target_vals[above_sane]), distance_below, target_constraints[1]))
             if below:
-                above_garbage = -500 + -10_000 * distance_above
-                garbage_mi = np.min([garbage_mi, above_garbage])
+                above_garbage = 10_000 * distance_above
+                garbage_val = np.max([garbage_mi, above_garbage])
             else:
-                garbage_mi = -500 + -10_000 * distance_below
+                garbage_val = 10_000 * distance_below
 
         if above or below:
-            return -garbage_mi
+            return garbage_val
 
     this_mi,hits = inout.run_query_over_ref(
         y,

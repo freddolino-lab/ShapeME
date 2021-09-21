@@ -887,7 +887,7 @@ class RecordDatabase(object):
         )
         return(permuted_records)
 
-    def set_initial_thresholds(self, dist, threshold_sd_from_mean=2.0,
+    def set_initial_thresholds(self, dist, alpha=0.1, threshold_sd_from_mean=2.0,
                                seeds_per_seq=1, max_seeds=10000):
         """Function to determine a reasonable starting threshold given a sample
         of the data
@@ -935,7 +935,7 @@ class RecordDatabase(object):
             for j, seed_j in enumerate(total_seeds):
                 if i >= j:
                     continue
-                distance = dist(seed_i[0], seed_j[0], seed_i[1])
+                distance = dist(seed_i[0], seed_j[0], seed_i[1], alpha)
                 online_mean.update(distance)
 
         mean = online_mean.final_mean()
@@ -979,7 +979,7 @@ class RecordDatabase(object):
         ).copy()
         return flat
 
-    def compute_mi(self, dist, max_count):
+    def compute_mi(self, dist, max_count, alpha):
         
         rec_num,win_len,shape_num,win_num = self.windows.shape
         mi_arr = np.zeros((rec_num,win_num))
@@ -998,6 +998,7 @@ class RecordDatabase(object):
                     win_num,
                     dist,
                     max_count,
+                    alpha,
                 )
 
         self.mi = mi_arr
