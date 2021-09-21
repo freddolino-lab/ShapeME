@@ -1,7 +1,12 @@
 tests/test/*_input
+tests
 tests/test/*_out
 *.pkl
 tests/*.pkl
 tests/test/*.pkl
 __pycache__
 utils/__pycache__
+motifer/target
+optim/target
+motifer/Cargo.lock
+optim/Cargo.lock
