@@ -1,6 +1,8 @@
 use std::error::Error;
 use ndarray::prelude::*;
 use ndarray::Array;
+// ndarray_stats exposes ArrayBase to useful methods for descriptive stats like min.
+use ndarray_stats::QuantileExt;
 
 #[cfg(test)]
 mod tests {
@@ -25,12 +27,13 @@ mod tests {
         this_sequence.unwrap()
     }
  
-
     #[test]
     fn test_window_over_param() {
-        let param = Param::new(ParamType::EP, Array::<f32, _>::linspace(0.0, 20.0, 21)).unwrap();
+        let param = Param
+            ::new(ParamType::EP, Array::<f32, _>::linspace(0.0, 20.0, 21))
+            .unwrap();
         let mut i = 0.0;
-        for window in param.windows(5){
+        for window in param.windows(5) {
             assert_eq!(window, Array::<f32, _>::linspace(i, i + 4.0, 5));
             i += 1.0;
         }
@@ -39,7 +42,7 @@ mod tests {
     #[test]
     fn test_window_over_seq(){
         let this_seq = set_up_motif(2.0, 30);
-        for window in this_seq.window_iter(0, 10, 3){
+        for window in this_seq.window_iter(0, 10, 3) {
             assert_eq!(Array2::from_elem((5, 3), 2.0),
                        window.params)
         }
@@ -49,8 +52,8 @@ mod tests {
     fn test_pairwise_comparison(){
         let this_seq = set_up_motif(2.0, 30);
         let mut out = Vec::new();
-        for window1 in this_seq.window_iter(0, 31, 3){
-            for window2 in this_seq.window_iter(0, 31, 3){
+        for window1 in this_seq.window_iter(0, 31, 3) {
+            for window2 in this_seq.window_iter(0, 31, 3) {
                 out.push(manhattan_distance(&window1.params, &window2.params));
             }
         }
@@ -61,7 +64,11 @@ mod tests {
     #[test]
     fn test_motif_normalization() {
         let this_seq = set_up_motif(2.0, 31);
-        let mut this_motif: Motif = this_seq.window_iter(0, 31, 12).next().unwrap().into();
+        let mut this_motif: Motif = this_seq
+            .window_iter(0, 31, 12)
+            .next()
+            .unwrap()
+            .into();
         // check that it initializes to 1
         assert_eq!(this_motif.weights.weights.sum(), 1.0*12.0*5.0);
         // check that normed weights intialize to 0
@@ -76,12 +83,12 @@ mod tests {
 
 
     #[test]
-    fn test_pairwise_motif(){
+    fn test_pairwise_motif() {
         let this_seq = set_up_motif(2.0, 30);
         let mut out = Vec::new();
         for seed in this_seq.window_iter(0, 31, 3){
             // get the motif weights through type conversion
-            let mut this_motif: Motif  = seed.into();
+            let mut this_motif: Motif = seed.into();
             // normalize the weights before using them
             this_motif.weights.normalize();
             for window in this_seq.window_iter(0, 31, 3){
@@ -98,7 +105,29 @@ mod tests {
         println!("{:?}", out);
         assert_eq!(out.len(), (30-2)*(30-2));
     }
- 
+
+    #[test]
+    fn test_constrain_norm() {
+        let alpha = 0.1;
+        let trans_arr = array![
+            [0.15, 0.50, 0.95],
+            [0.20, 0.70, 0.60]
+        ];
+        let total = trans_arr.sum();
+        let target_arr = trans_arr
+            .map(|x| x/total);
+        let start_arr = trans_arr
+            .map(|x| ((x-alpha)/(1.0-alpha) / (1.0-(x-alpha)/(1.0-alpha)) as f32).ln());
+        let mut motif_weights = MotifWeights{
+            weights: start_arr,
+            weights_norm: Array::<f32, Ix2>::zeros(trans_arr.raw_dim())
+        };
+        motif_weights.constrain_normalize(&alpha);
+        let sum_normed = motif_weights.weights_norm.sum();
+        assert!((sum_normed > 0.99999) && (sum_normed < 1.00001));
+        assert!(motif_weights.weights_norm.abs_diff_eq(&target_arr, 1e-6));
+    }
+
 }
 
 //fn run_query_over_ref(
@@ -198,15 +227,10 @@ pub struct MotifWeights {
     weights_norm: ndarray::Array2::<f32>,
 }
 
-///// Record contains a single piece of DNA's shape values and y-value
-/////  Also has a windows attribute, which is a vector of the windows
-/////  for the split up parameter values.
-//#[derive(Debug)]
-//struct Record {
-//    windows: Vec<HashMap>,
-//    y: u8,
-//}
-
+//NOTE: do we know that param types will always be in the same order?
+//  or do we need to set up a hashmap to assign params to
+//  the appropriate row in arr based on the index we get by hashing
+//  by param name?
 impl Sequence {
     /// Returns a Result containing a new sequence or any errors that 
     /// occur in attempting to create it.
@@ -368,11 +392,24 @@ impl MotifWeights {
     ///
     /// Weights are normalized as exp(weight)/sum(exp(weights))
     pub fn normalize(&mut self) {
-        let total = ndarray::Zip::from(&self.weights).
-            fold(0.0, |acc, a| acc + f32::exp(*a));
+        let total = ndarray::Zip::from(&self.weights)
+            .fold(0.0, |acc, a| acc + f32::exp(*a));
         // trying to do this in place consuming the old values
         ndarray::Zip::from(&mut self.weights_norm)
             .and(&self.weights).for_each(|a, b| *a = f32::exp(*b)/total);
+    }
+
+    /// Updates the weights_norm field in place based on the weights field.
+    /// 
+    /// Weights have the constrained inv_logit function applied to them, then are
+    ///  normalized to sum to one.
+    pub fn constrain_normalize(&mut self, alpha: &f32) {
+        let total = ndarray::Zip::from(&self.weights)
+            .fold(0.0, |acc, a| acc + inv_logit(*a, Some(*alpha)));
+        // deref a and b here to modify values in place
+        ndarray::Zip::from(&mut self.weights_norm)
+            .and(&self.weights)
+            .for_each(|a, b| *a = inv_logit(*b, Some(*alpha))/total);
     }
 }
 
@@ -407,6 +444,37 @@ pub fn weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>,
         and(arr2).
         and(weights).
         fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+}
+
+/// Function to compute inverse-logit element-wise for an array
+///
+/// # Arguments
+///
+/// - `a` - value to apply inverse-logit to
+/// - 'alpha` - an optional lower limit to constrain returned values to
+pub fn inv_logit(a: f32, alpha: Option<f32>) -> f32 {
+    let lower = alpha.unwrap_or(0.0);
+    lower + (1.0 - lower) * a.exp() / (1.0 + a.exp())
+}
+
+/// Function to compute a constrained manhattan distance between two 2D array
+/// views with a single associated set of weights. Views are used so that this
+/// can evantually be parallelized if needed.
+///
+/// # Arguments
+///
+/// - `arr1` - a reference to a view of a 2D array, typically a [Motif] `param` field
+/// - `arr2` - a reference to a view of a 2d array, typically a window on a sequence to be compared
+/// - `weights` - a view of a 2D array, typically a [Motif] `weights_norm` field
+/// - `alpha` - the lower limit on the inv-logit-transformed values prior to weights normalization
+pub fn constrained_weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>,
+                                               arr2: &ndarray::ArrayView::<f32, Ix2>,
+                                               weights: &ndarray::ArrayView::<f32, Ix2>,
+                                               alpha: &f32) -> f32 {
+    ndarray::Zip::from(arr1)
+        .and(arr2)
+        .and(weights)
+        .fold(0.0, |acc, a, b , c| acc + (a-b).abs()*c)
 }
 
 
