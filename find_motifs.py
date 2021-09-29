@@ -1,5 +1,6 @@
 import inout
 import sys
+import os
 import dnashapeparams as dsp
 import logging
 import argparse
@@ -17,6 +18,22 @@ from sklearn.linear_model import LogisticRegression
 import cvlogistic
 import numba
 from numba import jit,prange
+import pickle
+
+
+class BasinHoppingBounds:
+    '''class to use as accept_test argument to basinhopping
+    minimizer.
+    '''
+    def __init__(self, xmax, xmin ):
+        self.xmax = np.array(xmax)
+        self.xmin = np.array(xmin)
+    def __call__(self, **kwargs):
+        x = kwargs["x_new"]
+        tmax = bool(np.all(x <= self.xmax))
+        tmin = bool(np.all(x >= self.xmin))
+        return tmax and tmin
+
 
 def retrieve_vals_from_target_vec(threshold, weights, shapes, targets_order,
                                   target_breaks, targets, L, S):
@@ -133,7 +150,7 @@ def stochastic_optimize(out_fname, record_db, dist, temp=1.0, stepsize=0.5,
                         fatol=0.0001, adapt=False,
                         maxfev=None, opt_params=['weights'],
                         window_inds=None, method = 'nelder-mead',
-                        n_iter_success = 100, constraints_dict = {},
+                        niter=100, niter_success = 20, constraints_dict = {},
                         max_count = 4, alpha = 0.1):
     """Perform motif optimization stochastically
     
@@ -161,11 +178,12 @@ def stochastic_optimize(out_fname, record_db, dist, temp=1.0, stepsize=0.5,
                 alpha = alpha,
                 targets = opt_params,
                 method = method,
-                n_iter_success = n_iter_success,
+                niter_success = niter_success,
                 constraints_dict = constraints_dict,
+                niter = niter,
             )
             
-            if os.path.isfile(out_fname):
+            if i > 0:
 
                 with open(out_fname, 'rb') as outf:
                     results = pickle.load(outf)
@@ -197,8 +215,9 @@ def stochastic_optimize(out_fname, record_db, dist, temp=1.0, stepsize=0.5,
                     alpha = alpha,
                     targets = opt_params,
                     method = method,
-                    n_iter_success = n_iter_success,
+                    niter_success = niter_success,
                     constraints_dict = constraints_dict,
+                    niter = niter,
                 )
                 if os.path.isfile(out_fname):
 
@@ -267,7 +286,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
                           maxfev, max_count=4, alpha=0.1,
                           targets = ['weights'],
                           method='nelder-mead',
-                          n_iter_success = 100, constraints_dict={}):
+                          niter_success = 100, niter=100, constraints_dict={}):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -300,9 +319,11 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         to also optimize those.
     method : str
         Sets the optimization method to scipy.optimize.minimize
-    n_iter_success : int
+    niter_success : int
         Stop the run if the global minimum candidate remains the same
         for this number of iterations.
+    niter : int
+        Total number of basin hops that will be run.
     constraints_dict : dict
         Keys are target types ("threshold", "weights", and "shapes")
         and values are tuples of (lower_bound, upper_bound)
@@ -373,7 +394,6 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
             shapes_arg,
             weights_arg,
             alpha,
-            constraints_dict,
         ), 
         'method': method,
         'options' : {
@@ -384,13 +404,18 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         'bounds': bounds,
     }
 
+    min_bounds,max_bounds = list(zip(*bounds))
+    bounds = BasinHoppingBounds(xmin=min_bounds, xmax=max_bounds)
+
     final_opt = opt.basinhopping(
         optimize_worker,
         target, 
         T = temperature,
         stepsize = stepsize,
         minimizer_kwargs = min_kwargs,
-        niter_success = n_iter_success,
+        niter_success = niter_success,
+        niter = niter,
+        accept_test = bounds,
     )
 
     final = final_opt['x']
@@ -751,49 +776,50 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         S,
     )
 
+    # I commented this out on 2021-09-28 because I found that I should be passing an accept_test argument directly to basinhopping.
     # insert logic here to handle constraints
-    for target_name,target_constraints in constraints_dict.items():
-        target_vals = vals_dict[target_name]
+    #for target_name,target_constraints in constraints_dict.items():
+    #    target_vals = vals_dict[target_name]
 
-        below = False
-        above = False
+    #    below = False
+    #    above = False
 
-        # Which are below lower bound?
-        below_sane = target_vals < target_constraints[0]
-        # if a value is below the lower bound, calculate how far out
-        #  to determine what to set garbage MI to.
-        if np.any(below_sane):
-            below = True
-            distance_below = np.max(
-                np.abs(
-                    target_vals[below_sane] - target_constraints[0]
-                )
-            )
-            print("{} value of {} was {} far below the constraint ({}).".format(target_name, np.min(target_vals[below_sane]), distance_below, target_constraints[0]))
-            garbage_val = 10_000 * distance_below
-            
-        # Which are above upper bound?
-        above_sane = target_vals > target_constraints[1]
-        # If any values were above the upper bound, calculate how far,
-        #  then calculate the garbage MI, comparing the the one
-        #  calculated for the values violating the lower constraint,
-        #  if they exist, and finally, return the garbage MI
-        if np.any(above_sane):
-            above = True
-            distance_above = np.max(
-                np.abs(
-                    target_vals[above_sane] - target_constraints[1]
-                )
-            )
-            print("{} value of {} was {} far above the constraint ({}).".format(target_name, np.max(target_vals[above_sane]), distance_below, target_constraints[1]))
-            if below:
-                above_garbage = 10_000 * distance_above
-                garbage_val = np.max([garbage_mi, above_garbage])
-            else:
-                garbage_val = 10_000 * distance_below
+    #    # Which are below lower bound?
+    #    below_sane = target_vals < target_constraints[0]
+    #    # if a value is below the lower bound, calculate how far out
+    #    #  to determine what to set garbage MI to.
+    #    if np.any(below_sane):
+    #        below = True
+    #        distance_below = np.max(
+    #            np.abs(
+    #                target_vals[below_sane] - target_constraints[0]
+    #            )
+    #        )
+    #        print("{} value of {} was {} far below the constraint ({}).".format(target_name, np.min(target_vals[below_sane]), distance_below, target_constraints[0]))
+    #        garbage_val = 50 + 10_000 * distance_below
+    #        
+    #    # Which are above upper bound?
+    #    above_sane = target_vals > target_constraints[1]
+    #    # If any values were above the upper bound, calculate how far,
+    #    #  then calculate the garbage MI, comparing the the one
+    #    #  calculated for the values violating the lower constraint,
+    #    #  if they exist, and finally, return the garbage MI
+    #    if np.any(above_sane):
+    #        above = True
+    #        distance_above = np.max(
+    #            np.abs(
+    #                target_vals[above_sane] - target_constraints[1]
+    #            )
+    #        )
+    #        print("{} value of {} was {} far above the constraint ({}).".format(target_name, np.max(target_vals[above_sane]), distance_above, target_constraints[1]))
+    #        if below:
+    #            above_garbage = 50 + 10_000 * distance_above
+    #            garbage_val = np.max([garbage_mi, above_garbage])
+    #        else:
+    #            garbage_val = 50 + 10_000 * distance_above
 
-        if above or below:
-            return garbage_val
+    #    if above or below:
+    #        return garbage_val
 
     this_mi,hits = inout.run_query_over_ref(
         y,
