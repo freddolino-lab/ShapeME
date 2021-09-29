@@ -4,6 +4,56 @@ use ndarray::Array;
 // ndarray_stats exposes ArrayBase to useful methods for descriptive stats like min.
 use ndarray_stats::QuantileExt;
 
+// TODO: 
+//
+// 1. Generate hits vector for a given seed (see pseudocode below)
+//    + We need the following:
+//        + functions to increment the hit count and toggle maxed to True
+//           when we hit the strand's max count
+//        + method to slice backward through a sequence (or maybe we just compute the reverse at the beginning, along with the reversed weights? that might make it easier to start with all our data, and not have to make unnecessary copies)
+//
+//
+//     rev_seq = seed_seq.rev
+//     seed_seq.constrain_norm_weights(alpha)
+//     rev_seq.constrain_norm_weights(alpha)
+//
+//     seed_hits = array(2d, first axis is record number, second axis is strand)
+//
+//     // loop over all references
+//     for i,sequence in all_seqs.enumerate() {
+//
+//         rev_maxed = False
+//         fwd_maxed = False
+//       
+//         // we probably started with 60-mer, but it's now 56 due to clipping 2 from each end
+//         for window in reference.window_iter(0,56,15) {
+//
+//             if rev_maxed and fwd_maxed {
+//                 break
+//             }
+//
+//             if not fwd_maxed {
+//                 distance = weighted_manhattan_distance(seed_seq, window_seq, seed_seq.norm_weights)
+//                 if distance < threshold {
+//                     seed_hits[i,0] += 1
+//                     if seed_hits[i,0] == max_count {
+//                         fwd_maxed = True
+//                     }
+//                 }
+//             }
+//
+//             if not rev_maxed {
+//                 distance = weighted_manhattan_distance(rev_seq, window_seq, rev_seq.norm_weights)
+//                 if distance < threshold {
+//                     seed_hits[i,1] += 1
+//                     if seed_hits[i,1] == max_count {
+//                         rev_maxed = True
+//                     }
+//                 }
+//             }
+//         }
+//     }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,16 +131,16 @@ mod tests {
         assert_eq!(this_motif.weights.weights.sum(), 1.0*12.0*5.0);
     }
 
-
     #[test]
     fn test_pairwise_motif() {
+        let alpha = 0.1;
         let this_seq = set_up_motif(2.0, 30);
         let mut out = Vec::new();
         for seed in this_seq.window_iter(0, 31, 3){
             // get the motif weights through type conversion
             let mut this_motif: Motif = seed.into();
             // normalize the weights before using them
-            this_motif.weights.normalize();
+            this_motif.weights.constrain_normalize(&alpha);
             for window in this_seq.window_iter(0, 31, 3){
                 out.push(
                     weighted_manhattan_distance(
@@ -99,7 +149,9 @@ mod tests {
                         &this_motif.params.params, 
                         &window.params, 
                         // use normalized weights. Need to explicitly get a view
-                        &this_motif.weights.weights_norm.view()));
+                        &this_motif.weights.weights_norm.view()
+                    )
+                );
             }
         }
         println!("{:?}", out);
@@ -114,8 +166,7 @@ mod tests {
             [0.20, 0.70, 0.60]
         ];
         let total = trans_arr.sum();
-        let target_arr = trans_arr
-            .map(|x| x/total);
+        let target_arr = &trans_arr / total;
         let start_arr = trans_arr
             .map(|x| ((x-alpha)/(1.0-alpha) / (1.0-(x-alpha)/(1.0-alpha)) as f32).ln());
         let mut motif_weights = MotifWeights{
@@ -142,6 +193,7 @@ mod tests {
 //    max_count: u32,
 //) {
 //}
+
 
 /// An enumeration of possible parameter names
 /// Supported parameters could be added here in the future
@@ -456,27 +508,6 @@ pub fn inv_logit(a: f32, alpha: Option<f32>) -> f32 {
     let lower = alpha.unwrap_or(0.0);
     lower + (1.0 - lower) * a.exp() / (1.0 + a.exp())
 }
-
-/// Function to compute a constrained manhattan distance between two 2D array
-/// views with a single associated set of weights. Views are used so that this
-/// can evantually be parallelized if needed.
-///
-/// # Arguments
-///
-/// - `arr1` - a reference to a view of a 2D array, typically a [Motif] `param` field
-/// - `arr2` - a reference to a view of a 2d array, typically a window on a sequence to be compared
-/// - `weights` - a view of a 2D array, typically a [Motif] `weights_norm` field
-/// - `alpha` - the lower limit on the inv-logit-transformed values prior to weights normalization
-pub fn constrained_weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>,
-                                               arr2: &ndarray::ArrayView::<f32, Ix2>,
-                                               weights: &ndarray::ArrayView::<f32, Ix2>,
-                                               alpha: &f32) -> f32 {
-    ndarray::Zip::from(arr1)
-        .and(arr2)
-        .and(weights)
-        .fold(0.0, |acc, a, b , c| acc + (a-b).abs()*c)
-}
-
 
 //fn parse_all_args(mat: clap::ArgMatches) -> Args {
 //    
