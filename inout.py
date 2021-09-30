@@ -573,13 +573,15 @@ class RecordDatabase(object):
         A vector. Binary if looking at peak presence/absence,
         categorical if looking at signal magnitude.
     X : np.array
-        Array of shape (R,P,S), where R is the number of records in
+        Array of shape (R,P,S,2), where R is the number of records in
         the input data, P is the number of positions (the length of)
         each record, and S is the number of shape parameters present.
+        The final axis is of length 2, one index for each strand.
     windows : np.array
-        Array of shape (R,L,S,W), where R and S are described above
+        Array of shape (R,L,S,W,2), where R and S are described above
         for the data attribute, L is the length of each window,
         and W is the number of windows each record was chunked into.
+        The final axis is of length 2, one index for each strand.
     weights : np.array
         Array of shape (R,L,S,W), where the axis lengths are described
         above for the windows attribute. Values are weights applied
@@ -592,6 +594,7 @@ class RecordDatabase(object):
 
     def __init__(self, infile=None, shape_dict=None, y=None, X=None,
                  shape_names=None, record_names=None, weights=None, windows=None,
+                 shift_params=["HelT", "Roll"],
                  exclude_na=True):
 
         self.record_name_lut = {}
@@ -615,7 +618,11 @@ class RecordDatabase(object):
         if infile is not None:
             self.read_infile(infile)
         if shape_dict is not None:
-            self.read_shapes(shape_dict, exclude_na)
+            self.read_shapes(
+                shape_dict,
+                shift_params=shift_params,
+                exclude_na=exclude_na,
+            )
 
     def __len__(self):
         """Length method returns the total number of records in the database
@@ -720,7 +727,7 @@ class RecordDatabase(object):
                 dtype=int,
             )
 
-    def read_shapes(self, shape_dict, exclude_na=True):
+    def read_shapes(self, shape_dict, shift_params=["HelT","Roll"], exclude_na=True):
         """Parses info in shapefiles and inserts into database
 
         Args:
@@ -756,19 +763,25 @@ class RecordDatabase(object):
                         break
                     record_length = len(rec_data)
 
-                self.X = np.zeros((record_count,record_length,shape_count))
+                self.X = np.zeros((record_count,record_length,shape_count,2))
 
             for rec_name,rec_data in this_shape_dict.items():
                 r_idx = self.record_name_lut[rec_name]
-                while len(rec_data) < self.X.shape[1]:
+                if shape_name in shift_params:
+                    #while len(rec_data) < self.X.shape[1]:
                     rec_data = np.append(rec_data, np.nan)
-                self.X[r_idx,:,s_idx] = rec_data
+                    rec_data = np.append(np.nan, rec_data)
+                    self.X[r_idx,:,s_idx,0] = rec_data[1:]
+                    self.X[r_idx,:,s_idx,1] = rec_data[:-1]
+                else:
+                    self.X[r_idx,:,s_idx,0] = rec_data
+                    self.X[r_idx,:,s_idx,1] = rec_data
 
         if exclude_na:
             # identifies which positions have at least one NA for any shape
-            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2))
+            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2,3))
             # grabs complete cases from X
-            self.X = self.X[:,complete_positions,:]
+            self.X = self.X[:,complete_positions,:,:]
 
     #def set_center_spread(self, center_spread):
     #    """Method to set the center spread for the database for each
@@ -857,14 +870,16 @@ class RecordDatabase(object):
         """
 
         #(R,L,S,W)
-        rec_num, rec_len, shape_num = self.X.shape
+        rec_num, rec_len, shape_num, strand_num = self.X.shape
         window_count = rec_len - wsize
         
-        self.windows = np.zeros((rec_num, wsize, shape_num, window_count))
+        self.windows = np.zeros((
+            rec_num, wsize, shape_num, window_count, strand_num
+        ))
 
         for i,rec in enumerate(self.iter_records()):
             for j in range(window_count):
-                self.windows[i, :, :, j] = self.X[i, j:(j+wsize), :]
+                self.windows[i, :, :, j, :] = self.X[i, j:(j+wsize), :, :]
 
     def permute_records(self):
 
@@ -981,24 +996,33 @@ class RecordDatabase(object):
 
     def compute_mi(self, dist, max_count, alpha):
         
-        rec_num,win_len,shape_num,win_num = self.windows.shape
+        rec_num,win_len,shape_num,win_num,strand_num = self.windows.shape
         mi_arr = np.zeros((rec_num,win_num))
-        hits_arr = np.zeros((rec_num,win_num,rec_num,2))
+        hits_arr = np.zeros((rec_num,win_num,rec_num,strand_num))
 
         for r in range(rec_num):
             for w in range(win_num):
 
+###########################################################################
+###########################################################################
+## NOTE: I need to also loop over the reverse strand for these.   #########
+##       It's time to fundamentally shift away from such a bulky  #########
+##       way of storing the data. Instead I'll switch to using    #########
+##       this class to store the X vals and windows, then move to #########
+##       a simple list at this and subsequent steps.              #########
+###########################################################################
+
                 mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
-                    self.y,
-                    self.windows[r,:,:,w],
-                    self.weights[r,:,:,w],
-                    self.thresholds[r,w],
-                    self.windows,
-                    rec_num,
-                    win_num,
-                    dist,
-                    max_count,
-                    alpha,
+                    y_vals = self.y,
+                    query_shapes = self.windows[r,:,:,w,:],
+                    query_weights = self.weights[r,:,:,w],
+                    threshold = self.thresholds[r,w],
+                    ref = self.windows,
+                    R = rec_num,
+                    W = win_num,
+                    dist_func = dist,
+                    max_count = max_count,
+                    alpha = alpha,
                 )
 
         self.mi = mi_arr
