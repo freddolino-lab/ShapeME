@@ -4,6 +4,12 @@ use ndarray::Array;
 // ndarray_stats exposes ArrayBase to useful methods for descriptive stats like min.
 use ndarray_stats::QuantileExt;
 
+// Next major goal:
+//   Run seed over entire database of seqs and get MI.
+//   + subgoal: benchmark testing for this!
+//   + subgoal: get RecordsDatabase struct, with sequences field and y-vals field
+//
+//
 // TODO: 
 //
 // 1. Generate hits vector for a given seed (see pseudocode below)
@@ -11,6 +17,8 @@ use ndarray_stats::QuantileExt;
 //        + functions to increment the hit count and toggle maxed to True
 //           when we hit the strand's max count
 //        + method to slice backward through a sequence (or maybe we just compute the reverse at the beginning, along with the reversed weights? that might make it easier to start with all our data, and not have to make unnecessary copies)
+//    + Where to parallelize is an engineering question
+//        + just keep in mind for future, once we actually implemente par
 //
 //
 //     rev_seq = seed_seq.rev
@@ -32,6 +40,11 @@ use ndarray_stats::QuantileExt;
 //                 break
 //             }
 //
+//   ############################################################
+//   ############################################################
+//   ### make the distance/matching stuff an impl to SequenceView?
+//   ############################################################
+//   ############################################################
 //             if not fwd_maxed {
 //                 distance = weighted_manhattan_distance(seed_seq, window_seq, seed_seq.norm_weights)
 //                 if distance < threshold {
