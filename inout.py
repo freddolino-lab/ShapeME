@@ -6,26 +6,6 @@ import welfords
 from scipy import stats
 from collections import OrderedDict
 
-#@jit(nopython=True, parallel=True)
-#def get_all_mi(indices, rec_num, win_num, y_vals,
-#               windows, weights, thresholds, mi_arr,
-#               hits_arr, dist, max_count):
-#    
-#    for i in prange(len(indices)):
-#        r,w = indices[i]
-#
-#        mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
-#            y_vals,
-#            windows[r,:,:,w],
-#            weights[r,:,:,w],
-#            thresholds[r,w],
-#            windows,
-#            rec_num,
-#            win_num,
-#            dist,
-#            max_count,
-#        )
-
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
                        ref, R, W, dist_func, max_count=4, alpha=0.1):
@@ -34,16 +14,16 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
     hits = np.zeros((R,2))
 
     optim_generate_peak_array(
-        ref,
-        query_shapes,
-        query_weights,
-        threshold,
-        hits,
-        R,
-        W,
-        dist_func,
-        max_count,
-        alpha,
+        ref = ref,
+        query = query_shapes,
+        weights = query_weights,
+        threshold = threshold,
+        results = hits,
+        R = R,
+        W = W,
+        dist = dist_func,
+        max_count = max_count,
+        alpha = alpha,
     )
 
     # sort the counts such that for each record, the
@@ -54,66 +34,6 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
     this_mi = mutual_information(y_vals, hits, unique_hits)
 
     return this_mi,hits
-
-@jit(nopython=True, parallel=True)
-def binary_optim_generate_peak_array(ref, query, weights, threshold,
-                                     results, R, W, dist):
-    """Does same thing as generate_peak_vector, but hopefully faster
-    
-    Args:
-    -----
-    ref : np.array
-        The windows attribute of an inout.RecordDatabase object. Will be an
-        array of shape (R,L,S,W), where R is the number of records,
-        L is the window size, S is the number of shape parameters, and
-        W is the number of windows for each record.
-    query : np.array
-        A slice of the first and final indices of the windows attribute of
-        an inout.RecordDatabase object to check for matches in ref.
-        Should be an array of shape (L,S).
-    weights : np.array
-        A slice of the first and final indices of the weights attribute of
-        and inout.RecordDatabase object. Will be applied to the distance
-        calculation. Should be an array of shape (L,S).
-    threshold : np.array
-        Minimum distance to consider a match.
-    results : 2d np.array
-        Array of shape (R,2), where R is the number of records in ref.
-        This array should be populated with zeros, will be set to 1
-        when a match is found. The final axis is of length 2 so that
-        we can do the reverse-complement and the forward.
-    R : int
-        Number of records
-    W : int
-        Number of windows for each record
-    dist : function
-        The distance function to use for distance calculation.
-    """
-    
-    for r in prange(R):
-        f_hit = False
-        r_hit = False
-        for w in range(W):
-
-            if f_hit and r_hit:
-                break
-            
-            ref_seq = ref[r,:,:,w]
-
-            if not f_hit:
-                distance = dist(query, ref_seq, weights)
-                if distance < threshold:
-                    # if a window has a distance low enough,
-                    #   add 1 to this result's index
-                    results[r,0] = 1
-                    f_hit = True
-
-            if not r_hit:
-                # slice query backward to do rc comparison
-                rc_distance = dist(query[::-1,:], ref_seq, weights)
-                if rc_distance < threshold:
-                    results[r,1] = 1
-                    r_hit = True
 
 
 @jit(nopython=True, parallel=True)
@@ -129,12 +49,11 @@ def optim_generate_peak_array(ref, query, weights, threshold,
         L is the window size, S is the number of shape parameters, and
         W is the number of windows for each record.
     query : np.array
-        A slice of the first and final indices of the windows attribute of
+        A slice of the records and windows axes of the windows attribute of
         an inout.RecordDatabase object to check for matches in ref.
-        Should be an array of shape (L,S).
+        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
     weights : np.array
-        A slice of the first and final indices of the weights attribute of
-        and inout.RecordDatabase object. Will be applied to the distance
+        Weights to be applied to the distance
         calculation. Should be an array of shape (L,S).
     threshold : np.array
         Minimum distance to consider a match.
@@ -164,24 +83,23 @@ def optim_generate_peak_array(ref, query, weights, threshold,
             if f_maxed and r_maxed:
                 break
 
-            ref_seq = ref[r,:,:,w]
+            ref_seq = ref[r,:,:,w,:]
 
-            if not f_maxed:
-                distance = dist(query, ref_seq, weights, alpha)
-                if distance < threshold:
-                    # if a window has a distance low enough,
-                    #   add 1 to this result's index
-                    results[r,0] += 1
-                    if results[r,0] == max_count:
-                        f_maxed = True
+            # might broadcast... give it a try
+            distances = dist(query, ref_seq, weights, alpha)
+            lt_thresh = distances < threshold
 
-            if not r_maxed:
-                # slice query backward to do rc comparison
-                rc_distance = dist(query[::-1,:], ref_seq, weights, alpha)
-                if rc_distance < threshold:
-                    results[r,1] += 1
-                    if results[r,1] == max_count:
-                        r_maxed = True
+            if (not f_maxed) and (lt_thresh[0]):
+                # if a window has a distance low enough,
+                #   add 1 to this result's index
+                results[r,0] += 1
+                if results[r,0] == max_count:
+                    f_maxed = True
+
+            if (not r_maxed) and (lt_thresh[1]):
+                results[r,1] += 1
+                if results[r,1] == max_count:
+                    r_maxed = True
 
 
 @jit(nopython=True)
@@ -206,7 +124,12 @@ def inv_logit(x):
 def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
     w_floor_inv_logit = a + (1-a) * inv_logit(w)
     w_trans = w_floor_inv_logit/np.sum(w_floor_inv_logit)
-    return np.sum(np.abs(vec1 - vec2) * w_trans)
+    w_abs_diff = np.abs(vec1 - vec2) * w_trans
+    #NOTE: this seems crazy, but it's necessary instead of np.sum(arr, axis=(0,1))
+    #  in order to get jit(nopython=True) to work
+    first_sum = np.sum(w_abs_diff, axis=0)
+    second_sum = np.sum(first_sum, axis=0)
+    return second_sum
 
 @jit(nopython=True)
 def hamming_distance(vec1, vec2):
@@ -807,8 +730,8 @@ class RecordDatabase(object):
         for shape_recs in self.iter_shapes():
             shape_cent_spreads.append(method(shape_recs))
 
-        self.shape_centers = ([x[0] for x in shape_cent_spreads])
-        self.shape_spreads = ([x[1] for x in shape_cent_spreads])
+        self.shape_centers = np.array([x[0] for x in shape_cent_spreads])
+        self.shape_spreads = np.array([x[1] for x in shape_cent_spreads])
 
     def normalize_shape_values(self):
         """Method to normalize each parameter based on self.center_spread
@@ -819,7 +742,11 @@ class RecordDatabase(object):
 
         # normalize shape values
         if not self.normalized:
-            self.X = ( self.X - self.shape_centers ) / self.shape_spreads
+            self.X = (
+                ( self.X
+                - self.shape_centers[:,np.newaxis] )
+                / self.shape_spreads[:,np.newaxis]
+            )
             self.normalized = True
         else:
             print("X vals are already normalized. Doing nothing.")
@@ -849,7 +776,7 @@ class RecordDatabase(object):
         #L = self.windows.shape[1]
         #S = self.windows.shape[2]
         #self.weights = np.full_like(self.windows, 1.0/L/S)
-        self.weights = np.zeros_like(self.windows)
+        weights = np.zeros_like(self.windows[0,:,:,0,0])
 
         #x_vals = np.linspace(0,1,self.windows.shape[1])
         #w = stats.beta.pdf(x_vals, 2, 2)
@@ -861,6 +788,7 @@ class RecordDatabase(object):
         #for rec in range(self.weights.shape[0]):
         #    for win in range(self.weights.shape[-1]):
         #        self.weights[rec,:,:,win] = w
+        return weights
 
     def compute_windows(self, wsize):
         """Method to precompute all nmers.
@@ -886,7 +814,6 @@ class RecordDatabase(object):
         rand_order = np.random.permutation(self.windows.shape[0])
 
         permuted_windows = self.windows[rand_order,...]
-        permuted_weights = self.weights[rand_order,...]
         permuted_shapes = self.X[rand_order,...]
         permuted_vals = self.y[rand_order,...]
 
@@ -897,13 +824,13 @@ class RecordDatabase(object):
             y = permuted_vals,
             X = permuted_shapes,
             shape_names = [rev_lut[idx] for idx in range(shape_count)],
-            weights = permuted_weights,
             windows = permuted_windows,
         )
         return(permuted_records)
 
-    def set_initial_thresholds(self, dist, alpha=0.1, threshold_sd_from_mean=2.0,
-                               seeds_per_seq=1, max_seeds=10000):
+    def set_initial_threshold(self, dist, weights, alpha=0.1,
+                              threshold_sd_from_mean=2.0,
+                              seeds_per_seq=1, max_seeds=10000):
         """Function to determine a reasonable starting threshold given a sample
         of the data
 
@@ -926,15 +853,13 @@ class RecordDatabase(object):
 
         for i,record_windows in enumerate(shuffled_db.windows):
 
-            record_weights = shuffled_db.weights[i,...]
             rand_order = np.random.permutation(record_windows.shape[2])
             curr_seeds_per_seq = 0
             for index in rand_order:
                 window = record_windows[:,:,index]
-                window_weights = record_weights[:,:,index]
                 if curr_seeds_per_seq >= seeds_per_seq:
                     break
-                total_seeds.append((window, window_weights))
+                total_seeds.append((window, weights))
                 curr_seeds_per_seq += 1
                 seed_counter += 1
             if seed_counter >= max_seeds:
@@ -950,8 +875,13 @@ class RecordDatabase(object):
             for j, seed_j in enumerate(total_seeds):
                 if i >= j:
                     continue
-                distance = dist(seed_i[0], seed_j[0], seed_i[1], alpha)
-                online_mean.update(distance)
+                distances = dist(
+                    seed_i[0],
+                    seed_j[0],
+                    seed_i[1],
+                    alpha,
+                )
+                online_mean.update(distances[0]) # just use + strand for initial thresh
 
         mean = online_mean.final_mean()
         stdev = online_mean.final_stdev()
@@ -960,10 +890,7 @@ class RecordDatabase(object):
         thresh = max(mean - threshold_sd_from_mean * stdev, 0)
         logging.info("Setting initial threshold for each seed to {}".format(thresh))
 
-        # set up thresholds array of shape (R,W)
-        self.thresholds = np.zeros((self.windows.shape[0], self.windows.shape[-1]))
-        # set values to the calculated initial threshold
-        self.thresholds[...] = thresh
+        return thresh
 
     def mutual_information(self, arr):
         """Method to calculate the MI between the values in the database and
@@ -994,29 +921,24 @@ class RecordDatabase(object):
         ).copy()
         return flat
 
-    def compute_mi(self, dist, max_count, alpha):
+    def compute_mi(self, dist, max_count, alpha, weights, threshold):
         
         rec_num,win_len,shape_num,win_num,strand_num = self.windows.shape
-        mi_arr = np.zeros((rec_num,win_num))
-        hits_arr = np.zeros((rec_num,win_num,rec_num,strand_num))
+        #mi_arr = np.zeros((rec_num,win_num))
+        #hits_arr = np.zeros((rec_num,win_num,rec_num,strand_num))
+        results = []
 
         for r in range(rec_num):
             for w in range(win_num):
 
-###########################################################################
-###########################################################################
-## NOTE: I need to also loop over the reverse strand for these.   #########
-##       It's time to fundamentally shift away from such a bulky  #########
-##       way of storing the data. Instead I'll switch to using    #########
-##       this class to store the X vals and windows, then move to #########
-##       a simple list at this and subsequent steps.              #########
-###########################################################################
+                query = self.windows[r,:,:,w,0]
+                query = query[...,None]
 
-                mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
+                mi,hits = run_query_over_ref(
                     y_vals = self.y,
-                    query_shapes = self.windows[r,:,:,w,:],
-                    query_weights = self.weights[r,:,:,w],
-                    threshold = self.thresholds[r,w],
+                    query_shapes = query,
+                    query_weights = weights,
+                    threshold = threshold,
                     ref = self.windows,
                     R = rec_num,
                     W = win_num,
@@ -1024,9 +946,11 @@ class RecordDatabase(object):
                     max_count = max_count,
                     alpha = alpha,
                 )
+                results.append((query, mi, hits, r, w))
 
-        self.mi = mi_arr
-        self.hits = hits_arr
+        #self.mi = mi_arr
+        #self.hits = hits_arr
+        return results
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with
@@ -1767,21 +1691,18 @@ def mutual_information(arrayx, arrayy, uniquey):
 
     total_x = arrayx.size 
     total_y = arrayy.size
-    #if total_x != total_y:
-    #    raise ValueError("Array sizes must be the same {} {}".format(total_x, total_y))
-    #else:
-    #    total = total_x + 0.0
     total = total_x
     MI = 0
     for x in np.unique(arrayx):
+        # p(x_i)
+        row_is_x = arrayx == x
+        p_x = np.sum(row_is_x)/total
         for y in uniquey:
-            # p(x_i)
-            p_x = np.sum(arrayx == x)/total
             # p(y_j)
             row_is_y = (arrayy == y)[:,0]
             p_y = np.sum(row_is_y)/total
             # p(x_i,y_j)
-            p_x_y = np.sum(np.logical_and(arrayx == x, row_is_y))/total
+            p_x_y = np.sum(np.logical_and(row_is_x, row_is_y))/total
             if p_x_y == 0 or p_x == 0 or p_y == 0:
                 MI += 0
             else:
