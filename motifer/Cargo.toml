@@ -5,7 +5,9 @@ authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc
 edition = "2018"
 
 [dependencies]
-ndarray = "0.15.0"
+# We need the approx feature to expose the ArrayBase struct to the abs_diff_eq method
+ndarray = { version = "0.15.3", features = ["approx"] }
+ndarray-stats = "0.5.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

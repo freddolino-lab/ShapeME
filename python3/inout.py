@@ -6,8 +6,29 @@ import welfords
 from scipy import stats
 from collections import OrderedDict
 
+#@jit(nopython=True, parallel=True)
+#def get_all_mi(indices, rec_num, win_num, y_vals,
+#               windows, weights, thresholds, mi_arr,
+#               hits_arr, dist, max_count):
+#    
+#    for i in prange(len(indices)):
+#        r,w = indices[i]
+#
+#        mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
+#            y_vals,
+#            windows[r,:,:,w],
+#            weights[r,:,:,w],
+#            thresholds[r,w],
+#            windows,
+#            rec_num,
+#            win_num,
+#            dist,
+#            max_count,
+#        )
+
+
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func, max_count=4):
+                       ref, R, W, dist_func, max_count=4, alpha=0.1):
 
     # R for record number, 2 for one forward count and one reverse count
     hits = np.zeros((R,2))
@@ -22,6 +43,7 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
         W,
         dist_func,
         max_count,
+        alpha,
     )
 
     # sort the counts such that for each record, the
@@ -96,7 +118,7 @@ def binary_optim_generate_peak_array(ref, query, weights, threshold,
 
 @jit(nopython=True, parallel=True)
 def optim_generate_peak_array(ref, query, weights, threshold,
-                              results, R, W, dist, max_count):
+                              results, R, W, dist, max_count, alpha):
     """Does same thing as generate_peak_vector, but hopefully faster
     
     Args:
@@ -129,6 +151,9 @@ def optim_generate_peak_array(ref, query, weights, threshold,
         The distance function to use for distance calculation.
     max_count : int
         The maximum number of hits to count for each strand.
+    alpha : float
+        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+        prior to normalizing the sum of weights to one and calculating distance.
     """
     
     for r in prange(R):
@@ -139,8 +164,10 @@ def optim_generate_peak_array(ref, query, weights, threshold,
             if f_maxed and r_maxed:
                 break
 
+            ref_seq = ref[r,:,:,w]
+
             if not f_maxed:
-                distance = dist(query, ref_seq, weights)
+                distance = dist(query, ref_seq, weights, alpha)
                 if distance < threshold:
                     # if a window has a distance low enough,
                     #   add 1 to this result's index
@@ -150,7 +177,7 @@ def optim_generate_peak_array(ref, query, weights, threshold,
 
             if not r_maxed:
                 # slice query backward to do rc comparison
-                rc_distance = dist(query[::-1,:], ref_seq, weights)
+                rc_distance = dist(query[::-1,:], ref_seq, weights, alpha)
                 if rc_distance < threshold:
                     results[r,1] += 1
                     if results[r,1] == max_count:
@@ -170,6 +197,16 @@ def constrained_manhattan_distance(vec1, vec2, w=1):
     w_exp = np.exp(w)
     w = w_exp/np.sum(w_exp)
     return np.sum(np.abs(vec1 - vec2) * w)
+
+@jit(nopython=True)
+def inv_logit(x):
+    return np.exp(x) / (1 + np.exp(x))
+
+@jit(nopython=True)
+def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
+    w_floor_inv_logit = a + (1-a) * inv_logit(w)
+    w_trans = w_floor_inv_logit/np.sum(w_floor_inv_logit)
+    return np.sum(np.abs(vec1 - vec2) * w_trans)
 
 @jit(nopython=True)
 def hamming_distance(vec1, vec2):
@@ -361,6 +398,12 @@ class FastaFile(object):
     def __iter__(self):
         for name in self.names:
             yield self.pull_entry(name)
+
+    def copy(self):
+        new_fa = FastaFile()
+        for name,entry in self.data.items():
+            new_fa.add_entry(entry)
+        return new_fa
 
     def read_whole_file(self, fhandle):
         """ 
