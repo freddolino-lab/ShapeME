@@ -25,9 +25,22 @@ class BasinHoppingBounds:
     '''class to use as accept_test argument to basinhopping
     minimizer.
     '''
-    def __init__(self, xmax, xmin ):
+
+    def __init__(self, xmax, xmin):
+        '''Instantiates a BasinHoppingBounds object
+
+        Args:
+        -----
+        xmax : list
+            list of values, one value for each target being optimized,
+            representing the maximum allowed value for the given target.
+        xmin : list
+            same as xmax, but sets the minimum allowable value for each
+            target.
+        '''
         self.xmax = np.array(xmax)
         self.xmin = np.array(xmin)
+
     def __call__(self, **kwargs):
         x = kwargs["x_new"]
         tmax = bool(np.all(x <= self.xmax))
@@ -42,16 +55,16 @@ def retrieve_vals_from_target_vec(threshold, weights, shapes, targets_order,
     if threshold is not None:
         vals_dict['threshold'] = threshold
     if weights is not None:
-        vals_dict['weights'] = weights.reshape((L,S))
+        vals_dict['weights'] = weights.reshape((L,S,1))
     if shapes is not None:
-        vals_dict['shapes'] = shapes.reshape((L,S))
+        vals_dict['shapes'] = shapes.reshape((L,S,1))
 
     for i,target in enumerate(targets_order):
         if i == 0:
             left_break = 0
         right_break = target_breaks[i]
         if target in ['weights', 'shapes']:
-            vals_dict[target] = targets[left_break:right_break].reshape((L,S))
+            vals_dict[target] = targets[left_break:right_break].reshape((L,S,1))
         else:
             vals_dict[target] = targets[left_break:right_break]
         left_break = right_break
@@ -59,28 +72,28 @@ def retrieve_vals_from_target_vec(threshold, weights, shapes, targets_order,
 
     return vals_dict
 
-def make_linear_constraint(target,S,L):
-    """Sets up a LinearConstraint object to constrain the sum
-    of all shape weights to one. 
-    """
-
-    # Here we make a 1-by-L*S+1 matrix to get dot product of beta
-    #   and weights and threshold
-    beta = np.zeros((1,L*S+1))
-    # lower and upper bounds on sum of weights are 1
-    lower_bound = np.array([S*L])
-    upper_bound = np.array([S*L])
-
-    # set appropriate values in beta to 1, leave the -1 index as 0, since
-    #   we're not constraining the threshold
-    beta[0,:-1] = 1.0
-
-    const = LinearConstraint(
-        beta,
-        lower_bound,
-        upper_bound,
-    )
-    return const
+#def make_linear_constraint(target,S,L):
+#    """Sets up a LinearConstraint object to constrain the sum
+#    of all shape weights to one. 
+#    """
+#
+#    # Here we make a 1-by-L*S+1 matrix to get dot product of beta
+#    #   and weights and threshold
+#    beta = np.zeros((1,L*S+1))
+#    # lower and upper bounds on sum of weights are 1
+#    lower_bound = np.array([S*L])
+#    upper_bound = np.array([S*L])
+#
+#    # set appropriate values in beta to 1, leave the -1 index as 0, since
+#    #   we're not constraining the threshold
+#    beta[0,:-1] = 1.0
+#
+#    const = LinearConstraint(
+#        beta,
+#        lower_bound,
+#        upper_bound,
+#    )
+#    return const
 
 def brent_optimize_helper(r_idx, w_idx, dist, db):
 
@@ -146,94 +159,111 @@ def brent_optimize_threshold(record_db, dist, window_inds=None):
                 record_db.thresholds[r_idx,w_idx] = final_threshold
 
 
-def stochastic_optimize(out_fname, record_db, dist, temp=1.0, stepsize=0.5,
-                        fatol=0.0001, adapt=False,
+def stochastic_optimize(out_fname, seeds_dict, record_db, dist,
+                        temp=1.0, stepsize=0.5,
+                        fatol=0.01, adapt=False,
                         maxfev=None, opt_params=['weights'],
-                        window_inds=None, method = 'nelder-mead',
+                        method = 'nelder-mead',
                         niter=100, niter_success = 20, constraints_dict = {},
                         max_count = 4, alpha = 0.1):
-    """Perform motif optimization stochastically
+    """Perform motif optimization stochastically using scipy.optimize.basinhopping.
+    NOTE: This function is NOT yet threadsafe for parallelizing over motifs!!!
     
     Args:
+    -----
+    out_fname : str
+        Name of pickle file to which optimized motif info will be written
+    seeds_dict : dict
+        Dictionary with the following keys/values:
+            'seeds' : list of the seeds to be optimized. Elements in this list
+                are themseves dictionaries with keys, 'seq' (contains the shapes),
+                'mi' (the current mutual information between this seed's hits and
+                the input data), 'hits' (the vector of hits for each record/strand),
+                'row_index' (index of this seed in the first axis of the original
+                input data in rec_db.X), 'col_index' (index of this seed in the
+                second axis of the original input data in rec_db.X),
+                and 'distinct_hits'.
+            'weights' : The initial weights used for calculation of distances.
+            'match_threshold' : The initial threshold used for determining
+                whether a given distance should be considered a match.
+            'max_count' : The maximum allowed number of hits on each strand.
+            'alpha' : The minimum value of inv-logit-transformed weights
+                values prior to normalizing the weights' sum to one.
+    record_db : inout.RecordsDatabase
+    dist : Fn
+        The distance function to use
+    temp : float
+        Temperature parameter to basinhopping function
+    stepsize : float
+        Stepsize parameter to basinhopping function
+    fatol : float
+        Tolerance on mutual information for Nelder-Mead local optimizer
+        to determine convergence.
+    adapt : bool
+        Adapt argument to Nelder-Mead optimizer
+    maxfev : int
+        Maximum number of function evals for Nelder-Mead
+    method : str
+        Which local optimization method should be used?
+    niter : int
+        Number of hops the basin hopping optimizer will perform
+    niter_success : int
+        Number of consecutive hops without MI improvement prior to
+        terminating basin hopping.
+    constraints_dict : dictionary
+        Dictionary of bounds on shapes, weights, and threshold
+    max_count : int
+        Maximum number of hits to allow on each strand of the references
+    alpha : float
+        Lower bound on weights values after inv-logit transform, but prior
+        to normalizing weights to sum to one.
     
-    Returns:
+    Writes:
+    -------
+    out_fname
     """
 
-    R,L,S,W = record_db.windows.shape 
+    R,L,S,W,strand_num = record_db.windows.shape 
 
-    if window_inds is not None:
-        for i in range(len(window_inds)):
-            r_idx,w_idx = window_inds[i]
-            final = stochastic_opt_helper(
-                r_idx,
-                w_idx,
-                dist = dist,
-                db = record_db,
-                temperature = temp,
-                stepsize = stepsize,
-                fatol = fatol,
-                adapt = adapt,
-                maxfev = maxfev,
-                max_count = max_count,
-                alpha = alpha,
-                targets = opt_params,
-                method = method,
-                niter_success = niter_success,
-                constraints_dict = constraints_dict,
-                niter = niter,
-            )
-            
-            if i > 0:
+    # NOTE: it is currently not safe to parallelize this step due
+    #   to the read/write code within this loop
+    seed_list = seeds_dict['seeds']
+    for i,seed in enumerate(seed_list):
 
-                with open(out_fname, 'rb') as outf:
-                    results = pickle.load(outf)
+        final = stochastic_opt_helper(
+            motif_shapes = seed['seq'],
+            motif_weights = seeds_dict['weights'],
+            motif_thresh = seeds_dict['match_threshold'],
+            dist = dist,
+            db = record_db,
+            temperature = temp,
+            stepsize = stepsize,
+            fatol = fatol,
+            adapt = adapt,
+            maxfev = maxfev,
+            max_count = seeds_dict['max_count'],
+            alpha = seeds_dict['alpha'],
+            targets = opt_params,
+            method = method,
+            niter_success = niter_success,
+            constraints_dict = constraints_dict,
+            niter = niter,
+        )
+        
+        if i > 0:
 
-                results.append((final,r_idx,w_idx))
+            with open(out_fname, 'rb') as outf:
+                results = pickle.load(outf)
 
-                with open(out_fname, 'wb') as outf:
-                    pickle.dump(results, outf)
+            results.append((final,r_idx,w_idx))
 
-            else:
-                results = [(final,r_idx,w_idx)]
-                with open(out_fname, 'wb') as outf:
-                    pickle.dump(results, outf)
+            with open(out_fname, 'wb') as outf:
+                pickle.dump(results, outf)
 
-    else:
-        for r_idx in range(R):
-            for w_idx in range(W):
-                final = stochastic_opt_helper(
-                    r_idx,
-                    w_idx,
-                    dist = dist,
-                    db = record_db,
-                    temperature = temp,
-                    stepsize = stepsize,
-                    fatol = fatol,
-                    adapt = adapt,
-                    maxfev = maxfev,
-                    max_count = max_count,
-                    alpha = alpha,
-                    targets = opt_params,
-                    method = method,
-                    niter_success = niter_success,
-                    constraints_dict = constraints_dict,
-                    niter = niter,
-                )
-                if os.path.isfile(out_fname):
-
-                    with open(out_fname, 'rb') as outf:
-                        results = pickle.load(outf)
-
-                    results.append((final,r_idx,w_idx))
-
-                    with open(out_fname, 'wb') as outf:
-                        pickle.dump(results, outf)
-
-                else:
-                    results = [(final,r_idx,w_idx)]
-                    with open(out_fname, 'wb') as outf:
-                        pickle.dump(results, outf)
-
+        else:
+            results = [(final,r_idx,w_idx)]
+            with open(out_fname, 'wb') as outf:
+                pickle.dump(results, outf)
 
 
 def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
@@ -281,7 +311,8 @@ def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
 
     return results
 
-def stochastic_opt_helper(r_idx, w_idx, dist, db,
+def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
+                          dist, db,
                           temperature, stepsize, fatol, adapt,
                           maxfev, max_count=4, alpha=0.1,
                           targets = ['weights'],
@@ -291,10 +322,14 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     
     Args:
     -----
-    r_idx : int
-        Record index of this motif within the db
-    w_idx : int
-        Window index of this motif within its record in the db
+    motif_shapes : np.array
+        Array of shape (L,S,1) containing the seed's shape values. L is
+        the window length, and S is the number of shape parameters.
+    motif_weights : np.array
+        Array of shape (L,S,1) contining the weights used in distance
+        calculation.
+    motif_thresh : float
+        The threshold used for determining whether a distance is a match.
     dist : func
         Function defining the distance metric used for determining matches
     db : inout.RecordDatabse
@@ -334,10 +369,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
                                  additional values that go with it
     """
 
-    motif_weights = db.weights[r_idx,:,:,w_idx]
-    L,S = motif_weights.shape
-    motif_shapes = db.windows[r_idx,:,:,w_idx]
-    motif_thresh = db.thresholds[r_idx,w_idx]
+    L,S,_ = motif_weights.shape
 
     motif_dict = {
         'weights': motif_weights.flatten(),
@@ -346,7 +378,6 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     }
 
     # scipy.optimize.minimize requires the target to optimize be a 1d array
-    #target = np.append(motif_weights, motif_thresh)
     idx_breaks = []
     bounds = []
     for i,thing in enumerate(targets):
@@ -366,7 +397,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     ref_shapes = db.windows
     y_vals = db.y
 
-    final_motifs_dict = {}
+    final_motif_dict = {}
     func_info = {"NFeval":0, "eval":[], "value":[], "threshold":[]}
 
     if 'threshold' in targets:
@@ -390,9 +421,9 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
             idx_breaks,
             targets,
             max_count,
-            thresh_arg,
-            shapes_arg,
-            weights_arg,
+            thresh_arg, # should be None if we're optimizing threshold
+            shapes_arg, # should be None if we're optimizing shpaes
+            weights_arg,# should be None if we're optimizing weights
             alpha,
         ), 
         'method': method,
@@ -401,9 +432,14 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
             'adaptive': adapt,
             'maxfev': maxfev,
         },
+        # set bounds here, NOT in 'options', for Nelder Mead
+        #  this is a quirk of the way the local optimizer's bounds
+        #  are set in the basinhopping code
         'bounds': bounds,
     }
 
+    # unpack bounds dictionary into the min list and max list required by
+    #  the args to BasinHoppingBounds to set bounds for basinhopping optimizer
     min_bounds,max_bounds = list(zip(*bounds))
     bounds = BasinHoppingBounds(xmin=min_bounds, xmax=max_bounds)
 
@@ -434,7 +470,7 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
     weights_final = vals_dict['weights']
     shapes_final = vals_dict['shapes']
 
-    R,L,S,W = ref_shapes.shape
+    R,L,S,W,_ = ref_shapes.shape
     mi_opt,hits = inout.run_query_over_ref(
         y_vals,
         shapes_final,
@@ -448,11 +484,12 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         alpha,
     )
 
-    final_motifs_dict['hits'] = hits
-    final_motifs_dict['mi'] = mi_opt
-    final_motifs_dict['weights'] = weights_final
-    final_motifs_dict['threshold'] = threshold_final
-    final_motifs_dict['motif'] = shapes_final
+    final_motif_dict['hits'] = hits
+    final_motif_dict['mi'] = mi_opt
+    final_motif_dict['weights'] = weights_final
+    final_motif_dict['threshold'] = threshold_final
+    final_motif_dict['motif'] = shapes_final
+    final_motif_dict['optimized_vars'] = targets
 
     mi_orig,_ = inout.run_query_over_ref(
         y_vals,
@@ -467,17 +504,13 @@ def stochastic_opt_helper(r_idx, w_idx, dist, db,
         alpha,
     )
 
-    final_motifs_dict['mi_orig'] = mi_orig
-    final_motifs_dict['orig_weights'] = motif_weights
-    final_motifs_dict['orig_threshold'] = motif_thresh
-    final_motifs_dict['orig_shapes'] = motif_shapes
-    final_motifs_dict['r_idx'] = r_idx
-    final_motifs_dict['w_idx'] = w_idx
-    #final_motifs_dict['opt_success'] = final_opt['success']
-    #final_motifs_dict['opt_message'] = final_opt['message']
-    final_motifs_dict['opt_info'] = func_info
+    final_motif_dict['mi_orig'] = mi_orig
+    final_motif_dict['orig_weights'] = motif_weights
+    final_motif_dict['orig_threshold'] = motif_thresh
+    final_motif_dict['orig_shapes'] = motif_shapes
+    final_motif_dict['opt_info'] = func_info
 
-    return final_motifs_dict
+    return final_motif_dict
 
 
 def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
@@ -704,8 +737,7 @@ def brent_optimize_worker(threshold, shapes, weights, ref_shapes,
 def optimize_worker(targets, all_shapes, y, dist_func, info,
                     target_breaks, targets_order, max_count=4,
                     threshold=None, shapes=None, weights=None,
-                    alpha=0.1,
-                    constraints_dict={}):
+                    alpha=0.1):
     """Function to optimize a particular motif's weights
     for distance calculation.
 
@@ -752,17 +784,13 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         alpha : float
             Between 0 and 1, sets the minimum value weights will acheive
             after inv-logit and prior to normalization to sum to one.
-        constraints_dict : dict
-            Defines the constraints for each target. Has the keys 'threshold',
-            'weights', and 'shapes'. Each key's value is a tupple of (lower, upper)
-            limits on that target.
 
     Returns:
     --------
         MI for the weighted matches to the records
     """
 
-    R,L,S,W = all_shapes.shape
+    R,L,S,W,_ = all_shapes.shape
 
     # vals_dict has 'threshold', 'weights', and 'shapes' keys.
     vals_dict = retrieve_vals_from_target_vec(
@@ -775,51 +803,6 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         L,
         S,
     )
-
-    # I commented this out on 2021-09-28 because I found that I should be passing an accept_test argument directly to basinhopping.
-    # insert logic here to handle constraints
-    #for target_name,target_constraints in constraints_dict.items():
-    #    target_vals = vals_dict[target_name]
-
-    #    below = False
-    #    above = False
-
-    #    # Which are below lower bound?
-    #    below_sane = target_vals < target_constraints[0]
-    #    # if a value is below the lower bound, calculate how far out
-    #    #  to determine what to set garbage MI to.
-    #    if np.any(below_sane):
-    #        below = True
-    #        distance_below = np.max(
-    #            np.abs(
-    #                target_vals[below_sane] - target_constraints[0]
-    #            )
-    #        )
-    #        print("{} value of {} was {} far below the constraint ({}).".format(target_name, np.min(target_vals[below_sane]), distance_below, target_constraints[0]))
-    #        garbage_val = 50 + 10_000 * distance_below
-    #        
-    #    # Which are above upper bound?
-    #    above_sane = target_vals > target_constraints[1]
-    #    # If any values were above the upper bound, calculate how far,
-    #    #  then calculate the garbage MI, comparing the the one
-    #    #  calculated for the values violating the lower constraint,
-    #    #  if they exist, and finally, return the garbage MI
-    #    if np.any(above_sane):
-    #        above = True
-    #        distance_above = np.max(
-    #            np.abs(
-    #                target_vals[above_sane] - target_constraints[1]
-    #            )
-    #        )
-    #        print("{} value of {} was {} far above the constraint ({}).".format(target_name, np.max(target_vals[above_sane]), distance_above, target_constraints[1]))
-    #        if below:
-    #            above_garbage = 50 + 10_000 * distance_above
-    #            garbage_val = np.max([garbage_mi, above_garbage])
-    #        else:
-    #            garbage_val = 50 + 10_000 * distance_above
-
-    #    if above or below:
-    #        return garbage_val
 
     this_mi,hits = inout.run_query_over_ref(
         y,
@@ -841,52 +824,6 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
     info["NFeval"] += 1
 
     return -this_mi
-
-#@jit(nopython=True, parallel=False)
-#def optim_generate_peak_array(ref, query, weights, threshold,
-#                              results, R, W, dist):
-#    """Does same thing as generate_peak_vector, but hopefully faster
-#    
-#    Args:
-#    -----
-#    ref : np.array
-#        The windows attribute of an inout.RecordDatabase object. Will be an
-#        array of shape (R,L,S,W), where R is the number of records,
-#        L is the window size, S is the number of shape parameters, and
-#        W is the number of windows for each record.
-#    query : np.array
-#        A slice of the first and final indices of the windows attribute of
-#        an inout.RecordDatabase object to check for matches in ref.
-#        Should be an array of shape (L,S).
-#    weights : np.array
-#        A slice of the first and final indices of the weights attribute of
-#        and inout.RecordDatabase object. Will be applied to the distance
-#        calculation. Should be an array of shape (L,S).
-#    threshold : np.array
-#        Minimum distance to consider a match.
-#    results : 1d np.array
-#        Array of shape (R), where R is the number of records in ref.
-#        This array should be populated with zeros, and will be filled
-#        with 1's where matches are found.
-#    R : int
-#        Number of records
-#    W : int
-#        Number of windows for each record
-#    dist : function
-#        The distance function to use for distance calculation.
-#    """
-#    
-#    for r in range(R):
-#        for w in range(W):
-#            
-#            ref_seq = ref[r,:,:,w]
-#            distance = dist(query, ref_seq, weights)
-#            
-#            if distance < threshold:
-#                # if a window has a distance low enough,
-#                #   set this record's result to 1
-#                results[r] = 1
-#                break
 
 def make_initial_seeds(records, wsize,wstart,wend):
     """ Function to make all possible seeds, superceded by the precompute
@@ -1233,23 +1170,23 @@ def greedy_search2(records, threshold = 10, number=1000, seeds_per_seq = 1, rc=F
         logging.info("Seeds in Cat {}: {}".format(value, np.sum(values == value)))
     return seeds
 
-def evaluate_seeds(records, motifs, threshold_match, rc):
+def evaluate_seeds(records, motifs, threshold, rc):
     """ Function to evaluate a set of seeds and return the results in a list
 
     Args:
         records - full sequence database. This is read only
         motifs - set of motifs, again read only
-        threshold_match - distance threshold to be considered for a match
+        threshold - distance threshold to be considered for a match
         rc - test the reverse complement of the motif or not
     """
     seeds = []
     for motif in motifs:
         this_entry = {}
-        this_discrete = generate_peak_vector(records, motif, threshold_match, rc=rc)
+        this_discrete = generate_peak_vector(records, motif, threshold, rc=rc)
         this_entry['mi'] = records.mutual_information(this_discrete)
         this_entry['motif'] = motif
         this_entry['discrete'] = this_discrete
-        this_entry['threshold'] = threshold_match
+        this_entry['threshold'] = threshold
         seeds.append(this_entry)
     return seeds
 
@@ -1534,99 +1471,6 @@ def calc_aic(delta_k, rec_num, mi):
     aic = 2*delta_k - 2*rec_num*mi
     return aic
 
-def aic_motifs2(records, optimized_vars):
-    """Select final motifs through AIC
-
-    Args:
-        records (RecordDatabase Class) - sequences motifs are compared against
-    
-    Returns:
-        final_motifs (list of dicts) - list of passing motif indices in records
-    """
-
-    # get number of parameters based on window length * shape number * 2 + 1
-    #  We multiply by 2 because for each shape value we have a weight,
-    #  and we add 1 because the motif's threshold was a parameter.
-    rec_num,win_len,shape_num,win_num = records.windows.shape
-
-    shape_num_multiplier = 0
-    if 'shapes' in optimized_vars:
-        shape_num_multiplier += 1
-    if 'weights' in optimized_vars:
-        shape_num_multiplier += 1
-
-    delta_k = win_len * shape_num * shape_num_multiplier
-
-    if 'threshold' in optimized_vars:
-        delta_k += 1
-
-
-    # get sorted order of mi values
-    # returns a tuple of arrays corresponding to (row_idx, col_idx)
-    sort_r_inds,sort_c_inds = np.unravel_index(
-        # slice the sorted inds in reverse to get descending order
-        np.argsort(records.mi, axis=None)[::-1],
-        records.mi.shape,
-    )
-
-    top_motif_inds = []
-    # Make sure first motif passes AIC
-    top_mi = records.mi[sort_r_inds[0],sort_c_inds[0]]
-    top_aic = calc_aic(delta_k, rec_num, top_mi)
-    if top_aic < 0:
-        top_motif_inds = [(sort_r_inds[0],sort_c_inds[0])]
-    else:
-        return []
-
-    distinct_y = np.unique(records.y)
-    # loop through candidate motifs
-    for cand_idx in range(1,len(sort_r_inds)):
-
-        if cand_idx % 10 == 0:
-            print("Working on candidate index: {}".format(cand_idx))
-
-        cand_r_idx = sort_r_inds[cand_idx]
-        cand_c_idx = sort_c_inds[cand_idx]
-        cand_mi = records.mi[cand_r_idx, cand_c_idx]
-        cand_hits = records.hits[cand_r_idx, cand_c_idx, :, :]
-        distinct_cand_hits = np.unique(cand_hits, axis=0)
-
-        motif_pass = True
-
-        # if the total MI for this motif doesn't pass AIC skip it
-        cand_aic = calc_aic(delta_k, rec_num, cand_mi)
-        print("Candidate {} AIC: {}".format(cand_idx,cand_aic))
-        if cand_aic > 0:
-            continue
-
-        for good_motif_r,good_motif_c in top_motif_inds:
-
-            good_motif_hits = records.hits[good_motif_r, good_motif_c, :, :]
-
-            # check the conditional mutual information for this motif with
-            # each of the chosen motifs
-            distinct_good_motif_hits = np.unique(good_motif_hits, axis=0)
-            this_cmi = inout.conditional_mutual_information(
-                records.y, 
-                distinct_y,
-                cand_hits, 
-                distinct_cand_hits,
-                good_motif_hits,
-                distinct_good_motif_hits,
-            )
-            this_aic = calc_aic(delta_k, rec_num, this_cmi)
-
-            # if candidate motif doesn't improve model as added to each of the
-            # chosen motifs, skip it
-            if this_aic > 0:
-                motif_pass = False
-                break
-
-        if motif_pass:
-            top_motif_inds.append((cand_r_idx,cand_c_idx))
-
-    return top_motif_inds
-
 def aic_motifs(motifs, records, optimized_vars):
     """Select final motifs through AIC
 
@@ -1641,7 +1485,7 @@ def aic_motifs(motifs, records, optimized_vars):
     # get number of parameters based on window length * shape number * 2 + 1
     #  We multiply by 2 because for each shape value we have a weight,
     #  and we add 1 because the motif's threshold was a parameter.
-    rec_num,win_len,shape_num = records.X.shape
+    rec_num,win_len,shape_num,strand_num = records.X.shape
 
     shape_num_multiplier = 0
     if 'shapes' in optimized_vars:
@@ -1657,8 +1501,8 @@ def aic_motifs(motifs, records, optimized_vars):
     # sort motifs by mutual information
     these_motifs = sorted(
         motifs,
-        key=lambda x: x['mi'],
-        reverse=True,
+        key = lambda x: x['mi'],
+        reverse = True,
     )
 
     # Make sure first motif passes AIC
@@ -1745,49 +1589,65 @@ def bic_motifs(motifs, records):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('infile', action='store', type=str,
-                         help='input text file with names and scores')
+    parser.add_argument('--infile', action='store', type=str, required=True,
+        help='input text file with names and scores')
+    parser.add_argument('--mi_file', action="store_true",
+        help='Apply this flag if there is a file containing pre-computed mutual information for each seed.')
+    parser.add_argument('--cmi_file', action="store_true",
+        help='Apply this flag if there is a file containing CMI-filtered seeds. NOTE: If this flag is set, initial mutual informations will neither be calculated nor read in, even if you have set the --mi_file flag.')
+    parser.add_argument('--optim_file', action="store_true",
+        help='Apply this flag if there is a file containing optimized motifs that you would like to read ing. NOTE: If this flag is set, initial mutual informations will neither be calculated nor read in, even if you have set the --mi_file flag. Also, cmi-filtered seeds will not be read in, even if you have set the --cmi_file flag.')
+    parser.add_argument('--cmi_motif_file', action="store_true",
+        help='Apply this flag if there is a file containing CMI-filtered optimized motifs. NOTE: If this flag is set, initial MI calculation, CMI filtering of seeds, and optimization will be skipped. Pre-computed MIs, CMI-filtered seeds, and optimizations will not be read in, no matter whether you set the --mi_file, --cmi_file, or --optim_file flags.')
     parser.add_argument('--params', nargs="+", type=str,
-                         help='inputfile with mgw scores')
+                         help='inputfiles with shape scores')
     parser.add_argument('--param_names', nargs="+", type=str,
                          help='parameter names')
+    parser.add_argument('--no_optimize', action="store_true",
+        help="Set this if skipping optimization")
+    parser.add_argument('--optim_vars', nargs="+", type=str,
+        default=["weights","threshold"],
+        help="Names of the variables to optimize. Should be any combination of {'shapes', 'weights', 'threshold'}.")
+    parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
+        help="Sets the upper and lower limits on the match threshold during optimization. Defaults to 0 for the lower limit and 10 for the upper limit.")
+    parser.add_argument('--shape_constraints', nargs=2, type=float, default=[-4,4],
+        help="Sets the upper and lower limits on the shapes' z-scores during optimization. Defaults to -4 for the lower limit and 4 for the upper limit.")
+    parser.add_argument('--weights_constraints', nargs=2, type=float, default=[-4,4],
+        help="Sets the upper and lower limits on the pre-transformed, pre-normalized weights during optimization. Defaults to -4 for the lower limit and 4 for the upper limit.")
+    parser.add_argument('--temperature', type=float, default=0.1,
+        help="Sets the temperature argument for scipy.optimize.basinhopping")
+    parser.add_argument('--stepsize', type=float, default=0.25,
+        help="Sets the stepsize argument for scipy.optimize.basinhopping")
+    parser.add_argument('--basinhop_niter', type=int, default=100,
+        help="Sets the number of basin hops to undergo during optimization. Defaults to 100.")
+    parser.add_argument('--basinhop_niter_success', type=int, default=None,
+        help="Sets the number of basin hops after which if the global minimum hasn't been improve, optimization terminates. Defaults to None, which means that the value set by basinhop_niter will be the sole determinant of how many hops will be carried out")
+    parser.add_argument('--fatol', type=float, default=0.01,
+        help="Sets the fatol argument to control convergence of the Nelder-Mead local optimizer.")
+    parser.add_argument('--maxfev', type=int, default=None,
+        help="Sets the maxfev argument to control the Nelder-Mead local optimizer.")
+    parser.add_argument('--adapt', action="store_true",
+        help="Applying this flag will set adapt=True for the Nelder-Mead optimizer")
     parser.add_argument('--kmer', type=int,
                          help='kmer size to search for. Default=15', default=15)
-    parser.add_argument('--ignorestart', type=int,
-                         help='# bp to ignore at start of each sequence. Default=2',
-                         default=2)
-    parser.add_argument('--ignoreend', type=int,
-                         help='# bp to ignore at end of each sequence. Default=2',
-                         default=2)
-    parser.add_argument('--search_method', type=str, default="greedy",
-                        help="search method for initial seeds. Options: greedy, brute. Default=greedy")
-    parser.add_argument('--num_seeds', type=int,
-                         help='cutoff for number of seeds to test. Default=1000. Only matters for greedy search',
-                        default=1000)
-    parser.add_argument('--seeds_per_seq', type=int,
-                         help='max number of seeds to come from a single sequence. Default=1. Only matters for greedy search.',
-                        default=1)
-    parser.add_argument('--seeds_per_seq_thresh', type=int,
-                         help='max number of seeds to come from a single sequence. Default=1',
-                        default=1)
     parser.add_argument('--nonormalize', action="store_true",
                          help='don\'t normalize the input data by robustZ')
-    parser.add_argument('--threshold_perc', type=float, default=0.05,
-            help="fraction of data to determine threshold on. Default=0.05")
+    parser.add_argument('--threshold_perc', type=float, default=0.1,
+            help="fraction of data to determine threshold on. Default=0.1")
     parser.add_argument('--threshold_seeds', type=float, default=2.0, 
             help="std deviations below mean for seed finding. Only matters for greedy search. Default=2.0")
     parser.add_argument('--threshold_match', type=float, default=2.0, 
             help="std deviations below mean for match threshold. Default=2.0")
-    parser.add_argument('--optimize_perc', type=float, default=0.1, 
-            help="fraction of data to optimize on. Default=0.1")
     parser.add_argument('--motif_perc', type=float, default=1,
             help="fraction of data to EVALUATE motifs on. Default=1")
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
-    parser.add_argument('--optimize', action="store_true",
-            help="optimize motifs with Nelder Mead?")
     parser.add_argument('--mi_perc', type=float, default=5,
             help="ratio of CMI/MI to include an additional motif. Default=5")
+    parser.add_argument('--alpha', type=float, default=0.0,
+            help="Lower limit on transformed weight values prior to normalization to sum to 1. Defaults to 0.0.")
+    parser.add_argument('--max_count', type=int, default=1,
+            help="Maximum number of times a motif can match each of the forward and reverse strands in a reference.")
     parser.add_argument('--infoz', type=int, default=2000, 
             help="Calculate Z-score for final motif MI with n data permutations. default=2000. Turn off by setting to 0")
     parser.add_argument('--inforobust', type=int, default=10, 
@@ -1798,68 +1658,73 @@ if __name__ == "__main__":
             help="distance metric to use, manhattan using constrained weights is the only supported one for now")
     parser.add_argument('--seed', type=int, default=None,
             help="set the random seed, default=None, based on system time")
-    parser.add_argument('--rc', action="store_true",
-            help="search the reverse complement with each motif as well?")
-    parser.add_argument('-o', type=str, default="motif_out_")
-    parser.add_argument('-p', type=int, default=1, help="number of processors. Default=1")
+    parser.add_argument('-o', type=str, required=True, help="Prefix to apply to output files.")
+    parser.add_argument('--data_dir', type=str, required=True, help="Directory from which input files will be read.")
+    parser.add_argument('--out_dir', type=str, required=True, help="Directory (within 'data_dir') into which output files will be written.")
+    parser.add_argument('-p', type=int, default=5,
+        help="number of processors. Default=5")
+    parser.add_argument("--exit_after_initial_mi", action="store_true",
+        help="Run initial mutual information calculation, then exit, saving the result of the mutual information calculations.")
+    parser.add_argument("--exit_after_cmi_filter", action="store_true",
+        help="Run initial CMI filtering step prior to optimization, then exit, saving the retained seeds as a list in a pickle file.")
+    parser.add_argument("--exit_after_optimization", action="store_true",
+        help="Run initial CMI filtering step prior to optimization, then exit, saving the retained seeds as a list in a pickle file.")
     parser.add_argument("--debug", action="store_true",
-            help="print debugging information to stderr. Write extra txt files.")
-    parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
-    parser.add_argument('--save_opt', action='store_true', help="write motifs to pickle file after initial weights optimization step?")
+        help="print debugging information to stderr. Write extra txt files.")
+    #parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
+    #parser.add_argument('--save_opt', action='store_true', help="write motifs to pickle file after initial weights optimization step?")
 
-    numba.set_num_threads(p)
     
     args = parser.parse_args()
+    numba.set_num_threads(args.p)
+    out_pref = args.o
+    in_direc = args.data_dir
+    out_direc = args.out_dir
+    out_direc = os.path.join(in_direc, out_direc)
+
+    if not os.path.isdir(out_direc):
+        os.mkdir(out_direc)
+
+    optim_vars = args.optim_vars
     if args.debug:
         level = logging.DEBUG
     else:
         level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level) 
     logging.getLogger('matplotlib.font_manager').disabled = True
-    outpre = args.o
+
     # choose a random seed
     if args.seed:
         np.random.seed(args.seed)
     
     logging.info("Reading in files")
-    # read in the fasta files containing parameter information
-    # returns an inout.FastaFile obj for each param
-    # all_params = [read_parameter_file(x) for x in args.params]
     # possible distance metrics that could be used
-    dist_met = {"constrained_manhattan": inout.constrained_manhattan_distance,
+    dist_met = {"constrained_manhattan": inout.constrained_inv_logit_manhattan_distance,
                 "manhattan": inout.manhattan_distance, 
                 "hamming": inout.hamming_distance,
                 "euclidean": inout.euclidean_distance}
     # store the distance metric chosen
     this_dist = dist_met[args.distance_metric]
-    shape_fname_dict = {n:fn for n,fn in zip(args.param_names, args.params)}
+    # read in shapes
+    shape_fname_dict = {
+        n:os.path.join(in_direc,fname) for n,fname
+        in zip(args.param_names, args.params)
+    }
     logging.info("Reading input data and shape info.")
-    records = inout.RecordDatabase(args.infile, shape_fname_dict)
+    records = inout.RecordDatabase(
+        os.path.join(in_direc, args.infile),
+        shape_fname_dict,
+    )
 
-    # create an empty sequence database to store the sequences in
-    #records = inout.SeqDatabase()
-    
     # read in the values associated with each sequence and store them
     # in the sequence database
     if args.continuous is not None:
         #records.read(args.infile, float)
         logging.info("Discretizing data")
         records.discretize_quant(args.continuous)
-    #else:
-    #    records.read(args.infile, int)
+
     logging.info("Distribution of sequences per class:")
     logging.info(seqs_per_bin(records))
-
-    # add parameter values for each sequence
-    #for name, record in zip(records.names, records):
-    #    for param, param_name in zip(all_params, args.param_names):
-    #        record.add_shape_param(
-    #            dsp.ShapeParamSeq(
-    #                param_name,
-    #                param.pull_entry(name).seq,
-    #            ),
-    #        )
-    #        record.metric = this_dist
 
     logging.info("Normalizing parameters")
     if args.nonormalize:
@@ -1880,123 +1745,245 @@ if __name__ == "__main__":
 
     logging.info("Computing all windows and initializing weights array for distance calculation.")
     records.compute_windows(wsize = args.kmer)
-    records.initialize_weights()
+    weights = records.initialize_weights()[:,:,None]
+    alpha = args.alpha
+    max_count = args.max_count
 
-    logging.info("Determining initial threshold")
-    if args.distance_metric == "hamming":
-        threshold_match = 4
-        logging.info(
-            "Using {} as an initial match threshold".format(threshold_match)
-        )
-    else:
-        records.set_initial_thresholds(
-            dist = dist_met,
-            threshold_sd_from_mean = args.threshold_seeds
-        )
-        #mean,stdev = find_initial_threshold(
-        #    records.random_subset_by_class(args.threshold_perc),
-        #    args.seeds_per_seq_thresh,
-        #)
-        #threshold_seeds = max(mean - args.threshold_seeds*stdev, 0)
-        #threshold_match = max(mean - args.threshold_match*stdev, 0)
-        logging.info("Using {} as an initial match threshold".format(threshold_match))
-    # generate initial MI score for the given shapes, weights, and threshold
-    records.compute_mi(dist_met)
-    with open('initial_mutual_information.pkl','wb') as f:
-        pickle.dump(records.mi, f)
+    optim_str = "_".join(optim_vars)
+    temp = args.temperature
+    step = args.stepsize
+    fatol = args.fatol
+    adapt = args.adapt
+    maxfev = args.maxfev
+    
+    basinhop_niter = args.basinhop_niter
+    basinhop_niter_success = args.basinhop_niter_success
+    method = "nelder-mead"
 
-    raise()
-    #if args.search_method == "greedy":
-    #    logging.info(
-    #        "Greedy search for possible motifs with threshold {}".format(threshold_seeds)
-    #    )
-    #    possible_motifs = greedy_search2(
-    #        records,
-    #        threshold_seeds,
-    #        args.num_seeds,
-    #        args.seeds_per_seq,
-    #    )
-    #else:
-    logging.info("Testing all seeds and optimizing weights to generate motifs")
-    #debugger = records.shuffle()
-    # double for loop list comprehension
-    #possible_motifs = [
-    #    motif
-    #    for a_seq in records.iterate_through_precompute()
-    #    for motif in a_seq
-    #]
+    constraints = {
+        'threshold': args.threshold_constraints,
+        'shapes': args.shape_constraints,
+        'weights': args.weights_constraints,
+    }
 
-    rec_num, win_length, shape_num, win_num = records.windows.shape
-    motif_num = rec_num * win_num
-    logging.info("{} motifs to optimize".format(motif_num))
-    logging.info("Optimizing weights and calculating MI for all optimized motifs")
-
-    #if args.seed_perc != 1:
-    #    this_records, other_records = records.random_subset_by_class(args.motif_perc, split=True)
-    #else:
-    #    this_records = records
-    #    other_records = records
-    this_records = records
-    other_records = records
-    #if args.debug:
-    #    other_records.write(outpre + "_lasso_seqs.txt")
-    logging.info("Distribution of sequences per class for motif screening and regression (train set)")
-    logging.info(seqs_per_bin(this_records))
-    #logging.info("Distribution of sequences per class for CMI and final evaluation (test set)")
-    #logging.info(seqs_per_bin(other_records))
-    logging.info("Optimizing {} motifs over {} processor(s)".format(
-        motif_num, args.p
-    ))
-
-    # actually run the optimization of weights, returns
-    #   a list of dictionaries, each dictionary containing a motif's
-    #   shapes, original weights, optimized weights, original MI,
-    #   optimized MI, and other information.
-    all_motifs = mp_optimize(
-        records,
-        dist_met,
-        p = args.p,
+    cmi_fname = os.path.join(
+        out_direc,
+        "{}_cmi_filtered_seeds_max_count_{}.pkl".format(out_pref, max_count),
     )
 
-    if args.save_opt:
-        with open(outpre+"_optimized_motifs.pkl", "wb") as pkl_f:
-            pickle.dump(all_motifs, pkl_f)
+    mi_fname = os.path.join(
+        out_direc,
+        '{}_initial_mutual_information_max_count_{}.pkl'.format(
+            out_pref,
+            max_count,
+        ),
+    )
 
-    #all_motifs = mp_evaluate_seeds(
-    #    this_records,
-    #    possible_motifs,
-    #    threshold_match,
-    #    args.rc,
-    #    p=args.p,
-    #)
-    #all_motifs = fast_evaluate_seeds(
-    #    this_records,
-    #    possible_motifs,
-    #    threshold_match,
-    #    args.rc,
-    #    this_dist,
-    #)
+    opt_fname = os.path.join(
+        out_direc,
+        "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+            out_pref,
+            optim_str,
+            adapt,
+            fatol,
+            temp,
+            step,
+            alpha,
+            max_count,
+        ),
+    )
 
-    if args.debug:
-        print_top_motifs(all_motifs)
-        print_top_motifs(all_motifs, reverse=False)
-        save_mis(all_motifs, outpre+"_all_motifs_mi")
+    good_motif_out_fname = os.path.join(
+        out_direc,
+        "{}_post_opt_cmi_filtered_motifs_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+            out_pref,
+            optim_str,
+            adapt,
+            fatol,
+            temp,
+            step,
+            alpha,
+            max_count,
+        ),
+    )
 
-    logging.info("Filtering motifs by AIC individually")
+    if not args.cmi_motif_file:
+        if not args.optim_file:
+            if not args.cmi_file:
+                if args.mi_file:
+                    # read in existing MI file if a string was provided
+                    
+                    logging.info("Reading in pre-computed MIs in {}.".format(mi_fname))
+                    with open(mi_fname, 'rb') as f:
+                        mi_dict = pickle.load(f)
 
-    good_motifs = []
-    for motif in all_motifs:
-        passed = aic_motifs([motif], this_records)
-        if len(passed) > 0:
-            good_motifs.append(motif) 
-    if len(good_motifs) < 1: 
-        logging.info("No motifs found")
-        sys.exit()
-    if args.debug:
-        print_top_motifs(good_motifs)
-        print_top_motifs(good_motifs, reverse=False)
+                    if (
+                        alpha != mi_dict['alpha']
+                        or max_count != mi_dict['max_count']
+                        or np.any(weights != mi_dict['weights'])
+                    ):
+                        raise("Fatal error: either the alpha you provided, your max_count, or your weights do not match the values they were exptected to match in you pre-computed MI dictionary.")
+                    match_threshold = mi_dict['match_threshold']
 
-    logging.info("{} motifs survived".format(len(good_motifs)))
+                else:
+                    logging.info("Determining initial threshold")
+                    if args.distance_metric == "hamming":
+                        match_threshold = 4
+                        logging.info(
+                            "Using {} as an initial match threshold".format(threshold_match)
+                        )
+                    else:
+                        match_threshold = records.set_initial_threshold(
+                            dist = this_dist,
+                            threshold_sd_from_mean = args.threshold_seeds,
+                            weights = weights,
+                            alpha = alpha,
+                        )
+                    logging.info("Using {} as an initial match threshold".format(match_threshold))
+
+                    logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
+                    # generate initial MI score for the given shapes, weights, and threshold
+                    mi_results = records.compute_mi(
+                        dist = this_dist,
+                        max_count = max_count,
+                        alpha = alpha,
+                        weights = weights,
+                        threshold = match_threshold,
+                    )
+
+                    mi_dict = {
+                        'mi_results' : mi_results,
+                        'weights' : weights,
+                        'match_threshold' : match_threshold,
+                        'max_count' : max_count,
+                        'alpha' : alpha,
+                    }
+
+                    with open(mi_fname, 'wb') as f:
+                        pickle.dump(mi_dict, f)
+
+                if args.exit_after_initial_mi:
+                    sys.exit("You selected to only compute initial MI for each seed. Exiting the program now.")
+
+                logging.info("Filtering seeds based on conditional mutual information.")
+                logging.info("Started with {} seeds.".format(len(mi_dict['mi_results'])))
+
+                filtered_seeds = aic_motifs(
+                    mi_dict['mi_results'],
+                    records,
+                    optim_vars,
+                )
+                filtered_seed_dict = {
+                    'seeds' : filtered_seeds,
+                    'weights' : weights,
+                    'match_threshold' : match_threshold,
+                    'max_count' : max_count,
+                    'alpha' : alpha,
+                }
+
+                logging.info("{} seeds are left after applying CMI filtering.".format(len(filtered_seeds)))
+                logging.info("Saving cmi-filtered seeds to {}.".format(cmi_fname))
+
+                with open(cmi_fname, 'wb') as f:
+                    pickle.dump(filtered_seed_dict, f)
+
+                if args.exit_after_cmi_filter:
+                    sys.exit("You selected to exit the program after CMI filtering of the seeds. Exiting now.")
+
+            # if we did pass a cmi_file at the CLI, just skip the initial MI stuff
+            else:
+                logging.info("Skipping initial MI calculation and reading in pre-cmi-filtered seeds from {}.".format(cmi_fname))
+                with open(cmi_fname, 'rb') as f:
+                    filtered_seed_dict = pickle.load(f)
+
+                if (
+                    alpha != filtered_seed_dict['alpha']
+                    or max_count != filtered_seed_dict['max_count']
+                    or np.any(weights != filtered_seed_dict['weights'])
+                ):
+                    raise("Fatal error: either the alpha you provided, your max_count, or your weights do not match the values they were exptected to match in your CMI-filtered seeds dictionary.")
+                match_threshold = filtered_seed_dict['match_threshold']
+
+            if not args.no_optimize:
+
+                logging.info("Running optimization on {} to generate motifs".format(optim_vars))
+
+                # the file "opt_fname" is written as this function runs
+                stochastic_optimize(
+                    out_fname = opt_fname,
+                    seeds_dict = filtered_seed_dict,
+                    record_db = records,
+                    dist = this_dist,
+                    temp = temp,
+                    stepsize = step,
+                    fatol = fatol,
+                    adapt = adapt,
+                    maxfev = maxfev,
+                    opt_params = optim_vars,
+                    method = method,
+                    niter = basinhop_niter,
+                    niter_success = basinhop_niter_success,
+                    constraints_dict = constraints,
+                    max_count = max_count,
+                    alpha = alpha,
+                )
+
+                if args.exit_after_optimization:
+                    sys.exit("You selected to exit the program after optimization. Exiting now.")
+
+        # if we want to read in prior optimizations: do this stuff
+        else:
+            logging.info("Skipping initial MI calculation, cmi-filtering, and optimization of motifs. Reading prior optimized motifs from {}.".format(opt_fname))
+
+        # whether we had the file already, or just did the optimizations, either
+        #  way, we need to read in the file now.
+        with open(opt_fname, 'rb') as inf:
+            results = pickle.load(inf)
+
+        if not args.exit_after_optimization:
+
+            # filter the optimized motifs now
+            logging.info("Filtering motifs by CMI.")
+            logging.info("Started with {} optimized motifs.".format(len(results)))
+            
+            optim_results = [res[0] for res in results]
+            good_motifs = aic_motifs(
+                optim_results,
+                records,
+                optim_results[0]['optimized_vars'],
+            )
+
+            logging.info("After CMI filtering, {} motifs remain. Writing them to {}.".format(
+                len(good_motifs),
+                good_motif_out_fname,
+            ))
+
+            with open(good_motif_out_fname, 'wb') as outf:
+                pickle.dump(good_motifs, outf)
+
+        else:
+            sys.exit("You selected to quit after optimization. Exiting now.")
+
+    # if we selected to read in cmi-filtered motifs, run this stuff
+    else:
+
+        logging.info("Skipping all steps prior to and including cmi-based filtering of motifs. Reading in CMI-filtered motifs from {}.".format(good_motif_out_fname))
+
+        with open(good_motif_out_fname, 'rb') as inf:
+            good_motifs = pickle.load(good_motifs, inf)
+
+        logging.info("There were {} motifs in {}.".format(
+            len(good_motifs),
+            good_motif_out_fname,
+        ))
+
+
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+    raise()
 
     logging.info("Finding minimum match scores for each motif")
     if args.debug:
