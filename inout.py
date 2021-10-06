@@ -45,7 +45,7 @@ def optim_generate_peak_array(ref, query, weights, threshold,
     -----
     ref : np.array
         The windows attribute of an inout.RecordDatabase object. Will be an
-        array of shape (R,L,S,W), where R is the number of records,
+        array of shape (R,L,S,W,2), where R is the number of records,
         L is the window size, S is the number of shape parameters, and
         W is the number of windows for each record.
     query : np.array
@@ -54,8 +54,8 @@ def optim_generate_peak_array(ref, query, weights, threshold,
         Should be an array of shape (L,S,2), where 2 is for the 2 strands.
     weights : np.array
         Weights to be applied to the distance
-        calculation. Should be an array of shape (L,S).
-    threshold : np.array
+        calculation. Should be an array of shape (L,S,1).
+    threshold : float
         Minimum distance to consider a match.
     results : 2d np.array
         Array of shape (R,2), where R is the number of records in ref.
@@ -85,18 +85,16 @@ def optim_generate_peak_array(ref, query, weights, threshold,
 
             ref_seq = ref[r,:,:,w,:]
 
-            # might broadcast... give it a try
             distances = dist(query, ref_seq, weights, alpha)
-            lt_thresh = distances < threshold
 
-            if (not f_maxed) and (lt_thresh[0]):
+            if (not f_maxed) and (distances[0] < threshold):
                 # if a window has a distance low enough,
                 #   add 1 to this result's index
                 results[r,0] += 1
                 if results[r,0] == max_count:
                     f_maxed = True
 
-            if (not r_maxed) and (lt_thresh[1]):
+            if (not r_maxed) and (distances[1] < threshold):
                 results[r,1] += 1
                 if results[r,1] == max_count:
                     r_maxed = True
@@ -946,10 +944,16 @@ class RecordDatabase(object):
                     max_count = max_count,
                     alpha = alpha,
                 )
-                results.append((query, mi, hits, r, w))
+                results.append(
+                    {
+                        'seq': query,
+                        'mi': mi,
+                        'hits': hits,
+                        'row_index': r,
+                        'col_index': w
+                    }
+                )
 
-        #self.mi = mi_arr
-        #self.hits = hits_arr
         return results
 
 class SeqDatabase(object):
