@@ -255,13 +255,13 @@ def stochastic_optimize(out_fname, seeds_dict, record_db, dist,
             with open(out_fname, 'rb') as outf:
                 results = pickle.load(outf)
 
-            results.append((final,r_idx,w_idx))
+            results.append(final)
 
             with open(out_fname, 'wb') as outf:
                 pickle.dump(results, outf)
 
         else:
-            results = [(final,r_idx,w_idx)]
+            results = [final]
             with open(out_fname, 'wb') as outf:
                 pickle.dump(results, outf)
 
