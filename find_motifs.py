@@ -1589,7 +1589,7 @@ def bic_motifs(motifs, records):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('infile', action='store', type=str,
+    parser.add_argument('--infile', action='store', type=str, required=True,
         help='input text file with names and scores')
     parser.add_argument('--mi_file', action="store_true",
         help='Apply this flag if there is a file containing pre-computed mutual information for each seed.')
@@ -1597,6 +1597,8 @@ if __name__ == "__main__":
         help='Apply this flag if there is a file containing CMI-filtered seeds. NOTE: If this flag is set, initial mutual informations will neither be calculated nor read in, even if you have set the --mi_file flag.')
     parser.add_argument('--optim_file', action="store_true",
         help='Apply this flag if there is a file containing optimized motifs that you would like to read ing. NOTE: If this flag is set, initial mutual informations will neither be calculated nor read in, even if you have set the --mi_file flag. Also, cmi-filtered seeds will not be read in, even if you have set the --cmi_file flag.')
+    parser.add_argument('--cmi_motif_file', action="store_true",
+        help='Apply this flag if there is a file containing CMI-filtered optimized motifs. NOTE: If this flag is set, initial MI calculation, CMI filtering of seeds, and optimization will be skipped. Pre-computed MIs, CMI-filtered seeds, and optimizations will not be read in, no matter whether you set the --mi_file, --cmi_file, or --optim_file flags.')
     parser.add_argument('--params', nargs="+", type=str,
                          help='inputfiles with shape scores')
     parser.add_argument('--param_names', nargs="+", type=str,
@@ -1657,7 +1659,8 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=None,
             help="set the random seed, default=None, based on system time")
     parser.add_argument('-o', type=str, required=True, help="Prefix to apply to output files.")
-    parser.add_argument('--data_dir', type=str, required=True, help="Directory into which to write output files and from which to read input files.")
+    parser.add_argument('--data_dir', type=str, required=True, help="Directory from which input files will be read.")
+    parser.add_argument('--out_dir', type=str, required=True, help="Directory (within 'data_dir') into which output files will be written.")
     parser.add_argument('-p', type=int, default=5,
         help="number of processors. Default=5")
     parser.add_argument("--exit_after_initial_mi", action="store_true",
@@ -1675,7 +1678,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     numba.set_num_threads(args.p)
     out_pref = args.o
-    io_direc = args.data_dir
+    in_direc = args.data_dir
+    out_direc = args.out_dir
+    out_direc = os.path.join(in_direc, out_direc)
+
+    if not os.path.isdir(out_direc):
+        os.mkdir(out_direc)
 
     optim_vars = args.optim_vars
     if args.debug:
@@ -1699,12 +1707,12 @@ if __name__ == "__main__":
     this_dist = dist_met[args.distance_metric]
     # read in shapes
     shape_fname_dict = {
-        n:os.path.join(io_direc,fname) for n,fname
+        n:os.path.join(in_direc,fname) for n,fname
         in zip(args.param_names, args.params)
     }
     logging.info("Reading input data and shape info.")
     records = inout.RecordDatabase(
-        os.path.join(io_direc, args.infile),
+        os.path.join(in_direc, args.infile),
         shape_fname_dict,
     )
 
@@ -1741,232 +1749,234 @@ if __name__ == "__main__":
     alpha = args.alpha
     max_count = args.max_count
 
-    if not args.optim_file:
-        if not args.cmi_file:
-            if args.mi_file:
-                # read in existing MI file if a string was provided
-                mi_fname = os.path.join(
-                    io_direc,
-                    '{}_initial_mutual_information_max_count_{}.pkl'.format(
-                        out_pref,
-                        max_count,
-                    ),
-                )
-                logging.info("Reading in pre-computed MIs in {}.".format(mi_fname))
-                with open(mi_fname, 'rb') as f:
-                    mi_dict = pickle.load(f)
+    optim_str = "_".join(optim_vars)
+    temp = args.temperature
+    step = args.stepsize
+    fatol = args.fatol
+    adapt = args.adapt
+    maxfev = args.maxfev
+    
+    basinhop_niter = args.basinhop_niter
+    basinhop_niter_success = args.basinhop_niter_success
+    method = "nelder-mead"
 
-                if (
-                    alpha != mi_dict['alpha']
-                    or max_count != mi_dict['max_count']
-                    or np.any(weights != mi_dict['weights'])
-                ):
-                    raise("Fatal error: either the alpha you provided, your max_count, or your weights do not match the values they were exptected to match in you pre-computed MI dictionary.")
-                match_threshold = mi_dict['match_threshold']
+    constraints = {
+        'threshold': args.threshold_constraints,
+        'shapes': args.shape_constraints,
+        'weights': args.weights_constraints,
+    }
 
-            else:
-                logging.info("Determining initial threshold")
-                if args.distance_metric == "hamming":
-                    match_threshold = 4
-                    logging.info(
-                        "Using {} as an initial match threshold".format(threshold_match)
-                    )
+    cmi_fname = os.path.join(
+        out_direc,
+        "{}_cmi_filtered_seeds_max_count_{}.pkl".format(out_pref, max_count),
+    )
+
+    mi_fname = os.path.join(
+        out_direc,
+        '{}_initial_mutual_information_max_count_{}.pkl'.format(
+            out_pref,
+            max_count,
+        ),
+    )
+
+    opt_fname = os.path.join(
+        out_direc,
+        "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+            out_pref,
+            optim_str,
+            adapt,
+            fatol,
+            temp,
+            step,
+            alpha,
+            max_count,
+        ),
+    )
+
+    good_motif_out_fname = os.path.join(
+        out_direc,
+        "{}_post_opt_cmi_filtered_motifs_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+            out_pref,
+            optim_str,
+            adapt,
+            fatol,
+            temp,
+            step,
+            alpha,
+            max_count,
+        ),
+    )
+
+    if not args.cmi_motif_file:
+        if not args.optim_file:
+            if not args.cmi_file:
+                if args.mi_file:
+                    # read in existing MI file if a string was provided
+                    
+                    logging.info("Reading in pre-computed MIs in {}.".format(mi_fname))
+                    with open(mi_fname, 'rb') as f:
+                        mi_dict = pickle.load(f)
+
+                    if (
+                        alpha != mi_dict['alpha']
+                        or max_count != mi_dict['max_count']
+                        or np.any(weights != mi_dict['weights'])
+                    ):
+                        raise("Fatal error: either the alpha you provided, your max_count, or your weights do not match the values they were exptected to match in you pre-computed MI dictionary.")
+                    match_threshold = mi_dict['match_threshold']
+
                 else:
-                    match_threshold = records.set_initial_threshold(
+                    logging.info("Determining initial threshold")
+                    if args.distance_metric == "hamming":
+                        match_threshold = 4
+                        logging.info(
+                            "Using {} as an initial match threshold".format(threshold_match)
+                        )
+                    else:
+                        match_threshold = records.set_initial_threshold(
+                            dist = this_dist,
+                            threshold_sd_from_mean = args.threshold_seeds,
+                            weights = weights,
+                            alpha = alpha,
+                        )
+                    logging.info("Using {} as an initial match threshold".format(match_threshold))
+
+                    logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
+                    # generate initial MI score for the given shapes, weights, and threshold
+                    mi_results = records.compute_mi(
                         dist = this_dist,
-                        threshold_sd_from_mean = args.threshold_seeds,
-                        weights = weights,
+                        max_count = max_count,
                         alpha = alpha,
+                        weights = weights,
+                        threshold = match_threshold,
                     )
-                logging.info("Using {} as an initial match threshold".format(match_threshold))
 
-                mi_fname = os.path.join(
-                    io_direc,
-                    '{}_initial_mutual_information_max_count_{}.pkl'.format(
-                        out_pref,
-                        max_count,
-                    ),
-                )
-                logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
-                # generate initial MI score for the given shapes, weights, and threshold
-                mi_results = records.compute_mi(
-                    dist = this_dist,
-                    max_count = max_count,
-                    alpha = alpha,
-                    weights = weights,
-                    threshold = match_threshold,
-                )
+                    mi_dict = {
+                        'mi_results' : mi_results,
+                        'weights' : weights,
+                        'match_threshold' : match_threshold,
+                        'max_count' : max_count,
+                        'alpha' : alpha,
+                    }
 
-                mi_dict = {
-                    'mi_results' : mi_results,
+                    with open(mi_fname, 'wb') as f:
+                        pickle.dump(mi_dict, f)
+
+                if args.exit_after_initial_mi:
+                    sys.exit("You selected to only compute initial MI for each seed. Exiting the program now.")
+
+                logging.info("Filtering seeds based on conditional mutual information.")
+                logging.info("Started with {} seeds.".format(len(mi_dict['mi_results'])))
+
+                filtered_seeds = aic_motifs(
+                    mi_dict['mi_results'],
+                    records,
+                    optim_vars,
+                )
+                filtered_seed_dict = {
+                    'seeds' : filtered_seeds,
                     'weights' : weights,
                     'match_threshold' : match_threshold,
                     'max_count' : max_count,
                     'alpha' : alpha,
                 }
 
-                with open(mi_fname, 'wb') as f:
-                    pickle.dump(mi_dict, f)
+                logging.info("{} seeds are left after applying CMI filtering.".format(len(filtered_seeds)))
+                logging.info("Saving cmi-filtered seeds to {}.".format(cmi_fname))
 
-            if args.exit_after_initial_mi:
-                sys.exit("You selected to only compute initial MI for each seed. Exiting the program now.")
+                with open(cmi_fname, 'wb') as f:
+                    pickle.dump(filtered_seed_dict, f)
 
-            logging.info("Filtering seeds based on conditional mutual information.")
-            logging.info("Started with {} seeds.".format(len(mi_dict['mi_results'])))
+                if args.exit_after_cmi_filter:
+                    sys.exit("You selected to exit the program after CMI filtering of the seeds. Exiting now.")
 
-            filtered_seeds = aic_motifs(
-                mi_dict['mi_results'],
-                records,
-                optim_vars,
-            )
-            filtered_seed_dict = {
-                'seeds' : filtered_seeds,
-                'weights' : weights,
-                'match_threshold' : match_threshold,
-                'max_count' : max_count,
-                'alpha' : alpha,
-            }
+            # if we did pass a cmi_file at the CLI, just skip the initial MI stuff
+            else:
+                logging.info("Skipping initial MI calculation and reading in pre-cmi-filtered seeds from {}.".format(cmi_fname))
+                with open(cmi_fname, 'rb') as f:
+                    filtered_seed_dict = pickle.load(f)
 
-            logging.info("{} seeds are left after applying CMI filtering.".format(len(filtered_seeds)))
-            cmi_fname = os.path.join(
-                io_direc,
-                "{}_cmi_filtered_seeds_max_count_{}.pkl".format(out_pref, max_count),
-            )
-            logging.info("Saving cmi-filtered seeds to {}.".format(cmi_fname))
-            with open(cmi_fname, 'wb') as f:
-                pickle.dump(filtered_seed_dict, f)
+                if (
+                    alpha != filtered_seed_dict['alpha']
+                    or max_count != filtered_seed_dict['max_count']
+                    or np.any(weights != filtered_seed_dict['weights'])
+                ):
+                    raise("Fatal error: either the alpha you provided, your max_count, or your weights do not match the values they were exptected to match in your CMI-filtered seeds dictionary.")
+                match_threshold = filtered_seed_dict['match_threshold']
 
-            if args.exit_after_cmi_filter:
-                sys.exit("You selected to exit the program after CMI filtering of the seeds. Exiting now.")
+            if not args.no_optimize:
 
-        # if we did pass a cmi_file at the CLI, just skip the initial MI stuff
+                logging.info("Running optimization on {} to generate motifs".format(optim_vars))
+
+                # the file "opt_fname" is written as this function runs
+                stochastic_optimize(
+                    out_fname = opt_fname,
+                    seeds_dict = filtered_seed_dict,
+                    record_db = records,
+                    dist = this_dist,
+                    temp = temp,
+                    stepsize = step,
+                    fatol = fatol,
+                    adapt = adapt,
+                    maxfev = maxfev,
+                    opt_params = optim_vars,
+                    method = method,
+                    niter = basinhop_niter,
+                    niter_success = basinhop_niter_success,
+                    constraints_dict = constraints,
+                    max_count = max_count,
+                    alpha = alpha,
+                )
+
+                if args.exit_after_optimization:
+                    sys.exit("You selected to exit the program after optimization. Exiting now.")
+
+        # if we want to read in prior optimizations: do this stuff
         else:
-            cmi_fname = os.path.join(
-                io_direc,
-                "{}_cmi_filtered_seeds_max_count_{}.pkl".format(out_pref, max_count),
-            )
-            logging.info("Skipping initial MI calculation and reading in pre-cmi-filtered seeds from {}.".format(cmi_fname))
-            with open(cmi_fname, 'rb') as f:
-                filtered_seed_dict = pickle.load(f)
+            logging.info("Skipping initial MI calculation, cmi-filtering, and optimization of motifs. Reading prior optimized motifs from {}.".format(opt_fname))
 
-            if (
-                alpha != filtered_seed_dict['alpha']
-                or max_count != filtered_seed_dict['max_count']
-                or np.any(weights != filtered_seed_dict['weights'])
-            ):
-                raise("Fatal error: either the alpha you provided, your max_count, or your weights do not match the values they were exptected to match in your CMI-filtered seeds dictionary.")
-            match_threshold = filtered_seed_dict['match_threshold']
+        # whether we had the file already, or just did the optimizations, either
+        #  way, we need to read in the file now.
+        with open(opt_fname, 'rb') as inf:
+            results = pickle.load(inf)
 
-        if not args.no_optimize:
+        if not args.exit_after_optimization:
 
-            optim_str = "_".join(optim_vars)
-            temp = args.temperature
-            step = args.stepsize
-            fatol = args.fatol
-            adapt = args.adapt
-            maxfev = args.maxfev
+            # filter the optimized motifs now
+            logging.info("Filtering motifs by CMI.")
+            logging.info("Started with {} optimized motifs.".format(len(results)))
             
-            basinhop_niter = args.basinhop_niter
-            basinhop_niter_success = args.basinhop_niter_success
-            method = "nelder-mead"
-
-            constraints = {
-                'threshold': args.threshold_constraints,
-                'shapes': args.shape_constraints,
-                'weights': args.weights_constraints,
-            }
-
-            logging.info("Optimizing {} to generate motifs".format(optim_vars))
-            opt_fname = os.path.join(
-                io_direc,
-                "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
-                    out_pref,
-                    optim_str,
-                    adapt,
-                    fatol,
-                    temp,
-                    step,
-                    alpha,
-                    max_count,
-                ),
+            optim_results = [res[0] for res in results]
+            good_motifs = aic_motifs(
+                optim_results,
+                records,
+                optim_results[0]['optimized_vars'],
             )
 
-            logging.info("Running optimization")
+            logging.info("After CMI filtering, {} motifs remain. Writing them to {}.".format(
+                len(good_motifs),
+                good_motif_out_fname,
+            ))
 
-            stochastic_optimize(
-                out_fname = opt_fname,
-                seeds_dict = filtered_seed_dict,
-                record_db = records,
-                dist = this_dist,
-                temp = temp,
-                stepsize = step,
-                fatol = fatol,
-                adapt = adapt,
-                maxfev = maxfev,
-                opt_params = optim_vars,
-                method = method,
-                niter = basinhop_niter,
-                niter_success = basinhop_niter_success,
-                constraints_dict = constraints,
-                max_count = max_count,
-                alpha = alpha,
-            )
+            with open(good_motif_out_fname, 'wb') as outf:
+                pickle.dump(good_motifs, outf)
 
-            if args.exit_after_optimization:
-                sys.exit("You selected to exit the program after optimization. Exiting now.")
+        else:
+            sys.exit("You selected to quit after optimization. Exiting now.")
 
-    # if we want to read in prior optimizations: do this stuff
+    # if we selected to read in cmi-filtered motifs, run this stuff
     else:
 
-        optim_str = "_".join(optim_vars)
-        temp = args.temperature
-        step = args.stepsize
-        fatol = args.fatol
-        adapt = args.adapt
-        maxfev = args.maxfev
-        
-        basinhop_niter = args.basinhop_niter
-        basinhop_niter_success = args.basinhop_niter_success
-        method = "nelder-mead"
+        logging.info("Skipping all steps prior to and including cmi-based filtering of motifs. Reading in CMI-filtered motifs from {}.".format(good_motif_out_fname))
 
-        constraints = {
-            'threshold': args.threshold_constraints,
-            'shapes': args.shape_constraints,
-            'weights': args.weights_constraints,
-        }
+        with open(good_motif_out_fname, 'rb') as inf:
+            good_motifs = pickle.load(good_motifs, inf)
 
-        logging.info("Optimizing {} to generate motifs".format(optim_vars))
-        opt_fname = os.path.join(
-            io_direc,
-            "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
-                out_pref,
-                optim_str,
-                adapt,
-                fatol,
-                temp,
-                step,
-                alpha,
-                max_count,
-            ),
-        )
+        logging.info("There were {} motifs in {}.".format(
+            len(good_motifs),
+            good_motif_out_fname,
+        ))
 
-        logging.info("Skipping initial MI calculation, cmi-filtering, and optimization of motifs. Reading prior optimized motifs from {}.".format(opt_fname))
-    # whether we had the file already, or just did the optimizations, either
-    #  way, we need to read in the file now.
-    with open(opt_fname, 'rb') as inf:
-        results = pickle.load(inf)
-
-    logging.info("Filtering motifs by CMI.")
-    logging.info("Started with {} optimized motifs.".format(len(results)))
-    
-    optim_results = [res[0] for res in results]
-    good_motifs = aic_motifs(
-        optim_results,
-        records,
-        optim_results[0]['optimized_vars'],
-    )
-
-    logging.info("After CMI filtering, {} motifs remain.".format(len(good_motifs)))
 
 ###############################################################################
 ###############################################################################
