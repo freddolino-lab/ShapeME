@@ -1657,11 +1657,6 @@ def aic_motifs(motifs, records):
         for good_motif in top_motifs:
             # check the conditional mutual information for this motif with
             # each of the chosen motifs
-            ###########################################################
-            ###########################################################
-            ### I need to speed this step up!! ########################
-            ###########################################################
-            ###########################################################
             this_mi = inout.conditional_mutual_information(
                 records.y, 
                 cand_motif['hits'], 
