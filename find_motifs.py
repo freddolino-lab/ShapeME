@@ -1534,7 +1534,7 @@ def calc_aic(delta_k, rec_num, mi):
     aic = 2*delta_k - 2*rec_num*mi
     return aic
 
-def aic_motifs2(records):
+def aic_motifs2(records, optimized_vars):
     """Select final motifs through AIC
 
     Args:
@@ -1548,7 +1548,18 @@ def aic_motifs2(records):
     #  We multiply by 2 because for each shape value we have a weight,
     #  and we add 1 because the motif's threshold was a parameter.
     rec_num,win_len,shape_num,win_num = records.windows.shape
-    delta_k = win_len * shape_num * 2 + 1
+
+    shape_num_multiplier = 0
+    if 'shapes' in optimized_vars:
+        shape_num_multiplier += 1
+    if 'weights' in optimized_vars:
+        shape_num_multiplier += 1
+
+    delta_k = win_len * shape_num * shape_num_multiplier
+
+    if 'threshold' in optimized_vars:
+        delta_k += 1
+
 
     # get sorted order of mi values
     # returns a tuple of arrays corresponding to (row_idx, col_idx)
@@ -1567,6 +1578,7 @@ def aic_motifs2(records):
     else:
         return []
 
+    distinct_y = np.unique(records.y)
     # loop through candidate motifs
     for cand_idx in range(1,len(sort_r_inds)):
 
@@ -1577,6 +1589,7 @@ def aic_motifs2(records):
         cand_c_idx = sort_c_inds[cand_idx]
         cand_mi = records.mi[cand_r_idx, cand_c_idx]
         cand_hits = records.hits[cand_r_idx, cand_c_idx, :, :]
+        distinct_cand_hits = np.unique(cand_hits, axis=0)
 
         motif_pass = True
 
@@ -1593,8 +1606,6 @@ def aic_motifs2(records):
             # check the conditional mutual information for this motif with
             # each of the chosen motifs
             distinct_good_motif_hits = np.unique(good_motif_hits, axis=0)
-            distinct_y = np.unique(records.y)
-            distinct_cand_hits = np.unique(cand_hits, axis=0)
             this_cmi = inout.conditional_mutual_information(
                 records.y, 
                 distinct_y,
@@ -1616,7 +1627,7 @@ def aic_motifs2(records):
 
     return top_motif_inds
 
-def aic_motifs(motifs, records):
+def aic_motifs(motifs, records, optimized_vars):
     """Select final motifs through AIC
 
     Args:
@@ -1630,8 +1641,18 @@ def aic_motifs(motifs, records):
     # get number of parameters based on window length * shape number * 2 + 1
     #  We multiply by 2 because for each shape value we have a weight,
     #  and we add 1 because the motif's threshold was a parameter.
-    rec_num,win_len,shape_num,win_num = records.windows.shape
-    delta_k = win_len * shape_num * 2 + 1
+    rec_num,win_len,shape_num = records.X.shape
+
+    shape_num_multiplier = 0
+    if 'shapes' in optimized_vars:
+        shape_num_multiplier += 1
+    if 'weights' in optimized_vars:
+        shape_num_multiplier += 1
+
+    delta_k = win_len * shape_num * shape_num_multiplier
+
+    if 'threshold' in optimized_vars:
+        delta_k += 1
 
     # sort motifs by mutual information
     these_motifs = sorted(
@@ -1642,12 +1663,18 @@ def aic_motifs(motifs, records):
 
     # Make sure first motif passes AIC
     if calc_aic(delta_k, rec_num, these_motifs[0]['mi']) < 0:
+        top_motif = these_motifs[0]
+        top_motif['distinct_hits'] = np.unique(top_motif['hits'], axis=0)
         top_motifs = [these_motifs[0]]
     else:
         return []
 
+    distinct_y = np.unique(records.y)
+
     # loop through candidate motifs
     for cand_motif in these_motifs[1:]:
+        cand_hits = cand_motif['hits']
+        distinct_cand_hits = np.unique(cand_hits, axis=0)
         motif_pass = True
 
         # if the total MI for this motif doesn't pass AIC skip it
@@ -1657,19 +1684,27 @@ def aic_motifs(motifs, records):
         for good_motif in top_motifs:
             # check the conditional mutual information for this motif with
             # each of the chosen motifs
-            this_mi = inout.conditional_mutual_information(
+            good_motif_hits = good_motif['hits']
+            distinct_good_motif_hits = good_motif['distinct_hits']
+
+            this_cmi = inout.conditional_mutual_information(
                 records.y, 
-                cand_motif['hits'], 
-                good_motif['hits'],
+                distinct_y,
+                cand_hits, 
+                distinct_cand_hits,
+                good_motif_hits,
+                distinct_good_motif_hits,
             )
+            this_aic = calc_aic(delta_k, rec_num, this_cmi)
 
             # if candidate motif doesn't improve model as added to each of the
             # chosen motifs, skip it
-            if calc_aic(delta_k, rec_num, this_mi) > 0:
+            if this_aic > 0:
                 motif_pass = False
                 break
 
         if motif_pass:
+            cand_motif['distinct_hits'] = distinct_cand_hits
             top_motifs.append(cand_motif)
 
     return top_motifs
