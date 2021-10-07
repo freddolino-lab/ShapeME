@@ -8,7 +8,7 @@ SRC_DIR="/home/schroedj/src/DNAshape_motif_finder/"
 ALPHA=$1
 MAX_COUNT=$2
 PROCS=$3
-OPTIM_VARS="weights threshold"
+OPTIM_VARS="shapes weights threshold"
 SHAPE_CONSTRAINTS="-4 4"
 WEIGHT_CONSTRAINTS="-4 4"
 THRESH_CONTSTRAINTS="0 10"
@@ -24,22 +24,21 @@ infile="synthetic_data_2000_recs_frac_0.2_seqlen_60_TBX5motif_TCTCACACCT_10bp_AG
 out_prefix="synthetic_data_2000_recs_frac_0.2_seqlen_60_TBX5motif_TCTCACACCT_10bp_AGGTGTGAGA"
 
 # calculate and save initial MI
-python ${SRC_DIR}find_motifs.py \
-    -p $PROCS \
-    --exit_after_initial_mi \
-    --max_count $MAX_COUNT \
-    --alpha $ALPHA \
-    --param_names $shape_names \
-    --params $shape_files \
-    -o $out_prefix \
-    --data_dir $data_dir \
-    --out_dir $out_dir \
-    --infile $infile
+#python ${SRC_DIR}find_motifs.py \
+#    -p $PROCS \
+#    --exit_after_initial_mi \
+#    --max_count $MAX_COUNT \
+#    --alpha $ALPHA \
+#    --param_names $shape_names \
+#    --params $shape_files \
+#    -o $out_prefix \
+#    --data_dir $data_dir \
+#    --out_dir $out_dir \
+#    --infile $infile
 
 # load MI file and filter by CMI
 python ${SRC_DIR}find_motifs.py \
     -p $PROCS \
-    --exit_after_cmi_filter \
     --mi_file \
     --optim_vars $OPTIM_VARS \
     --max_count $MAX_COUNT \
@@ -52,39 +51,39 @@ python ${SRC_DIR}find_motifs.py \
     --infile $infile
 
 # load CMI file and optimize
-python ${SRC_DIR}find_motifs.py \
-    -p $PROCS \
-    --cmi_file \
-    --exit_after_optimization \
-    --optim_vars $OPTIM_VARS \
-    --fatol $FATOL \
-    --temperature $TEMP \
-    --stepsize $STEP \
-    --shape_constraints $SHAPE_CONSTRAINTS \
-    --weight_constraints $WEIGHT_CONSTRAINTS \
-    --threshold_constraints $THRESH_CONSTRAINTS \
-    --max_count $MAX_COUNT \
-    --alpha $ALPHA \
-    --param_names $shape_names \
-    --params $shape_files \
-    -o $out_prefix \
-    --data_dir $data_dir \
-    --out_dir $out_dir \
-    --infile $infile
+#python ${SRC_DIR}find_motifs.py \
+#    -p $PROCS \
+#    --cmi_file \
+#    --exit_after_optimization \
+#    --optim_vars $OPTIM_VARS \
+#    --fatol $FATOL \
+#    --temperature $TEMP \
+#    --stepsize $STEP \
+#    --shape_constraints $SHAPE_CONSTRAINTS \
+#    --weight_constraints $WEIGHT_CONSTRAINTS \
+#    --threshold_constraints $THRESH_CONSTRAINTS \
+#    --max_count $MAX_COUNT \
+#    --alpha $ALPHA \
+#    --param_names $shape_names \
+#    --params $shape_files \
+#    -o $out_prefix \
+#    --data_dir $data_dir \
+#    --out_dir $out_dir \
+#    --infile $infile
 
 # load optimized motifs and filter them by CMI
-python ${SRC_DIR}find_motifs.py \
-    -p $PROCS \
-    --optim_file \
-    --optim_vars $OPTIM_VARS \
-    --fatol $FATOL \
-    --temperature $TEMP \
-    --stepsize $STEP \
-    --max_count $MAX_COUNT \
-    --alpha $ALPHA \
-    --param_names $shape_names \
-    --params $shape_files \
-    -o $out_prefix \
-    --data_dir $data_dir \
-    --out_dir $out_dir \
-    --infile $infile
+#python ${SRC_DIR}find_motifs.py \
+#    -p $PROCS \
+#    --optim_file \
+#    --optim_vars $OPTIM_VARS \
+#    --fatol $FATOL \
+#    --temperature $TEMP \
+#    --stepsize $STEP \
+#    --max_count $MAX_COUNT \
+#    --alpha $ALPHA \
+#    --param_names $shape_names \
+#    --params $shape_files \
+#    -o $out_prefix \
+#    --data_dir $data_dir \
+#    --out_dir $out_dir \
+#    --infile $infile

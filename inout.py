@@ -692,11 +692,14 @@ class RecordDatabase(object):
                     #while len(rec_data) < self.X.shape[1]:
                     rec_data = np.append(rec_data, np.nan)
                     rec_data = np.append(np.nan, rec_data)
-                    self.X[r_idx,:,s_idx,0] = rec_data[1:]
-                    self.X[r_idx,:,s_idx,1] = rec_data[:-1]
+                    fwd_data = rec_data[1:]
+                    rev_data = rec_data[1:]
+                    rev_data = rev_data[::-1]
+                    self.X[r_idx,:,s_idx,0] = fwd_data
+                    self.X[r_idx,:,s_idx,1] = rev_data
                 else:
                     self.X[r_idx,:,s_idx,0] = rec_data
-                    self.X[r_idx,:,s_idx,1] = rec_data
+                    self.X[r_idx,:,s_idx,1] = rec_data[::-1]
 
         if exclude_na:
             # identifies which positions have at least one NA for any shape

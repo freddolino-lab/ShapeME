@@ -9,6 +9,72 @@ import sys
 
 plt.rc('figure', titlesize=10)
 
+def plot_shapes(rec_db, rec_idx, file_name, take_complement=False):
+    shape_arr = rec_db.X[rec_idx,...]
+    idx_shape_lut = {v:k for k,v in rec_db.shape_name_lut.items()}
+    fig,ax = plt.subplots(nrows=2)
+    for i in range(shape_arr.shape[1]):
+        ax[0].plot(
+            [j+1 for j in range(shape_arr.shape[0])],
+            shape_arr[:,i,0],
+            label = idx_shape_lut[i],
+        )
+        if take_complement:
+            rev_shapes = shape_arr[::-1,i,1]
+        else:
+            rev_shapes = shape_arr[:,i,1]
+        ax[1].plot(
+            [j+1 for j in range(shape_arr.shape[0])],
+            rev_shapes,
+            label = idx_shape_lut[i],
+        )
+    plt.legend()
+    plt.savefig(file_name)
+    plt.close()
+    
+
+def set_up(motif_list, top_n):
+
+    motif_list = sorted(motif_list, key=lambda x: x['mi'], reverse=True)
+    motif_num = len(motif_list)
+    if motif_num < top_n:
+        top_n = motif_num
+    return(motif_list, top_n)
+
+def plot_optim_trajectory(motif_list, file_name, top_n=20):
+
+    motif_list,top_n = set_up(motif_list, top_n)
+
+    fig,ax = plt.subplots()
+
+    for i in range(top_n):
+        this_info = motif_list[i]['opt_info']
+        ax.plot(this_info['eval'], this_info['value'])
+
+    plt.savefig(file_name)
+    plt.close()
+
+
+def plot_motifs(motif_list, alpha, file_name, top_n=20):
+
+    motif_list,top_n = set_up(motif_list, top_n)
+
+    fig,ax = plt.subplots(
+        ncols = 2,
+        nrows = top_n,
+        figsize = (8,top_n*4),
+    )
+
+    for i in range(top_n):
+        weight_vals = motif_list[i]['weights'][...,0]
+        trans_weights = alpha + (1-alpha) * inout.inv_logit(weight_vals)
+        norm_weights = trans_weights / np.sum(trans_weights)
+        ax[i,0].plot([i+1 for i in range(15)], motif_list[i]['motif'][...,0])
+        ax[i,1].plot([i+1 for i in range(15)], norm_weights)
+
+    plt.savefig(file_name)
+    plt.close()
+
 class MotifVis(inout.ShapeMotifFile):
 
     def plot_helical(self, motif, baseparams, lineparams, grid=None, vmin=None, vmax=None):

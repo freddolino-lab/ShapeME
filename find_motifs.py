@@ -1766,15 +1766,19 @@ if __name__ == "__main__":
         'weights': args.weights_constraints,
     }
 
-    cmi_fname = os.path.join(
-        out_direc,
-        "{}_cmi_filtered_seeds_max_count_{}.pkl".format(out_pref, max_count),
-    )
-
     mi_fname = os.path.join(
         out_direc,
         '{}_initial_mutual_information_max_count_{}.pkl'.format(
             out_pref,
+            max_count,
+        ),
+    )
+
+    cmi_fname = os.path.join(
+        out_direc,
+        "{}_cmi_filtered_seeds_opim_{}_max_count_{}.pkl".format(
+            out_pref,
+            optim_str,
             max_count,
         ),
     )
@@ -1795,7 +1799,7 @@ if __name__ == "__main__":
 
     good_motif_out_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+        "{}_post_opt_cmi_filtered_motifs_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
             out_pref,
             optim_str,
             adapt,
@@ -1907,6 +1911,7 @@ if __name__ == "__main__":
             if not args.no_optimize:
 
                 logging.info("Running optimization on {} to generate motifs".format(optim_vars))
+                lossing.info("Optimized motifs will be written to {}".format(opt_fname))
 
                 # the file "opt_fname" is written as this function runs
                 stochastic_optimize(
@@ -1938,7 +1943,7 @@ if __name__ == "__main__":
         # whether we had the file already, or just did the optimizations, either
         #  way, we need to read in the file now.
         with open(opt_fname, 'rb') as inf:
-            results = pickle.load(inf)
+            optim_results = pickle.load(inf)
 
         if not args.exit_after_optimization:
 
@@ -1946,7 +1951,6 @@ if __name__ == "__main__":
             logging.info("Filtering motifs by CMI.")
             logging.info("Started with {} optimized motifs.".format(len(results)))
             
-            optim_results = [res[0] for res in results]
             good_motifs = aic_motifs(
                 optim_results,
                 records,
