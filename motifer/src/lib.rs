@@ -71,7 +71,7 @@ use ndarray_stats::QuantileExt;
 mod tests {
     use super::*;
 
-    fn set_up_motif(val: f32, size: usize) -> Sequence {
+    fn set_up_motif(val: f64, size: usize) -> Sequence {
         let ep_param = Param::new(ParamType::EP, Array::from_vec(vec![val; size])).unwrap();
         let prot_param = Param::new(ParamType::ProT, Array::from_vec(vec![val; size])).unwrap();
         let helt_param = Param::new(ParamType::HelT, Array::from_vec(vec![val; size])).unwrap();
@@ -93,11 +93,11 @@ mod tests {
     #[test]
     fn test_window_over_param() {
         let param = Param
-            ::new(ParamType::EP, Array::<f32, _>::linspace(0.0, 20.0, 21))
+            ::new(ParamType::EP, Array::<f64, _>::linspace(0.0, 20.0, 21))
             .unwrap();
         let mut i = 0.0;
         for window in param.windows(5) {
-            assert_eq!(window, Array::<f32, _>::linspace(i, i + 4.0, 5));
+            assert_eq!(window, Array::<f64, _>::linspace(i, i + 4.0, 5));
             i += 1.0;
         }
     }
@@ -181,10 +181,10 @@ mod tests {
         let total = trans_arr.sum();
         let target_arr = &trans_arr / total;
         let start_arr = trans_arr
-            .map(|x| ((x-alpha)/(1.0-alpha) / (1.0-(x-alpha)/(1.0-alpha)) as f32).ln());
+            .map(|x| ((x-alpha)/(1.0-alpha) / (1.0-(x-alpha)/(1.0-alpha)) as f64).ln());
         let mut motif_weights = MotifWeights{
             weights: start_arr,
-            weights_norm: Array::<f32, Ix2>::zeros(trans_arr.raw_dim())
+            weights_norm: Array::<f64, Ix2>::zeros(trans_arr.raw_dim())
         };
         motif_weights.constrain_normalize(&alpha);
         let sum_normed = motif_weights.weights_norm.sum();
@@ -192,17 +192,25 @@ mod tests {
         assert!(motif_weights.weights_norm.abs_diff_eq(&target_arr, 1e-6));
     }
 
+    #[test]
+    fn test_RecordsDB_seq_iter(){
+        let this_seq = set_up_motif(2.0, 32);
+        let this_seq2 = set_up_motif(3.0, 20);
+        let this_db = RecordsDB::new(vec![this_seq, this_seq2], array![0.0,1.0]);
+        println!("{:?}", this_db)
+    }
+
 }
 
 //fn run_query_over_ref(
-//    y_vals: Vec<f32>,
-//    query_shapes: Array<f32>,
-//    query_weights: Array<f32>,
-//    threshold: f32,
-//    reference: Array<f32>,
+//    y_vals: Vec<f64>,
+//    query_shapes: Array<f64>,
+//    query_weights: Array<f64>,
+//    threshold: f64,
+//    reference: Array<f64>,
 //    R: u32,
 //    W: u32,
-//    dist_func: &dyn Fn(Array<f32>, Array<f32>, Array<f32>) -> f32,
+//    dist_func: &dyn Fn(Array<f64>, Array<f64>, Array<f64>) -> f64,
 //    max_count: u32,
 //) {
 //}
@@ -231,7 +239,7 @@ pub enum ParamType {
 #[derive(Debug)]
 pub struct Param {
     name: ParamType,
-    vals: ndarray::Array::<f32,Ix1>,
+    vals: ndarray::Array::<f64,Ix1>,
 }
 
 /// Represents a single sequence as a combination of [Param] objects
@@ -241,7 +249,7 @@ pub struct Param {
 /// * `params` - Stores the full set of params in a single 2d Array
 #[derive(Debug)]
 pub struct Sequence {
-    params: ndarray::Array2<f32>
+    params: ndarray::Array2<f64>
 }
 
 /// Represents the state needed for windowed iteration over a [Sequence]
@@ -252,6 +260,7 @@ pub struct Sequence {
 /// * `end` - exclusive end of the iteration
 /// * `size` - size of the window to iterate over
 /// * `sequence` - reference to the [Sequence] to iterate over
+#[derive(Debug)]
 pub struct SequenceIter<'a>{
     start: usize,
     end: usize,
@@ -267,7 +276,7 @@ pub struct SequenceIter<'a>{
 /// * `params` - The view is stored as a 2d ndarray
 #[derive(Debug)]
 pub struct SequenceView<'a> {
-    params: ndarray::ArrayView::<'a, f32, Ix2>
+    params: ndarray::ArrayView::<'a, f64, Ix2>
 }
 
 /// Represents a motif as a [SequenceView] with associated [MotifWeights]
@@ -276,6 +285,7 @@ pub struct SequenceView<'a> {
 ///
 /// * `params` - Stores the sequence values as a [SequenceView]
 /// * `weights` - Stores the associated weights as a [MotifWeights]
+#[derive(Debug)]
 pub struct Motif<'a> {
     params: SequenceView<'a>,
     weights: MotifWeights,
@@ -287,10 +297,24 @@ pub struct Motif<'a> {
 ///
 /// * `weights` - Stores the weights as a 2d array
 /// * `weights_norm` - Caches normalized weights as needed
+#[derive(Debug)]
 pub struct MotifWeights {
-    weights: ndarray::Array2::<f32>,
-    weights_norm: ndarray::Array2::<f32>,
+    weights: ndarray::Array2::<f64>,
+    weights_norm: ndarray::Array2::<f64>,
 }
+
+/// Represents a database of Sequences and their associated value
+///
+/// # Fields
+///
+/// * `seqs` - Stores [Sequence] classes in a vector
+/// * `values` - Stores associated values in a vector in 1D array
+#[derive(Debug)]
+pub struct RecordsDB {
+    seqs: Vec<Sequence>,
+    values: ndarray::Array1::<f64>
+}
+
 
 //NOTE: do we know that param types will always be in the same order?
 //  or do we need to set up a hashmap to assign params to
@@ -341,12 +365,12 @@ impl<'a> SequenceView<'a> {
     /// # Arguments
     ///
     /// * `params` - a vector of ndarray slices representing a subset of the given sequence
-    pub fn new(params: ndarray::ArrayView::<'a,f32, Ix2>) -> SequenceView<'a> {
+    pub fn new(params: ndarray::ArrayView::<'a,f64, Ix2>) -> SequenceView<'a> {
         SequenceView { params }
     }
     
     /// Returns an iterator over the views of each [Param]
-    pub fn iter(&self) -> ndarray::iter::AxisIter<f32, Ix1>{
+    pub fn iter(&self) -> ndarray::iter::AxisIter<f64, Ix1>{
         self.params.axis_iter(Axis(0))
     }
 }
@@ -377,7 +401,7 @@ impl Param {
     ///
     /// * `name` - a type for the parameter. Must be one of [ParamType]
     /// * `vals` - an 1 dimensional array of floating point values for the parameter
-    pub fn new(name: ParamType, vals: Array::<f32, Ix1>) -> Result<Param, Box<dyn Error>> {
+    pub fn new(name: ParamType, vals: Array::<f64, Ix1>) -> Result<Param, Box<dyn Error>> {
         Ok(Param {name, vals})
     }
 
@@ -385,7 +409,7 @@ impl Param {
     /// direct access to the inner values.
     ///
     /// Returns the element-wise subtraction.
-    pub fn subtract(&self, other: &Param) -> Vec<f32> {
+    pub fn subtract(&self, other: &Param) -> Vec<f64> {
         if self.name != other.name {
             panic!("Can't subtract params of different types")
         } else {
@@ -393,7 +417,7 @@ impl Param {
         }
     }
     /// Returns an iterator over the individual values in the inner array
-    fn iter(&self) -> ndarray::iter::Iter<f32, Ix1> {
+    fn iter(&self) -> ndarray::iter::Iter<f64, Ix1> {
         self.vals.iter()
     }
     /// Returns a windowed iterator over the inner values array
@@ -401,15 +425,15 @@ impl Param {
     /// # Arguments
     ///
     /// * `size` - size of the window to iterate over
-    fn windows(&self, size: usize) -> ndarray::iter::Windows<f32, Ix1>{
+    fn windows(&self, size: usize) -> ndarray::iter::Windows<f64, Ix1>{
         self.vals.windows(size)
     }
 }
 
 /// This allows the syntatic sugar of `for val in param` to work
 impl<'a> IntoIterator for &'a Param {
-    type Item = &'a f32;
-    type IntoIter = ndarray::iter::Iter<'a, f32, Ix1>;
+    type Item = &'a f64;
+    type IntoIter = ndarray::iter::Iter<'a, f64, Ix1>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -447,8 +471,8 @@ impl MotifWeights {
     /// * `params` - a [SequenceView] used strictly to define the 
     ///              size of the weights
     pub fn new(params: &SequenceView) -> MotifWeights {
-        let weights = Array::<f32, Ix2>::ones(params.params.raw_dim());
-        let weights_norm = Array::<f32, Ix2>::zeros(params.params.raw_dim());
+        let weights = Array::<f64, Ix2>::ones(params.params.raw_dim());
+        let weights_norm = Array::<f64, Ix2>::zeros(params.params.raw_dim());
         MotifWeights{ weights, weights_norm }
     }
     
@@ -458,23 +482,30 @@ impl MotifWeights {
     /// Weights are normalized as exp(weight)/sum(exp(weights))
     pub fn normalize(&mut self) {
         let total = ndarray::Zip::from(&self.weights)
-            .fold(0.0, |acc, a| acc + f32::exp(*a));
+            .fold(0.0, |acc, a| acc + f64::exp(*a));
         // trying to do this in place consuming the old values
         ndarray::Zip::from(&mut self.weights_norm)
-            .and(&self.weights).for_each(|a, b| *a = f32::exp(*b)/total);
+            .and(&self.weights).for_each(|a, b| *a = f64::exp(*b)/total);
     }
 
     /// Updates the weights_norm field in place based on the weights field.
     /// 
     /// Weights have the constrained inv_logit function applied to them, then are
     ///  normalized to sum to one.
-    pub fn constrain_normalize(&mut self, alpha: &f32) {
+    pub fn constrain_normalize(&mut self, alpha: &f64) {
         let total = ndarray::Zip::from(&self.weights)
             .fold(0.0, |acc, a| acc + inv_logit(*a, Some(*alpha)));
         // deref a and b here to modify values in place
         ndarray::Zip::from(&mut self.weights_norm)
             .and(&self.weights)
             .for_each(|a, b| *a = inv_logit(*b, Some(*alpha))/total);
+    }
+}
+
+impl RecordsDB {
+
+    pub fn new(seqs: Vec<Sequence>, values: ndarray::Array1::<f64>) -> RecordsDB {
+        RecordsDB{seqs, values}
     }
 }
 
@@ -486,8 +517,8 @@ impl MotifWeights {
 ///
 /// - `arr1` - a reference to a view of a 2D array, typically a window on a sequence
 /// - `arr2` - a reference to a view of a 2D array, typically a window on a sequence to be compared
-pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>, 
-                          arr2: &ndarray::ArrayView::<f32, Ix2>) -> f32 {
+pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>, 
+                          arr2: &ndarray::ArrayView::<f64, Ix2>) -> f64 {
     ndarray::Zip::from(arr1).
         and(arr2).
         fold(0.0, |acc, a, b| acc + (a-b).abs())
@@ -502,9 +533,9 @@ pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>,
 /// - `arr1` - a reference to a view of a 2D array, typically a [Motif] `param` field
 /// - `arr2` - a reference to a view of a 2D array, typically a window on a sequence to be compared
 /// - `weights` - a view of a 2D array, typically a [Motif] `weights` field
-pub fn weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>, 
-                                   arr2: &ndarray::ArrayView::<f32, Ix2>,
-                                   weights: &ndarray::ArrayView::<f32, Ix2>) -> f32 {
+pub fn weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>, 
+                                   arr2: &ndarray::ArrayView::<f64, Ix2>,
+                                   weights: &ndarray::ArrayView::<f64, Ix2>) -> f64 {
     ndarray::Zip::from(arr1).
         and(arr2).
         and(weights).
@@ -517,7 +548,7 @@ pub fn weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f32, Ix2>,
 ///
 /// - `a` - value to apply inverse-logit to
 /// - 'alpha` - an optional lower limit to constrain returned values to
-pub fn inv_logit(a: f32, alpha: Option<f32>) -> f32 {
+pub fn inv_logit(a: f64, alpha: Option<f64>) -> f64 {
     let lower = alpha.unwrap_or(0.0);
     lower + (1.0 - lower) * a.exp() / (1.0 + a.exp())
 }
@@ -584,9 +615,9 @@ pub fn inv_logit(a: f32, alpha: Option<f32>) -> f32 {
 //    return int_val
 //}
 //
-///// Parses a CLI match from clap crate and converst to f32
-//pub fn fetch_float_arg(arg_val: &str) -> f32 {
-//    let float_val: f32 = arg_val.parse().unwrap();
+///// Parses a CLI match from clap crate and converst to f64
+//pub fn fetch_float_arg(arg_val: &str) -> f64 {
+//    let float_val: f64 = arg_val.parse().unwrap();
 //    return float_val
 //}
 
