@@ -10,6 +10,7 @@ import sys
 plt.rc('figure', titlesize=10)
 
 def plot_shapes(rec_db, rec_idx, file_name, take_complement=False):
+
     shape_arr = rec_db.X[rec_idx,...]
     idx_shape_lut = {v:k for k,v in rec_db.shape_name_lut.items()}
     fig,ax = plt.subplots(nrows=2)
@@ -37,11 +38,15 @@ def set_up(motif_list, top_n):
 
     motif_list = sorted(motif_list, key=lambda x: x['mi'], reverse=True)
     motif_num = len(motif_list)
-    if motif_num < top_n:
-        top_n = motif_num
+    if top_n is None:
+        top_n = len(motif_list)
+    else:
+        if motif_num < top_n:
+            top_n = motif_num
     return(motif_list, top_n)
 
-def plot_optim_trajectory(motif_list, file_name, top_n=20):
+
+def plot_optim_trajectory(motif_list, file_name, top_n=20, opacity=1):
 
     motif_list,top_n = set_up(motif_list, top_n)
 
@@ -49,11 +54,77 @@ def plot_optim_trajectory(motif_list, file_name, top_n=20):
 
     for i in range(top_n):
         this_info = motif_list[i]['opt_info']
-        ax.plot(this_info['eval'], this_info['value'])
+        ax.plot(this_info['eval'], this_info['value'], alpha=opacity)
 
     plt.savefig(file_name)
     plt.close()
 
+
+def plot_shapes_and_weights(motif_list, file_name, records, alpha, top_n = 30, opacity=1, legend_loc="upper left"):
+    
+    shape_lut = {v:k for k,v in records.shape_name_lut.items()}
+    
+    motif_list,top_n = set_up(motif_list, top_n)
+    
+    fig,ax = plt.subplots(ncols=4,nrows=top_n,figsize=(16,top_n*2),sharex=True)
+    if top_n == 1:
+        ax = ax[None,:]
+
+    for i,res in enumerate(motif_list[:top_n]):
+
+        mi = round(res['mi'], 2)
+        start_mi = round(res['mi_orig'], 2)
+        opt_y = res['motif']
+        orig_y = res['orig_shapes']
+        weights = res['weights']
+        orig_weights = res['orig_weights']
+        weights = apply_weights_normalization(weights, float(alpha))
+        orig_weights = apply_weights_normalization(orig_weights, float(alpha))
+        
+        x_vals = [i+1 for i in range(orig_y.shape[0])]
+        
+        for j in range(orig_y.shape[1]):
+
+            ax[i,0].plot(
+                x_vals,
+                orig_y[:,j],
+                alpha = opacity,
+                label = shape_lut[j],
+            )
+            ax[i,1].plot(
+                x_vals,
+                opt_y[:,j],
+                alpha = opacity,
+                label = shape_lut[j],
+            )
+            ax[i,2].plot(
+                x_vals,
+                orig_weights[:,j],
+                alpha = opacity,
+                label = shape_lut[j],
+            )
+            ax[i,3].plot(
+                x_vals,
+                weights[:,j],
+                alpha = opacity,
+                label = shape_lut[j],
+            )
+        ax[i,0].text(1, 3, "MI: {}".format(mi))
+        ax[i,0].text(1, 2, "Starting MI: {}".format(start_mi))
+        ax[i,0].set_ylabel("Index: {}".format(i))
+        if i == 0:
+            ax[i,0].set_title("Original shapes")
+            ax[i,1].set_title("Optimized shapes")
+            ax[i,2].set_title("Original weights")
+            ax[i,3].set_title("Optimized weights")
+            for j in range(4):
+                ax[i,j].set_xticks(x_vals)
+    
+    handles, labels = ax[0,0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc=legend_loc)
+    fig.tight_layout()
+    plt.savefig(file_name)
+    plt.close()
 
 def plot_motifs(motif_list, alpha, file_name, top_n=20):
 
@@ -65,15 +136,23 @@ def plot_motifs(motif_list, alpha, file_name, top_n=20):
         figsize = (8,top_n*4),
     )
 
+    if top_n == 1:
+        ax = ax[None,:]
+
     for i in range(top_n):
         weight_vals = motif_list[i]['weights'][...,0]
-        trans_weights = alpha + (1-alpha) * inout.inv_logit(weight_vals)
-        norm_weights = trans_weights / np.sum(trans_weights)
+        norm_weights = apply_weights_normalization(weight_vals, alpha)
         ax[i,0].plot([i+1 for i in range(15)], motif_list[i]['motif'][...,0])
         ax[i,1].plot([i+1 for i in range(15)], norm_weights)
 
     plt.savefig(file_name)
     plt.close()
+
+def apply_weights_normalization(weight_vals, alpha):
+    trans_weights = alpha + (1-alpha) * inout.inv_logit(weight_vals)
+    norm_weights = trans_weights / np.sum(trans_weights)
+    return norm_weights
+    
 
 class MotifVis(inout.ShapeMotifFile):
 

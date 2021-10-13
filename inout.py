@@ -8,23 +8,38 @@ from collections import OrderedDict
 
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func, max_count=4, alpha=0.1):
+                       ref, R, W, dist_func, max_count=4, alpha=0.1,
+                       parallel=True):
 
     # R for record number, 2 for one forward count and one reverse count
     hits = np.zeros((R,2))
-
-    optim_generate_peak_array(
-        ref = ref,
-        query = query_shapes,
-        weights = query_weights,
-        threshold = threshold,
-        results = hits,
-        R = R,
-        W = W,
-        dist = dist_func,
-        max_count = max_count,
-        alpha = alpha,
-    )
+    
+    if parallel:
+        optim_generate_peak_array(
+            ref = ref,
+            query = query_shapes,
+            weights = query_weights,
+            threshold = threshold,
+            results = hits,
+            R = R,
+            W = W,
+            dist = dist_func,
+            max_count = max_count,
+            alpha = alpha,
+        )
+    else:
+        optim_generate_peak_array_series(
+            ref = ref,
+            query = query_shapes,
+            weights = query_weights,
+            threshold = threshold,
+            results = hits,
+            R = R,
+            W = W,
+            dist = dist_func,
+            max_count = max_count,
+            alpha = alpha,
+        )
 
     # sort the counts such that for each record, the
     #  smaller of the two numbers comes first.
@@ -34,6 +49,69 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
     this_mi = mutual_information(y_vals, hits, unique_hits)
 
     return this_mi,hits
+
+@jit(nopython=True, parallel=False)
+def optim_generate_peak_array_series(ref, query, weights, threshold,
+                              results, R, W, dist, max_count, alpha):
+    """Does same thing as generate_peak_vector, but hopefully faster
+    
+    Args:
+    -----
+    ref : np.array
+        The windows attribute of an inout.RecordDatabase object. Will be an
+        array of shape (R,L,S,W,2), where R is the number of records,
+        L is the window size, S is the number of shape parameters, and
+        W is the number of windows for each record.
+    query : np.array
+        A slice of the records and windows axes of the windows attribute of
+        an inout.RecordDatabase object to check for matches in ref.
+        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
+    weights : np.array
+        Weights to be applied to the distance
+        calculation. Should be an array of shape (L,S,1).
+    threshold : float
+        Minimum distance to consider a match.
+    results : 2d np.array
+        Array of shape (R,2), where R is the number of records in ref.
+        This array should be populated with zeros, and will be incremented
+        by 1 when matches are found. The final axis is of length 2 so that
+        we can do the reverse-complement and the forward.
+    R : int
+        Number of records
+    W : int
+        Number of windows for each record
+    dist : function
+        The distance function to use for distance calculation.
+    max_count : int
+        The maximum number of hits to count for each strand.
+    alpha : float
+        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+        prior to normalizing the sum of weights to one and calculating distance.
+    """
+    
+    for r in range(R):
+        f_maxed = False
+        r_maxed = False
+        for w in range(W):
+            
+            if f_maxed and r_maxed:
+                break
+
+            ref_seq = ref[r,:,:,w,:]
+
+            distances = dist(query, ref_seq, weights, alpha)
+
+            if (not f_maxed) and (distances[0] < threshold):
+                # if a window has a distance low enough,
+                #   add 1 to this result's index
+                results[r,0] += 1
+                if results[r,0] == max_count:
+                    f_maxed = True
+
+            if (not r_maxed) and (distances[1] < threshold):
+                results[r,1] += 1
+                if results[r,1] == max_count:
+                    r_maxed = True
 
 
 @jit(nopython=True, parallel=True)

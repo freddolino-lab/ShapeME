@@ -225,9 +225,11 @@ def stochastic_optimize(out_fname, seeds_dict, record_db, dist,
 
     R,L,S,W,strand_num = record_db.windows.shape 
 
-    # NOTE: it is currently not safe to parallelize this step due
-    #   to the read/write code within this loop
     seed_list = seeds_dict['seeds']
+    logging.info("Started with {} seeds to optimize and save into {}.".format(
+        len(seed_list), out_fname
+    ))
+
     for i,seed in enumerate(seed_list):
 
         final = stochastic_opt_helper(
@@ -264,6 +266,10 @@ def stochastic_optimize(out_fname, seeds_dict, record_db, dist,
             results = [final]
             with open(out_fname, 'wb') as outf:
                 pickle.dump(results, outf)
+
+        logging.info("Finished optimizing seed {} of {} and wrote results to {}.".format(
+            i+1, len(seed_list), out_fname
+        ))
 
 
 def mp_optimize(record_db, dist, fatol=0.0001, opt_params=['weights'],
@@ -317,7 +323,8 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
                           maxfev, max_count=4, alpha=0.1,
                           targets = ['weights'],
                           method='nelder-mead',
-                          niter_success = 100, niter=100, constraints_dict={}):
+                          niter_success = 100, niter=100, constraints_dict={},
+                          ):
     """Helper function to allow weight optimization to be multiprocessed
     
     Args:
@@ -382,8 +389,8 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
     bounds = []
     for i,thing in enumerate(targets):
         this_bound = constraints_dict[thing]
-        print("{} bounds are: ".format(thing))
-        print(this_bound)
+        logging.info("{} bounds are: ".format(thing))
+        logging.info(this_bound)
         if i == 0:
             target = motif_dict[thing]
             idx_breaks.append(len(target))
@@ -398,7 +405,18 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
     y_vals = db.y
 
     final_motif_dict = {}
-    func_info = {"NFeval":0, "eval":[], "value":[], "threshold":[]}
+    func_info = {
+        "NFeval":0,
+        "eval":[],
+        "value":[],
+        "threshold":[],
+        "alpha":alpha,
+        "temperature":temperature,
+        "stepsize":stepsize,
+        "optim_vars":targets,
+        "max_count":max_count,
+        "adapt":adapt,
+    }
 
     if 'threshold' in targets:
         thresh_arg = None
@@ -482,6 +500,7 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         dist,
         max_count,
         alpha,
+        parallel = False
     )
 
     final_motif_dict['hits'] = hits
@@ -502,6 +521,7 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         dist,
         max_count,
         alpha,
+        parallel=False,
     )
 
     final_motif_dict['mi_orig'] = mi_orig
@@ -633,6 +653,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         dist,
         max_count,
         alpha,
+        parallel=False,
     )
 
     final_motifs_dict['hits'] = hits
@@ -652,6 +673,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         dist,
         max_count,
         alpha,
+        parallel=False,
     )
 
     final_motifs_dict['mi_orig'] = mi_orig
@@ -815,6 +837,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         dist_func,
         max_count,
         alpha,
+        parallel = False
     )
 
     if info["NFeval"] % 10 == 0:
@@ -1665,6 +1688,8 @@ if __name__ == "__main__":
         help="number of processors. Default=5")
     parser.add_argument("--exit_after_initial_mi", action="store_true",
         help="Run initial mutual information calculation, then exit, saving the result of the mutual information calculations.")
+    parser.add_argument("--exit_after_cmi_motifs", action="store_true",
+        help="Exit after filtering optmized motifs by their CMI.")
     parser.add_argument("--exit_after_cmi_filter", action="store_true",
         help="Run initial CMI filtering step prior to optimization, then exit, saving the retained seeds as a list in a pickle file.")
     parser.add_argument("--exit_after_optimization", action="store_true",
@@ -1783,9 +1808,11 @@ if __name__ == "__main__":
         ),
     )
 
+    opt_direc = os.path.join(out_direc, "optimizations")
+
     opt_fname = os.path.join(
-        out_direc,
-        "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+        opt_direc,
+        "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}_batch_{{:0=3}}.pkl".format(
             out_pref,
             optim_str,
             adapt,
@@ -1867,7 +1894,8 @@ if __name__ == "__main__":
                         pickle.dump(mi_dict, f)
 
                 if args.exit_after_initial_mi:
-                    sys.exit("You selected to only compute initial MI for each seed. Exiting the program now.")
+                    logging.info("You selected to only compute initial MI for each seed. Exiting the program now.")
+                    sys.exit()
 
                 logging.info("Filtering seeds based on conditional mutual information.")
                 logging.info("Started with {} seeds.".format(len(mi_dict['mi_results'])))
@@ -1892,7 +1920,8 @@ if __name__ == "__main__":
                     pickle.dump(filtered_seed_dict, f)
 
                 if args.exit_after_cmi_filter:
-                    sys.exit("You selected to exit the program after CMI filtering of the seeds. Exiting now.")
+                    logging.info("You selected to exit the program after CMI filtering of the seeds. Exiting now.")
+                    sys.exit()
 
             # if we did pass a cmi_file at the CLI, just skip the initial MI stuff
             else:
@@ -1910,31 +1939,66 @@ if __name__ == "__main__":
 
             if not args.no_optimize:
 
-                logging.info("Running optimization on {} to generate motifs".format(optim_vars))
-                lossing.info("Optimized motifs will be written to {}".format(opt_fname))
+                if not os.path.isdir(opt_direc):
+                    os.mkdir(opt_direc)
 
+                logging.info("Running optimization on {} to generate motifs".format(optim_vars))
+                logging.info("Optimized motifs will be written to {}".format(opt_fname))
+
+                # one numba thread per process
+                numba_threads = 1
+                mp_procs = int(np.ceil(args.p / numba_threads))
+                numba.set_num_threads(numba_threads)
+
+                # determine how to chunk the motifs:
+                seeds_chunked = [
+                    {
+                        'seeds' : filtered_seed_dict['seeds'][i::mp_procs],
+                        'weights' : weights,
+                        'match_threshold' : match_threshold,
+                        'max_count' : max_count,
+                        'alpha' : alpha,
+                        'fname' : opt_fname.format(i+1),
+                    }
+                    for i in range(0,mp_procs)
+                ]
+
+                mp_arg_list = [
+                    (
+                        seed_dict['fname'],
+                        seed_dict,
+                        records,
+                        this_dist,
+                        temp,
+                        step,
+                        fatol,
+                        adapt,
+                        maxfev,
+                        optim_vars,
+                        method,
+                        basinhop_niter,
+                        basinhop_niter_success,
+                        constraints,
+                        seed_dict['max_count'],
+                        seed_dict['alpha'],
+                    ) for seed_dict in seeds_chunked
+                ]
+
+                pool = mp.Pool(processes=mp_procs)
                 # the file "opt_fname" is written as this function runs
-                stochastic_optimize(
-                    out_fname = opt_fname,
-                    seeds_dict = filtered_seed_dict,
-                    record_db = records,
-                    dist = this_dist,
-                    temp = temp,
-                    stepsize = step,
-                    fatol = fatol,
-                    adapt = adapt,
-                    maxfev = maxfev,
-                    opt_params = optim_vars,
-                    method = method,
-                    niter = basinhop_niter,
-                    niter_success = basinhop_niter_success,
-                    constraints_dict = constraints,
-                    max_count = max_count,
-                    alpha = alpha,
+                pool.starmap(
+                    stochastic_optimize,
+                    mp_arg_list
                 )
 
+                pool.close()
+                pool.join()
+                
+                numba.set_num_threads(numba_threads)
+
                 if args.exit_after_optimization:
-                    sys.exit("You selected to exit the program after optimization. Exiting now.")
+                    logging.info("You selected to exit the program after optimization. Exiting now.")
+                    sys.exit()
 
         # if we want to read in prior optimizations: do this stuff
         else:
@@ -1945,28 +2009,27 @@ if __name__ == "__main__":
         with open(opt_fname, 'rb') as inf:
             optim_results = pickle.load(inf)
 
-        if not args.exit_after_optimization:
+        # filter the optimized motifs now
+        logging.info("Filtering motifs by CMI.")
+        logging.info("Started with {} optimized motifs.".format(len(optim_results)))
+        
+        good_motifs = aic_motifs(
+            optim_results,
+            records,
+            optim_results[0]['optimized_vars'],
+        )
 
-            # filter the optimized motifs now
-            logging.info("Filtering motifs by CMI.")
-            logging.info("Started with {} optimized motifs.".format(len(results)))
-            
-            good_motifs = aic_motifs(
-                optim_results,
-                records,
-                optim_results[0]['optimized_vars'],
-            )
+        logging.info("After CMI filtering, {} motifs remain. Writing them to {}.".format(
+            len(good_motifs),
+            good_motif_out_fname,
+        ))
 
-            logging.info("After CMI filtering, {} motifs remain. Writing them to {}.".format(
-                len(good_motifs),
-                good_motif_out_fname,
-            ))
+        with open(good_motif_out_fname, 'wb') as outf:
+            pickle.dump(good_motifs, outf)
 
-            with open(good_motif_out_fname, 'wb') as outf:
-                pickle.dump(good_motifs, outf)
-
-        else:
-            sys.exit("You selected to quit after optimization. Exiting now.")
+        if args.exit_after_cmi_motifs:
+            logging.info("You selected to quit after filtering optimized motifs by their CMI. Exiting now.")
+            sys.exit()
 
     # if we selected to read in cmi-filtered motifs, run this stuff
     else:
