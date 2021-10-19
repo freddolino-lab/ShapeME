@@ -5,6 +5,17 @@ from numba import jit,prange
 import welfords
 from scipy import stats
 from collections import OrderedDict
+import pickle
+import glob
+
+def consolidate_optim_batches(fname_list):
+
+    opt_results = []
+    for fname in fname_list:
+        with open(fname, 'rb') as f:
+            opt_results.extend(pickle.load(f))
+
+    return opt_results
 
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,

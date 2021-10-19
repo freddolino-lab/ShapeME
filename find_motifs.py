@@ -1,4 +1,5 @@
 import inout
+import glob
 import sys
 import os
 import dnashapeparams as dsp
@@ -2004,10 +2005,14 @@ if __name__ == "__main__":
         else:
             logging.info("Skipping initial MI calculation, cmi-filtering, and optimization of motifs. Reading prior optimized motifs from {}.".format(opt_fname))
 
-        # whether we had the file already, or just did the optimizations, either
-        #  way, we need to read in the file now.
-        with open(opt_fname, 'rb') as inf:
-            optim_results = pickle.load(inf)
+        opt_fname_search = os.path.join(
+            opt_direc,
+            "{}_optim_*_adapt_*_fatol_*_temp_*_stepsize_*_alpha_*_max_count_*_batch_*.pkl".format(out_pref),
+        )            
+        # whether we had the files already, or just did the optimizations, either
+        #  way, we need to read in the files now.
+        fname_list = glob.glob(opt_fname_search)
+        optim_results = inout.consolidate_optim_batches(fname_list)
 
         # filter the optimized motifs now
         logging.info("Filtering motifs by CMI.")
@@ -2051,16 +2056,6 @@ if __name__ == "__main__":
 ###############################################################################
 ###############################################################################
     raise()
-
-    logging.info("Finding minimum match scores for each motif")
-    if args.debug:
-        good_motif_pkl_fname = "{}_good_motifs.pkl".format(outpre)
-        logging.info("Writing motifs after CMI filter and prior to regression to {}.".format(good_motif_pkl_fname))
-        with open(good_motif_pkl_fname, "wb") as pkl_f:
-            pickle.dump(good_motifs, pkl_f)
-        #outmotifs = inout.ShapeMotifFile()
-        #outmotifs.add_motifs(good_motifs)
-        #outmotifs.write_file(outpre+"_called_motifs_before_regression.dsp", records)
 
     X = [
         generate_dist_vector(this_records, this_motif['motif'], rc=args.rc)
