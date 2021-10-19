@@ -117,3 +117,13 @@ python ${SRC_DIR}find_motifs.py \
     --exit_after_cmi_motifs \
     --optim_file
 
+# plot some information about the cmi-filtered motifs
+python ${SRC_DIR}plot_optims.py \
+    --param_names $shape_names \
+    --params $shape_files \
+    -o $out_prefix \
+    --data_dir $data_dir \
+    --out_dir $out_dir \
+    --motifs_file "${out_prefix}_post_opt_cmi_filtered_motifs_optim_shapes_weights_threshold_adapt_False_fatol_${fatol}_temp_${temp}_stepsize_${step}_alpha_${alpha}_max_count_${max_count}.pkl" \
+    --infile $infile
+

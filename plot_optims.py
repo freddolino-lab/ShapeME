@@ -26,6 +26,8 @@ if __name__ == "__main__":
         help="Length of windows in which to search for motifs")
     parser.add_argument('--continuous', type=int, default=None,
         help="Number of bins to discretize continuous input data with")
+    parser.add_argument('--motifs_file', default=None, type=str,
+        help="Optionally set the name of the pickle file containing the CMI-filtered motifs to plot.")
         
     args = parser.parse_args()
     out_pref = args.o
@@ -58,22 +60,26 @@ if __name__ == "__main__":
     records.compute_windows(wsize = args.kmer)
     weights = records.initialize_weights()[:,:,None]
 
-    opt_direc = os.path.join(out_direc, "optimizations")
-    opt_fname_search = os.path.join(
-        opt_direc,
-        "{}_optim_*_adapt_*_fatol_*_temp_*_stepsize_*_alpha_*_max_count_*_batch_*.pkl".format(out_pref),
-    )
-    opt_fnames = glob.glob(opt_fname_search)
-    opt_plot_basename = re.sub(
-        r"_batch_\d+\.pkl",
-        "",
-        opt_fnames[0]
-    )
-
-    opt_results = []
-    for fname in opt_fnames:
-        with open(fname, 'rb') as f:
-            opt_results.extend(pickle.load(f))
+    if args.motifs_file is None:
+        opt_direc = os.path.join(out_direc, "optimizations")
+        opt_fname_search = os.path.join(
+            opt_direc,
+            "{}_optim_*_adapt_*_fatol_*_temp_*_stepsize_*_alpha_*_max_count_*_batch_*.pkl".format(out_pref),
+        )
+        fname_list = glob.glob(opt_fname_search)
+        opt_plot_basename = re.sub(
+            "_batch_\d+\.pkl",
+            "",
+            fname_list[0],
+        )
+        opt_results = inout.consolidate_optim_batches(fname_list)
+    else:
+        opt_plot_basename = os.path.join(
+            out_direc,
+            args.motifs_file.replace('.pkl', ''),
+        )
+        with open(os.path.join(out_direc, args.motifs_file), 'rb') as f:
+            opt_results = pickle.load(f)
 
     smv.plot_shapes_and_weights(
         opt_results,

@@ -1,4 +1,5 @@
 import inout
+import glob
 import sys
 import os
 import dnashapeparams as dsp
@@ -498,6 +499,7 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel = False
@@ -519,6 +521,7 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel=False,
@@ -651,6 +654,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel=False,
@@ -671,6 +675,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel=False,
@@ -835,6 +840,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         R,
         W,
         dist_func,
+        True,
         max_count,
         alpha,
         parallel = False
@@ -1489,8 +1495,7 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
 
 @jit(nopython=True)
 def calc_aic(delta_k, rec_num, mi):
-    # Peter came up with this version of aic
-    #  Look up wiki definition for hypergeometric case
+    #NOTE: talk with Peter about this. Are we biasing one way or another with changing rec_num? Better to do rec_num * win_num * mi??
     aic = 2*delta_k - 2*rec_num*mi
     return aic
 
@@ -1745,8 +1750,10 @@ if __name__ == "__main__":
     # in the sequence database
     if args.continuous is not None:
         #records.read(args.infile, float)
-        logging.info("Discretizing data")
-        records.discretize_quant(args.continuous)
+        #logging.info("Discretizing data")
+        #records.discretize_quant(args.continuous)
+        #logging.info("Quantizing input data using k-means clustering")
+        records.quantize_quant(args.continuous)
 
     logging.info("Distribution of sequences per class:")
     logging.info(seqs_per_bin(records))
@@ -1905,6 +1912,11 @@ if __name__ == "__main__":
                     records,
                     optim_vars,
                 )
+
+                if len(filtered_seeds) == 0:
+                    logging.info("Zero seeds were left after filtering by CMI. Exiting script now.")
+                    sys.exit(1)
+
                 filtered_seed_dict = {
                     'seeds' : filtered_seeds,
                     'weights' : weights,
@@ -2004,10 +2016,14 @@ if __name__ == "__main__":
         else:
             logging.info("Skipping initial MI calculation, cmi-filtering, and optimization of motifs. Reading prior optimized motifs from {}.".format(opt_fname))
 
-        # whether we had the file already, or just did the optimizations, either
-        #  way, we need to read in the file now.
-        with open(opt_fname, 'rb') as inf:
-            optim_results = pickle.load(inf)
+        opt_fname_search = os.path.join(
+            opt_direc,
+            "{}_optim_*_adapt_*_fatol_*_temp_*_stepsize_*_alpha_*_max_count_*_batch_*.pkl".format(out_pref),
+        )            
+        # whether we had the files already, or just did the optimizations, either
+        #  way, we need to read in the files now.
+        fname_list = glob.glob(opt_fname_search)
+        optim_results = inout.consolidate_optim_batches(fname_list)
 
         # filter the optimized motifs now
         logging.info("Filtering motifs by CMI.")
@@ -2051,16 +2067,6 @@ if __name__ == "__main__":
 ###############################################################################
 ###############################################################################
     raise()
-
-    logging.info("Finding minimum match scores for each motif")
-    if args.debug:
-        good_motif_pkl_fname = "{}_good_motifs.pkl".format(outpre)
-        logging.info("Writing motifs after CMI filter and prior to regression to {}.".format(good_motif_pkl_fname))
-        with open(good_motif_pkl_fname, "wb") as pkl_f:
-            pickle.dump(good_motifs, pkl_f)
-        #outmotifs = inout.ShapeMotifFile()
-        #outmotifs.add_motifs(good_motifs)
-        #outmotifs.write_file(outpre+"_called_motifs_before_regression.dsp", records)
 
     X = [
         generate_dist_vector(this_records, this_motif['motif'], rc=args.rc)

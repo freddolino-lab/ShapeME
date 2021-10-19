@@ -5,10 +5,29 @@ from numba import jit,prange
 import welfords
 from scipy import stats
 from collections import OrderedDict
+import pickle
+import glob
+from sklearn import cluster 
+from sklearn import metrics
 
+def consolidate_optim_batches(fname_list):
+
+    opt_results = []
+    for fname in fname_list:
+        with open(fname, 'rb') as f:
+            opt_results.extend(pickle.load(f))
+
+    return opt_results
+
+@jit(nopython=True)
+def bin_hits(hits_arr, distinct_hits, binned_hits):
+    for bin_id in range(distinct_hits.shape[0]):
+        rows_y = (hits_arr == distinct_hits[bin_id,:])[:,0]
+        binned_hits[rows_y] = bin_id
+        
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func, max_count=4, alpha=0.1,
+                       ref, R, W, dist_func, optim, max_count=4, alpha=0.1,
                        parallel=True):
 
     # R for record number, 2 for one forward count and one reverse count
@@ -46,7 +65,16 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
     hits = np.sort(hits, axis=1)
     unique_hits = np.unique(hits, axis=0)
 
-    this_mi = mutual_information(y_vals, hits, unique_hits)
+    # if we're doing optimization, use adjusted mutual info score, which goes up to 1.
+    if optim:
+        binned_hits = np.zeros(R)
+        # binned_hits will be an integer vector, as opposed to the 2d matrix that was hits
+        bin_hits(hits, unique_hits, binned_hits)
+        this_mi = metrics.adjusted_mutual_info_score(y_vals, binned_hits)
+
+    # if we're not optimizing, use our MI function
+    else:
+        this_mi = mutual_information(y_vals, hits, unique_hits)
 
     return this_mi,hits
 
@@ -680,9 +708,9 @@ class RecordDatabase(object):
         for val in self.y:
             yield val
 
-    def discretize_quant(self,nbins=10):
-        """Discretize data into n equally populated bins according to the
-        n quantiles
+    def quantize_quant(self,nbins=10):
+        """Quantize data into n equally populated bins according to the
+        nbins quantiles
         
         Prints bin divisions to the logger
 
@@ -697,8 +725,26 @@ class RecordDatabase(object):
         bins = []
         for quant in quants:
             bins.append(np.percentile(values, quant))
-        logging.warning("Discretizing on bins: {}".format(bins))
+        logging.warning("Quantizing on bins: {}".format(bins))
         self.y = np.digitize(values, bins)
+
+    def discretize_quant(self, nbins=10):
+        """Discretize data into nbins bins according to K-means clustering
+        
+        Prints bin divisions to the logger
+
+        Modifies:
+        ---------
+        self.y : np.array
+            converts the values into their new categories
+        """
+
+        values = self.y
+        k_means = cluster.KMeans(n_clusters=nbins)
+        k_means.fit(values.reshape(-1,1))
+        self.y[...] = k_means.labels_
+        print(self.y)
+
 
     def read_infile(self, infile):#, keep_inds=None):
         """Method to read a sequence file in FIRE/TEISER/iPAGE format
@@ -723,7 +769,7 @@ class RecordDatabase(object):
                 scores.append(linearr[1])
             self.y = np.asarray(
                 scores,
-                dtype=int,
+                dtype=float,
             )
 
     def read_shapes(self, shape_dict, shift_params=["HelT","Roll"], exclude_na=True):
@@ -878,7 +924,7 @@ class RecordDatabase(object):
 
         #(R,L,S,W)
         rec_num, rec_len, shape_num, strand_num = self.X.shape
-        window_count = rec_len - wsize
+        window_count = rec_len - wsize + 1
         
         self.windows = np.zeros((
             rec_num, wsize, shape_num, window_count, strand_num
@@ -1021,6 +1067,7 @@ class RecordDatabase(object):
                     ref = self.windows,
                     R = rec_num,
                     W = win_num,
+                    optim = False,
                     dist_func = dist,
                     max_count = max_count,
                     alpha = alpha,
@@ -1463,6 +1510,61 @@ class SeqDatabase(object):
     def shannon_entropy(self):
         return entropy(self.get_values())
 
+
+class FIREfile(object):
+
+    def __init__(self):
+        self.data = {}
+        self.names = []
+
+    def __iter__(self):
+        for name in self.names:
+            yield (name, self.data[name])
+
+    def __len__(self):
+        return len(self.names)
+
+    def __add__(self, other):
+        newfile = FIREfile()
+        for name, score in self:
+            newfile.add_entry(name, score)
+        for name, score in other:
+            newfile.add_entry(name, score)
+        return newfile
+
+    def add_entry(self, name, score):
+        self.data[name] = score
+        self.names.append(name)
+
+    def pull_value(self, name):
+        return self.data[name]
+
+    def discretize_quant(self, nbins=10):
+        # first pull all the values
+        all_vals = [val for name, val in self]
+        all_vals = np.array(all_vals)
+        quants = np.arange(0,100, 100.0/nbins)
+        bins = []
+        for quant in quants:
+            bins.append(np.percentile(all_vals, quant))
+        all_vals = np.digitize(all_vals, bins)
+        for new_val, (name, old_val) in zip(all_vals, self):
+            self.data[name] = new_val
+
+    def shuffle(self):
+        size = len(self)
+        subset = np.random.permutation(size)
+        shuffled_names = [self.names[val] for val in subset]
+        self.names = shuffled_names
+
+
+    def write(self, fname):
+        with open(fname, mode="w") as outf:
+            outf.write("name\tscore\n")
+            for name, score in self:
+                outf.write("%s\t%s\n"%(name, score))
+
+
 class ShapeMotifFile(object):
     """ Class to store a dna shape motif file .dsm for writing and reading
         Currently no error checking on input file format
@@ -1686,6 +1788,7 @@ def entropy(array):
 
     Args:
         array (np.array): an array of discrete categories
+        uniquey : unique values in y
     Returns:
         entropy of array
     """
@@ -1758,6 +1861,7 @@ def conditional_entropy(arrayx, arrayy):
             else:
                 entropy += p_x_y*np.log2(p_x/p_x_y)
     return -entropy
+
 
 @jit(nopython=True)
 def mutual_information(arrayx, arrayy, uniquey):
