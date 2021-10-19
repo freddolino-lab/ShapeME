@@ -499,6 +499,7 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel = False
@@ -520,6 +521,7 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel=False,
@@ -652,6 +654,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel=False,
@@ -672,6 +675,7 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
+        False,
         max_count,
         alpha,
         parallel=False,
@@ -836,6 +840,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         R,
         W,
         dist_func,
+        True,
         max_count,
         alpha,
         parallel = False
@@ -1490,8 +1495,7 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
 
 @jit(nopython=True)
 def calc_aic(delta_k, rec_num, mi):
-    # Peter came up with this version of aic
-    #  Look up wiki definition for hypergeometric case
+    #NOTE: talk with Peter about this. Are we biasing one way or another with changing rec_num? Better to do rec_num * win_num * mi??
     aic = 2*delta_k - 2*rec_num*mi
     return aic
 
@@ -1746,8 +1750,10 @@ if __name__ == "__main__":
     # in the sequence database
     if args.continuous is not None:
         #records.read(args.infile, float)
-        logging.info("Discretizing data")
-        records.discretize_quant(args.continuous)
+        #logging.info("Discretizing data")
+        #records.discretize_quant(args.continuous)
+        #logging.info("Quantizing input data using k-means clustering")
+        records.quantize_quant(args.continuous)
 
     logging.info("Distribution of sequences per class:")
     logging.info(seqs_per_bin(records))
@@ -1906,6 +1912,11 @@ if __name__ == "__main__":
                     records,
                     optim_vars,
                 )
+
+                if len(filtered_seeds) == 0:
+                    logging.info("Zero seeds were left after filtering by CMI. Exiting script now.")
+                    sys.exit(1)
+
                 filtered_seed_dict = {
                     'seeds' : filtered_seeds,
                     'weights' : weights,
