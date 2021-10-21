@@ -499,7 +499,6 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         R,
         W,
         dist,
-        False,
         max_count,
         alpha,
         parallel = False
@@ -521,7 +520,6 @@ def stochastic_opt_helper(motif_shapes, motif_weights, motif_thresh,
         R,
         W,
         dist,
-        False,
         max_count,
         alpha,
         parallel=False,
@@ -654,7 +652,6 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
-        False,
         max_count,
         alpha,
         parallel=False,
@@ -675,7 +672,6 @@ def mp_optimize_helper(r_idx, w_idx, dist, db, fatol, adapt,
         R,
         W,
         dist,
-        False,
         max_count,
         alpha,
         parallel=False,
@@ -840,7 +836,6 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         R,
         W,
         dist_func,
-        True,
         max_count,
         alpha,
         parallel = False
@@ -1425,9 +1420,11 @@ def filter_motifs(motifs, records, mi_threshold):
     for cand_motif in these_motifs[1:]:
         motif_pass = True
         for good_motif in top_motifs:
-            cmi = inout.conditional_mutual_information(records.get_values(), 
-                                                 cand_motif['discrete'], 
-                                                 good_motif['discrete'])
+            cmi = inout.conditional_mutual_information(
+                records.get_values(), 
+                cand_motif['discrete'], 
+                good_motif['discrete'],
+            )
 
             mi_btwn_motifs = inout.mutual_information(cand_motif['discrete'], 
                     good_motif['discrete'])
@@ -1495,7 +1492,6 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
 
 @jit(nopython=True)
 def calc_aic(delta_k, rec_num, mi):
-    #NOTE: talk with Peter about this. Are we biasing one way or another with changing rec_num? Better to do rec_num * win_num * mi??
     aic = 2*delta_k - 2*rec_num*mi
     return aic
 
@@ -1559,13 +1555,13 @@ def aic_motifs(motifs, records, optimized_vars):
             good_motif_hits = good_motif['hits']
             distinct_good_motif_hits = good_motif['distinct_hits']
 
-            this_cmi = inout.conditional_mutual_information(
+            this_cmi = inout.conditional_adjusted_mutual_information(
                 records.y, 
-                distinct_y,
+                #distinct_y,
                 cand_hits, 
-                distinct_cand_hits,
+                #distinct_cand_hits,
                 good_motif_hits,
-                distinct_good_motif_hits,
+                #distinct_good_motif_hits,
             )
             this_aic = calc_aic(delta_k, rec_num, this_cmi)
 
@@ -1581,39 +1577,6 @@ def aic_motifs(motifs, records, optimized_vars):
 
     return top_motifs
 
-def bic_motifs(motifs, records):
-    """ Select final motifs through BIC
-
-    Args:
-        motifs (list of dicts) - list of final motif dictionaries
-        records (SeqDatabase Class) - sequences motifs are compared against
-    
-    Returns:
-        final_motifs (list of dicts) - list of passing motif dictionaries
-    """
-    delta_k = len(motifs[0]['motif'].as_vector(cache=True))
-    n = len(records)
-    these_motifs = sorted(motifs, key=lambda x: x['mi'], reverse=True)
-    if 2*delta_k*np.log2(n) - 2*n*these_motifs[0]['mi'] < 0:
-        top_motifs = [these_motifs[0]]
-    else:
-        return []
-    for cand_motif in these_motifs[1:]:
-        motif_pass = True
-        if 2*delta_k*np.log2(n) - 2*n*cand_motif['mi'] > 0:
-            continue
-        for good_motif in top_motifs:
-            this_mi = inout.conditional_mutual_information(
-                records.get_values(), 
-                cand_motif['discrete'], 
-                good_motif['discrete'],
-            )
-            if 2*delta_k*np.log2(n) - 2*n*this_mi > 0:
-                motif_pass = False
-                break
-        if motif_pass:
-            top_motifs.append(cand_motif)
-    return top_motifs
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

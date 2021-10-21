@@ -18,3 +18,4 @@ dependencies:
     - jupyter
     - rpy2
     - seaborn
+    - cython

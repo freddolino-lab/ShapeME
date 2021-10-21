@@ -6,3 +6,6 @@ tests/test/*.pkl
 __pycache__
 utils/__pycache__
 motifer/target
+emi
+build
+_expected_mutual_info_fast.c
