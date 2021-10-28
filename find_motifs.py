@@ -10,6 +10,7 @@ import scipy.optimize as opt
 from scipy.optimize import LinearConstraint
 import shapemotifvis as smv
 import multiprocessing as mp
+mp.set_start_method('spawn', force=True)
 import itertools
 import welfords
 import sklearn
@@ -838,7 +839,7 @@ def optimize_worker(targets, all_shapes, y, dist_func, info,
         dist_func,
         max_count,
         alpha,
-        parallel = False
+        parallel = True
     )
 
     if info["NFeval"] % 10 == 0:
@@ -1509,7 +1510,7 @@ def aic_motifs(motifs, records, optimized_vars):
     # get number of parameters based on window length * shape number * 2 + 1
     #  We multiply by 2 because for each shape value we have a weight,
     #  and we add 1 because the motif's threshold was a parameter.
-    rec_num,win_len,shape_num,strand_num = records.X.shape
+    rec_num,win_len,shape_num,win_num,strand_num = records.windows.shape
 
     shape_num_multiplier = 0
     if 'shapes' in optimized_vars:
@@ -1920,10 +1921,13 @@ if __name__ == "__main__":
                 logging.info("Running optimization on {} to generate motifs".format(optim_vars))
                 logging.info("Optimized motifs will be written to {}".format(opt_fname))
 
-                # one numba thread per process
-                numba_threads = 1
-                mp_procs = int(np.ceil(args.p / numba_threads))
+                # setting number of threads per process
+                numba_threads = args.p // len(filtered_seed_dict['seeds'])
+                mp_procs = args.p // numba_threads
                 numba.set_num_threads(numba_threads)
+
+                print(numba_threads)
+                print(mp_procs)
 
                 # determine how to chunk the motifs:
                 seeds_chunked = [
@@ -1936,6 +1940,7 @@ if __name__ == "__main__":
                         'fname' : opt_fname.format(i+1),
                     }
                     for i in range(0,mp_procs)
+                    if len(filtered_seed_dict['seeds'][i::mp_procs]) > 0
                 ]
 
                 mp_arg_list = [
@@ -1969,7 +1974,7 @@ if __name__ == "__main__":
                 pool.close()
                 pool.join()
                 
-                numba.set_num_threads(numba_threads)
+                numba.set_num_threads(args.p)
 
                 if args.exit_after_optimization:
                     logging.info("You selected to exit the program after optimization. Exiting now.")
