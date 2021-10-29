@@ -197,7 +197,9 @@ mod tests {
         let this_seq = set_up_motif(2.0, 32);
         let this_seq2 = set_up_motif(3.0, 20);
         let this_db = RecordsDB::new(vec![this_seq, this_seq2], array![0.0,1.0]);
-        println!("{:?}", this_db)
+        for entry in this_db.iter(){
+            println!("{:?}", entry);
+        }
     }
 
 }
@@ -313,6 +315,31 @@ pub struct MotifWeights {
 pub struct RecordsDB {
     seqs: Vec<Sequence>,
     values: ndarray::Array1::<f64>
+}
+
+
+/// Allows for iteration over a records database
+///
+/// # Fields
+///
+/// * `loc` - Current location in the database
+/// * `value` - A reference to the [RecordsDB]
+#[derive(Debug)]
+pub struct RecordsDBIter<'a> {
+    loc: usize,
+    db: &'a RecordsDB,
+    size: usize
+}
+
+/// Stores a single entry of the RecordsDB 
+/// # Fields
+///
+/// * `seq` - A reference to a [Sequence] classe
+/// * `value` - The associated value for the sequence
+#[derive(Debug)]
+pub struct RecordsDBEntry<'a> {
+    seq: &'a Sequence,
+    value: f64
 }
 
 
@@ -503,9 +530,50 @@ impl MotifWeights {
 }
 
 impl RecordsDB {
+    /// Returns a new RecordsDB holding sequence value pairs as separate
+    /// vectors.
+    ///
+    /// # Arguments
+    ///
+    /// * `seqs` - a vector of [Sequence]
+    /// * `values` - a vector of values for each sequence
 
     pub fn new(seqs: Vec<Sequence>, values: ndarray::Array1::<f64>) -> RecordsDB {
         RecordsDB{seqs, values}
+    }
+
+    /// Iterate over each record in the database as a [Sequence] value pair
+    pub fn iter(&self) -> RecordsDBIter{
+        RecordsDBIter{loc: 0, db: &self, size: self.seqs.len()}
+    }
+}
+
+impl<'a> RecordsDBEntry<'a> {
+    /// Returns a single [RecordsDBEntry] holding the sequence value
+    /// pair
+    ///
+    /// # Arguments
+    /// * `seq` - a reference to a [Sequence]
+    /// * `value` - the sequences paired value
+    pub fn new(seq: &Sequence, value: f64) -> RecordsDBEntry {
+        RecordsDBEntry{seq, value}
+    }
+}
+
+/// Enables iteration over the RecordsDB. Returns a [RecordsDBEntry] as 
+/// each item.
+impl<'a> Iterator for RecordsDBIter<'a> {
+    type Item = RecordsDBEntry<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.loc == self.size{
+            None
+        } else {
+            let out_seq = &self.db.seqs[self.loc];
+            let out_val = self.db.values[self.loc];
+            self.loc += 1;
+            Some(RecordsDBEntry::new(out_seq, out_val))
+        }
     }
 }
 
