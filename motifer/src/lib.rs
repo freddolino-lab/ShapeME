@@ -4,74 +4,12 @@ use ndarray::Array;
 // ndarray_stats exposes ArrayBase to useful methods for descriptive stats like min.
 use ndarray_stats::QuantileExt;
 
-// Next major goal:
-//   Run seed over entire database of seqs and get MI.
-//   + subgoal: benchmark testing for this!
-//   + subgoal: get RecordsDatabase struct, with sequences field and y-vals field
-//
-//
-// TODO: 
-//
-// 1. Generate hits vector for a given seed (see pseudocode below)
-//    + We need the following:
-//        + functions to increment the hit count and toggle maxed to True
-//           when we hit the strand's max count
-//        + method to slice backward through a sequence (or maybe we just compute the reverse at the beginning, along with the reversed weights? that might make it easier to start with all our data, and not have to make unnecessary copies)
-//    + Where to parallelize is an engineering question
-//        + just keep in mind for future, once we actually implemente par
-//
-//
-//     rev_seq = seed_seq.rev
-//     seed_seq.constrain_norm_weights(alpha)
-//     rev_seq.constrain_norm_weights(alpha)
-//
-//     seed_hits = array(2d, first axis is record number, second axis is strand)
-//
-//     // loop over all references
-//     for i,sequence in all_seqs.enumerate() {
-//
-//         rev_maxed = False
-//         fwd_maxed = False
-//       
-//         // we probably started with 60-mer, but it's now 56 due to clipping 2 from each end
-//         for window in reference.window_iter(0,56,15) {
-//
-//             if rev_maxed and fwd_maxed {
-//                 break
-//             }
-//
-//   ############################################################
-//   ############################################################
-//   ### make the distance/matching stuff an impl to SequenceView?
-//   ############################################################
-//   ############################################################
-//             if not fwd_maxed {
-//                 distance = weighted_manhattan_distance(seed_seq, window_seq, seed_seq.norm_weights)
-//                 if distance < threshold {
-//                     seed_hits[i,0] += 1
-//                     if seed_hits[i,0] == max_count {
-//                         fwd_maxed = True
-//                     }
-//                 }
-//             }
-//
-//             if not rev_maxed {
-//                 distance = weighted_manhattan_distance(rev_seq, window_seq, rev_seq.norm_weights)
-//                 if distance < threshold {
-//                     seed_hits[i,1] += 1
-//                     if seed_hits[i,1] == max_count {
-//                         rev_maxed = True
-//                     }
-//                 }
-//             }
-//         }
-//     }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::*;
 
-    fn set_up_motif(val: f64, size: usize) -> Sequence {
+    fn set_up_sequence(val: f64, size: usize) -> Sequence {
         let ep_param = Param::new(ParamType::EP, Array::from_vec(vec![val; size])).unwrap();
         let prot_param = Param::new(ParamType::ProT, Array::from_vec(vec![val; size])).unwrap();
         let helt_param = Param::new(ParamType::HelT, Array::from_vec(vec![val; size])).unwrap();
@@ -104,16 +42,16 @@ mod tests {
 
     #[test]
     fn test_window_over_seq(){
-        let this_seq = set_up_motif(2.0, 30);
+        let this_seq = set_up_sequence(2.0, 30);
         for window in this_seq.window_iter(0, 10, 3) {
-            assert_eq!(Array2::from_elem((5, 3), 2.0),
+            assert_eq!(ndarray::Array2::from_elem((5, 3), 2.0),
                        window.params)
         }
     }
     
     #[test]
     fn test_pairwise_comparison(){
-        let this_seq = set_up_motif(2.0, 30);
+        let this_seq = set_up_sequence(2.0, 30);
         let mut out = Vec::new();
         for window1 in this_seq.window_iter(0, 31, 3) {
             for window2 in this_seq.window_iter(0, 31, 3) {
@@ -126,7 +64,7 @@ mod tests {
 
     #[test]
     fn test_motif_normalization() {
-        let this_seq = set_up_motif(2.0, 31);
+        let this_seq = set_up_sequence(2.0, 31);
         let mut this_motif: Motif = this_seq
             .window_iter(0, 31, 12)
             .next()
@@ -137,9 +75,9 @@ mod tests {
         // check that normed weights intialize to 0
         assert_eq!(this_motif.weights.weights_norm.sum(), 0.0);
         this_motif.weights.normalize();
-        // check that when normalized weights are basically 1
+        // check that when normalized, weights sum to 1
         let sum_normed = this_motif.weights.weights_norm.sum();
-        assert!((sum_normed > 0.99999) && (sum_normed < 1.00001));
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&sum_normed, &1.0));
         // check that when normalized. Unnormalized weights are untouched
         assert_eq!(this_motif.weights.weights.sum(), 1.0*12.0*5.0);
     }
@@ -147,24 +85,16 @@ mod tests {
     #[test]
     fn test_pairwise_motif() {
         let alpha = 0.1;
-        let this_seq = set_up_motif(2.0, 30);
+        let this_seq = set_up_sequence(2.0, 30);
         let mut out = Vec::new();
         for seed in this_seq.window_iter(0, 31, 3){
             // get the motif weights through type conversion
             let mut this_motif: Motif = seed.into();
             // normalize the weights before using them
-            this_motif.weights.constrain_normalize(&alpha);
+            this_motif.normalize_weights(&alpha);
             for window in this_seq.window_iter(0, 31, 3){
-                out.push(
-                    weighted_manhattan_distance(
-                        // I don't like how much we have to access internal
-                        // struct fields here but we can revisit
-                        &this_motif.params.params, 
-                        &window.params, 
-                        // use normalized weights. Need to explicitly get a view
-                        &this_motif.weights.weights_norm.view()
-                    )
-                );
+                let dist = this_motif.distance(&window);
+                out.push(dist);
             }
         }
         println!("{:?}", out);
@@ -188,34 +118,163 @@ mod tests {
         };
         motif_weights.constrain_normalize(&alpha);
         let sum_normed = motif_weights.weights_norm.sum();
-        assert!((sum_normed > 0.99999) && (sum_normed < 1.00001));
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&sum_normed, &1.0));
         assert!(motif_weights.weights_norm.abs_diff_eq(&target_arr, 1e-6));
     }
 
     #[test]
     fn test_RecordsDB_seq_iter(){
-        let this_seq = set_up_motif(2.0, 32);
-        let this_seq2 = set_up_motif(3.0, 20);
+        let this_seq = set_up_sequence(2.0, 32);
+        let this_seq2 = set_up_sequence(3.0, 20);
         let this_db = RecordsDB::new(vec![this_seq, this_seq2], array![0.0,1.0]);
         for entry in this_db.iter(){
             println!("{:?}", entry);
         }
     }
 
+    //#[test]
+    //fn test_get_seeds() {
+    //    let kmer = 15;
+    //    let this_seq = set_up_sequence(2.0, length);
+    //    let that_seq = set_up_sequence(2.0, length);
+    //    let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0.0,1.0]);
+    //    let mut seeds = rec_db.make_seed_vec(kmer);
+    //    println!("{:?}", seeds)
+    //}
+
+    #[test]
+    fn test_hit_counting(){
+        let kmer = 15;
+        let threshold1 = 0.0;
+        let threshold2 = 1.0;
+        let max_count = 2;
+        let alpha = 0.01;
+        let length = 30;
+        let this_seq = set_up_sequence(2.0, kmer);
+        let that_seq = set_up_sequence(2.1, length);
+        let that_view = this_seq.view();
+
+        let mut seed_weights = MotifWeights::new(&that_view);
+        seed_weights.constrain_normalize(&alpha);
+        let wv = seed_weights.weights_norm.view();
+
+        let mut seed = Seed::new(&that_view, &wv, kmer);
+        
+        let hits = count_hits_in_seq(
+            &seed,
+            &that_seq,
+            kmer,
+            threshold1,
+            max_count,
+        );
+        println!("Should have zero hits: {:?}", hits);
+
+        let hits = count_hits_in_seq(
+            &seed,
+            &that_seq,
+            kmer,
+            threshold2,
+            max_count,
+        );
+        println!("Should have two hits: {:?}", hits);
+
+
+        //for seq in this_db {
+        //    for window in seq.window_iter(0,length,kmer) {
+        //        let mut seed = Seed::new(&window, &wv, rec_num);
+        //        let hits = count_hits_in_seq(
+        //            &seed,
+        //            &seq,
+        //            kmer,
+        //            threshold,
+        //            max_count,
+        //        );
+        //        hits_vec.push(hits);
+        //        //println!("{:?}", hits);
+        //        //seed.get_mi(
+        //        //    &this_db,
+        //        //    &kmer,
+        //        //    &threshold,
+        //        //    &max_count,
+        //        //);
+        //        //seed_vec.push(seed);
+        //    }
+        //}
+    }
 }
 
-//fn run_query_over_ref(
-//    y_vals: Vec<f64>,
-//    query_shapes: Array<f64>,
-//    query_weights: Array<f64>,
-//    threshold: f64,
-//    reference: Array<f64>,
-//    R: u32,
-//    W: u32,
-//    dist_func: &dyn Fn(Array<f64>, Array<f64>, Array<f64>) -> f64,
-//    max_count: u32,
-//) {
+//pub fn run_query_over_refs() {
+//
+//    // iterate over records
+//    for r in range(R):
+//
+//        // get the reference sequence from records db
+//        this_ref = rec_db[r,:,:,:,:]
+//        
+//        count_hits_in_seq()
 //}
+
+
+// MODIFY TO ACCEPT FLEXIBLE TYPE FOR query argument; could be EITHER Motif OR Seed
+/// For a single Motif, count the number of times its distance to a window
+/// of a Sequence falls below the specified threshold, i.e., matches the
+/// Sequence.
+///
+/// # Arguments
+///
+/// * `query` - a Seed, the sequence of which will be compared to each window in seq.
+/// * `seq` - reference Sequence to which query is being compared
+/// * `kmer` - window length (might not be necessary, since we can grab this from the seed directly
+/// * `threshold` - distance between the query and seq below which a hit is called
+/// * `max_count` - maximum number of times a hit will be counted on each strand
+pub fn count_hits_in_seq(query: &Seed, seq: &Sequence,
+                         kmer: usize,
+                         threshold: f64, max_count: i64)
+    -> ndarray::Array<i64, Ix1> {
+
+    // set maxed to false for each strand
+    let mut f_maxed = false;
+    //////////////////////////////////
+    // SET TO TRUE FOR REVERSE UNTIL WE ACTUALLY START USING STRANDEDNESS
+    //////////////////////////////////
+    let mut r_maxed = true;
+    let mut hits = ndarray::Array::zeros(2);
+
+    // iterate through windows of seq
+    for window in seq.window_iter(0, seq.params.dim().1, kmer) {
+
+        // once both strands are maxed out, stop doing comparisons
+        if f_maxed & r_maxed {
+            break
+        }
+        // get the distance.
+        /////////////////////////////////////////////////
+        // IN THE FUTURE, WE'LL BROADCAST TO BOTH STRANDS
+        /////////////////////////////////////////////////
+        let dist = query.distance(&window);
+        /////////////////////////////////////////////////
+        // ONCE WE'VE IMPLEMENTED STRANDEDNESS, SLICE APPROPRIATE STRAND'S DISTANCE HERE
+        /////////////////////////////////////////////////
+        if (dist < threshold) & (!f_maxed) {
+            hits[0] += 1;
+            if hits[0] == max_count {
+                f_maxed = true;
+            }
+        } 
+        /////////////////////////////////////////////////
+        /////////////////////////////////////////////////
+        /////////////////////////////////////////////////
+        //if (dist[1] < threshold) & (!r_maxed) {
+        //    hits[1] += 1;
+        //    if hits[1] == max_count {
+        //        r_maxed = true;
+        //    }
+        //} 
+
+    }
+    // return the hits
+    hits
+}
 
 
 /// An enumeration of possible parameter names
@@ -287,10 +346,15 @@ pub struct SequenceView<'a> {
 ///
 /// * `params` - Stores the sequence values as a [SequenceView]
 /// * `weights` - Stores the associated weights as a [MotifWeights]
+/// * `threshold` - Stores the associated threshold for what is
+///                 considered a match.
 #[derive(Debug)]
 pub struct Motif<'a> {
+    // NOTE: we'll need to make this its own Sequence so that we can update
+    //  shapes as well as weights during optimization.
     params: SequenceView<'a>,
-    weights: MotifWeights,
+    weights: MotifWeights, // the MotifWeights struct contains two 2D-Arrays.
+    threshold: f64,
 }
 
 /// Represents the weights for a [Motif] in it's own structure
@@ -305,6 +369,19 @@ pub struct MotifWeights {
     weights_norm: ndarray::Array2::<f64>,
 }
 
+// My goal for this struct is to be able to have a way to use a read-only pointer
+//  to each window of sequences using a SequenceView, and to have all Seeds point
+//  to the same set of weights using the ArrayView.
+// This way we can calculate all our initial MIs without copying unnecessarily.
+// After filtering by CMI we can then create Motif structs that each own their
+//  shapes and weights. 
+pub struct Seed<'a> {
+    params: &'a SequenceView<'a>,
+    weights: &'a ndarray::ArrayView::<'a, f64, Ix2>,
+    hits: ndarray::Array2::<f64>,
+    mi: f64,
+}
+
 /// Represents a database of Sequences and their associated value
 ///
 /// # Fields
@@ -315,6 +392,24 @@ pub struct MotifWeights {
 pub struct RecordsDB {
     seqs: Vec<Sequence>,
     values: ndarray::Array1::<f64>
+}
+
+impl<'a> Seed<'_> {
+    pub fn new(params: &'a SequenceView<'a>,
+               weights: &'a ndarray::ArrayView<'a, f64, Ix2>,
+               record_num: usize) -> Seed<'a> {
+        let hits = ndarray::Array2::zeros((record_num, 2));
+        let mi = 0.0;
+        Seed{params, weights, hits, mi}
+    }
+
+    pub fn distance(&self, ref_seq: &SequenceView) -> f64 {
+        weighted_manhattan_distance(
+            &self.params.params, 
+            &ref_seq.params, 
+            &self.weights
+        )
+    }
 }
 
 
@@ -343,10 +438,6 @@ pub struct RecordsDBEntry<'a> {
 }
 
 
-//NOTE: do we know that param types will always be in the same order?
-//  or do we need to set up a hashmap to assign params to
-//  the appropriate row in arr based on the index we get by hashing
-//  by param name?
 impl Sequence {
     /// Returns a Result containing a new sequence or any errors that 
     /// occur in attempting to create it.
@@ -383,6 +474,13 @@ impl Sequence {
     /// * `size` - the size of the window to slide over
     pub fn window_iter(&self, start: usize, end: usize, size: usize) -> SequenceIter {
         SequenceIter{start, end, size, sequence: self}
+    }
+
+    // Insert method here to do the comparisons. this way 
+
+    /// Returns a read-only SequenceView pointing to the data in Sequence
+    pub fn view(&self) -> SequenceView {
+        SequenceView::new(self.params.view())
     }
 }
 
@@ -457,7 +555,7 @@ impl Param {
     }
 }
 
-/// This allows the syntatic sugar of `for val in param` to work
+/// This allows the syntactic sugar of `for val in param` to work
 impl<'a> IntoIterator for &'a Param {
     type Item = &'a f64;
     type IntoIter = ndarray::iter::Iter<'a, f64, Ix1>;
@@ -467,6 +565,7 @@ impl<'a> IntoIterator for &'a Param {
     }
 }
 
+
 impl<'a> Motif<'a> {
     /// Returns a new motif instance by bundling with a weight vector
     /// of [MotifWeights] type. 
@@ -474,21 +573,47 @@ impl<'a> Motif<'a> {
     /// # Arguments
     ///
     /// * `params` - a [SequenceView] that defines the motif
-    pub fn new(params: SequenceView<'a>) -> Motif {
+    pub fn new(params: SequenceView<'a>, threshold: f64) -> Motif {
         let weights = MotifWeights::new(&params);
-        Motif{params, weights}
+        Motif{params, weights, threshold}
+    }
+
+    /// Does constrained normalization of weights
+    ///
+    /// # Arguments
+    ///
+    /// * `alpha` - lower limit on weights after inv-logit transform,
+    ///   but prior to their normalization to sum to one.
+    pub fn normalize_weights(&mut self, alpha: &f64) -> () {
+        self.weights.constrain_normalize(alpha);
+    }
+
+    /// Calculates distance between this motif and each strand of
+    /// a reference SequenceView (well, it will do it for each strand...
+    /// for now we are only implementing the forward strand).
+    ///
+    /// # Arguments
+    ///
+    /// * `ref_seq` - a [SequenceView] to compare this motif against.
+    pub fn distance(&self, ref_seq: &SequenceView) -> f64 {
+        weighted_manhattan_distance(
+            &self.params.params, 
+            &ref_seq.params, 
+            &self.weights.weights_norm.view()
+        )
     }
 }
+
 
 /// Allow conversion from a [SequenceView] to a [Motif]
 impl<'a> From<SequenceView<'a>> for Motif<'a> {
     fn from(sv : SequenceView<'a>) -> Motif<'a>{
-        Motif::new(sv)
+        Motif::new(sv, 0.0)
     }
 }
 
 
-impl MotifWeights {
+impl<'a> MotifWeights {
     /// Returns a new motif weight instance based on the size of a
     /// [SequenceView]. Initializes all weights with one.
     /// Initializes a weights_norm array to all zeros.
@@ -530,6 +655,7 @@ impl MotifWeights {
 }
 
 impl RecordsDB {
+
     /// Returns a new RecordsDB holding sequence value pairs as separate
     /// vectors.
     ///
@@ -537,9 +663,42 @@ impl RecordsDB {
     ///
     /// * `seqs` - a vector of [Sequence]
     /// * `values` - a vector of values for each sequence
-
     pub fn new(seqs: Vec<Sequence>, values: ndarray::Array1::<f64>) -> RecordsDB {
         RecordsDB{seqs, values}
+    }
+
+    /// Returns the number of records in RecordsDB
+    pub fn len(&self) -> usize {
+        self.seqs.len()
+    }
+
+    /// Return a vector of Seed structs.
+    ///
+    /// # Argumrnts
+    ///
+    /// * `kmer` - Length of windows to slice over each record's parameters
+    /// * `alpha` - Lower limit on inv_logit transformed weights
+    pub fn make_seed_vec(&self, kmer: usize, alpha: f64) -> Vec<Seed> {
+
+        let mut seed_vec = Vec::new();
+
+        let r_num = self.seqs[0].params.raw_dim()[0];
+        let c_num = self.seqs[0].params.raw_dim()[1];
+        let const_seq = Sequence{params: ndarray::Array2::zeros((r_num, c_num))};
+        let const_view = const_seq.view();
+
+        let mut seed_weights = MotifWeights::new(&const_view);
+        seed_weights.constrain_normalize(&alpha);
+        let wv = seed_weights.weights_norm.view();
+
+        for entry in self.iter() {
+            let seq = entry.seq;
+            for window in seq.window_iter(0, self.len(), kmer) {
+                let mut seed = Seed::new(&window, &wv, self.len());
+                seed_vec.push(seed);
+            }
+        }
+        seed_vec
     }
 
     /// Iterate over each record in the database as a [Sequence] value pair
