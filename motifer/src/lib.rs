@@ -134,50 +134,54 @@ mod tests {
 
     #[test]
     fn test_get_seeds() {
-        let length = 30;
         let kmer = 15;
-        let this_seq = set_up_sequence(2.0, length);
-        let that_seq = set_up_sequence(2.0, length);
+        let this_seq = set_up_sequence(2.0, 30);
+        let that_seq = set_up_sequence(2.0, 60);
         let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0.0,1.0]);
         let mut seeds = rec_db.make_seed_vec(kmer, 0.01);
-        println!("{:?}", seeds)
+        println!("{:?}", seeds);
+        assert_eq!(seeds.seeds.len(), 60)
     }
 
- // #[test]
- //    fn test_hit_counting(){
- //        let kmer = 15;
- //        let threshold1 = 0.0;
- //        let threshold2 = 1.0;
- //        let max_count = 2;
- //        let alpha = 0.01;
- //        let length = 30;
- //        let this_seq = set_up_sequence(2.0, kmer);
- //        let that_seq = set_up_sequence(2.1, length);
- //        let that_view = this_seq.view();
- //
- //        let mut seed_weights = MotifWeights::new(&that_view);
- //        seed_weights.constrain_normalize(&alpha);
- //        let wv = seed_weights.weights_norm.view();
- //
- //        let mut seed = Seed::new(&that_view, &wv, kmer);
- //        
- //        let hits = count_hits_in_seq(
- //            &seed,
- //            &that_seq,
- //            kmer,
- //            threshold1,
- //            max_count,
- //        );
- //        println!("Should have zero hits: {:?}", hits);
- //
- //        let hits = count_hits_in_seq(
- //            &seed,
- //            &that_seq,
- //            kmer,
- //            threshold2,
- //            max_count,
- //        );
- //        println!("Should have two hits: {:?}", hits);
+    #[test]
+    fn test_hit_counting(){
+        let kmer = 15;
+        let threshold1 = 0.0;
+        let threshold2 = 1.0;
+        let max_count = 2;
+        let alpha = 0.01;
+        let length = 30;
+        let this_seq = set_up_sequence(2.0, kmer);
+        let this_view = this_seq.view();
+
+        let that_seq = set_up_sequence(2.1, length);
+
+        let mut seed_weights = MotifWeights::new(&this_view);
+        seed_weights.constrain_normalize(&alpha);
+        let wv = seed_weights.weights_norm.view();
+        
+        // seed now owns the view
+        let mut seed = Seed::new(this_view, kmer);
+
+        
+        let hits = that_seq.count_hits_in_seq(
+            &seed.params.params,
+            &wv,
+            threshold1,
+            max_count,
+        );
+        assert_eq!(hits[0], 0);
+        assert_eq!(hits[1], 0);
+
+        let hits = that_seq.count_hits_in_seq(
+            &seed.params.params,
+            &wv,
+            threshold2,
+            max_count,
+        );
+        assert_eq!(hits[0], 2);
+        assert_eq!(hits[1], 0);
+
 
 
         //for seq in this_db {
@@ -201,8 +205,8 @@ mod tests {
         //        //seed_vec.push(seed);
         //    }
         //}
-//    }
-//}
+    }
+}
 
 //pub fn run_query_over_refs() {
 //
@@ -275,7 +279,7 @@ mod tests {
 //    }
 //    // return the hits
 //    hits
-}
+//}
 
 
 /// An enumeration of possible parameter names
@@ -409,13 +413,6 @@ impl<'a> Seed<'a> {
         Seed{params, hits, mi}
     }
 
-    pub fn distance(&self, ref_seq: &SequenceView, weights: &MotifWeights) -> f64 {
-        weighted_manhattan_distance(
-            &self.params.params, 
-            &ref_seq.params, 
-            &weights.weights_norm.view()
-        )
-    }
 }
 
 
@@ -495,6 +492,70 @@ impl Sequence {
     pub fn param_num(&self) -> usize{
         self.params.raw_dim()[0]
     }
+
+    // MODIFY TO ACCEPT FLEXIBLE TYPE FOR query argument; could be EITHER Motif OR Seed
+    // NOTE: Rust can't do flexible types. Instead wrote it to take only what
+    // it needs rather than a full object.
+    /// For a single Motif, count the number of times its distance to a window
+    /// of a Sequence falls below the specified threshold, i.e., matches the
+    /// Sequence.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - an array which will be compared to each window in seq.
+    /// * `weights` - an array of weights to be applied for the distance calc
+    /// * `threshold` - distance between the query and seq below which a hit is called
+    /// * `max_count` - maximum number of times a hit will be counted on each strand
+    pub fn count_hits_in_seq(&self, query: &ndarray::ArrayView<f64,Ix2>,
+                             weights: &ndarray::ArrayView<f64, Ix2>,
+                             threshold: f64, max_count: i64) -> Array<i64, Ix1> {
+    
+        // set maxed to false for each strand
+        let mut f_maxed = false;
+        //////////////////////////////////
+        // SET TO TRUE FOR REVERSE UNTIL WE ACTUALLY START USING STRANDEDNESS
+        //////////////////////////////////
+        let mut r_maxed = true;
+        let mut hits = ndarray::Array::zeros(2);
+    
+        // iterate through windows of seq
+        for window in self.window_iter(0, self.seq_len(), query.raw_dim()[1]) {
+    
+            // once both strands are maxed out, stop doing comparisons
+            if f_maxed & r_maxed {
+                break
+            }
+            // get the distance.
+            /////////////////////////////////////////////////
+            // IN THE FUTURE, WE'LL BROADCAST TO BOTH STRANDS
+            /////////////////////////////////////////////////
+            let dist = weighted_manhattan_distance(&window.params,
+                                                   query,
+                                                   weights);
+            /////////////////////////////////////////////////
+            // ONCE WE'VE IMPLEMENTED STRANDEDNESS, SLICE APPROPRIATE STRAND'S DISTANCE HERE
+            /////////////////////////////////////////////////
+            if (dist < threshold) & (!f_maxed) {
+                hits[0] += 1;
+                if hits[0] == max_count {
+                    f_maxed = true;
+                }
+            } 
+            /////////////////////////////////////////////////
+            /////////////////////////////////////////////////
+            /////////////////////////////////////////////////
+            //if (dist[1] < threshold) & (!r_maxed) {
+            //    hits[1] += 1;
+            //    if hits[1] == max_count {
+            //        r_maxed = true;
+            //    }
+            //} 
+    
+        }
+        // return the hits
+        hits
+    }
+
 }
 
 impl<'a> SequenceView<'a> {
