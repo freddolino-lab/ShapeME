@@ -124,7 +124,7 @@ mod tests {
     fn test_RecordsDB_seq_iter(){
         let this_seq = set_up_sequence(2.0, 32);
         let this_seq2 = set_up_sequence(3.0, 20);
-        let this_db = RecordsDB::new(vec![this_seq, this_seq2], array![0.0,1.0]);
+        let this_db = RecordsDB::new(vec![this_seq, this_seq2], array![0,1]);
         for entry in this_db.iter(){
             println!("{:?}", entry);
         }
@@ -135,7 +135,7 @@ mod tests {
         let kmer = 15;
         let this_seq = set_up_sequence(2.0, 30);
         let that_seq = set_up_sequence(2.0, 60);
-        let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0.0,1.0]);
+        let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0,1]);
         let seeds = rec_db.make_seed_vec(kmer, 0.01);
         assert_eq!(seeds.seeds.len(), 60)
     }
@@ -185,7 +185,7 @@ mod tests {
         let mut vals = Vec::new();
         for i in 0..num_seqs{
             seqs.push(set_up_sequence(1.0 + i as f64, length_seqs));
-            vals.push(i as f64);
+            vals.push(i as i64);
         }
         RecordsDB::new(seqs, ndarray::Array1::from_vec(vals))
     }
@@ -380,7 +380,7 @@ pub struct MotifWeights {
 #[derive(Debug)]
 pub struct Seed<'a> {
     params: SequenceView<'a>,
-    hits: ndarray::Array2::<f64>,
+    hits: ndarray::Array2::<i64>,
     mi: f64,
 }
 #[derive(Debug)]
@@ -399,17 +399,7 @@ pub struct Seeds<'a> {
 #[derive(Debug)]
 pub struct RecordsDB {
     seqs: Vec<Sequence>,
-    values: ndarray::Array1::<f64>
-}
-
-impl<'a> Seed<'a> {
-    pub fn new(params: SequenceView<'a>,
-               record_num: usize) -> Seed<'a> {
-        let hits = ndarray::Array2::zeros((record_num, 2));
-        let mi = 0.0;
-        Seed{params, hits, mi}
-    }
-
+    values: ndarray::Array1::<i64>
 }
 
 
@@ -434,7 +424,7 @@ pub struct RecordsDBIter<'a> {
 #[derive(Debug)]
 pub struct RecordsDBEntry<'a> {
     seq: &'a Sequence,
-    value: f64
+    value: i64
 }
 
 
@@ -676,6 +666,28 @@ impl<'a> Motif<'a> {
 }
 
 
+impl<'a> Seed<'a> {
+
+    pub fn new(params: SequenceView<'a>,
+               record_num: usize) -> Seed<'a> {
+        let hits = ndarray::Array2::zeros((record_num, 2));
+        let mi = 0.0;
+        Seed{params, hits, mi}
+    }
+
+    pub fn update_hits(&mut self, db: &RecordsDB,
+                       weights: &ndarray::ArrayView<f64, Ix2>,
+                       threshold: f64,
+                       max_count: i64){
+        self.hits = db.get_hits(&self.params.params,
+                                weights,
+                                threshold,
+                                max_count)
+    }
+
+}
+
+
 /// Allow conversion from a [SequenceView] to a [Motif]
 impl<'a> From<SequenceView<'a>> for Motif<'a> {
     fn from(sv : SequenceView<'a>) -> Motif<'a>{
@@ -740,7 +752,7 @@ impl RecordsDB {
     ///
     /// * `seqs` - a vector of [Sequence]
     /// * `values` - a vector of values for each sequence
-    pub fn new(seqs: Vec<Sequence>, values: ndarray::Array1::<f64>) -> RecordsDB {
+    pub fn new(seqs: Vec<Sequence>, values: ndarray::Array1::<i64>) -> RecordsDB {
         RecordsDB{seqs, values}
     }
 
@@ -806,7 +818,7 @@ impl<'a> RecordsDBEntry<'a> {
     /// # Arguments
     /// * `seq` - a reference to a [Sequence]
     /// * `value` - the sequences paired value
-    pub fn new(seq: &Sequence, value: f64) -> RecordsDBEntry {
+    pub fn new(seq: &Sequence, value: i64) -> RecordsDBEntry {
         RecordsDBEntry{seq, value}
     }
 }
