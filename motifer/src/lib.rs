@@ -3,6 +3,7 @@ use ndarray::prelude::*;
 use ndarray::Array;
 // ndarray_stats exposes ArrayBase to useful methods for descriptive stats like min.
 use ndarray_stats::QuantileExt;
+use itertools::Itertools;
 
 #[cfg(test)]
 mod tests {
@@ -201,6 +202,20 @@ mod tests {
                     10);
         assert_eq!(hits[[6,0]], 10)
     }
+
+
+    #[test]
+    fn test_unique() {
+        let arr = array![0,1,1,1,1,0,2,0,0,2,2,3];
+        assert_eq!(unique_cats(arr.view()), vec![0, 1, 2, 3])
+    }
+    #[test]
+    fn test_entropy() {
+        let arr = array![0,1];
+        assert!(AbsDiff::default().epsilon(1e-6).eq(
+                &entropy(arr.view()), &0.6931472))
+    }
+    
 
 
 }
@@ -883,6 +898,31 @@ pub fn inv_logit(a: f64, alpha: Option<f64>) -> f64 {
     let lower = alpha.unwrap_or(0.0);
     lower + (1.0 - lower) * a.exp() / (1.0 + a.exp())
 }
+
+pub fn unique_cats(arr: ndarray::ArrayView<i64, Ix1>) -> Vec<i64> {
+    arr.iter().unique().cloned().collect_vec()
+}
+
+pub fn entropy(arr: ndarray::ArrayView<i64, Ix1>) -> f64{
+    let mut entropy = 0.0;
+    let total = arr.len();
+    for val in unique_cats(arr){
+        let num_this_class = arr.map(|x| (val == *x) as i64).sum();
+        let p_i = num_this_class as f64 / total as f64;
+        // I think this the way to check for zero?
+        if p_i >= f64::MIN_POSITIVE{
+            entropy += p_i*(p_i.ln());
+        }
+    }
+    -entropy
+}
+
+//pub fn mutual_information(arr1: ndarray::ArrayView<i64, Ix1>,
+//                          arr2: ndarray::ArrayView<i64, Ix1>) -> f64 
+
+
+//pub fn entropy(yarr: &ndarray::ArrayView::<i64, Ix1>,
+//                          xarr: &ndarray::ArrayView::<i64, Ix1>)
 
 //fn parse_all_args(mat: clap::ArgMatches) -> Args {
 //    
