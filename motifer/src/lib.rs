@@ -58,7 +58,6 @@ mod tests {
                 out.push(manhattan_distance(&window1.params, &window2.params));
             }
         }
-        println!("{:?}", out);
         assert_eq!(out.len(), (30-2)*(30-2));
     }
 
@@ -97,7 +96,6 @@ mod tests {
                 out.push(dist);
             }
         }
-        println!("{:?}", out);
         assert_eq!(out.len(), (30-2)*(30-2));
     }
 
@@ -138,8 +136,7 @@ mod tests {
         let this_seq = set_up_sequence(2.0, 30);
         let that_seq = set_up_sequence(2.0, 60);
         let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0.0,1.0]);
-        let mut seeds = rec_db.make_seed_vec(kmer, 0.01);
-        println!("{:?}", seeds);
+        let seeds = rec_db.make_seed_vec(kmer, 0.01);
         assert_eq!(seeds.seeds.len(), 60)
     }
 
@@ -161,7 +158,7 @@ mod tests {
         let wv = seed_weights.weights_norm.view();
         
         // seed now owns the view
-        let mut seed = Seed::new(this_view, kmer);
+        let seed = Seed::new(this_view, kmer);
 
         
         let hits = that_seq.count_hits_in_seq(
@@ -181,31 +178,31 @@ mod tests {
         );
         assert_eq!(hits[0], 2);
         assert_eq!(hits[1], 0);
-
-
-
-        //for seq in this_db {
-        //    for window in seq.window_iter(0,length,kmer) {
-        //        let mut seed = Seed::new(&window, &wv, rec_num);
-        //        let hits = count_hits_in_seq(
-        //            &seed,
-        //            &seq,
-        //            kmer,
-        //            threshold,
-        //            max_count,
-        //        );
-        //        hits_vec.push(hits);
-        //        //println!("{:?}", hits);
-        //        //seed.get_mi(
-        //        //    &this_db,
-        //        //    &kmer,
-        //        //    &threshold,
-        //        //    &max_count,
-        //        //);
-        //        //seed_vec.push(seed);
-        //    }
-        //}
     }
+
+    fn setup_RecordsDB(num_seqs: usize, length_seqs: usize) -> RecordsDB{
+        let mut seqs = Vec::new();
+        let mut vals = Vec::new();
+        for i in 0..num_seqs{
+            seqs.push(set_up_sequence(1.0 + i as f64, length_seqs));
+            vals.push(i as f64);
+        }
+        RecordsDB::new(seqs, ndarray::Array1::from_vec(vals))
+    }
+
+    #[test]
+    fn test_recordb_hit_counting(){
+        let db = setup_RecordsDB(30, 30);
+        let seeds = db.make_seed_vec(15, 0.01);
+        let test_seed = &seeds.seeds[100];
+        let hits = db.get_hits(&test_seed.params.params,
+                    &seeds.weights.weights_norm.view(),
+                    1.0,
+                    10);
+        assert_eq!(hits[[6,0]], 10)
+    }
+
+
 }
 
 //pub fn run_query_over_refs() {
@@ -786,6 +783,19 @@ impl RecordsDB {
     /// Iterate over each record in the database as a [Sequence] value pair
     pub fn iter(&self) -> RecordsDBIter{
         RecordsDBIter{loc: 0, db: &self, size: self.seqs.len()}
+    }
+
+    pub fn get_hits(&self, query: &ndarray::ArrayView<f64, Ix2>,
+                  weights: &ndarray::ArrayView<f64, Ix2>,
+                  threshold: f64, max_count: i64) -> Array<i64, Ix2> {
+
+        let mut hits = ndarray::Array2::zeros((self.len(), 2));
+        for (i, entry) in self.iter().enumerate(){
+            let this_hit = entry.seq.count_hits_in_seq(query, weights,
+                                                       threshold, max_count);
+            hits.row_mut(i).assign(&this_hit);
+        }
+        hits
     }
 }
 
