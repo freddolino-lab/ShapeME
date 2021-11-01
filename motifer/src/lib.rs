@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::cmp;
 use ndarray::prelude::*;
 use ndarray::Array;
 // ndarray_stats exposes ArrayBase to useful methods for descriptive stats like min.
@@ -26,6 +27,61 @@ mod tests {
         let this_sequence = Sequence::new(seq_vec);
         
         this_sequence.unwrap()
+    }
+
+    #[test]
+    fn test_dot_prod() {
+        // first element is always 1, second element is max_count+1
+        let a = arr1(&[1, 3]);   // fwt dot prod | rev dot prod
+        // example hits array
+        let b = arr2(&[[0, 0],   // 0            | 0
+                       [1, 0],   // 1            | 3
+                       [2, 0],   // 2            | 6
+                       [0, 1],   // 3            | 1
+                       [1, 1],   // 4            | 4
+                       [2, 1],   // 5            | 7
+                       [0, 2],   // 6            | 2
+                       [1, 2],   // 7            | 5
+                       [2, 2]]); // 8            | 8
+        let dot_prod = b.dot(&a);
+        println!("{}", dot_prod);
+        let rev_prod = b.slice(s![.., ..;-1]).dot(&a);
+        println!("{}", rev_prod);
+        assert_eq!(arr1(&[0, 1, 2, 3, 4, 5, 6, 7, 8]), dot_prod);
+        assert_eq!(arr1(&[0, 3, 6, 1, 4, 7, 2, 5, 8]), rev_prod);
+    }
+
+    #[test]
+    fn sort_hits() {
+        let answer = arr1(&[0, 3, 6, 3, 4, 7, 6, 7, 8]);
+        let max_count = 2;
+        // first element is always 1, second element is max_count+1
+        let a = arr1(&[1, max_count + 1]); 
+        // example hits array        // fwt dot prod | rev dot prod
+        let mut b = arr2(&[[0, 0],   // 0            | 0
+                           [1, 0],   // 1            | 3
+                           [2, 0],   // 2            | 6
+                           [0, 1],   // 3            | 1
+                           [1, 1],   // 4            | 4
+                           [2, 1],   // 5            | 7
+                           [0, 2],   // 6            | 2
+                           [1, 2],   // 7            | 5
+                           [2, 2]]); // 8            | 8
+        let min = b.map_axis(ndarray::Axis(1), |r| cmp::min(r[0], r[1]));
+        let max = b.map_axis(ndarray::Axis(1), |r| cmp::max(r[0], r[1]));
+        
+        println!("{}", min);
+        println!("{}", max);
+
+        b.column_mut(0).assign(&min);
+        b.column_mut(1).assign(&max);
+
+        println!("{}", b);
+
+        let categories = b.dot(&a);
+
+        println!("{}", categories);
+        assert_eq!(categories, answer);
     }
  
     #[test]
@@ -678,28 +734,28 @@ impl RecordsDB {
     ///
     /// * `kmer` - Length of windows to slice over each record's parameters
     /// * `alpha` - Lower limit on inv_logit transformed weights
-    pub fn make_seed_vec(&self, kmer: usize, alpha: f64) -> Vec<Seed> {
+    //pub fn make_seed_vec(&self, kmer: usize, alpha: f64) -> Vec<Seed> {
 
-        let mut seed_vec = Vec::new();
+    //    let mut seed_vec = Vec::new();
 
-        let r_num = self.seqs[0].params.raw_dim()[0];
-        let c_num = self.seqs[0].params.raw_dim()[1];
-        let const_seq = Sequence{params: ndarray::Array2::zeros((r_num, c_num))};
-        let const_view = const_seq.view();
+    //    let r_num = self.seqs[0].params.raw_dim()[0];
+    //    let c_num = self.seqs[0].params.raw_dim()[1];
+    //    let const_seq = Sequence{params: ndarray::Array2::zeros((r_num, c_num))};
+    //    let const_view = const_seq.view();
 
-        let mut seed_weights = MotifWeights::new(&const_view);
-        seed_weights.constrain_normalize(&alpha);
-        let wv = seed_weights.weights_norm.view();
+    //    let mut seed_weights = MotifWeights::new(&const_view);
+    //    seed_weights.constrain_normalize(&alpha);
+    //    let wv = &seed_weights.weights_norm.view();
 
-        for entry in self.iter() {
-            let seq = entry.seq;
-            for window in seq.window_iter(0, self.len(), kmer) {
-                let mut seed = Seed::new(&window, &wv, self.len());
-                seed_vec.push(seed);
-            }
-        }
-        seed_vec
-    }
+    //    for entry in self.iter() {
+    //        let seq = entry.seq;
+    //        for window in seq.window_iter(0, self.len(), kmer) {
+    //            let mut seed = Seed::new(&window, wv, self.len());
+    //            seed_vec.push(seed);
+    //        }
+    //    }
+    //    seed_vec
+    //}
 
     /// Iterate over each record in the database as a [Sequence] value pair
     pub fn iter(&self) -> RecordsDBIter{
