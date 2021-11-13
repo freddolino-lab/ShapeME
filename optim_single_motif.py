@@ -1783,7 +1783,7 @@ if __name__ == "__main__":
 
     opt_fname = os.path.join(
         opt_direc,
-        "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}_batch_{{:0=3}}.pkl".format(
+        "ten_optims_{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}_batch_{{:0=3}}.pkl".format(
             out_pref,
             optim_str,
             adapt,
@@ -1797,7 +1797,7 @@ if __name__ == "__main__":
 
     good_motif_out_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+        "ten_optims_{}_post_opt_cmi_filtered_motifs_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
             out_pref,
             optim_str,
             adapt,
@@ -1812,98 +1812,14 @@ if __name__ == "__main__":
     if not args.cmi_motif_file:
         if not args.optim_file:
             if not args.cmi_file:
-                if args.mi_file:
-                    # read in existing MI file if a string was provided
-                    
-                    logging.info("Reading in pre-computed MIs in {}.".format(mi_fname))
-                    with open(mi_fname, 'rb') as f:
-                        mi_dict = pickle.load(f)
-
-                    if (
-                        alpha != mi_dict['alpha']
-                        or max_count != mi_dict['max_count']
-                        or np.any(weights != mi_dict['weights'])
-                    ):
-                        raise("Fatal error: either the alpha you provided, your max_count, or your weights do not match the values they were exptected to match in you pre-computed MI dictionary.")
-                    match_threshold = mi_dict['match_threshold']
-
-                else:
-                    logging.info("Determining initial threshold")
-                    if args.distance_metric == "hamming":
-                        match_threshold = 4
-                        logging.info(
-                            "Using {} as an initial match threshold".format(threshold_match)
-                        )
-                    else:
-                        match_threshold = records.set_initial_threshold(
-                            dist = this_dist,
-                            threshold_sd_from_mean = args.threshold_seeds,
-                            weights = weights,
-                            alpha = alpha,
-                        )
-                    logging.info("Using {} as an initial match threshold".format(match_threshold))
-
-                    logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
-                    # generate initial MI score for the given shapes, weights, and threshold
-                    mi_results = records.compute_mi(
-                        dist = this_dist,
-                        max_count = max_count,
-                        alpha = alpha,
-                        weights = weights,
-                        threshold = match_threshold,
-                    )
-
-                    mi_dict = {
-                        'mi_results' : mi_results,
-                        'weights' : weights,
-                        'match_threshold' : match_threshold,
-                        'max_count' : max_count,
-                        'alpha' : alpha,
-                    }
-
-                    with open(mi_fname, 'wb') as f:
-                        pickle.dump(mi_dict, f)
-
-                if args.exit_after_initial_mi:
-                    logging.info("You selected to only compute initial MI for each seed. Exiting the program now.")
-                    sys.exit()
-
-                logging.info("Filtering seeds based on conditional mutual information.")
-                logging.info("Started with {} seeds.".format(len(mi_dict['mi_results'])))
-
-                filtered_seeds = aic_motifs(
-                    mi_dict['mi_results'],
-                    records,
-                    optim_vars,
-                )
-
-                if len(filtered_seeds) == 0:
-                    logging.info("Zero seeds were left after filtering by CMI. Exiting script now.")
-                    sys.exit(1)
-
-                filtered_seed_dict = {
-                    'seeds' : filtered_seeds,
-                    'weights' : weights,
-                    'match_threshold' : match_threshold,
-                    'max_count' : max_count,
-                    'alpha' : alpha,
-                }
-
-                logging.info("{} seeds are left after applying CMI filtering.".format(len(filtered_seeds)))
-                logging.info("Saving cmi-filtered seeds to {}.".format(cmi_fname))
-
-                with open(cmi_fname, 'wb') as f:
-                    pickle.dump(filtered_seed_dict, f)
-
-                if args.exit_after_cmi_filter:
-                    logging.info("You selected to exit the program after CMI filtering of the seeds. Exiting now.")
-                    sys.exit()
-
+                pass
             # if we did pass a cmi_file at the CLI, just skip the initial MI stuff
             else:
                 logging.info("Skipping initial MI calculation and reading in pre-cmi-filtered seeds from {}.".format(cmi_fname))
                 with open(cmi_fname, 'rb') as f:
                     filtered_seed_dict = pickle.load(f)
+                    # take first seed ten times and optimize it
+                    filtered_seed_dict['seeds'] = [filtered_seed_dict['seeds'][0]] * 10
 
                 if (
                     alpha != filtered_seed_dict['alpha']
@@ -1922,9 +1838,7 @@ if __name__ == "__main__":
                 logging.info("Optimized motifs will be written to {}".format(opt_fname))
 
                 # setting number of threads per process
-                numba_threads = args.p // len(filtered_seed_dict['seeds'])
-                if numba_threads == 0:
-                    numba_threads = 1
+                numba_threads = args.p // len(filtered_seed_dict['seeds']) + 1
                 mp_procs = args.p // numba_threads
                 numba.set_num_threads(numba_threads)
 
@@ -1988,27 +1902,14 @@ if __name__ == "__main__":
 
         opt_fname_search = os.path.join(
             opt_direc,
-            "{}_optim_*_adapt_*_fatol_*_temp_*_stepsize_*_alpha_*_max_count_*_batch_*.pkl".format(out_pref),
+            "ten_optims_{}_optim_*_adapt_*_fatol_*_temp_*_stepsize_*_alpha_*_max_count_*_batch_*.pkl".format(out_pref),
         )            
         # whether we had the files already, or just did the optimizations, either
         #  way, we need to read in the files now.
         fname_list = glob.glob(opt_fname_search)
         optim_results = inout.consolidate_optim_batches(fname_list)
 
-        # filter the optimized motifs now
-        logging.info("Filtering motifs by CMI.")
-        logging.info("Started with {} optimized motifs.".format(len(optim_results)))
-        
-        good_motifs = aic_motifs(
-            optim_results,
-            records,
-            optim_results[0]['optimized_vars'],
-        )
-
-        logging.info("After CMI filtering, {} motifs remain. Writing them to {}.".format(
-            len(good_motifs),
-            good_motif_out_fname,
-        ))
+        good_motifs = optim_results
 
         with open(good_motif_out_fname, 'wb') as outf:
             pickle.dump(good_motifs, outf)
@@ -2031,194 +1932,3 @@ if __name__ == "__main__":
         ))
 
 
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-    raise()
-
-    X = [
-        generate_dist_vector(this_records, this_motif['motif'], rc=args.rc)
-        for this_motif in good_motifs
-    ] 
-    X = np.stack(X, axis=1)
-    X = StandardScaler().fit_transform(X)
-    y = this_records.get_values()
-    logging.info("Running L1 regularized logistic regression with CV to determine reg param")
-
-    clf = LogisticRegressionCV(
-        Cs=100,
-        cv=5,
-        multi_class='multinomial',
-        penalty='l1',
-        solver='saga',
-        max_iter=10000,
-    ).fit(X, y)
-
-    best_c = cvlogistic.find_best_c(clf)
-
-    clf_f = LogisticRegression(
-        C=best_c,
-        multi_class='multinomial',
-        penalty='l1',
-        solver='saga',
-        max_iter=10000,
-    ).fit(X,y)
-
-    good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
-    if len(good_motif_index) < 1:
-        logging.info("No motifs found")
-        sys.exit()
-
-    cvlogistic.write_coef_per_class(clf_f, outpre + "_coef_per_class.txt")
-    final_good_motifs = [good_motifs[index] for index in good_motif_index]
-    logging.info("{} motifs survived".format(len(final_good_motifs)))
-    if args.debug:
-        cvlogistic.plot_score(clf, outpre+"_score_logit.png")
-        for cls in clf.classes_:
-            cvlogistic.plot_coef_paths(clf, outpre+"_coef_path%s.png"%cls)
-        print_top_motifs(final_good_motifs)
-        print_top_motifs(final_good_motifs, reverse=False)
-        logging.info("Writing motifs after regression")
-        outmotifs = inout.ShapeMotifFile()
-        outmotifs.add_motifs(final_good_motifs)
-        outmotifs.write_file(outpre+"_called_motifs_after_regression.dsp", records)
-
-    for motif in final_good_motifs:
-        add_motif_metadata(this_records, motif) 
-        logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-        logging.info("MI: {}".format(motif['mi']))
-        logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-        logging.info("Category Entropy: {}".format(motif['category_entropy']))
-        for key in sorted(motif['enrichment'].keys()):
-            logging.info("Two way table for cat {} is {}".format(
-                key,
-                motif['enrichment'][key]
-            ))
-            logging.info("Enrichment for Cat {} is {}".format(
-                key,
-                two_way_to_log_odds(motif['enrichment'][key])
-            ))
-    logging.info("Generating initial heatmap for passing motifs")
-    if len(final_good_motifs) > 25:
-        logging.info("Only plotting first 25 motifs")
-        enrich_hm = smv.EnrichmentHeatmap(final_good_motifs[:25])
-    else:
-        enrich_hm = smv.EnrichmentHeatmap(final_good_motifs)
-
-    enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
-    if not args.txt_only:
-        enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
-        enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
-    if args.optimize:
-        logging.info("Optimizing motifs using {} processors".format(args.p))
-        final_motifs = mp_optimize_motifs(
-            final_good_motifs,
-            other_records,
-            args.optimize_perc,
-            p=args.p,
-        )
-        if args.optimize_perc != 1:
-            logging.info("Testing final optimized motifs on full database")
-            for i,this_entry in enumerate(final_motifs):
-                logging.info("Computing MI for motif {}".format(i))
-                this_discrete = generate_peak_vector(
-                    other_records,
-                    this_entry['motif'],
-                    this_entry['threshold'],
-                    args.rc,
-                )
-                this_entry['mi'] = other_records.mutual_information(this_discrete)
-                this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = other_records.shannon_entropy()
-                this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
-                this_entry['discrete'] = this_discrete
-    else:
-        if args.motif_perc != 1:
-            logging.info("Testing final optimized motifs on held out database")
-            for i,this_entry in enumerate(final_good_motifs):
-                logging.info("Computing MI for motif {}".format(i))
-                this_discrete = generate_peak_vector(
-                    other_records,
-                    this_entry['motif'],
-                    this_entry['threshold'],
-                    args.rc,
-                )
-                this_entry['mi'] = other_records.mutual_information(this_discrete)
-                this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = other_records.shannon_entropy()
-                this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
-                this_entry['discrete'] = this_discrete
-        final_motifs = final_good_motifs
-
-    logging.info(
-        "Filtering motifs by Conditional MI using {} as a cutoff".format(args.mi_perc)
-    )
-    novel_motifs = filter_motifs(
-        final_motifs,
-        other_records,
-        args.mi_perc,
-    )
-
-    if args.debug:
-        print_top_motifs(novel_motifs)
-        print_top_motifs(novel_motifs, reverse=False)
-    logging.info("{} motifs survived".format(len(novel_motifs)))
-    for i, motif in enumerate(novel_motifs):
-        logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-        logging.info("MI: {}".format(motif['mi']))
-        if args.infoz > 0:
-            logging.info("Calculating Z-score for motif {}".format(i))
-            # calculate zscore
-            zscore, passed = info_zscore(
-                motif['discrete'],
-                other_records.get_values(),
-                args.infoz,
-            )
-            motif['zscore'] = zscore
-            logging.info("Z-score: {}".format(motif['zscore']))
-        if args.infoz > 0 and args.inforobust > 0:
-            logging.info("Calculating Robustness for motif {}".format(i))
-            num_passed = info_robustness(
-                motif['discrete'],
-                other_records.get_values(), 
-                args.infoz,
-                args.inforobust,
-                args.fracjack,
-            )
-            motif['robustness'] = "{}/{}".format(num_passed,args.inforobust)
-            logging.info("Robustness: {}".format(motif['robustness']))
-        logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-        logging.info("Category Entropy: {}".format(motif['category_entropy']))
-        for key in sorted(motif['enrichment'].keys()):
-            logging.info("Two way table for cat {} is {}".format(
-                key,
-                motif['enrichment'][key]
-            ))
-            logging.info("Enrichment for Cat {} is {}".format(
-                key,
-                two_way_to_log_odds(motif['enrichment'][key])
-            ))
-        if args.optimize:
-            logging.info("Optimize Success?: {}".format(motif['opt_success']))
-            logging.info("Optimize Message: {}".format(motif['opt_message']))
-            logging.info("Optimize Iterations: {}".format(motif['opt_iter']))
-    logging.info("Generating final heatmap for motifs")
-    enrich_hm = smv.EnrichmentHeatmap(novel_motifs)
-    enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
-
-    if not args.txt_only:
-        enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
-        enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
-        if args.optimize:
-            logging.info("Plotting optimization for final motifs")
-            enrich_hm.plot_optimization(outpre+"_optimization.pdf")
-
-    logging.info("Writing final motifs")
-    outmotifs = inout.ShapeMotifFile()
-    outmotifs.add_motifs(novel_motifs)
-    outmotifs.write_file(outpre+"_called_motifs.dsp", records)
-    #final = opt.minimize(lambda x: -optimize_mi(x, data=records, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
-    #final = opt.basinhopping(lambda x: -optimize_mi(x, data=records), motif_to_optimize)
-    #logging.info(final)

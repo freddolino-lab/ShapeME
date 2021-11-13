@@ -4,11 +4,15 @@ import logging
 from numba import jit,prange
 import welfords
 from scipy import stats
+from scipy import sparse
 from collections import OrderedDict
 import pickle
 import glob
 from sklearn import cluster 
 from sklearn import metrics
+from math import log
+
+from emi import _expected_mutual_info_fast as exp_mi
 
 
 def consolidate_optim_batches(fname_list):
@@ -38,7 +42,7 @@ def bin_hits(hits_arr, distinct_hits, binned_hits):
         
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func, optim, max_count=4, alpha=0.1,
+                       ref, R, W, dist_func, max_count=4, alpha=0.1,
                        parallel=True):
 
     # R for record number, 2 for one forward count and one reverse count
@@ -74,18 +78,8 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
     # sort the counts such that for each record, the
     #  smaller of the two numbers comes first.
     hits = np.sort(hits, axis=1)
-    unique_hits = np.unique(hits, axis=0)
-
-    # if we're doing optimization, use adjusted mutual info score, which goes up to 1.
-    if optim:
-        binned_hits = np.zeros(R)
-        # binned_hits will be an integer vector, as opposed to the 2d matrix that was hits
-        bin_hits(hits, unique_hits, binned_hits)
-        this_mi = metrics.adjusted_mutual_info_score(y_vals, binned_hits)
-
-    # if we're not optimizing, use our MI function
-    else:
-        this_mi = mutual_information(y_vals, hits, unique_hits)
+    #unique_hits = np.unique(hits, axis=0)
+    this_mi = adjusted_mutual_information(y_vals, hits)
 
     return this_mi,hits
 
@@ -326,7 +320,7 @@ class FastaEntry(object):
     def __str__(self):
         return "<FastaEntry>" + self.chrm_name() + ":" + str(len(self))
 
-    def write(self,fhandle, wrap = 70, delim = None):
+    def write(self, fhandle, wrap = 70, delim = None):
         fhandle.write(self.header+"\n")
         if delim:
             convert = lambda x: delim.join([str(val) for val in x])
@@ -1078,7 +1072,6 @@ class RecordDatabase(object):
                     ref = self.windows,
                     R = rec_num,
                     W = win_num,
-                    optim = False,
                     dist_func = dist,
                     max_count = max_count,
                     alpha = alpha,
@@ -1792,26 +1785,49 @@ class ShapeMotifFile(object):
                 string += ",%d,%s\n"%(i,motif["name"])
                 f.write(string)
 
-def entropy(array):
+@jit(nopython=True)
+def entropy_ln(array):
     """Method to calculate the entropy of any discrete numpy array
-        
-    Uses log2 so entropy is in bits
 
     Args:
         array (np.array): an array of discrete categories
         uniquey : unique values in y
+
     Returns:
         entropy of array
     """
     entropy = 0
-    total = array.size 
+    total = array.shape[0]
     for val in np.unique(array):
         num_this_class = np.sum(array == val)
-        p_i = num_this_class/float(total)
+        p_i = num_this_class/total
         if p_i == 0:
             entropy += 0
         else:
-            entropy += p_i*np.log2(p_i)
+            entropy += p_i*np.log(p_i)
+    return -entropy
+
+
+def entropy(array, logfunc=np.log2):
+    """Method to calculate the entropy of any discrete numpy array
+
+    Args:
+        array (np.array): an array of discrete categories
+        uniquey : unique values in y
+        logfunc : function
+            defaults to np.log2, but sometimes you may want natural log (np.log)
+    Returns:
+        entropy of array
+    """
+    entropy = 0
+    total = array.shape[0]
+    for val in np.unique(array):
+        num_this_class = np.sum(array == val)
+        p_i = num_this_class/total
+        if p_i == 0:
+            entropy += 0
+        else:
+            entropy += p_i*logfunc(p_i)
     return -entropy
 
 
@@ -1844,6 +1860,7 @@ def joint_entropy(arrayx, arrayy):
                 entropy += p_x_y*np.log2(p_x_y)
     return -entropy
 
+
 def conditional_entropy(arrayx, arrayy):
     """Method to calculate the conditional entropy H(X|Y) of the two arrays
     
@@ -1872,6 +1889,129 @@ def conditional_entropy(arrayx, arrayy):
             else:
                 entropy += p_x_y*np.log2(p_x/p_x_y)
     return -entropy
+
+
+def get_contingency_matrix(y_val_arr, hits_cats):
+
+    y_classes, y_idx = np.unique(y_val_arr, return_inverse=True)
+    hits_classes, hits_idx = np.unique(hits_cats, return_inverse=True)
+
+    n_y_classes = y_classes.shape[0]
+    n_hits_classes = hits_classes.shape[0]
+    
+    contingency = sparse.coo_matrix(
+        (np.ones(y_idx.shape[0]), (y_idx, hits_idx)),
+        shape=(n_y_classes, n_hits_classes),
+        dtype=np.int64,
+    )
+    contingency = contingency.tocsr()
+    contingency.sum_duplicates()
+    return contingency.toarray()
+
+def mutual_information_contingency(contingency):
+    '''Calculates mutual information using contingency matrix
+
+    Args:
+    -----
+    contingency: np.ndarray
+        contingency matrix returned by get_contingency_matrix function
+    '''
+
+    # get non-zeros
+    nzx, nzy = np.nonzero(contingency)
+    nz_val = contingency[nzx, nzy]
+    log_contingency_nm = np.log(nz_val)
+
+    contingency_sum = contingency.sum()
+    contingency_nm = nz_val / contingency_sum
+
+    p_i = np.ravel(contingency.sum(axis=1))
+    p_j = np.ravel(contingency.sum(axis=0))
+
+    # get outer product for non-zeros
+    outer = (
+        p_i.take(nzx).astype(np.int64, copy=False)
+        * p_j.take(nzy).astype(np.int64, copy=False)
+    )
+    log_outer = -np.log(outer) + log(p_i.sum()) + log(p_j.sum())
+    mi = (
+        contingency_nm * (log_contingency_nm - log(contingency_sum))
+        + contingency_nm * log_outer
+    )
+    mi = np.where(np.abs(mi) < np.finfo(mi.dtype).eps, 0.0, mi)
+    return np.clip(mi.sum(), 0.0, None)
+    
+
+def adjusted_mutual_information(y_vals, hits):
+    '''Calculated adjusted mutual information, which accounts for
+    the effect that increasing the number of categories has on
+    increasing mutual information between two vectors simply by
+    random chance.
+
+    Args:
+    -----
+    y_vals : np.array
+    hits : np.array
+
+    Returns:
+    --------
+    ami : float
+        Adjusted mutual information, the max of which is 1.0
+    '''
+
+    distinct_hits,hits_cats = np.unique(hits, return_inverse=True, axis=0)
+    distinct_y_vals = np.unique(y_vals)
+    # special case where there is only one category in each vector,
+    #  just return 0.0.
+    if (
+        distinct_y_vals.shape[0] == distinct_hits.shape[0] == 1
+        or distinct_y_vals.shape[0] == distinct_hits.shape[0] == 0
+    ):
+        return 0.0
+    contingency = get_contingency_matrix(y_vals, hits_cats)
+    mi = mutual_information_contingency(contingency)
+    expect_mi = exp_mi.expected_mutual_information(contingency, y_vals.shape[0])
+    h_y, h_hits = entropy_ln(y_vals), entropy_ln(hits_cats)
+    mean_h = np.mean([h_y, h_hits])
+    denominator = mean_h - expect_mi
+    if denominator < 0:
+        denominator = min(denominator, -np.finfo("float64").eps)
+    else:
+        enominator = max(denominator, np.finfo("float64").eps)
+    ami = (mi - expect_mi) / denominator
+    return ami
+
+def conditional_adjusted_mutual_information(y_vals, hits_a, hits_b):
+    """Method to calculate the conditional adjusted mutual information
+        
+    Args:
+        y_vals (np.array): an array of discrete categories from the input data
+        hits_a (np.array): number of hits in each record on each strand for motif a
+        hits_b (np.array): number of hits in each record on each strand for motif b
+    Returns:
+        conditional adjusted mutual information
+    """
+
+    CMI = 0
+    total = y_vals.shape[0]
+    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
+    distinct_b,b_cats = np.unique(hits_b, return_inverse=True, axis=0)
+    distinct_b = np.unique(b_cats)
+    for b in distinct_b:
+        # set the indices we will look at in y_vals and hits_a
+        subset = (b_cats == b)
+
+        total_subset = np.sum(subset)
+        p_z = total_subset/total
+
+        y_cond_b = y_vals[subset]
+        a_cond_b = hits_a[subset,:]
+
+        ami_cond_b = adjusted_mutual_information(y_cond_b, a_cond_b)
+
+        CMI += p_z*ami_cond_b
+
+    return CMI
 
 
 @jit(nopython=True)
@@ -1908,6 +2048,7 @@ def mutual_information(arrayx, arrayy, uniquey):
             else:
                 MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
     return MI
+
 
 @jit(nopython=True)
 def conditional_mutual_information(arrayx, uniquex, arrayy, uniquey, arrayz, uniquez):
