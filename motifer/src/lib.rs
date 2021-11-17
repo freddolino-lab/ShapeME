@@ -367,6 +367,7 @@ mod tests {
 
     #[test]
     fn test_sum_NaN() {
+        // just makin sure that a vector of entirely NaN values sums to 0.0.
         let nan = f64::NAN;
         let v = vec![nan, nan, nan];
         let s = v.iter().filter(|a| !a.is_nan()).sum::<f64>();
