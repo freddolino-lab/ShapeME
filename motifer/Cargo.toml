@@ -1,0 +1,19 @@
+[package]
+name = "motifer"
+version = "0.1.0"
+authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc.edu>"]
+edition = "2018"
+
+[dependencies]
+# We need the approx feature to expose the ArrayBase struct to the abs_diff_eq method
+ndarray = { version = "0.15.3", features = ["approx"] }
+ndarray-stats = "0.5.0"
+approx = "0.5.0"
+itertools = "0.10.1"
+statrs = "0.15.0"
+ndarray-npy = "0.8.1"
+serde-pickle = "1.0"
+serde = "1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+

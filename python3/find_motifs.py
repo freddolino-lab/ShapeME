@@ -74,29 +74,6 @@ def retrieve_vals_from_target_vec(threshold, weights, shapes, targets_order,
 
     return vals_dict
 
-#def make_linear_constraint(target,S,L):
-#    """Sets up a LinearConstraint object to constrain the sum
-#    of all shape weights to one. 
-#    """
-#
-#    # Here we make a 1-by-L*S+1 matrix to get dot product of beta
-#    #   and weights and threshold
-#    beta = np.zeros((1,L*S+1))
-#    # lower and upper bounds on sum of weights are 1
-#    lower_bound = np.array([S*L])
-#    upper_bound = np.array([S*L])
-#
-#    # set appropriate values in beta to 1, leave the -1 index as 0, since
-#    #   we're not constraining the threshold
-#    beta[0,:-1] = 1.0
-#
-#    const = LinearConstraint(
-#        beta,
-#        lower_bound,
-#        upper_bound,
-#    )
-#    return const
-
 def brent_optimize_helper(r_idx, w_idx, dist, db):
 
     motif_weights = db.weights[r_idx,:,:,w_idx]
@@ -1740,6 +1717,21 @@ if __name__ == "__main__":
         )
 
     logging.info("Computing all windows and initializing weights array for distance calculation.")
+
+    # Here's where I'll write the shapes and necessary options to some npy files
+    #  that I can read into rust using ndarray-npy
+
+    np.save('shapes.npy', records.X)
+    args_dict = {
+        'alpha': args.alpha,
+        'max_count': args.max_count,
+        'kmer': args.kmer,
+    }
+    with open('test_args.pkl', 'wb') as f:
+        pickle.dump(args_dict, f)
+    raise()
+
+
     records.compute_windows(wsize = args.kmer)
     weights = records.initialize_weights()[:,:,None]
     alpha = args.alpha
@@ -1923,6 +1915,8 @@ if __name__ == "__main__":
 
                 # setting number of threads per process
                 numba_threads = args.p // len(filtered_seed_dict['seeds'])
+                if numba_threads == 0:
+                    numba_threads = 1
                 mp_procs = args.p // numba_threads
                 numba.set_num_threads(numba_threads)
 
