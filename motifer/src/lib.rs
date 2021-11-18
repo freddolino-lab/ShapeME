@@ -37,6 +37,20 @@ mod tests {
         this_sequence.unwrap()
     }
 
+    fn set_up_stranded_sequence(val: f64, size: usize) -> StrandedSequence {
+        let fwd_seq = set_up_sequence(val, size);
+        let rev_seq = set_up_sequence(val, size);
+
+        let mut arr = ndarray::Array3::zeros(
+            (fwd_seq.params.dim().0, fwd_seq.params.dim().1,0)
+        );
+        arr.append(Axis(2), fwd_seq.params.insert_axis(Axis(2)).view()).unwrap();
+        arr.append(Axis(2), rev_seq.params.insert_axis(Axis(2)).view()).unwrap();
+        
+        let this_sequence = StrandedSequence::new(arr);
+        this_sequence
+    }
+
     #[test]
     fn test_count() {
         let vec = array![1,2,3,2,3,4,3,4,4,4];
@@ -159,8 +173,10 @@ mod tests {
 
     #[test]
     fn test_RecordsDB_seq_iter(){
-        let this_seq = set_up_sequence(2.0, 32);
-        let this_seq2 = set_up_sequence(3.0, 20);
+        let this_seq = set_up_stranded_sequence(2.0, 32);
+        let this_seq2 = set_up_stranded_sequence(3.0, 20);
+        //let this_seq = set_up_sequence(2.0, 32);
+        //let this_seq2 = set_up_sequence(3.0, 20);
         let this_db = RecordsDB::new(vec![this_seq, this_seq2], array![0,1]);
         for entry in this_db.iter(){
             println!("{:?}", entry);
@@ -170,8 +186,10 @@ mod tests {
     #[test]
     fn test_get_seeds() {
         let kmer = 15;
-        let this_seq = set_up_sequence(2.0, 30);
-        let that_seq = set_up_sequence(2.0, 60);
+        let this_seq = set_up_stranded_sequence(2.0, 30);
+        let that_seq = set_up_stranded_sequence(2.0, 60);
+        //let this_seq = set_up_sequence(2.0, 30);
+        //let that_seq = set_up_sequence(2.0, 60);
         let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0,1]);
         let seeds = rec_db.make_seed_vec(kmer, 0.01);
         assert_eq!(seeds.seeds.len(), 60)
@@ -221,7 +239,8 @@ mod tests {
         let mut seqs = Vec::new();
         let mut vals = Vec::new();
         for i in 0..num_seqs{
-            seqs.push(set_up_sequence(1.0 + i as f64, length_seqs));
+            seqs.push(set_up_stranded_sequence(1.0 + i as f64, length_seqs));
+            //seqs.push(set_up_sequence(1.0 + i as f64, length_seqs));
             if i % 3 == 0 {
                 vals.push(1);
             } else {
@@ -382,14 +401,32 @@ mod tests {
     fn test_read_npy() {
         let fname = "/nfs/turbo/umms-petefred/schroedj/DNAshape_tests/synthetic_data/files_for_rust/shapes.npy";
         let arr: Array4<f64> = ndarray_npy::read_npy(fname).unwrap();
-        println!("{:?}", arr.dim());
+        assert_eq!((2000, 56, 5, 2), arr.dim());
 
         let fname = "/nfs/turbo/umms-petefred/schroedj/DNAshape_tests/synthetic_data/files_for_rust/test_args.pkl";
         let mut file = fs::File::open(fname).unwrap();
         let mut buf_reader = BufReader::new(file);
         let hash: HashMap<String, f64> = de::from_reader(buf_reader, de::DeOptions::new()).unwrap();
-        println!("{:?}", hash);
+        let mut answer = HashMap::new();
+        answer.insert(String::from("kmer"), 15.0);
+        answer.insert(String::from("max_count"), 1.0);
+        answer.insert(String::from("alpha"), 0.01);
+        assert_eq!(answer, hash);
     }
+}
+
+/// Simple struct to hold command line arguments
+pub struct Config {
+    npy_fname: String,
+    pkl_fname: String,
+}
+
+/// Parses arguments passed at the command line
+pub fn parse_config(args: &[String]) -> Config {
+    let npy_fname = args[1].clone();
+    let pkl_fname = args[2].clone();
+
+    Config {npy_fname, pkl_fname}
 }
 
 /// Calculates the mutual information between vec1 and vec2, conditioned
@@ -760,6 +797,42 @@ pub struct Sequence {
     params: ndarray::Array2<f64>
 }
 
+/// Represents a single stranded sequence as a combination of [Param] objects
+///
+/// # Fields
+///
+/// * `params` - Stores the full set of params in a single 3d Array
+#[derive(Debug)]
+pub struct StrandedSequence {
+    params: ndarray::Array3<f64>
+}
+
+/// Represents the state needed for windowed iteration over a [StrandedSequence]
+///
+/// # Fields
+///
+/// * `start` - start position of the iteration
+/// * `end` - exclusive end of the iteration
+/// * `size` - size of the window to iterate over
+/// * `sequence` - reference to the [StrandedSequence] to iterate over
+#[derive(Debug)]
+pub struct StrandedSequenceIter<'a>{
+    start: usize,
+    end: usize,
+    size: usize,
+    sequence: &'a StrandedSequence
+}
+
+/// Represents an immutable windowed view to a [StrandedSequence]
+///
+/// # Fields
+///
+/// * `params` - The view is stored as a 3d ndarray
+#[derive(Debug)]
+pub struct StrandedSequenceView<'a> {
+    params: ndarray::ArrayView::<'a, f64, Ix3>
+}
+
 /// Represents the state needed for windowed iteration over a [Sequence]
 ///
 /// # Fields
@@ -828,8 +901,9 @@ pub struct Seed<'a> {
     hits: ndarray::Array2::<i64>,
     mi: f64,
 }
-#[derive(Debug)]
+
 // We have to create a container to hold the weights with the seeds
+#[derive(Debug)]
 pub struct Seeds<'a> {
     seeds: Vec<Seed<'a>>,
     weights: MotifWeights
@@ -843,7 +917,7 @@ pub struct Seeds<'a> {
 /// * `values` - Stores associated values in a vector in 1D array
 #[derive(Debug)]
 pub struct RecordsDB {
-    seqs: Vec<Sequence>,
+    seqs: Vec<StrandedSequence>,
     values: ndarray::Array1::<i64>
 }
 
@@ -868,10 +942,104 @@ pub struct RecordsDBIter<'a> {
 /// * `value` - The associated value for the sequence
 #[derive(Debug)]
 pub struct RecordsDBEntry<'a> {
-    seq: &'a Sequence,
+    seq: &'a StrandedSequence,
     value: i64
 }
 
+impl StrandedSequence {
+    /// Returns a Result containing a new stranded sequence or any errors that 
+    /// occur in attempting to create it.
+    ///
+    /// # Arguments
+    ///
+    /// * `array` - a 3D array of shapes
+    ///
+    /// This is volatile code and likely to change based on how we read
+    /// in the initial parameters
+    pub fn new(array: ndarray::Array3<f64>) -> StrandedSequence {
+        StrandedSequence{ params: array }
+    }
+
+    /// Creates a read-only windowed iterator over the sequence. Automatically
+    /// slides by 1 unit.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - the starting position in the sequence to begin iteration
+    /// * `end` - the ending position in the sequence to stop iteration. End is excluded
+    /// * `size` - the size of the window to slide over
+    pub fn window_iter(
+        &self, start: usize, end: usize, size: usize
+    ) -> StrandedSequenceIter {
+        StrandedSequenceIter{start, end, size, sequence: self}
+    }
+
+    // Insert method here to do the comparisons. this way 
+
+    /// Returns a read-only StrandedSequenceView pointing to the data in Sequence
+    pub fn view(&self) -> StrandedSequenceView {
+        StrandedSequenceView::new(self.params.view())
+    }
+
+    pub fn seq_len(&self) -> usize {
+        self.params.raw_dim()[1]
+    }
+    pub fn param_num(&self) -> usize{
+        self.params.raw_dim()[0]
+    }
+
+    /// For a single Motif, count the number of times its distance to a window
+    /// of a Sequence falls below the specified threshold, i.e., matches the
+    /// Sequence.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - an array which will be compared to each window in seq.
+    /// * `weights` - an array of weights to be applied for the distance calc
+    /// * `threshold` - distance between the query and seq below which a hit is called
+    /// * `max_count` - maximum number of times a hit will be counted on each strand
+    pub fn count_hits_in_seq(&self, query: &ndarray::ArrayView<f64,Ix2>,
+                             weights: &ndarray::ArrayView<f64, Ix2>,
+                             threshold: f64, max_count: i64) -> Array<i64, Ix1> {
+    
+        // set maxed to false for each strand
+        let mut f_maxed = false;
+        let mut r_maxed = false;
+        let mut hits = ndarray::Array::zeros(2);
+    
+        // iterate through windows of seq
+        for window in self.window_iter(0, self.seq_len(), query.raw_dim()[1]) {
+    
+            // once both strands are maxed out, stop doing comparisons
+            if f_maxed & r_maxed {
+                break
+            }
+            // get the distances.
+            let dist = stranded_weighted_manhattan_distance(
+                &window.params,
+                query,
+                weights,
+            );
+
+            if (dist[0] < threshold) & (!f_maxed) {
+                hits[0] += 1;
+                if hits[0] == max_count {
+                    f_maxed = true;
+                }
+            } 
+
+            if (dist[1] < threshold) & (!r_maxed) {
+                hits[1] += 1;
+                if hits[1] == max_count {
+                    r_maxed = true;
+                }
+            } 
+    
+        }
+        // return the hits
+        hits
+    }
+}
 
 impl Sequence {
     /// Returns a Result containing a new sequence or any errors that 
@@ -987,6 +1155,22 @@ impl Sequence {
 
 }
 
+impl<'a> StrandedSequenceView<'a> {
+    /// Creates a immutable view from a subset of a [Sequence]
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - a vector of ndarray slices representing a subset of the given sequence
+    pub fn new(params: ndarray::ArrayView::<'a,f64, Ix3>) -> StrandedSequenceView<'a> {
+        StrandedSequenceView { params }
+    }
+    
+    /// Returns an iterator over the views of each [Param]
+    pub fn iter(&self) -> ndarray::iter::AxisIter<f64, Ix2>{
+        self.params.axis_iter(Axis(2))
+    }
+}
+
 impl<'a> SequenceView<'a> {
     /// Creates a immutable view from a subset of a [Sequence]
     ///
@@ -997,9 +1181,32 @@ impl<'a> SequenceView<'a> {
         SequenceView { params }
     }
     
+    pub fn from_stranded_sequence_view(seq: StrandedSequenceView<'a>) -> SequenceView<'a> {
+        let fwd_strand = seq.params.slice(s![..,..,0]);
+        SequenceView::new(fwd_strand)
+    }
+
     /// Returns an iterator over the views of each [Param]
     pub fn iter(&self) -> ndarray::iter::AxisIter<f64, Ix1>{
         self.params.axis_iter(Axis(0))
+    }
+}
+
+/// Enables iteration over a given sequence. Returns a [SequenceView] at each
+/// iteration
+impl<'a> Iterator for StrandedSequenceIter<'a> {
+    type Item = StrandedSequenceView<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this_start = self.start;
+        let this_end = self.start + self.size;
+        if this_end == self.end{
+            None
+        } else {
+            let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
+            self.start += 1;
+            Some(StrandedSequenceView::new(out))
+        }
     }
 }
 
@@ -1117,6 +1324,15 @@ impl<'a> Seed<'a> {
         Seed{params, hits, mi}
     }
 
+    pub fn new_from_stranded(seq: StrandedSequenceView<'a>,
+                             record_num: usize) -> Seed<'a> {
+        let hits = ndarray::Array2::zeros((record_num, 2));
+        let mi = 0.0;
+        let fwd_params = seq.params.slice(s![..,..,0]);
+        let params = SequenceView::new(fwd_params);
+        Seed{params, hits, mi}
+    }
+
     pub fn update_hits(&mut self, db: &RecordsDB,
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: f64,
@@ -1194,7 +1410,7 @@ impl RecordsDB {
     ///
     /// * `seqs` - a vector of [Sequence]
     /// * `values` - a vector of values for each sequence
-    pub fn new(seqs: Vec<Sequence>, values: ndarray::Array1::<i64>) -> RecordsDB {
+    pub fn new(seqs: Vec<StrandedSequence>, values: ndarray::Array1::<i64>) -> RecordsDB {
         RecordsDB{seqs, values}
     }
 
@@ -1223,7 +1439,7 @@ impl RecordsDB {
 
         for entry in self.iter() {
             for window in entry.seq.window_iter(0, entry.seq.seq_len(), kmer) {
-                seed_vec.push(Seed::new(window, self.len()));
+                seed_vec.push(Seed::new_from_stranded(window, self.len()));
             }
         }
         // We can't store a reference to the seed weights in each seed since
@@ -1260,7 +1476,7 @@ impl<'a> RecordsDBEntry<'a> {
     /// # Arguments
     /// * `seq` - a reference to a [Sequence]
     /// * `value` - the sequences paired value
-    pub fn new(seq: &Sequence, value: i64) -> RecordsDBEntry {
+    pub fn new(seq: &StrandedSequence, value: i64) -> RecordsDBEntry {
         RecordsDBEntry{seq, value}
     }
 }
@@ -1306,15 +1522,37 @@ pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>,
 /// - `arr1` - a reference to a view of a 2D array, typically a [Motif] `param` field
 /// - `arr2` - a reference to a view of a 2D array, typically a window on a sequence to be compared
 /// - `weights` - a view of a 2D array, typically a [Motif] `weights` field
-pub fn weighted_manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>, 
-                                   arr2: &ndarray::ArrayView::<f64, Ix2>,
-                                   weights: &ndarray::ArrayView::<f64, Ix2>) -> f64 {
-    ndarray::Zip::from(arr1).
-        and(arr2).
-        and(weights).
-        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+pub fn stranded_weighted_manhattan_distance(
+    arr1: &ndarray::ArrayView::<f64, Ix3>, 
+    arr2: &ndarray::ArrayView::<f64, Ix2>,
+    weights: &ndarray::ArrayView::<f64, Ix2>
+) -> ndarray::Array1<f64> {
+
+    let weighted_diff = ((arr1 - arr2) * weights);
+    let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
+    abs_diffs.sum_axis(Axis(0)).sum_axis(Axis(0))
+
+    //ndarray::Zip::from(arr1).
+    //    and(arr2).
+    //    and(weights).
+    //    fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
 }
 
+pub fn weighted_manhattan_distance(
+    arr1: &ndarray::ArrayView::<f64, Ix2>, 
+    arr2: &ndarray::ArrayView::<f64, Ix2>,
+    weights: &ndarray::ArrayView::<f64, Ix2>
+) -> f64 {
+
+    let weighted_diff = ((arr1 - arr2) * weights);
+    let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
+    abs_diffs.sum()
+
+    //ndarray::Zip::from(arr1).
+    //    and(arr2).
+    //    and(weights).
+    //    fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+}
 /// Function to compute inverse-logit element-wise for an array
 ///
 /// # Arguments
