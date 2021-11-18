@@ -7,6 +7,12 @@ tests/test/*.pkl
 __pycache__
 utils/__pycache__
 motifer/target
+<<<<<<< HEAD
+emi
+build
+_expected_mutual_info_fast.c
+=======
 optim/target
 motifer/Cargo.lock
 optim/Cargo.lock
+>>>>>>> 0eb0603ccf9cdbf1013610d99a9a5e6f3fd77141

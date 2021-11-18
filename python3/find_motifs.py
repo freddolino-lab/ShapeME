@@ -1728,7 +1728,7 @@ if __name__ == "__main__":
         'kmer': args.kmer,
     }
     with open('test_args.pkl', 'wb') as f:
-        pickle.dump(f, args_dict)
+        pickle.dump(args_dict, f)
     raise()
 
 
