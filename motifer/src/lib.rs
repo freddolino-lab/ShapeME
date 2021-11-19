@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::collections::HashMap;
-use std::io::BufReader;
 use std::cmp;
 use std::iter;
 use std::fs;
@@ -12,6 +11,7 @@ use itertools::Itertools;
 use statrs::function::gamma::ln_gamma;
 use ndarray_npy;
 use serde_pickle::de;
+use std::io::BufReader;
 
 #[cfg(test)]
 mod tests {
@@ -405,20 +405,26 @@ mod tests {
 
         let fname = "/nfs/turbo/umms-petefred/schroedj/DNAshape_tests/synthetic_data/files_for_rust/test_args.pkl";
         let mut file = fs::File::open(fname).unwrap();
+        // open a buffered reader to open the pickle file
         let mut buf_reader = BufReader::new(file);
+        // create a hashmap from the pickle file's contents
         let hash: HashMap<String, f64> = de::from_reader(buf_reader, de::DeOptions::new()).unwrap();
+
+        // set up test case
         let mut answer = HashMap::new();
         answer.insert(String::from("kmer"), 15.0);
         answer.insert(String::from("max_count"), 1.0);
         answer.insert(String::from("alpha"), 0.01);
+
+        // check if what we read in is what we expect to see
         assert_eq!(answer, hash);
     }
 }
 
 /// Simple struct to hold command line arguments
 pub struct Config {
-    npy_fname: String,
-    pkl_fname: String,
+    pub npy_fname: String,
+    pub pkl_fname: String,
 }
 
 /// Parses arguments passed at the command line
@@ -823,6 +829,22 @@ pub struct StrandedSequenceIter<'a>{
     sequence: &'a StrandedSequence
 }
 
+/// Represents the state needed for windowed iteration over a [StrandedSequence]
+///
+/// # Fields
+///
+/// * `start` - start position of the iteration
+/// * `end` - exclusive end of the iteration
+/// * `size` - size of the window to iterate over
+/// * `sequence` - reference to the [StrandedSequence] to iterate over
+#[derive(Debug)]
+pub struct FwdStrandedSequenceIter<'a>{
+    start: usize,
+    end: usize,
+    size: usize,
+    sequence: &'a StrandedSequence
+}
+
 /// Represents an immutable windowed view to a [StrandedSequence]
 ///
 /// # Fields
@@ -974,7 +996,11 @@ impl StrandedSequence {
         StrandedSequenceIter{start, end, size, sequence: self}
     }
 
-    // Insert method here to do the comparisons. this way 
+    pub fn fwd_strand_window_iter(
+        &self, start: usize, end: usize, size: usize
+    ) -> FwdStrandedSequenceIter {
+        FwdStrandedSequenceIter{start, end, size, sequence: self}
+    }
 
     /// Returns a read-only StrandedSequenceView pointing to the data in Sequence
     pub fn view(&self) -> StrandedSequenceView {
@@ -1181,14 +1207,27 @@ impl<'a> SequenceView<'a> {
         SequenceView { params }
     }
     
-    pub fn from_stranded_sequence_view(seq: StrandedSequenceView<'a>) -> SequenceView<'a> {
-        let fwd_strand = seq.params.slice(s![..,..,0]);
-        SequenceView::new(fwd_strand)
-    }
-
     /// Returns an iterator over the views of each [Param]
     pub fn iter(&self) -> ndarray::iter::AxisIter<f64, Ix1>{
         self.params.axis_iter(Axis(0))
+    }
+}
+
+/// Enables iteration over a given sequence. Returns a [SequenceView] at each
+/// iteration
+impl<'a> Iterator for FwdStrandedSequenceIter<'a> {
+    type Item = SequenceView<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this_start = self.start;
+        let this_end = self.start + self.size;
+        if this_end == self.end{
+            None
+        } else {
+            let out = self.sequence.params.slice(s![..,this_start..this_end,0]);
+            self.start += 1;
+            Some(SequenceView::new(out))
+        }
     }
 }
 
@@ -1323,8 +1362,16 @@ impl<'a> Seed<'a> {
         let mi = 0.0;
         Seed{params, hits, mi}
     }
+    
+    //pub fn new_from_arrayview(arr: ArrayView<'a, f64, Ix2>,
+    //                          record_num: usize) -> Seed<'a> {
+    //    let hits = ndarray::Array2::zeros((record_num, 2));
+    //    let mi = 0.0;
+    //    let params = SequenceView::new(arr);
+    //    Seed{params, hits, mi}
+    //}
 
-    pub fn new_from_stranded(seq: StrandedSequenceView<'a>,
+    pub fn new_from_stranded(seq: &'a StrandedSequenceView<'a>,
                              record_num: usize) -> Seed<'a> {
         let hits = ndarray::Array2::zeros((record_num, 2));
         let mi = 0.0;
@@ -1438,8 +1485,8 @@ impl RecordsDB {
         seed_weights.constrain_normalize(&alpha);
 
         for entry in self.iter() {
-            for window in entry.seq.window_iter(0, entry.seq.seq_len(), kmer) {
-                seed_vec.push(Seed::new_from_stranded(window, self.len()));
+            for window in entry.seq.fwd_strand_window_iter(0, entry.seq.seq_len(), kmer) {
+                seed_vec.push(Seed::new(window, self.len()));
             }
         }
         // We can't store a reference to the seed weights in each seed since

@@ -10,7 +10,7 @@ use serde_pickle::de;
 fn main() {
 
     let args: Vec<String> = env::args().collect();
-    let config = parse_config(&args);
+    let config = motifer::parse_config(&args);
 
     let arr: Array4<f64> = ndarray_npy::read_npy(config.npy_fname).unwrap();
 
