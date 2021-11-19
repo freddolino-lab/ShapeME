@@ -215,7 +215,6 @@ mod tests {
         // seed now owns the view
         let seed = Seed::new(this_view, kmer);
 
-        
         let hits = that_seq.count_hits_in_seq(
             &seed.params.params,
             &wv,
@@ -255,6 +254,7 @@ mod tests {
         let db = setup_RecordsDB(30, 30);
         let seeds = db.make_seed_vec(15, 0.01);
         let test_seed = &seeds.seeds[100];
+        //println!("{:?}", test_seed);
         let hits = db.get_hits(&test_seed.params.params,
                     &seeds.weights.weights_norm.view(),
                     1.0,
@@ -389,6 +389,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_sum_NaN() {
         // just makin sure that a vector of entirely NaN values sums to 0.0.
         let nan = f64::NAN;
@@ -398,17 +399,29 @@ mod tests {
     }
 
     #[test]
-    fn test_read_npy() {
-        let fname = "/nfs/turbo/umms-petefred/schroedj/DNAshape_tests/synthetic_data/files_for_rust/shapes.npy";
+    fn test_read_pkl() {
+        // read in shapes
+        let fname = "../test_data/shapes.npy";
         let arr: Array4<f64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000, 56, 5, 2), arr.dim());
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&125522.42816848765, &arr.sum()));
 
-        let fname = "/nfs/turbo/umms-petefred/schroedj/DNAshape_tests/synthetic_data/files_for_rust/test_args.pkl";
+        //// read in y-vals
+        let fname = "../test_data/y_vals.npy";
+        let y_vals: Array1<u64> = ndarray_npy::read_npy(fname).unwrap();
+        assert_eq!((2000), y_vals.dim());
+        assert_eq!(391, y_vals.sum());
+
+        // read in some other parameters we'll need
+        let fname = "../test_data/test_args.pkl";
         let mut file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
         let mut buf_reader = BufReader::new(file);
         // create a hashmap from the pickle file's contents
-        let hash: HashMap<String, f64> = de::from_reader(buf_reader, de::DeOptions::new()).unwrap();
+        let hash: HashMap<String, f64> = de::from_reader(
+            buf_reader,
+            de::DeOptions::new()
+        ).unwrap();
 
         // set up test case
         let mut answer = HashMap::new();
@@ -427,7 +440,7 @@ pub struct Config {
     pub pkl_fname: String,
 }
 
-/// Parses arguments passed at the command line
+/// Parses arguments passed at the command line and places them into a [Config]
 pub fn parse_config(args: &[String]) -> Config {
     let npy_fname = args[1].clone();
     let pkl_fname = args[2].clone();
@@ -1041,6 +1054,9 @@ impl StrandedSequence {
                 break
             }
             // get the distances.
+            //println!("{:?}", window);
+            //println!("{:?}", query);
+            //println!("{:?}", weights);
             let dist = stranded_weighted_manhattan_distance(
                 &window.params,
                 query,
@@ -1358,7 +1374,7 @@ impl<'a> Seed<'a> {
 
     pub fn new(params: SequenceView<'a>,
                record_num: usize) -> Seed<'a> {
-        let hits = ndarray::Array2::zeros((record_num, 2));
+        let mut hits = ndarray::Array2::zeros((record_num, 2));
         let mi = 0.0;
         Seed{params, hits, mi}
     }
@@ -1497,11 +1513,22 @@ impl RecordsDB {
         Seeds{seeds: seed_vec, weights: seed_weights}
     }
 
-    /// Iterate over each record in the database as a [Sequence] value pair
+    /// Iterate over each record in the database as a [StrandedSequence] value pair
     pub fn iter(&self) -> RecordsDBIter{
         RecordsDBIter{loc: 0, db: &self, size: self.seqs.len()}
     }
 
+    /// Iterate over each record in the database and count number of times
+    /// `query` matches each record. Return a 2D array of hits, where each
+    /// row represents a record in the database, and each column is the number
+    /// of hits counted on each strand for a given record.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - A 2D arrayview, typically coming from a Seed's or Motif's params
+    /// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
+    /// * `threshold` - The threshold distance below which a hit is called
+    /// * `max_count` - The maximum number of hits to call for each strand
     pub fn get_hits(&self, query: &ndarray::ArrayView<f64, Ix2>,
                   weights: &ndarray::ArrayView<f64, Ix2>,
                   threshold: f64, max_count: i64) -> Array<i64, Ix2> {
@@ -1510,6 +1537,7 @@ impl RecordsDB {
         for (i, entry) in self.iter().enumerate(){
             let this_hit = entry.seq.count_hits_in_seq(query, weights,
                                                        threshold, max_count);
+            println!("{:?}", this_hit);
             hits.row_mut(i).assign(&this_hit);
         }
         hits
@@ -1566,8 +1594,8 @@ pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>,
 ///
 /// # Arguments
 ///
-/// - `arr1` - a reference to a view of a 2D array, typically a [Motif] `param` field
-/// - `arr2` - a reference to a view of a 2D array, typically a window on a sequence to be compared
+/// - `arr1` - a reference to a view of a 2D array, typically a window on a sequence to be compared
+/// - `arr2` - a reference to a view of a 3D array, typically a [Motif] `param` field
 /// - `weights` - a view of a 2D array, typically a [Motif] `weights` field
 pub fn stranded_weighted_manhattan_distance(
     arr1: &ndarray::ArrayView::<f64, Ix3>, 
@@ -1575,14 +1603,10 @@ pub fn stranded_weighted_manhattan_distance(
     weights: &ndarray::ArrayView::<f64, Ix2>
 ) -> ndarray::Array1<f64> {
 
-    let weighted_diff = ((arr1 - arr2) * weights);
+    let diffs = arr1 - &arr2.insert_axis(Axis(2));
+    let weighted_diff = diffs * &weights.insert_axis(Axis(2));
     let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
     abs_diffs.sum_axis(Axis(0)).sum_axis(Axis(0))
-
-    //ndarray::Zip::from(arr1).
-    //    and(arr2).
-    //    and(weights).
-    //    fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
 }
 
 pub fn weighted_manhattan_distance(
@@ -1591,7 +1615,7 @@ pub fn weighted_manhattan_distance(
     weights: &ndarray::ArrayView::<f64, Ix2>
 ) -> f64 {
 
-    let weighted_diff = ((arr1 - arr2) * weights);
+    let weighted_diff = (arr1 - arr2) * weights;
     let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
     abs_diffs.sum()
 

@@ -1720,8 +1720,11 @@ if __name__ == "__main__":
 
     # Here's where I'll write the shapes and necessary options to some npy files
     #  that I can read into rust using ndarray-npy
-
-    np.save('shapes.npy', records.X)
+    with open('shapes.npy', 'wb') as f:
+        np.save(f, records.X)
+    with open('y_vals.npy', 'wb') as f:
+        np.save(f, records.y.astype(np.uint64))
+        
     args_dict = {
         'alpha': args.alpha,
         'max_count': args.max_count,
