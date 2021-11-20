@@ -351,6 +351,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_3d_contingency() {
         let a = array![0,1,2,0,1,2,2,0,3];
         let av = a.view();
@@ -399,18 +400,26 @@ mod tests {
     }
 
     #[test]
-    fn test_read_pkl() {
+    fn test_read_files() {
         // read in shapes
         let fname = "../test_data/shapes.npy";
         let arr: Array4<f64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000, 56, 5, 2), arr.dim());
         assert!(AbsDiff::default().epsilon(1e-6).eq(&125522.42816848765, &arr.sum()));
 
-        //// read in y-vals
+        // read in y-vals
         let fname = "../test_data/y_vals.npy";
-        let y_vals: Array1<u64> = ndarray_npy::read_npy(fname).unwrap();
+        let y_vals: Array1<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000), y_vals.dim());
         assert_eq!(391, y_vals.sum());
+
+        // read in hits for first record, first window, calculated in python
+        // These values will be used to test whether our rust hit counting
+        // yields the same results as our python hit counting.
+        let fname = "../test_data/hits.npy";
+        let hits: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
+        assert_eq!((2000,2), hits.dim());
+        assert_eq!(75, hits.sum());
 
         // read in some other parameters we'll need
         let fname = "../test_data/test_args.pkl";
@@ -423,14 +432,105 @@ mod tests {
             de::DeOptions::new()
         ).unwrap();
 
-        // set up test case
+        // set up test case for having read in the data accurately
         let mut answer = HashMap::new();
-        answer.insert(String::from("kmer"), 15.0);
+        answer.insert(String::from("cores"), 4.0);
         answer.insert(String::from("max_count"), 1.0);
         answer.insert(String::from("alpha"), 0.01);
+        answer.insert(String::from("kmer"), 15.0);
+        answer.insert(String::from("threshold"), 0.8711171869882366);
+        answer.insert(String::from("mi"), -0.00029399390650398265);
+        answer.insert(String::from("cmi"), 0.00020892030803142857);
 
         // check if what we read in is what we expect to see
         assert_eq!(answer, hash);
+    }
+
+    #[test]
+    fn test_db_from_file() {
+        // read in shapes
+        let shape_fname = String::from("../test_data/shapes.npy");
+        // read in y-vals
+        let y_fname = String::from("../test_data/y_vals.npy");
+        let rec_db = RecordsDB::new_from_files(
+            shape_fname,
+            y_fname,
+        );
+
+        // read in some other parameters we'll need
+        let fname = "../test_data/test_args.pkl";
+        let mut file = fs::File::open(fname).unwrap();
+        // open a buffered reader to open the pickle file
+        let mut buf_reader = BufReader::new(file);
+        // create a hashmap from the pickle file's contents
+        let hash: HashMap<String, f64> = de::from_reader(
+            buf_reader,
+            de::DeOptions::new()
+        ).unwrap();
+    
+        let kmer = *hash.get("kmer").unwrap() as usize;
+        let alpha = *hash.get("alpha").unwrap();
+        let max_count = *hash.get("max_count").unwrap() as i64;
+        let threshold = *hash.get("threshold").unwrap();
+
+        let seeds = rec_db.make_seed_vec(kmer, alpha);
+        let test_seed = &seeds.seeds[0];
+        let hits = rec_db.get_hits(
+            &test_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            threshold,
+            max_count,
+        );
+
+        let next_seed = &seeds.seeds[1];
+        let hits2 = rec_db.get_hits(
+            &next_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            threshold,
+            max_count,
+        );
+        
+        let hit_cats = categorize_hits(hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = rec_db.values.view();
+        let contingency = construct_contingency_matrix(hv, vv);
+        let ami = adjusted_mutual_information(contingency.view());
+
+        let hit_cats2 = categorize_hits(hits2, &max_count);
+        let h2v = hit_cats2.view();
+        let contingency_3d = construct_3d_contingency(
+            hv,
+            vv,
+            h2v,
+        );
+        let cmi = conditional_adjusted_mutual_information(
+            contingency_3d.view()
+        );
+
+        // yields the same results as our python hit counting.
+        let fname = "../test_data/hits.npy";
+        let hits_true: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
+        let hits = rec_db.get_hits(
+            &test_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            threshold,
+            max_count,
+        );
+        //assert_eq!(hits_true, hits);
+
+        // read in some other parameters we'll need
+        let fname = "../test_data/test_args.pkl";
+        let mut file = fs::File::open(fname).unwrap();
+        // open a buffered reader to open the pickle file
+        let mut buf_reader = BufReader::new(file);
+        // create a hashmap from the pickle file's contents
+        let hash: HashMap<String, f64> = de::from_reader(
+            buf_reader,
+            de::DeOptions::new()
+        ).unwrap();
+
+        assert_eq!(&ami, hash.get("mi").unwrap());
+        assert_eq!(&cmi, hash.get("cmi").unwrap());
     }
 }
 
@@ -495,7 +595,7 @@ pub fn conditional_adjusted_mutual_information(
 ///
 /// * `vec1` - ArrayView to a vector containing assigned categories
 /// * `vec2` - ArrayView to a vector containing assigned categories
-/// * `vec3` - ArrayView to a vector containing assigned categories
+/// * `vec3` - ArrayView to a vector containing categories to condition on
 pub fn construct_3d_contingency(
     vec1: ndarray::ArrayView::<i64, Ix1>,
     vec2: ndarray::ArrayView::<i64, Ix1>,
@@ -1477,6 +1577,35 @@ impl RecordsDB {
         RecordsDB{seqs, values}
     }
 
+    /// Reads in input files to return a RecordsDB
+    ///
+    /// # Arguments
+    ///
+    /// * `shape_file` - a npy file containing a 4D array of shape (R,L,S,2),
+    ///      where R is the record number, L is the length of each sequence,
+    ///      S is the number of shape parameters, and the final axis is of
+    ///      length 2 to hold shape information for each of the two strands.
+    /// * `y_val_file` - a npy file containing a 1D array of shape (R). Each
+    ///      element of the array contains the given record's category.
+    pub fn new_from_files(shape_file: String, y_val_file: String) -> RecordsDB {
+        // read in the shape values
+        let arr: Array4<f64> = ndarray_npy::read_npy(shape_file).unwrap();
+        // iterate over records, creating StrandedSequnce structs from them,
+        //   and push them into a vector
+        let mut seq_vec = Vec::new();
+        for r in 0..arr.raw_dim()[0] {
+            let this_slice = arr.slice(s![r,..,..,..]);
+            // swap the shape/length axes
+            let rearranged = this_slice.permuted_axes([1,0,2]).to_owned();
+            let seq = StrandedSequence::new(rearranged);
+            seq_vec.push(seq);
+        }
+
+        // read in the categories for each record
+        let y_vals: Array1<i64> = ndarray_npy::read_npy(y_val_file).unwrap();
+        RecordsDB::new(seq_vec, y_vals)
+    }
+
     /// Returns the number of records in RecordsDB
     pub fn len(&self) -> usize {
         self.seqs.len()
@@ -1537,7 +1666,7 @@ impl RecordsDB {
         for (i, entry) in self.iter().enumerate(){
             let this_hit = entry.seq.count_hits_in_seq(query, weights,
                                                        threshold, max_count);
-            println!("{:?}", this_hit);
+            //println!("{:?}", this_hit);
             hits.row_mut(i).assign(&this_hit);
         }
         hits

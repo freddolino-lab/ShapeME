@@ -1718,22 +1718,6 @@ if __name__ == "__main__":
 
     logging.info("Computing all windows and initializing weights array for distance calculation.")
 
-    # Here's where I'll write the shapes and necessary options to some npy files
-    #  that I can read into rust using ndarray-npy
-    with open('shapes.npy', 'wb') as f:
-        np.save(f, records.X)
-    with open('y_vals.npy', 'wb') as f:
-        np.save(f, records.y.astype(np.uint64))
-        
-    args_dict = {
-        'alpha': args.alpha,
-        'max_count': args.max_count,
-        'kmer': args.kmer,
-    }
-    with open('test_args.pkl', 'wb') as f:
-        pickle.dump(args_dict, f)
-    raise()
-
 
     records.compute_windows(wsize = args.kmer)
     weights = records.initialize_weights()[:,:,None]
@@ -1836,6 +1820,68 @@ if __name__ == "__main__":
                             weights = weights,
                             alpha = alpha,
                         )
+
+                    # Here's where I'll write the shapes and necessary options to some npy files
+                    #  that I can read into rust using ndarray-npy
+                    with open('shapes.npy', 'wb') as f:
+                        np.save(f, records.X)
+                    with open('y_vals.npy', 'wb') as f:
+                        np.save(f, records.y.astype(np.int64))
+                        
+                    hits = np.zeros((records.X.shape[0], 2), dtype='int64')
+                    inout.optim_generate_peak_array(
+                        ref = records.windows,
+                        query = records.windows[0,:,:,0,:],
+                        weights = weights,
+                        threshold = match_threshold,
+                        results = hits,
+                        R = records.X.shape[0],
+                        W = records.X.shape[3],
+                        dist = this_dist,
+                        max_count = max_count,
+                        alpha = alpha,
+                    )
+                    hits = np.sort(hits, axis=1)
+                    mi = inout.adjusted_mutual_information(records.y, hits)
+                    with open('hits.npy', 'wb') as f:
+                        np.save(f, hits)
+
+                    hits2 = np.zeros((records.X.shape[0], 2), dtype='int64')
+                    inout.optim_generate_peak_array(
+                        ref = records.windows,
+                        query = records.windows[0,:,:,1,:],
+                        weights = weights,
+                        threshold = match_threshold,
+                        results = hits2,
+                        R = records.X.shape[0],
+                        W = records.X.shape[3],
+                        dist = this_dist,
+                        max_count = max_count,
+                        alpha = alpha,
+                    )
+                    hits2 = np.sort(hits2, axis=1)
+
+                    cmi = inout.conditional_adjusted_mutual_information(
+                        records.y,
+                        hits,
+                        hits2,
+                    )
+                    args_dict = {
+                        'alpha': args.alpha,
+                        'max_count': float(args.max_count),
+                        'kmer': float(args.kmer),
+                        'threshold': float(match_threshold),
+                        'cores': float(args.p),
+                        'mi': float(mi),
+                        'cmi': float(cmi),
+                    }
+                    with open('test_args.pkl', 'wb') as f:
+                        pickle.dump(args_dict, f)
+
+                    raise()
+
+
+
                     logging.info("Using {} as an initial match threshold".format(match_threshold))
 
                     logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
