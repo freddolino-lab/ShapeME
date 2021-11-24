@@ -144,6 +144,70 @@ def optim_generate_peak_array_series(ref, query, weights, threshold,
                 if results[r,1] == max_count:
                     r_maxed = True
 
+def testing_optim_generate_peak_array(ref, query, weights, threshold,
+                              results, R, W, dist, max_count, alpha, dists, lt):
+    """Does same thing as generate_peak_vector, but hopefully faster
+    
+    Args:
+    -----
+    ref : np.array
+        The windows attribute of an inout.RecordDatabase object. Will be an
+        array of shape (R,L,S,W,2), where R is the number of records,
+        L is the window size, S is the number of shape parameters, and
+        W is the number of windows for each record.
+    query : np.array
+        A slice of the records and windows axes of the windows attribute of
+        an inout.RecordDatabase object to check for matches in ref.
+        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
+    weights : np.array
+        Weights to be applied to the distance
+        calculation. Should be an array of shape (L,S,1).
+    threshold : float
+        Minimum distance to consider a match.
+    results : 2d np.array
+        Array of shape (R,2), where R is the number of records in ref.
+        This array should be populated with zeros, and will be incremented
+        by 1 when matches are found. The final axis is of length 2 so that
+        we can do the reverse-complement and the forward.
+    R : int
+        Number of records
+    W : int
+        Number of windows for each record
+    dist : function
+        The distance function to use for distance calculation.
+    max_count : int
+        The maximum number of hits to count for each strand.
+    alpha : float
+        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+        prior to normalizing the sum of weights to one and calculating distance.
+    """
+    
+    for r in range(R):
+        f_maxed = False
+        r_maxed = False
+        for w in range(W):
+            
+            if f_maxed and r_maxed:
+                break
+
+            ref_seq = ref[r,:,:,w,:]
+
+            distances = dist(query, ref_seq, weights, alpha)
+            dists[w,:] = distances
+            lt[w,:] = distances < threshold
+
+            if (not f_maxed) and (distances[0] < threshold):
+                # if a window has a distance low enough,
+                #   add 1 to this result's index
+                results[r,0] += 1
+                if results[r,0] == max_count:
+                    f_maxed = True
+
+            if (not r_maxed) and (distances[1] < threshold):
+                results[r,1] += 1
+                if results[r,1] == max_count:
+                    r_maxed = True
+
 
 @jit(nopython=True, parallel=True)
 def optim_generate_peak_array(ref, query, weights, threshold,
@@ -231,7 +295,7 @@ def inv_logit(x):
 def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
     w_floor_inv_logit = a + (1-a) * inv_logit(w)
     w_trans = w_floor_inv_logit/np.sum(w_floor_inv_logit)
-    w_abs_diff = np.abs(vec1 - vec2) * w_trans
+    w_abs_diff = (np.abs(vec1 - vec2)) * w_trans
     #NOTE: this seems crazy, but it's necessary instead of np.sum(arr, axis=(0,1))
     #  in order to get jit(nopython=True) to work
     first_sum = np.sum(w_abs_diff, axis=0)

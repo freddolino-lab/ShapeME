@@ -75,7 +75,9 @@ mod tests {
                            [1, 2],   // 7            | 5
                            [2, 2]]); // 8            | 8
 
-        let categories = categorize_hits(b, &max_count);
+        sort_hits(&mut b);
+
+        let categories = categorize_hits(&b, &max_count);
         assert_eq!(categories, answer);
     }
  
@@ -175,10 +177,9 @@ mod tests {
     fn test_RecordsDB_seq_iter(){
         let this_seq = set_up_stranded_sequence(2.0, 32);
         let this_seq2 = set_up_stranded_sequence(3.0, 20);
-        //let this_seq = set_up_sequence(2.0, 32);
-        //let this_seq2 = set_up_sequence(3.0, 20);
-        let this_db = RecordsDB::new(vec![this_seq, this_seq2], array![0,1]);
-        for entry in this_db.iter(){
+        let seq_vec = vec![this_seq, this_seq2];
+        let this_db = RecordsDB::new(seq_vec, array![0,1]);
+        for (i,entry) in this_db.iter().enumerate() {
             println!("{:?}", entry);
         }
     }
@@ -188,11 +189,9 @@ mod tests {
         let kmer = 15;
         let this_seq = set_up_stranded_sequence(2.0, 30);
         let that_seq = set_up_stranded_sequence(2.0, 60);
-        //let this_seq = set_up_sequence(2.0, 30);
-        //let that_seq = set_up_sequence(2.0, 60);
         let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0,1]);
         let seeds = rec_db.make_seed_vec(kmer, 0.01);
-        assert_eq!(seeds.seeds.len(), 60)
+        assert_eq!(seeds.seeds.len(), 62)
     }
 
     #[test]
@@ -239,7 +238,6 @@ mod tests {
         let mut vals = Vec::new();
         for i in 0..num_seqs{
             seqs.push(set_up_stranded_sequence(1.0 + i as f64, length_seqs));
-            //seqs.push(set_up_sequence(1.0 + i as f64, length_seqs));
             if i % 3 == 0 {
                 vals.push(1);
             } else {
@@ -254,7 +252,6 @@ mod tests {
         let db = setup_RecordsDB(30, 30);
         let seeds = db.make_seed_vec(15, 0.01);
         let test_seed = &seeds.seeds[100];
-        //println!("{:?}", test_seed);
         let hits = db.get_hits(&test_seed.params.params,
                     &seeds.weights.weights_norm.view(),
                     1.0,
@@ -305,7 +302,8 @@ mod tests {
         let contingency = construct_contingency_matrix(av, bv);
 
         let ami = adjusted_mutual_information(contingency.view());
-        println!("{:?}", ami);
+        let ami_answer = -0.04605733444793936;
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&ami_answer, &ami));
 
         let a = array![0,0,0,1,1,1,2,2,2,3,3,3,4,4,4,5,5,5];
         let av = a.view();
@@ -315,7 +313,8 @@ mod tests {
         let contingency = construct_contingency_matrix(av, bv);
 
         let ami = adjusted_mutual_information(contingency.view());
-        println!("{:?}", ami);
+        let ami_answer = 1.0;
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&ami_answer, &ami));
     }
 
     #[test]
@@ -327,7 +326,8 @@ mod tests {
 
         let contingency = construct_contingency_matrix(av, bv);
         let mi = mutual_information(contingency.view());
-        println!("{:?}", mi);
+        let mi_answer = 0.3865874373531204;
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&mi_answer, &mi));
     }
 
     #[test]
@@ -341,17 +341,16 @@ mod tests {
                     1.0,
                     max_count);
         
-        let hit_cats = categorize_hits(hits, &max_count);
-        println!("{:?}", hit_cats);
+        let hit_cats = categorize_hits(&hits, &max_count);
         let hv = hit_cats.view();
         let vv = db.values.view();
         let contingency = construct_contingency_matrix(hv, vv);
         let ami = adjusted_mutual_information(contingency.view());
-        println!("{:?}", ami);
+        let ami_answer = 0.04326620722450172; // calculated using sklear.metrics.adjusted_mutual_info_score
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&ami_answer, &ami));
     }
 
     #[test]
-    #[ignore]
     fn test_3d_contingency() {
         let a = array![0,1,2,0,1,2,2,0,3];
         let av = a.view();
@@ -361,11 +360,43 @@ mod tests {
         let cv = c.view();
 
         let contingency = construct_3d_contingency(av, bv, cv);
-        println!("{:?}", contingency);
+        let answer = array![
+            // zero in array a
+            [
+                // one in array b | two in b | three in b
+                [2, 0, 0], // one in c
+                [0, 1, 0], // two in c
+                [0, 0, 0], // three in c
+            ],
+            // one in array a
+            [
+                // one in array b | two in b | three in b
+                [0, 0, 0], // one in c
+                [0, 2, 0], // two in c
+                [0, 0, 0], // three in c
+            ],
+            // two in array a
+            [
+                // one in array b | two in b | three in b
+                [1, 0, 0], // one in c
+                [0, 1, 0], // two in c
+                [0, 0, 1], // three in c
+            ],
+            // three in array a
+            [
+                // one in array b | two in b | three in b
+                [1, 0, 0], // one in c
+                [0, 0, 0], // two in c
+                [0, 0, 0], // three in c
+            ],
+        ];
+        assert!(answer.abs_diff_eq(&contingency, 0));
     }
 
     #[test]
     fn test_cond_mi() {
+        // NOTE: this test needs a little work to get the ground truth
+        // and to make it a proper test, but I think it's working fine.
         let a = array![0,1,2,0,1,2,2,0,3,0,2,1,1];
         let av = a.view();
         let b = array![1,2,3,1,2,2,1,2,1,1,2,2,3];
@@ -392,7 +423,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_sum_NaN() {
-        // just makin sure that a vector of entirely NaN values sums to 0.0.
+        // just making sure that a vector of entirely NaN values sums to 0.0.
         let nan = f64::NAN;
         let v = vec![nan, nan, nan];
         let s = v.iter().filter(|a| !a.is_nan()).sum::<f64>();
@@ -404,8 +435,36 @@ mod tests {
         // read in shapes
         let fname = "../test_data/shapes.npy";
         let arr: Array4<f64> = ndarray_npy::read_npy(fname).unwrap();
-        assert_eq!((2000, 56, 5, 2), arr.dim());
+        assert_eq!((2000, 5, 56, 2), arr.dim());
         assert!(AbsDiff::default().epsilon(1e-6).eq(&125522.42816848765, &arr.sum()));
+
+        // make a test array for comparing. I looked in python at the values
+        // in my test records database at records.X[0,0:3,0:2,:] (note the shape and
+        // length axes are permuted in python relative to rust)
+        // and copied them here. So we know this is what the values in our records
+        // database at slice s![0, 0..2, 0..3, ..] should be.
+        let test_arr = ndarray::array![
+            [ // first strand
+                // first shape | second shape
+                [0.14024065, -0.83476579], // first value
+                [-0.95497207, -2.22381607], // second value
+                [-0.54092823, -1.30891276] // third value
+            ],
+            [ // second strand
+                // first shape | second shape
+                [-0.91056253, -0.10117361], // first value
+                [ 0.40469446,  0.60029678], // second value
+                [ 0.03372454,  1.85484959] // third value
+            ]
+        ];
+        // check that when I slice as below, I get the values in test_arr
+        assert!(
+            test_arr
+            .abs_diff_eq(
+                &arr.slice(s![0,0..2,0..3,..]),
+                1e-6,
+            )
+        );
 
         // read in y-vals
         let fname = "../test_data/y_vals.npy";
@@ -419,7 +478,7 @@ mod tests {
         let fname = "../test_data/hits.npy";
         let hits: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000,2), hits.dim());
-        assert_eq!(75, hits.sum());
+        assert_eq!(1323, hits.sum());
 
         // read in some other parameters we'll need
         let fname = "../test_data/test_args.pkl";
@@ -439,15 +498,230 @@ mod tests {
         answer.insert(String::from("alpha"), 0.01);
         answer.insert(String::from("kmer"), 15.0);
         answer.insert(String::from("threshold"), 0.8711171869882366);
-        answer.insert(String::from("mi"), -0.00029399390650398265);
-        answer.insert(String::from("cmi"), 0.00020892030803142857);
+        answer.insert(String::from("mi"), 0.0020298099145125295);
+        answer.insert(String::from("cmi"), 0.0006904180945122333);
 
         // check if what we read in is what we expect to see
         assert_eq!(answer, hash);
     }
 
+    ///////////////////////////////////////////////////////////////////
+    // Here I was testing whether transposing shapes was causing
+    // the distance calculation issue I'm having. This test fails
+    // for reasons beyond my current understanding, but I have found
+    // that these arrays transpose as I thought they would, and
+    // permuting array axes isn't causing my issue.
+    ///////////////////////////////////////////////////////////////////
+    #[test]
+    #[ignore]
+    fn test_transpose_arr() {
+        let fname = String::from("../test_data/transpose_target.npy");
+        let arr: Array4<i64> = ndarray_npy::read_npy(fname).unwrap();
+        
+        let check0 = arr.slice(s![0, 0..3, 0..3, 0]);
+        println!("{:?}", check0);
+        let answer0 = arr2(&[[0, 2, 4],
+                             [10, 12, 14],
+                             [20, 22, 24]]);
+        println!("{:?}", answer0);
+        assert_eq!(check0, answer0);
+
+        let check1 = arr.slice(s![0, 0..3, 0..3, 1]);
+        let answer1 = arr2(&[[1, 3, 5],
+                             [11, 13, 15],
+                             [21, 23, 25]]);
+        assert_eq!(check1, answer1);
+
+        let transposed = arr.permuted_axes([0,2,1,3]);
+        let check_t0 = transposed.slice(s![0, 0..3, 0..3, 0]);
+        let answer_t0 = arr2(&[[0, 10, 20],
+                               [2, 12, 14],
+                               [4, 14, 24]]);
+        assert_eq!(check_t0, answer_t0);
+
+        let check_t1 = transposed.slice(s![0, 0..3, 0..3, 1]);
+        let answer_t1 = arr2(&[[1, 11, 21],
+                               [3, 13, 15],
+                               [5, 15, 25]]);
+        assert_eq!(check_t1, answer_t1);
+    }
+
     #[test]
     fn test_db_from_file() {
+        // read in shapes
+        let shape_fname = String::from("../test_data/shapes.npy");
+        // read in y-vals
+        let y_fname = String::from("../test_data/y_vals.npy");
+        let rec_db = RecordsDB::new_from_files(
+            shape_fname,
+            y_fname,
+        );
+        for (i,rec) in rec_db.iter().enumerate() {
+            if i > 0 {
+                break
+            }
+            let test_arr = ndarray::array![
+                [ // first strand
+                    // first shape | second shape
+                    [0.14024065, -0.83476579], // first value
+                    [-0.95497207, -2.22381607], // second value
+                    [-0.54092823, -1.30891276] // third value
+                ],
+                [ // second strand
+                    // first shape | second shape
+                    [-0.91056253, -0.10117361], // first value
+                    [ 0.40469446,  0.60029678], // second value
+                    [ 0.03372454,  1.85484959] // third value
+                ]
+            ];
+ 
+            println!("test arr: {:?}", test_arr);
+            println!("stranded seq arr: {:?}", rec.seq.params.slice(s![0..2,0..3,..]));
+            // check that when I slice as below, I get the values in test_arr
+            assert!(
+                test_arr
+                .abs_diff_eq(
+                    &rec.seq.params.slice(s![0..2,0..3,..]),
+                    1e-6,
+                )
+            );
+
+        }
+    }
+    
+    #[test]
+    fn test_simple_db_dist() {
+        /////////////////////////////////////////////////////////////////////
+        // This test reads in a simple array of shape (2,3,2), sliced from
+        // actual shapes from the python implementaion. We manually subtract
+        // 0.5 from each element, multiply the differences by 0.1, take the
+        // element-wise absolute value, and sum the first two axes. This
+        // leaves us with a distance for each strand of [0.483, 0.792].
+        // We then repeat all the above operations, but using the tools
+        // we've implemented in rust.
+        // WE GET THE SAME RESULT! I'm thinking that, although my unit
+        // test in python went fine, there MUST be something going wrong
+        // in the python implementation.
+        /////////////////////////////////////////////////////////////////////
+        // read in shapes
+        let shape_fname = String::from("../test_data/subset_shapes.npy");
+        // read in y-vals
+        let y_fname = String::from("../test_data/subset_y_vals.npy");
+        let subset_rec_db = RecordsDB::new_from_files(
+            shape_fname,
+            y_fname,
+        );
+
+        let rec_db_seq_params = ndarray::array![
+            [ // first strand
+                // first shape | second shape
+                [0.14024065, -0.83476579], // first value
+                [-0.95497207, -2.22381607], // second value
+                [-0.54092823, -1.30891276] // third value
+            ],
+            [ // second strand
+                // first shape | second shape
+                [-0.91056253, -0.10117361], // first value
+                [ 0.40469446,  0.60029678], // second value
+                [ 0.03372454,  1.85484959] // third value
+            ]
+        ];
+        let manual_diff = &rec_db_seq_params - 0.5;
+        let w_diff_ans = manual_diff * 0.1; // weights of 0.1
+        let abs_diff = w_diff_ans.mapv(|a: f64| a.abs()); // abs value of each
+        // check abs val works as expected
+        for elem in abs_diff.iter() {
+            assert!(elem >= &0.0);
+        }
+        // sum over each of the first two axes to get the manhattan for each strand
+        let answer_diffs = abs_diff.sum_axis(Axis(0)).sum_axis(Axis(0));
+
+        // set up the seed to use in our implemented distance calculations
+        let mut param_vec = Vec::new();
+        let p = Param::new(ParamType::EP, Array::from_vec(vec![0.5; 3])).unwrap();
+        param_vec.push(p);
+        let p = Param::new(ParamType::MGW, Array::from_vec(vec![0.5; 3])).unwrap();
+        param_vec.push(p);
+
+        let seq = Sequence::new(param_vec).unwrap();
+        let sv = seq.view();
+        let seed = Seed::new(sv, 1);
+
+        // only one record in subset_rec_db
+        let mut dists = ndarray::array![0.0, 0.0];
+        for (i,rec) in subset_rec_db.iter().enumerate() {
+            for (j,window) in rec.seq.window_iter(0, 4, 3).enumerate() {
+                println!("{:?}", window);
+                let these_dists = stranded_weighted_manhattan_distance(
+                        &window.params,
+                        &seed.params.params,
+                        &ndarray::Array::from_elem((2,3), 0.1).view(),
+                );
+                println!("{:?}", these_dists);
+                dists.assign(&these_dists);
+            }
+        }
+        assert!(answer_diffs.abs_diff_eq(&dists, 1e-6));
+        println!("{:?}", answer_diffs);
+    }
+
+    #[test]
+    fn test_manual_dist() {
+        ////////////////////////////////////////////////////////////////////
+        // to further test distance calculation and broadcasting accuracy,
+        //   I'll create the following:
+        //
+        //   test_arr1 - a 3d array of shape (2,5,2) with values of 0
+        //      for first index of final
+        //      axis and of 1 for second index of final axis.
+        //   test_arr2 - a 2d array of shape (2,5) with values of 0.5
+        //   test_weights - a 2d array of shape (2,5) with values of 1.0
+        //   answer_arr - a 1d array with values [5.0, 5.0].
+        //
+        // running the test arrays through my stranded weighted distance
+        //   calculation should yield answer_arr
+        ////////////////////////////////////////////////////////////////////
+
+        // a is 2x5 and all 0.0
+        let a = Array::zeros((2,5));
+        // b is 2x5 and all 1.0
+        let b = Array::ones((2,5));
+        // test_arr1 is 2x5x2
+        let test_arr1 = ndarray::stack![Axis(2), a, b];
+        // test_arr2 is 2x5 and all 0.5
+        let test_arr2 = Array::from_elem((2, 5), 0.5);
+        // weights are 0.5 to keep things simple
+        let test_weights = Array::from_elem((2, 5), 0.5);
+        // each distance should be 2.5
+        let answer_arr = Array::from_elem(2, 2.5);
+        
+        let test_res = stranded_weighted_manhattan_distance(
+            &test_arr1.view(), 
+            &test_arr2.view(),
+            &test_weights.view(),
+        );
+        assert!(
+            test_res
+            .abs_diff_eq(
+                &answer_arr,
+                1e-6,
+            )
+        );
+    }
+
+    #[test]
+    fn test_db_operations() {
+        //////////////////////////////////////////////////////////////////////////////
+        // We're testing several aspects of working with rec_db structs and seeds here.
+        // Although the math look right everywhere I've investigated it, our rust
+        // implementation's distance calculations comparing a seed to plus strands
+        // match the values we get in our python implementation. The minus strand
+        // comparisons do not match, however. I do not understand this, especially since
+        // I have done tests with simplified examples and achieved correct results, i.e.,
+        // matching minus strand distances between python and rust.
+        // I'm a somewhat of a loss for ideas on what else to test here.
+        //////////////////////////////////////////////////////////////////////////////
+
         // read in shapes
         let shape_fname = String::from("../test_data/shapes.npy");
         // read in y-vals
@@ -473,30 +747,124 @@ mod tests {
         let max_count = *hash.get("max_count").unwrap() as i64;
         let threshold = *hash.get("threshold").unwrap();
 
-        let seeds = rec_db.make_seed_vec(kmer, alpha);
-        let test_seed = &seeds.seeds[0];
-        let hits = rec_db.get_hits(
+        let mut seeds = rec_db.make_seed_vec(kmer, alpha);
+        let test_seed = &mut seeds.seeds[1];
+
+        let mut dists: ndarray::Array2<f64> = ndarray::Array2::zeros((42, 2));
+        let mut minus_dists = ndarray::Array1::zeros(42);
+        //////////////////////////////////////////////////////////////////////////////
+        // The second record in the database was compared to the second seed in python.
+        // So look at second record in rec_db and second seed, just like I did in python
+        // when I made the file "../test_data/distances.npy"
+        //////////////////////////////////////////////////////////////////////////////
+        for (i,rec) in rec_db.iter().enumerate() {
+            // skip all but i == 1
+            if i != 1 {
+                continue
+            }
+            for (j,window) in rec.seq.window_iter(0, rec.seq.params.raw_dim()[1]+1, kmer).enumerate() {
+                // calculate just some minus strand distances
+                let this_minus_dist = weighted_manhattan_distance(
+                        &window.params.slice(s![..,..,1]),
+                        &test_seed.params.params,
+                        &seeds.weights.weights_norm.view(),
+                );
+                // calculate stranded distances
+                let these_dists = stranded_weighted_manhattan_distance(
+                        &window.params,
+                        &test_seed.params.params,
+                        &seeds.weights.weights_norm.view(),
+                );
+                // place the respective distances into their appropriate containers
+                dists.row_mut(j).assign(
+                    &these_dists
+                );
+                minus_dists[j] = this_minus_dist;
+            }
+        }
+
+        // read in the distances output by python
+        let dist_answer: Array2<f64> = ndarray_npy::read_npy(
+            String::from("../test_data/distances.npy")
+        ).unwrap();
+        //println!("Dist answer: {:?}", dist_answer);
+        //println!("Minus dists: {:?}", minus_dists);
+        //println!("Distances: {:?}", dists);
+
+        // assert that all but the final 5 plus strand distances are the same
+        // between the python and rust implementations.
+        // the reason we stop the comparison where we do is that in python,
+        // it hit the max count for each strand at that point, so its distances
+        // after that point are all 0.0, whereas the way I looped over the
+        // sequences above calculated the distances for all sequences.
+        assert!(
+            dists
+            .abs_diff_eq(
+                &dist_answer,
+                1e-6,
+            )
+        );
+        // assert that the minus strand distances are equal when
+        // calculated for just the minus strand, or when sliced from the
+        // stranded distance calc results
+        assert!(
+            minus_dists
+            .abs_diff_eq(
+                &dists.slice(s![..,1]),
+                1e-6,
+            )
+        );
+        // assert that the minus strand distances calculated in rust
+        // are equal to those calculated in python.
+        assert!(
+            minus_dists
+            .abs_diff_eq(
+                &dist_answer.slice(s![..,1]),
+                1e-6,
+            )
+        );
+
+        // get the test_seed hits in all elements of rec_db
+        let mut hits = rec_db.get_hits(
             &test_seed.params.params,
             &seeds.weights.weights_norm.view(),
             threshold,
             max_count,
         );
+        // sort the columns of each row of hits
 
-        let next_seed = &seeds.seeds[1];
-        let hits2 = rec_db.get_hits(
-            &next_seed.params.params,
-            &seeds.weights.weights_norm.view(),
-            threshold,
-            max_count,
-        );
-        
-        let hit_cats = categorize_hits(hits, &max_count);
+        sort_hits(&mut hits);
+
+        let hit_cats = categorize_hits(&hits, &max_count);
         let hv = hit_cats.view();
         let vv = rec_db.values.view();
         let contingency = construct_contingency_matrix(hv, vv);
         let ami = adjusted_mutual_information(contingency.view());
 
-        let hit_cats2 = categorize_hits(hits2, &max_count);
+        test_seed.update_info(
+            &rec_db,
+            &seeds.weights.weights_norm.view(),
+            threshold,
+            max_count,
+        );
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&test_seed.mi, &hash.get("mi").unwrap()));
+
+        // yields the same results as our python hit counting.
+        let fname = "../test_data/hits.npy";
+        let hits_true: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
+        assert_eq!(hits_true.sum(), hits.sum());
+        assert_eq!(hits_true, hits);
+
+        // get hits for the very first seed
+        let other_seed = &mut seeds.seeds[0];
+        let hits2 = rec_db.get_hits(
+            &other_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            threshold,
+            max_count,
+        );
+        
+        let hit_cats2 = categorize_hits(&hits2, &max_count);
         let h2v = hit_cats2.view();
         let contingency_3d = construct_3d_contingency(
             hv,
@@ -507,20 +875,71 @@ mod tests {
             contingency_3d.view()
         );
 
-        // yields the same results as our python hit counting.
-        let fname = "../test_data/hits.npy";
-        let hits_true: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
-        let hits = rec_db.get_hits(
-            &test_seed.params.params,
-            &seeds.weights.weights_norm.view(),
-            threshold,
-            max_count,
-        );
-        //assert_eq!(hits_true, hits);
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&ami, &hash.get("mi").unwrap()));
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&cmi, &hash.get("cmi").unwrap()));
+    }
 
-        // read in some other parameters we'll need
-        let fname = "../test_data/test_args.pkl";
-        let mut file = fs::File::open(fname).unwrap();
+    #[test]
+    fn test_all_seeds () {
+        // simulates args as they'll come from env::args in main.rs
+        let args = [
+            String::from("motifer"),
+            String::from("../test_data/subset_five_records.npy"),
+            String::from("../test_data/subset_five_y_vals.npy"),
+            String::from("../test_data/config.pkl"),
+        ];
+        let cfg = parse_config(&args);
+        let rec_db = RecordsDB::new_from_files(
+            cfg.shape_fname,
+            cfg.yvals_fname,
+        );
+
+        // create Seeds struct
+        let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
+        assert_eq!(seeds.seeds[0].mi, 0.0);
+        seeds.compute_mi_values(
+            &rec_db,
+            cfg.threshold,
+            cfg.max_count,
+        );
+        for i in 0..4 {
+            println!("MI1: {}, MI2: {}", seeds.seeds[i].mi, seeds.seeds[i+1].mi);
+            //assert!(seeds.seeds[i].mi > seeds.seeds[i+1].mi);
+        }
+        println!("{:?}", seeds.seeds[0]);
+        assert_ne!(seeds.seeds[0].mi, 0.0);
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+// At this point, we need to sort by mi, which is giving a strange result currently, then filter by cmi. Also need to figure out how to pass the info back to python and/or do optimization in rust.
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+        seeds.sort_seeds();
+        for i in 0..4 {
+            println!("MI1: {}, MI2: {}", seeds.seeds[i].mi, seeds.seeds[i+1].mi);
+            //assert!(seeds.seeds[i].mi > seeds.seeds[i+1].mi);
+        }
+        //println!("{:?}", seeds.seeds[0]);
+    }
+}
+
+/// Simple struct to hold command line arguments
+pub struct Config {
+    pub shape_fname: String,
+    pub yvals_fname: String,
+    pub kmer: usize,
+    pub alpha: f64,
+    pub max_count: i64,
+    pub threshold: f64,
+}
+
+impl Config {
+    pub fn new(args: &[String]) -> Config {
+        let shape_fname = args[1].clone();
+        let yvals_fname = args[2].clone();
+        let opts_fname = args[3].clone();
+
+        // read in options we'll need
+        let mut file = fs::File::open(opts_fname).unwrap();
         // open a buffered reader to open the pickle file
         let mut buf_reader = BufReader::new(file);
         // create a hashmap from the pickle file's contents
@@ -528,24 +947,19 @@ mod tests {
             buf_reader,
             de::DeOptions::new()
         ).unwrap();
+        
+        let kmer = *hash.get("kmer").unwrap() as usize;
+        let alpha = *hash.get("alpha").unwrap();
+        let max_count = *hash.get("max_count").unwrap() as i64;
+        let threshold = *hash.get("threshold").unwrap();
 
-        assert_eq!(&ami, hash.get("mi").unwrap());
-        assert_eq!(&cmi, hash.get("cmi").unwrap());
+        Config {shape_fname, yvals_fname, kmer, alpha, max_count, threshold}
     }
-}
-
-/// Simple struct to hold command line arguments
-pub struct Config {
-    pub npy_fname: String,
-    pub pkl_fname: String,
 }
 
 /// Parses arguments passed at the command line and places them into a [Config]
 pub fn parse_config(args: &[String]) -> Config {
-    let npy_fname = args[1].clone();
-    let pkl_fname = args[2].clone();
-
-    Config {npy_fname, pkl_fname}
+    Config::new(args)
 }
 
 /// Calculates the mutual information between vec1 and vec2, conditioned
@@ -649,16 +1063,8 @@ pub fn construct_3d_contingency(
 /// * `hit_arr` - a mutable 2D hits array
 /// * `max_count` - a reference to the maximum number of hits that is counted
 ///      on a strand.
-pub fn categorize_hits(mut hit_arr: ndarray::Array<i64, Ix2>, max_count: &i64) -> ndarray::Array<i64, Ix1> {
-
+pub fn categorize_hits(hit_arr: &ndarray::Array<i64, Ix2>, max_count: &i64) -> ndarray::Array<i64, Ix1> {
     let a = arr1(&[1, max_count + 1]); 
-
-    let min = hit_arr.map_axis(ndarray::Axis(1), |r| cmp::min(r[0], r[1]));
-    let max = hit_arr.map_axis(ndarray::Axis(1), |r| cmp::max(r[0], r[1]));
-    
-    hit_arr.column_mut(0).assign(&min);
-    hit_arr.column_mut(1).assign(&max);
-
     hit_arr.dot(&a)
 }
  
@@ -1133,13 +1539,14 @@ impl StrandedSequence {
     ///
     /// # Arguments
     ///
-    /// * `query` - an array which will be compared to each window in seq.
+    /// * `query` - an array which will be compared to each window in self.
     /// * `weights` - an array of weights to be applied for the distance calc
     /// * `threshold` - distance between the query and seq below which a hit is called
     /// * `max_count` - maximum number of times a hit will be counted on each strand
     pub fn count_hits_in_seq(&self, query: &ndarray::ArrayView<f64,Ix2>,
                              weights: &ndarray::ArrayView<f64, Ix2>,
-                             threshold: f64, max_count: i64) -> Array<i64, Ix1> {
+                             threshold: f64,
+                             max_count: i64) -> Array<i64, Ix1> {
     
         // set maxed to false for each strand
         let mut f_maxed = false;
@@ -1147,16 +1554,13 @@ impl StrandedSequence {
         let mut hits = ndarray::Array::zeros(2);
     
         // iterate through windows of seq
-        for window in self.window_iter(0, self.seq_len(), query.raw_dim()[1]) {
+        for window in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]) {
     
             // once both strands are maxed out, stop doing comparisons
             if f_maxed & r_maxed {
                 break
             }
             // get the distances.
-            //println!("{:?}", window);
-            //println!("{:?}", query);
-            //println!("{:?}", weights);
             let dist = stranded_weighted_manhattan_distance(
                 &window.params,
                 query,
@@ -1258,7 +1662,7 @@ impl Sequence {
         let mut hits = ndarray::Array::zeros(2);
     
         // iterate through windows of seq
-        for window in self.window_iter(0, self.seq_len(), query.raw_dim()[1]) {
+        for window in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]) {
     
             // once both strands are maxed out, stop doing comparisons
             if f_maxed & r_maxed {
@@ -1337,7 +1741,7 @@ impl<'a> Iterator for FwdStrandedSequenceIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let this_start = self.start;
         let this_end = self.start + self.size;
-        if this_end == self.end{
+        if this_end == self.end {
             None
         } else {
             let out = self.sequence.params.slice(s![..,this_start..this_end,0]);
@@ -1355,7 +1759,7 @@ impl<'a> Iterator for StrandedSequenceIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let this_start = self.start;
         let this_end = self.start + self.size;
-        if this_end == self.end{
+        if this_end == self.end {
             None
         } else {
             let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
@@ -1373,7 +1777,7 @@ impl<'a> Iterator for SequenceIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let this_start = self.start;
         let this_end = self.start + self.size;
-        if this_end == self.end{
+        if this_end == self.end {
             None
         } else {
             let out = self.sequence.params.slice(s![..,this_start..this_end]);
@@ -1479,33 +1883,41 @@ impl<'a> Seed<'a> {
         Seed{params, hits, mi}
     }
     
-    //pub fn new_from_arrayview(arr: ArrayView<'a, f64, Ix2>,
-    //                          record_num: usize) -> Seed<'a> {
-    //    let hits = ndarray::Array2::zeros((record_num, 2));
-    //    let mi = 0.0;
-    //    let params = SequenceView::new(arr);
-    //    Seed{params, hits, mi}
-    //}
-
-    pub fn new_from_stranded(seq: &'a StrandedSequenceView<'a>,
-                             record_num: usize) -> Seed<'a> {
-        let hits = ndarray::Array2::zeros((record_num, 2));
-        let mi = 0.0;
-        let fwd_params = seq.params.slice(s![..,..,0]);
-        let params = SequenceView::new(fwd_params);
-        Seed{params, hits, mi}
-    }
-
-    pub fn update_hits(&mut self, db: &RecordsDB,
+    fn update_hits(&mut self, db: &RecordsDB,
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: f64,
-                       max_count: i64){
-        self.hits = db.get_hits(&self.params.params,
-                                weights,
-                                threshold,
-                                max_count)
+                       max_count: i64) {
+        self.hits = db.get_hits(
+            &self.params.params,
+            weights,
+            threshold,
+            max_count,
+        )
     }
 
+    fn update_mi(&mut self, db: &RecordsDB, max_count: i64) {
+        let hit_cats = categorize_hits(&self.hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = db.values.view();
+        let contingency = construct_contingency_matrix(hv, vv);
+        self.mi = adjusted_mutual_information(contingency.view())
+    }
+
+    pub fn update_info(&mut self, db: &RecordsDB,
+                       weights: &ndarray::ArrayView<f64, Ix2>,
+                       threshold: f64,
+                       max_count: i64) {
+        self.update_hits(
+            db,
+            weights,
+            threshold,
+            max_count,
+        );
+        self.update_mi(
+            db,
+            max_count,
+        );
+    }
 }
 
 
@@ -1564,6 +1976,49 @@ impl<'a> MotifWeights {
     }
 }
 
+impl Seeds<'_> {
+    /// iterates over seeds, getting hits and mi, updating the Seed
+    /// structs' mi and hits values as it goes
+    ///
+    /// # Arguments
+    ///
+    /// * `rec_db` - A reference to a [RecordsDB] against which
+    ///     each [Seed] in self will be compared.
+    pub fn compute_mi_values(&mut self,
+                             rec_db: &RecordsDB,
+                             threshold: f64,
+                             max_count: i64) {
+
+        // iterate over vector of [Seed]s, updating hits and mi vals
+        for seed in self.seeds.iter_mut() {
+            // update_info does hit counting and ami calculation, placing
+            // the results into seed.hits and seed.mi
+            seed.update_info(
+                rec_db,
+                &self.weights.weights_norm.view(),
+                threshold,
+                max_count,
+            );
+        }
+    }
+
+    /// Sorts seeds by mi
+    /////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////
+    // doesn't work. for some reason all seeds are same after this //
+    /////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////
+    pub fn sort_seeds(&mut self) {
+        for i in 0..self.seeds.len() {
+            for j in 0..self.seeds.len() - i - 1 {
+                if self.seeds[j + 1].mi < self.seeds[j].mi {
+                    self.seeds.swap(j, j + 1);
+                }
+            }
+        }
+    }
+}
+
 impl RecordsDB {
 
     /// Returns a new RecordsDB holding sequence value pairs as separate
@@ -1588,16 +2043,18 @@ impl RecordsDB {
     /// * `y_val_file` - a npy file containing a 1D array of shape (R). Each
     ///      element of the array contains the given record's category.
     pub fn new_from_files(shape_file: String, y_val_file: String) -> RecordsDB {
-        // read in the shape values
+        // read in the shape values and permute axes so that,
+        //   instead of being shape (R,L,S,strand), arr is of
+        //   shape (R,S,L,strand)
         let arr: Array4<f64> = ndarray_npy::read_npy(shape_file).unwrap();
+        //let arr = input.permuted_axes([0,2,1,3]);
+        
         // iterate over records, creating StrandedSequnce structs from them,
         //   and push them into a vector
         let mut seq_vec = Vec::new();
         for r in 0..arr.raw_dim()[0] {
-            let this_slice = arr.slice(s![r,..,..,..]);
-            // swap the shape/length axes
-            let rearranged = this_slice.permuted_axes([1,0,2]).to_owned();
-            let seq = StrandedSequence::new(rearranged);
+            let seq_arr = arr.slice(s![r,..,..,..]).to_owned();
+            let seq = StrandedSequence::new(seq_arr);
             seq_vec.push(seq);
         }
 
@@ -1630,7 +2087,7 @@ impl RecordsDB {
         seed_weights.constrain_normalize(&alpha);
 
         for entry in self.iter() {
-            for window in entry.seq.fwd_strand_window_iter(0, entry.seq.seq_len(), kmer) {
+            for window in entry.seq.fwd_strand_window_iter(0, entry.seq.seq_len()+1, kmer) {
                 seed_vec.push(Seed::new(window, self.len()));
             }
         }
@@ -1658,17 +2115,27 @@ impl RecordsDB {
     /// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
     /// * `threshold` - The threshold distance below which a hit is called
     /// * `max_count` - The maximum number of hits to call for each strand
-    pub fn get_hits(&self, query: &ndarray::ArrayView<f64, Ix2>,
-                  weights: &ndarray::ArrayView<f64, Ix2>,
-                  threshold: f64, max_count: i64) -> Array<i64, Ix2> {
+    pub fn get_hits(
+        &self,
+        query: &ndarray::ArrayView<f64, Ix2>,
+        weights: &ndarray::ArrayView<f64, Ix2>,
+        threshold: f64,
+        max_count: i64) -> Array<i64, Ix2> {
 
         let mut hits = ndarray::Array2::zeros((self.len(), 2));
-        for (i, entry) in self.iter().enumerate(){
-            let this_hit = entry.seq.count_hits_in_seq(query, weights,
-                                                       threshold, max_count);
+        for (i, entry) in self.iter().enumerate() {
+            let this_hit = entry.seq.count_hits_in_seq(
+                query,
+                weights,
+                threshold,
+                max_count,
+            );
             //println!("{:?}", this_hit);
             hits.row_mut(i).assign(&this_hit);
         }
+
+        sort_hits(&mut hits);
+
         hits
     }
 }
@@ -1732,10 +2199,29 @@ pub fn stranded_weighted_manhattan_distance(
     weights: &ndarray::ArrayView::<f64, Ix2>
 ) -> ndarray::Array1<f64> {
 
-    let diffs = arr1 - &arr2.insert_axis(Axis(2));
-    let weighted_diff = diffs * &weights.insert_axis(Axis(2));
-    let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
-    abs_diffs.sum_axis(Axis(0)).sum_axis(Axis(0))
+    ////////////////////////////////////////////////////
+    // leave this here for now. It yields identical results to the code below.
+    // We could check to see which version is more performant.
+    // I'm currently just guessing that the iter methods that are currently used are faster
+    //   because they probably do clever things for memory allocation, whereas my array algebra
+    //   code that commented out here allocates new arrays.
+    ////////////////////////////////////////////////////
+    //let diffs = arr1 - &arr2.insert_axis(Axis(2));
+    //let weighted_diff = diffs * &weights.insert_axis(Axis(2));
+    //let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
+    //abs_diffs.sum_axis(Axis(0)).sum_axis(Axis(0))
+
+    let fwd_diff = ndarray::Zip::from(arr1.slice(s![..,..,0])).
+        and(arr2).
+        and(weights).
+        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
+
+    let rev_diff = ndarray::Zip::from(arr1.slice(s![..,..,1])).
+        and(arr2).
+        and(weights).
+        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
+
+    ndarray::array![fwd_diff, rev_diff]
 }
 
 pub fn weighted_manhattan_distance(
@@ -1744,15 +2230,23 @@ pub fn weighted_manhattan_distance(
     weights: &ndarray::ArrayView::<f64, Ix2>
 ) -> f64 {
 
-    let weighted_diff = (arr1 - arr2) * weights;
-    let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
-    abs_diffs.sum()
+    ////////////////////////////////////////////////////
+    // leave this here for now. It yields identical results to the code below.
+    // We could check to see which version is more performant.
+    // I'm currently just guessing that the iter methods that are currently used are faster
+    //   because they probably do clever things for memory allocation, whereas my array algebra
+    //   code that commented out here allocates new arrays.
+    ////////////////////////////////////////////////////
+    //let weighted_diff = (arr1 - arr2) * weights;
+    //let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
+    //abs_diffs.sum()
 
-    //ndarray::Zip::from(arr1).
-    //    and(arr2).
-    //    and(weights).
-    //    fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+    ndarray::Zip::from(arr1).
+        and(arr2).
+        and(weights).
+        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
 }
+
 /// Function to compute inverse-logit element-wise for an array
 ///
 /// # Arguments
@@ -1790,3 +2284,16 @@ pub fn entropy(counts_vec: ndarray::ArrayView<usize, Ix1>) -> f64{
     }
     -entropy
 }
+
+/// Sorts the columns of each row in a hits array
+pub fn sort_hits(hits: &mut Array2<i64>) {
+    // get min of each row
+    let min = hits.map_axis(ndarray::Axis(1), |r| cmp::min(r[0], r[1]));
+    // get max of each row
+    let max = hits.map_axis(ndarray::Axis(1), |r| cmp::max(r[0], r[1]));
+    
+    // re-assign the columns to each row's min and max
+    hits.column_mut(0).assign(&min);
+    hits.column_mut(1).assign(&max);
+}
+

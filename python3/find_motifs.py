@@ -21,6 +21,7 @@ import cvlogistic
 import numba
 from numba import jit,prange
 import pickle
+import tempfile
 
 
 class BasinHoppingBounds:
@@ -1642,6 +1643,8 @@ if __name__ == "__main__":
         help="Run initial CMI filtering step prior to optimization, then exit, saving the retained seeds as a list in a pickle file.")
     parser.add_argument("--debug", action="store_true",
         help="print debugging information to stderr. Write extra txt files.")
+    parser.add_argument("--make_it_rusty", action="store_true",
+        help="set this argument to use rust for initial mi calculation")
     #parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
     #parser.add_argument('--save_opt', action='store_true', help="write motifs to pickle file after initial weights optimization step?")
 
@@ -1749,6 +1752,30 @@ if __name__ == "__main__":
         ),
     )
 
+    shape_fname = os.path.join(
+        out_direc,
+        'shapes.npy'.format(
+            out_pref,
+            max_count,
+        ),
+    )
+
+    yval_fname = os.path.join(
+        out_direc,
+        'y_vals.npy'.format(
+            out_pref,
+            max_count,
+        ),
+    )
+
+    config_fname = os.path.join(
+        out_direc,
+        'config.pkl'.format(
+            out_pref,
+            max_count,
+        ),
+    )
+
     cmi_fname = os.path.join(
         out_direc,
         "{}_cmi_filtered_seeds_opim_{}_max_count_{}.pkl".format(
@@ -1821,78 +1848,46 @@ if __name__ == "__main__":
                             alpha = alpha,
                         )
 
-                    # Here's where I'll write the shapes and necessary options to some npy files
-                    #  that I can read into rust using ndarray-npy
-                    with open('shapes.npy', 'wb') as f:
-                        np.save(f, records.X)
-                    with open('y_vals.npy', 'wb') as f:
-                        np.save(f, records.y.astype(np.int64))
-                        
-                    hits = np.zeros((records.X.shape[0], 2), dtype='int64')
-                    inout.optim_generate_peak_array(
-                        ref = records.windows,
-                        query = records.windows[0,:,:,0,:],
-                        weights = weights,
-                        threshold = match_threshold,
-                        results = hits,
-                        R = records.X.shape[0],
-                        W = records.X.shape[3],
-                        dist = this_dist,
-                        max_count = max_count,
-                        alpha = alpha,
-                    )
-                    hits = np.sort(hits, axis=1)
-                    mi = inout.adjusted_mutual_information(records.y, hits)
-                    with open('hits.npy', 'wb') as f:
-                        np.save(f, hits)
-
-                    hits2 = np.zeros((records.X.shape[0], 2), dtype='int64')
-                    inout.optim_generate_peak_array(
-                        ref = records.windows,
-                        query = records.windows[0,:,:,1,:],
-                        weights = weights,
-                        threshold = match_threshold,
-                        results = hits2,
-                        R = records.X.shape[0],
-                        W = records.X.shape[3],
-                        dist = this_dist,
-                        max_count = max_count,
-                        alpha = alpha,
-                    )
-                    hits2 = np.sort(hits2, axis=1)
-
-                    cmi = inout.conditional_adjusted_mutual_information(
-                        records.y,
-                        hits,
-                        hits2,
-                    )
-                    args_dict = {
-                        'alpha': args.alpha,
-                        'max_count': float(args.max_count),
-                        'kmer': float(args.kmer),
-                        'threshold': float(match_threshold),
-                        'cores': float(args.p),
-                        'mi': float(mi),
-                        'cmi': float(cmi),
-                    }
-                    with open('test_args.pkl', 'wb') as f:
-                        pickle.dump(args_dict, f)
-
-                    raise()
-
-
-
                     logging.info("Using {} as an initial match threshold".format(match_threshold))
 
                     logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
                     # generate initial MI score for the given shapes, weights, and threshold
-                    mi_results = records.compute_mi(
-                        dist = this_dist,
-                        max_count = max_count,
-                        alpha = alpha,
-                        weights = weights,
-                        threshold = match_threshold,
-                    )
+                    if args.make_it_rusty:
+                        RUST = "motifer {} {} {}".format(
+                            shape_fname,
+                            yval_fname,
+                            config_fname,
+                        )
+                        args_dict = {
+                            'alpha': args.alpha,
+                            'max_count': float(args.max_count),
+                            'kmer': float(args.kmer),
+                            'threshold': float(match_threshold),
+                            'cores': float(args.p),
+                        }
+
+                        with open(shape_fname, 'wb') as shape_f:
+                            np.save(shape_fname, records.X.transpose((0,2,1,3)))
+                        with open(yval_fname, 'wb') as f:
+                            np.save(f, records.y.astype(np.int64))
+                        with open(config_fname, 'wb') as f:
+                            pickle.dump(args_dict, f)
+
+                        retcode = subprocess.call(RUST, shell=True)
+
+                        os.remove(shape_fname)
+                        os.remove(yval_fname)
+                        os.remove(config_fname)
+
+                    else:
+                        mi_results = records.compute_mi(
+                            dist = this_dist,
+                            max_count = max_count,
+                            alpha = alpha,
+                            weights = weights,
+                            threshold = match_threshold,
+                        )
+                    raise()
 
                     mi_dict = {
                         'mi_results' : mi_results,
