@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::cmp;
 use std::iter;
@@ -11,7 +12,9 @@ use itertools::Itertools;
 use statrs::function::gamma::ln_gamma;
 use ndarray_npy;
 use serde_pickle::de;
+use serde::{Serialize, Deserialize};
 use std::io::BufReader;
+use ordered_float::OrderedFloat;
 
 #[cfg(test)]
 mod tests {
@@ -918,6 +921,10 @@ mod tests {
             println!("MI1: {}, MI2: {}", seeds.seeds[i].mi, seeds.seeds[i+1].mi);
             //assert!(seeds.seeds[i].mi > seeds.seeds[i+1].mi);
         }
+        for i in 0..2 {
+            println!("\n====================\n{:?}\n====================\n{:?}\n", seeds.seeds[i], seeds.seeds[i+1]);
+            //assert!(seeds.seeds[i].mi > seeds.seeds[i+1].mi);
+        }
         //println!("{:?}", seeds.seeds[0]);
     }
 }
@@ -933,6 +940,14 @@ pub struct Config {
 }
 
 impl Config {
+    /// Returns a Config struct containing options contained in
+    /// command line arguments
+    ///
+    /// # Arguments
+    ///
+    /// * `args` - an array of [String] structs. Comes from env::args in main.rs
+    ///
+    /// STILL NEEDS GOOD ERROR HANDLING, IMO
     pub fn new(args: &[String]) -> Config {
         let shape_fname = args[1].clone();
         let yvals_fname = args[2].clone();
@@ -1436,12 +1451,31 @@ pub struct MotifWeights {
 // This way we can calculate all our initial MIs without copying unnecessarily.
 // After filtering by CMI we can then create Motif structs that each own their
 //  shapes and weights. 
+
+// We'll need to do something to serialize either the [Seeds] struct,
+//  the [Seed] struct, or both, to be able to rapidly pass seeds back to python.
+// Uncommenting the next line just yield a bunch of not implemented errors.
+//#[derive(Debug, Serialize, Deserialize)]
 #[derive(Debug)]
 pub struct Seed<'a> {
     params: SequenceView<'a>,
     hits: ndarray::Array2::<i64>,
     mi: f64,
 }
+
+// Implementing PartialOrd, and PartialEq for Seed should enable
+// sorting of seeds by MI, without any attention to hits or params
+//impl PartialOrd for Seed<'_> {
+//    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+//        Some(self.mi.cmp(other.mi))
+//    }
+//}
+//
+//impl PartialEq for Seed<'_> {
+//    fn eq(&self, other: &Self) -> bool {
+//        self.mi == other.mi
+//    }
+//}
 
 // We have to create a container to hold the weights with the seeds
 #[derive(Debug)]
@@ -2005,17 +2039,18 @@ impl Seeds<'_> {
     /// Sorts seeds by mi
     /////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////
-    // doesn't work. for some reason all seeds are same after this //
+    // doesn't work. for some reason every seed's mi is the same after this, but the params and hits are still different //
     /////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////
     pub fn sort_seeds(&mut self) {
-        for i in 0..self.seeds.len() {
-            for j in 0..self.seeds.len() - i - 1 {
-                if self.seeds[j + 1].mi < self.seeds[j].mi {
-                    self.seeds.swap(j, j + 1);
-                }
-            }
-        }
+        self.seeds.sort_by_key(|seed| OrderedFloat(seed.mi));
+        //for i in 0..self.seeds.len() {
+        //    for j in 0..self.seeds.len() - i - 1 {
+        //        if self.seeds[j + 1].mi < self.seeds[j].mi {
+        //            self.seeds.swap(j, j + 1);
+        //        }
+        //    }
+        //}
     }
 }
 
