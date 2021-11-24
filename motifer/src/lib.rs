@@ -10,7 +10,7 @@ use ndarray::Array;
 use ndarray_stats::QuantileExt;
 use itertools::Itertools;
 use statrs::function::gamma::ln_gamma;
-use ndarray_npy;
+use ndarray_npy; // check provenance
 use serde_pickle::de;
 use serde::{Serialize, Deserialize};
 use std::io::BufReader;
@@ -900,32 +900,21 @@ mod tests {
         // create Seeds struct
         let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
         assert_eq!(seeds.seeds[0].mi, 0.0);
+
         seeds.compute_mi_values(
             &rec_db,
             cfg.threshold,
             cfg.max_count,
         );
-        for i in 0..4 {
-            println!("MI1: {}, MI2: {}", seeds.seeds[i].mi, seeds.seeds[i+1].mi);
-            //assert!(seeds.seeds[i].mi > seeds.seeds[i+1].mi);
-        }
-        println!("{:?}", seeds.seeds[0]);
+
+        // test the first seed's MI has changed from its initial val of 0.0
         assert_ne!(seeds.seeds[0].mi, 0.0);
-///////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////
-// At this point, we need to sort by mi, which is giving a strange result currently, then filter by cmi. Also need to figure out how to pass the info back to python and/or do optimization in rust.
-///////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////
         seeds.sort_seeds();
-        for i in 0..4 {
-            println!("MI1: {}, MI2: {}", seeds.seeds[i].mi, seeds.seeds[i+1].mi);
-            //assert!(seeds.seeds[i].mi > seeds.seeds[i+1].mi);
+
+        // test the seeds are sorted in descending order
+        for i in 0..seeds.len()-1 {
+            assert!(seeds.seeds[i].mi >= seeds.seeds[i+1].mi);
         }
-        for i in 0..2 {
-            println!("\n====================\n{:?}\n====================\n{:?}\n", seeds.seeds[i], seeds.seeds[i+1]);
-            //assert!(seeds.seeds[i].mi > seeds.seeds[i+1].mi);
-        }
-        //println!("{:?}", seeds.seeds[0]);
     }
 }
 
@@ -2011,6 +2000,11 @@ impl<'a> MotifWeights {
 }
 
 impl Seeds<'_> {
+    /// Return the length of the vector of seeds in Seeds
+    pub fn len(&self) -> usize {
+        self.seeds.len()
+    }
+
     /// iterates over seeds, getting hits and mi, updating the Seed
     /// structs' mi and hits values as it goes
     ///
@@ -2037,20 +2031,8 @@ impl Seeds<'_> {
     }
 
     /// Sorts seeds by mi
-    /////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////
-    // doesn't work. for some reason every seed's mi is the same after this, but the params and hits are still different //
-    /////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////
     pub fn sort_seeds(&mut self) {
-        self.seeds.sort_by_key(|seed| OrderedFloat(seed.mi));
-        //for i in 0..self.seeds.len() {
-        //    for j in 0..self.seeds.len() - i - 1 {
-        //        if self.seeds[j + 1].mi < self.seeds[j].mi {
-        //            self.seeds.swap(j, j + 1);
-        //        }
-        //    }
-        //}
+        self.seeds.sort_unstable_by_key(|seed| OrderedFloat(-seed.mi));
     }
 }
 

@@ -2,8 +2,13 @@ use motifer;
 use std::env;
 use std::time;
 
-//On Jeremy's laptop, MI calculation took 35.85545999308333 minutes 
 //  I ran target/release/motifer ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/test_args.pkl
+// On Jeremy's laptop
+//   MI calculation took 36.28 minutes 
+// Running on lighthouse to see how that does
+//   MI calculation 38.79 minutes
+// Python's MI calculation on 1 core on lighthouse
+//
 
 fn main() {
     let args: Vec<String> = env::args().collect();
