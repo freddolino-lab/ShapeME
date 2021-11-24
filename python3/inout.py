@@ -4,83 +4,108 @@ import logging
 from numba import jit,prange
 import welfords
 from scipy import stats
+from scipy import sparse
 from collections import OrderedDict
+import pickle
+import glob
+from sklearn import cluster 
+from sklearn import metrics
+from math import log
+from emi import _expected_mutual_info_fast as exp_mi
 
-#@jit(nopython=True, parallel=True)
-#def get_all_mi(indices, rec_num, win_num, y_vals,
-#               windows, weights, thresholds, mi_arr,
-#               hits_arr, dist, max_count):
-#    
-#    for i in prange(len(indices)):
-#        r,w = indices[i]
-#
-#        mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
-#            y_vals,
-#            windows[r,:,:,w],
-#            weights[r,:,:,w],
-#            thresholds[r,w],
-#            windows,
-#            rec_num,
-#            win_num,
-#            dist,
-#            max_count,
-#        )
+def consolidate_optim_batches(fname_list):
 
+    opt_results = []
+    for fname in fname_list:
+        with open(fname, 'rb') as f:
+            opt_results.extend(pickle.load(f))
+
+    return opt_results
+
+
+def consolidate_optim_batches(fname_list):
+
+    opt_results = []
+    for fname in fname_list:
+        with open(fname, 'rb') as f:
+            opt_results.extend(pickle.load(f))
+
+    return opt_results
+
+@jit(nopython=True)
+def bin_hits(hits_arr, distinct_hits, binned_hits):
+    for bin_id in range(distinct_hits.shape[0]):
+        rows_y = (hits_arr == distinct_hits[bin_id,:])[:,0]
+        binned_hits[rows_y] = bin_id
+        
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
-                       ref, R, W, dist_func, max_count=4, alpha=0.1):
+                       ref, R, W, dist_func, max_count=4, alpha=0.1,
+                       parallel=True):
 
     # R for record number, 2 for one forward count and one reverse count
     hits = np.zeros((R,2))
-
-    optim_generate_peak_array(
-        ref,
-        query_shapes,
-        query_weights,
-        threshold,
-        hits,
-        R,
-        W,
-        dist_func,
-        max_count,
-        alpha,
-    )
+    
+    if parallel:
+        optim_generate_peak_array(
+            ref = ref,
+            query = query_shapes,
+            weights = query_weights,
+            threshold = threshold,
+            results = hits,
+            R = R,
+            W = W,
+            dist = dist_func,
+            max_count = max_count,
+            alpha = alpha,
+        )
+    else:
+        optim_generate_peak_array_series(
+            ref = ref,
+            query = query_shapes,
+            weights = query_weights,
+            threshold = threshold,
+            results = hits,
+            R = R,
+            W = W,
+            dist = dist_func,
+            max_count = max_count,
+            alpha = alpha,
+        )
 
     # sort the counts such that for each record, the
     #  smaller of the two numbers comes first.
     hits = np.sort(hits, axis=1)
-    unique_hits = np.unique(hits, axis=0)
-
-    this_mi = mutual_information(y_vals, hits, unique_hits)
+    #unique_hits = np.unique(hits, axis=0)
+    this_mi = adjusted_mutual_information(y_vals, hits)
 
     return this_mi,hits
 
-@jit(nopython=True, parallel=True)
-def binary_optim_generate_peak_array(ref, query, weights, threshold,
-                                     results, R, W, dist):
+@jit(nopython=True, parallel=False)
+def optim_generate_peak_array_series(ref, query, weights, threshold,
+                              results, R, W, dist, max_count, alpha):
     """Does same thing as generate_peak_vector, but hopefully faster
     
     Args:
     -----
     ref : np.array
         The windows attribute of an inout.RecordDatabase object. Will be an
-        array of shape (R,L,S,W), where R is the number of records,
+        array of shape (R,L,S,W,2), where R is the number of records,
         L is the window size, S is the number of shape parameters, and
         W is the number of windows for each record.
     query : np.array
-        A slice of the first and final indices of the windows attribute of
+        A slice of the records and windows axes of the windows attribute of
         an inout.RecordDatabase object to check for matches in ref.
-        Should be an array of shape (L,S).
+        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
     weights : np.array
-        A slice of the first and final indices of the weights attribute of
-        and inout.RecordDatabase object. Will be applied to the distance
-        calculation. Should be an array of shape (L,S).
-    threshold : np.array
+        Weights to be applied to the distance
+        calculation. Should be an array of shape (L,S,1).
+    threshold : float
         Minimum distance to consider a match.
     results : 2d np.array
         Array of shape (R,2), where R is the number of records in ref.
-        This array should be populated with zeros, will be set to 1
-        when a match is found. The final axis is of length 2 so that
+        This array should be populated with zeros, and will be incremented
+        by 1 when matches are found. The final axis is of length 2 so that
         we can do the reverse-complement and the forward.
     R : int
         Number of records
@@ -88,32 +113,100 @@ def binary_optim_generate_peak_array(ref, query, weights, threshold,
         Number of windows for each record
     dist : function
         The distance function to use for distance calculation.
+    max_count : int
+        The maximum number of hits to count for each strand.
+    alpha : float
+        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+        prior to normalizing the sum of weights to one and calculating distance.
     """
     
-    for r in prange(R):
-        f_hit = False
-        r_hit = False
+    for r in range(R):
+        f_maxed = False
+        r_maxed = False
         for w in range(W):
-
-            if f_hit and r_hit:
-                break
             
-            ref_seq = ref[r,:,:,w]
+            if f_maxed and r_maxed:
+                break
 
-            if not f_hit:
-                distance = dist(query, ref_seq, weights)
-                if distance < threshold:
-                    # if a window has a distance low enough,
-                    #   add 1 to this result's index
-                    results[r,0] = 1
-                    f_hit = True
+            ref_seq = ref[r,:,:,w,:]
 
-            if not r_hit:
-                # slice query backward to do rc comparison
-                rc_distance = dist(query[::-1,:], ref_seq, weights)
-                if rc_distance < threshold:
-                    results[r,1] = 1
-                    r_hit = True
+            distances = dist(query, ref_seq, weights, alpha)
+
+            if (not f_maxed) and (distances[0] < threshold):
+                # if a window has a distance low enough,
+                #   add 1 to this result's index
+                results[r,0] += 1
+                if results[r,0] == max_count:
+                    f_maxed = True
+
+            if (not r_maxed) and (distances[1] < threshold):
+                results[r,1] += 1
+                if results[r,1] == max_count:
+                    r_maxed = True
+
+def testing_optim_generate_peak_array(ref, query, weights, threshold,
+                              results, R, W, dist, max_count, alpha, dists, lt):
+    """Does same thing as generate_peak_vector, but hopefully faster
+    
+    Args:
+    -----
+    ref : np.array
+        The windows attribute of an inout.RecordDatabase object. Will be an
+        array of shape (R,L,S,W,2), where R is the number of records,
+        L is the window size, S is the number of shape parameters, and
+        W is the number of windows for each record.
+    query : np.array
+        A slice of the records and windows axes of the windows attribute of
+        an inout.RecordDatabase object to check for matches in ref.
+        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
+    weights : np.array
+        Weights to be applied to the distance
+        calculation. Should be an array of shape (L,S,1).
+    threshold : float
+        Minimum distance to consider a match.
+    results : 2d np.array
+        Array of shape (R,2), where R is the number of records in ref.
+        This array should be populated with zeros, and will be incremented
+        by 1 when matches are found. The final axis is of length 2 so that
+        we can do the reverse-complement and the forward.
+    R : int
+        Number of records
+    W : int
+        Number of windows for each record
+    dist : function
+        The distance function to use for distance calculation.
+    max_count : int
+        The maximum number of hits to count for each strand.
+    alpha : float
+        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+        prior to normalizing the sum of weights to one and calculating distance.
+    """
+    
+    for r in range(R):
+        f_maxed = False
+        r_maxed = False
+        for w in range(W):
+            
+            if f_maxed and r_maxed:
+                break
+
+            ref_seq = ref[r,:,:,w,:]
+
+            distances = dist(query, ref_seq, weights, alpha)
+            dists[w,:] = distances
+            lt[w,:] = distances < threshold
+
+            if (not f_maxed) and (distances[0] < threshold):
+                # if a window has a distance low enough,
+                #   add 1 to this result's index
+                results[r,0] += 1
+                if results[r,0] == max_count:
+                    f_maxed = True
+
+            if (not r_maxed) and (distances[1] < threshold):
+                results[r,1] += 1
+                if results[r,1] == max_count:
+                    r_maxed = True
 
 
 @jit(nopython=True, parallel=True)
@@ -125,18 +218,17 @@ def optim_generate_peak_array(ref, query, weights, threshold,
     -----
     ref : np.array
         The windows attribute of an inout.RecordDatabase object. Will be an
-        array of shape (R,L,S,W), where R is the number of records,
+        array of shape (R,L,S,W,2), where R is the number of records,
         L is the window size, S is the number of shape parameters, and
         W is the number of windows for each record.
     query : np.array
-        A slice of the first and final indices of the windows attribute of
+        A slice of the records and windows axes of the windows attribute of
         an inout.RecordDatabase object to check for matches in ref.
-        Should be an array of shape (L,S).
+        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
     weights : np.array
-        A slice of the first and final indices of the weights attribute of
-        and inout.RecordDatabase object. Will be applied to the distance
-        calculation. Should be an array of shape (L,S).
-    threshold : np.array
+        Weights to be applied to the distance
+        calculation. Should be an array of shape (L,S,1).
+    threshold : float
         Minimum distance to consider a match.
     results : 2d np.array
         Array of shape (R,2), where R is the number of records in ref.
@@ -164,24 +256,21 @@ def optim_generate_peak_array(ref, query, weights, threshold,
             if f_maxed and r_maxed:
                 break
 
-            ref_seq = ref[r,:,:,w]
+            ref_seq = ref[r,:,:,w,:]
 
-            if not f_maxed:
-                distance = dist(query, ref_seq, weights, alpha)
-                if distance < threshold:
-                    # if a window has a distance low enough,
-                    #   add 1 to this result's index
-                    results[r,0] += 1
-                    if results[r,0] == max_count:
-                        f_maxed = True
+            distances = dist(query, ref_seq, weights, alpha)
 
-            if not r_maxed:
-                # slice query backward to do rc comparison
-                rc_distance = dist(query[::-1,:], ref_seq, weights, alpha)
-                if rc_distance < threshold:
-                    results[r,1] += 1
-                    if results[r,1] == max_count:
-                        r_maxed = True
+            if (not f_maxed) and (distances[0] < threshold):
+                # if a window has a distance low enough,
+                #   add 1 to this result's index
+                results[r,0] += 1
+                if results[r,0] == max_count:
+                    f_maxed = True
+
+            if (not r_maxed) and (distances[1] < threshold):
+                results[r,1] += 1
+                if results[r,1] == max_count:
+                    r_maxed = True
 
 
 @jit(nopython=True)
@@ -206,7 +295,12 @@ def inv_logit(x):
 def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
     w_floor_inv_logit = a + (1-a) * inv_logit(w)
     w_trans = w_floor_inv_logit/np.sum(w_floor_inv_logit)
-    return np.sum(np.abs(vec1 - vec2) * w_trans)
+    w_abs_diff = (np.abs(vec1 - vec2)) * w_trans
+    #NOTE: this seems crazy, but it's necessary instead of np.sum(arr, axis=(0,1))
+    #  in order to get jit(nopython=True) to work
+    first_sum = np.sum(w_abs_diff, axis=0)
+    second_sum = np.sum(first_sum, axis=0)
+    return second_sum
 
 @jit(nopython=True)
 def hamming_distance(vec1, vec2):
@@ -288,7 +382,7 @@ class FastaEntry(object):
     def __str__(self):
         return "<FastaEntry>" + self.chrm_name() + ":" + str(len(self))
 
-    def write(self,fhandle, wrap = 70, delim = None):
+    def write(self, fhandle, wrap = 70, delim = None):
         fhandle.write(self.header+"\n")
         if delim:
             convert = lambda x: delim.join([str(val) for val in x])
@@ -398,12 +492,6 @@ class FastaFile(object):
     def __iter__(self):
         for name in self.names:
             yield self.pull_entry(name)
-
-    def copy(self):
-        new_fa = FastaFile()
-        for name,entry in self.data.items():
-            new_fa.add_entry(entry)
-        return new_fa
 
     def read_whole_file(self, fhandle):
         """ 
@@ -579,13 +667,15 @@ class RecordDatabase(object):
         A vector. Binary if looking at peak presence/absence,
         categorical if looking at signal magnitude.
     X : np.array
-        Array of shape (R,P,S), where R is the number of records in
+        Array of shape (R,P,S,2), where R is the number of records in
         the input data, P is the number of positions (the length of)
         each record, and S is the number of shape parameters present.
+        The final axis is of length 2, one index for each strand.
     windows : np.array
-        Array of shape (R,L,S,W), where R and S are described above
+        Array of shape (R,L,S,W,2), where R and S are described above
         for the data attribute, L is the length of each window,
         and W is the number of windows each record was chunked into.
+        The final axis is of length 2, one index for each strand.
     weights : np.array
         Array of shape (R,L,S,W), where the axis lengths are described
         above for the windows attribute. Values are weights applied
@@ -598,6 +688,7 @@ class RecordDatabase(object):
 
     def __init__(self, infile=None, shape_dict=None, y=None, X=None,
                  shape_names=None, record_names=None, weights=None, windows=None,
+                 shift_params=["HelT", "Roll"],
                  exclude_na=True):
 
         self.record_name_lut = {}
@@ -621,7 +712,11 @@ class RecordDatabase(object):
         if infile is not None:
             self.read_infile(infile)
         if shape_dict is not None:
-            self.read_shapes(shape_dict, exclude_na)
+            self.read_shapes(
+                shape_dict,
+                shift_params=shift_params,
+                exclude_na=exclude_na,
+            )
 
     def __len__(self):
         """Length method returns the total number of records in the database
@@ -680,9 +775,9 @@ class RecordDatabase(object):
         for val in self.y:
             yield val
 
-    def discretize_quant(self,nbins=10):
-        """Discretize data into n equally populated bins according to the
-        n quantiles
+    def quantize_quant(self,nbins=10):
+        """Quantize data into n equally populated bins according to the
+        nbins quantiles
         
         Prints bin divisions to the logger
 
@@ -697,8 +792,26 @@ class RecordDatabase(object):
         bins = []
         for quant in quants:
             bins.append(np.percentile(values, quant))
-        logging.warning("Discretizing on bins: {}".format(bins))
+        logging.warning("Quantizing on bins: {}".format(bins))
         self.y = np.digitize(values, bins)
+
+    def discretize_quant(self, nbins=10):
+        """Discretize data into nbins bins according to K-means clustering
+        
+        Prints bin divisions to the logger
+
+        Modifies:
+        ---------
+        self.y : np.array
+            converts the values into their new categories
+        """
+
+        values = self.y
+        k_means = cluster.KMeans(n_clusters=nbins)
+        k_means.fit(values.reshape(-1,1))
+        self.y[...] = k_means.labels_
+        print(self.y)
+
 
     def read_infile(self, infile):#, keep_inds=None):
         """Method to read a sequence file in FIRE/TEISER/iPAGE format
@@ -723,10 +836,10 @@ class RecordDatabase(object):
                 scores.append(linearr[1])
             self.y = np.asarray(
                 scores,
-                dtype=int,
+                dtype=float,
             )
 
-    def read_shapes(self, shape_dict, exclude_na=True):
+    def read_shapes(self, shape_dict, shift_params=["HelT","Roll"], exclude_na=True):
         """Parses info in shapefiles and inserts into database
 
         Args:
@@ -762,19 +875,28 @@ class RecordDatabase(object):
                         break
                     record_length = len(rec_data)
 
-                self.X = np.zeros((record_count,record_length,shape_count))
+                self.X = np.zeros((record_count,record_length,shape_count,2))
 
             for rec_name,rec_data in this_shape_dict.items():
                 r_idx = self.record_name_lut[rec_name]
-                while len(rec_data) < self.X.shape[1]:
+                if shape_name in shift_params:
+                    #while len(rec_data) < self.X.shape[1]:
                     rec_data = np.append(rec_data, np.nan)
-                self.X[r_idx,:,s_idx] = rec_data
+                    rec_data = np.append(np.nan, rec_data)
+                    fwd_data = rec_data[1:]
+                    rev_data = rec_data[1:]
+                    rev_data = rev_data[::-1]
+                    self.X[r_idx,:,s_idx,0] = fwd_data
+                    self.X[r_idx,:,s_idx,1] = rev_data
+                else:
+                    self.X[r_idx,:,s_idx,0] = rec_data
+                    self.X[r_idx,:,s_idx,1] = rec_data[::-1]
 
         if exclude_na:
             # identifies which positions have at least one NA for any shape
-            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2))
+            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2,3))
             # grabs complete cases from X
-            self.X = self.X[:,complete_positions,:]
+            self.X = self.X[:,complete_positions,:,:]
 
     #def set_center_spread(self, center_spread):
     #    """Method to set the center spread for the database for each
@@ -800,8 +922,8 @@ class RecordDatabase(object):
         for shape_recs in self.iter_shapes():
             shape_cent_spreads.append(method(shape_recs))
 
-        self.shape_centers = ([x[0] for x in shape_cent_spreads])
-        self.shape_spreads = ([x[1] for x in shape_cent_spreads])
+        self.shape_centers = np.array([x[0] for x in shape_cent_spreads])
+        self.shape_spreads = np.array([x[1] for x in shape_cent_spreads])
 
     def normalize_shape_values(self):
         """Method to normalize each parameter based on self.center_spread
@@ -812,7 +934,11 @@ class RecordDatabase(object):
 
         # normalize shape values
         if not self.normalized:
-            self.X = ( self.X - self.shape_centers ) / self.shape_spreads
+            self.X = (
+                ( self.X
+                - self.shape_centers[:,np.newaxis] )
+                / self.shape_spreads[:,np.newaxis]
+            )
             self.normalized = True
         else:
             print("X vals are already normalized. Doing nothing.")
@@ -842,7 +968,7 @@ class RecordDatabase(object):
         #L = self.windows.shape[1]
         #S = self.windows.shape[2]
         #self.weights = np.full_like(self.windows, 1.0/L/S)
-        self.weights = np.zeros_like(self.windows)
+        weights = np.zeros_like(self.windows[0,:,:,0,0])
 
         #x_vals = np.linspace(0,1,self.windows.shape[1])
         #w = stats.beta.pdf(x_vals, 2, 2)
@@ -854,6 +980,7 @@ class RecordDatabase(object):
         #for rec in range(self.weights.shape[0]):
         #    for win in range(self.weights.shape[-1]):
         #        self.weights[rec,:,:,win] = w
+        return weights
 
     def compute_windows(self, wsize):
         """Method to precompute all nmers.
@@ -863,21 +990,22 @@ class RecordDatabase(object):
         """
 
         #(R,L,S,W)
-        rec_num, rec_len, shape_num = self.X.shape
-        window_count = rec_len - wsize
+        rec_num, rec_len, shape_num, strand_num = self.X.shape
+        window_count = rec_len - wsize + 1
         
-        self.windows = np.zeros((rec_num, wsize, shape_num, window_count))
+        self.windows = np.zeros((
+            rec_num, wsize, shape_num, window_count, strand_num
+        ))
 
         for i,rec in enumerate(self.iter_records()):
             for j in range(window_count):
-                self.windows[i, :, :, j] = self.X[i, j:(j+wsize), :]
+                self.windows[i, :, :, j, :] = self.X[i, j:(j+wsize), :, :]
 
     def permute_records(self):
 
         rand_order = np.random.permutation(self.windows.shape[0])
 
         permuted_windows = self.windows[rand_order,...]
-        permuted_weights = self.weights[rand_order,...]
         permuted_shapes = self.X[rand_order,...]
         permuted_vals = self.y[rand_order,...]
 
@@ -888,13 +1016,13 @@ class RecordDatabase(object):
             y = permuted_vals,
             X = permuted_shapes,
             shape_names = [rev_lut[idx] for idx in range(shape_count)],
-            weights = permuted_weights,
             windows = permuted_windows,
         )
         return(permuted_records)
 
-    def set_initial_thresholds(self, dist, threshold_sd_from_mean=2.0,
-                               seeds_per_seq=1, max_seeds=10000):
+    def set_initial_threshold(self, dist, weights, alpha=0.1,
+                              threshold_sd_from_mean=2.0,
+                              seeds_per_seq=1, max_seeds=10000):
         """Function to determine a reasonable starting threshold given a sample
         of the data
 
@@ -917,15 +1045,13 @@ class RecordDatabase(object):
 
         for i,record_windows in enumerate(shuffled_db.windows):
 
-            record_weights = shuffled_db.weights[i,...]
             rand_order = np.random.permutation(record_windows.shape[2])
             curr_seeds_per_seq = 0
             for index in rand_order:
                 window = record_windows[:,:,index]
-                window_weights = record_weights[:,:,index]
                 if curr_seeds_per_seq >= seeds_per_seq:
                     break
-                total_seeds.append((window, window_weights))
+                total_seeds.append((window, weights))
                 curr_seeds_per_seq += 1
                 seed_counter += 1
             if seed_counter >= max_seeds:
@@ -941,8 +1067,13 @@ class RecordDatabase(object):
             for j, seed_j in enumerate(total_seeds):
                 if i >= j:
                     continue
-                distance = dist(seed_i[0], seed_j[0], seed_i[1])
-                online_mean.update(distance)
+                distances = dist(
+                    seed_i[0],
+                    seed_j[0],
+                    seed_i[1],
+                    alpha,
+                )
+                online_mean.update(distances[0]) # just use + strand for initial thresh
 
         mean = online_mean.final_mean()
         stdev = online_mean.final_stdev()
@@ -951,10 +1082,7 @@ class RecordDatabase(object):
         thresh = max(mean - threshold_sd_from_mean * stdev, 0)
         logging.info("Setting initial threshold for each seed to {}".format(thresh))
 
-        # set up thresholds array of shape (R,W)
-        self.thresholds = np.zeros((self.windows.shape[0], self.windows.shape[-1]))
-        # set values to the calculated initial threshold
-        self.thresholds[...] = thresh
+        return thresh
 
     def mutual_information(self, arr):
         """Method to calculate the MI between the values in the database and
@@ -985,29 +1113,42 @@ class RecordDatabase(object):
         ).copy()
         return flat
 
-    def compute_mi(self, dist, max_count):
+    def compute_mi(self, dist, max_count, alpha, weights, threshold):
         
-        rec_num,win_len,shape_num,win_num = self.windows.shape
-        mi_arr = np.zeros((rec_num,win_num))
-        hits_arr = np.zeros((rec_num,win_num,rec_num,2))
+        rec_num,win_len,shape_num,win_num,strand_num = self.windows.shape
+        #mi_arr = np.zeros((rec_num,win_num))
+        #hits_arr = np.zeros((rec_num,win_num,rec_num,strand_num))
+        results = []
 
         for r in range(rec_num):
             for w in range(win_num):
 
-                mi_arr[r,w],hits_arr[r,w,:,:] = run_query_over_ref(
-                    self.y,
-                    self.windows[r,:,:,w],
-                    self.weights[r,:,:,w],
-                    self.thresholds[r,w],
-                    self.windows,
-                    rec_num,
-                    win_num,
-                    dist,
-                    max_count,
+                query = self.windows[r,:,:,w,0]
+                query = query[...,None]
+
+                mi,hits = run_query_over_ref(
+                    y_vals = self.y,
+                    query_shapes = query,
+                    query_weights = weights,
+                    threshold = threshold,
+                    ref = self.windows,
+                    R = rec_num,
+                    W = win_num,
+                    dist_func = dist,
+                    max_count = max_count,
+                    alpha = alpha,
+                )
+                results.append(
+                    {
+                        'seq': query,
+                        'mi': mi,
+                        'hits': hits,
+                        'row_index': r,
+                        'col_index': w
+                    }
                 )
 
-        self.mi = mi_arr
-        self.hits = hits_arr
+        return results
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with
@@ -1435,6 +1576,61 @@ class SeqDatabase(object):
     def shannon_entropy(self):
         return entropy(self.get_values())
 
+
+class FIREfile(object):
+
+    def __init__(self):
+        self.data = {}
+        self.names = []
+
+    def __iter__(self):
+        for name in self.names:
+            yield (name, self.data[name])
+
+    def __len__(self):
+        return len(self.names)
+
+    def __add__(self, other):
+        newfile = FIREfile()
+        for name, score in self:
+            newfile.add_entry(name, score)
+        for name, score in other:
+            newfile.add_entry(name, score)
+        return newfile
+
+    def add_entry(self, name, score):
+        self.data[name] = score
+        self.names.append(name)
+
+    def pull_value(self, name):
+        return self.data[name]
+
+    def discretize_quant(self, nbins=10):
+        # first pull all the values
+        all_vals = [val for name, val in self]
+        all_vals = np.array(all_vals)
+        quants = np.arange(0,100, 100.0/nbins)
+        bins = []
+        for quant in quants:
+            bins.append(np.percentile(all_vals, quant))
+        all_vals = np.digitize(all_vals, bins)
+        for new_val, (name, old_val) in zip(all_vals, self):
+            self.data[name] = new_val
+
+    def shuffle(self):
+        size = len(self)
+        subset = np.random.permutation(size)
+        shuffled_names = [self.names[val] for val in subset]
+        self.names = shuffled_names
+
+
+    def write(self, fname):
+        with open(fname, mode="w") as outf:
+            outf.write("name\tscore\n")
+            for name, score in self:
+                outf.write("%s\t%s\n"%(name, score))
+
+
 class ShapeMotifFile(object):
     """ Class to store a dna shape motif file .dsm for writing and reading
         Currently no error checking on input file format
@@ -1651,25 +1847,49 @@ class ShapeMotifFile(object):
                 string += ",%d,%s\n"%(i,motif["name"])
                 f.write(string)
 
-def entropy(array):
+@jit(nopython=True)
+def entropy_ln(array):
     """Method to calculate the entropy of any discrete numpy array
-        
-    Uses log2 so entropy is in bits
 
     Args:
         array (np.array): an array of discrete categories
+        uniquey : unique values in y
+
     Returns:
         entropy of array
     """
     entropy = 0
-    total = array.size 
+    total = array.shape[0]
     for val in np.unique(array):
         num_this_class = np.sum(array == val)
-        p_i = num_this_class/float(total)
+        p_i = num_this_class/total
         if p_i == 0:
             entropy += 0
         else:
-            entropy += p_i*np.log2(p_i)
+            entropy += p_i*np.log(p_i)
+    return -entropy
+
+
+def entropy(array, logfunc=np.log2):
+    """Method to calculate the entropy of any discrete numpy array
+
+    Args:
+        array (np.array): an array of discrete categories
+        uniquey : unique values in y
+        logfunc : function
+            defaults to np.log2, but sometimes you may want natural log (np.log)
+    Returns:
+        entropy of array
+    """
+    entropy = 0
+    total = array.shape[0]
+    for val in np.unique(array):
+        num_this_class = np.sum(array == val)
+        p_i = num_this_class/total
+        if p_i == 0:
+            entropy += 0
+        else:
+            entropy += p_i*logfunc(p_i)
     return -entropy
 
 
@@ -1702,6 +1922,7 @@ def joint_entropy(arrayx, arrayy):
                 entropy += p_x_y*np.log2(p_x_y)
     return -entropy
 
+
 def conditional_entropy(arrayx, arrayy):
     """Method to calculate the conditional entropy H(X|Y) of the two arrays
     
@@ -1731,6 +1952,130 @@ def conditional_entropy(arrayx, arrayy):
                 entropy += p_x_y*np.log2(p_x/p_x_y)
     return -entropy
 
+
+def get_contingency_matrix(y_val_arr, hits_cats):
+
+    y_classes, y_idx = np.unique(y_val_arr, return_inverse=True)
+    hits_classes, hits_idx = np.unique(hits_cats, return_inverse=True)
+
+    n_y_classes = y_classes.shape[0]
+    n_hits_classes = hits_classes.shape[0]
+    
+    contingency = sparse.coo_matrix(
+        (np.ones(y_idx.shape[0]), (y_idx, hits_idx)),
+        shape=(n_y_classes, n_hits_classes),
+        dtype=np.int64,
+    )
+    contingency = contingency.tocsr()
+    contingency.sum_duplicates()
+    return contingency.toarray()
+
+def mutual_information_contingency(contingency):
+    '''Calculates mutual information using contingency matrix
+
+    Args:
+    -----
+    contingency: np.ndarray
+        contingency matrix returned by get_contingency_matrix function
+    '''
+
+    # get non-zeros
+    nzx, nzy = np.nonzero(contingency)
+    nz_val = contingency[nzx, nzy]
+    log_contingency_nm = np.log(nz_val)
+
+    contingency_sum = contingency.sum()
+    contingency_nm = nz_val / contingency_sum
+
+    p_i = np.ravel(contingency.sum(axis=1))
+    p_j = np.ravel(contingency.sum(axis=0))
+
+    # get outer product for non-zeros
+    outer = (
+        p_i.take(nzx).astype(np.int64, copy=False)
+        * p_j.take(nzy).astype(np.int64, copy=False)
+    )
+    log_outer = -np.log(outer) + log(p_i.sum()) + log(p_j.sum())
+    mi = (
+        contingency_nm * (log_contingency_nm - log(contingency_sum))
+        + contingency_nm * log_outer
+    )
+    mi = np.where(np.abs(mi) < np.finfo(mi.dtype).eps, 0.0, mi)
+    return np.clip(mi.sum(), 0.0, None)
+    
+
+def adjusted_mutual_information(y_vals, hits):
+    '''Calculated adjusted mutual information, which accounts for
+    the effect that increasing the number of categories has on
+    increasing mutual information between two vectors simply by
+    random chance.
+
+    Args:
+    -----
+    y_vals : np.array
+    hits : np.array
+
+    Returns:
+    --------
+    ami : float
+        Adjusted mutual information, the max of which is 1.0
+    '''
+
+    distinct_hits,hits_cats = np.unique(hits, return_inverse=True, axis=0)
+    distinct_y_vals = np.unique(y_vals)
+    # special case where there is only one category in each vector,
+    #  just return 0.0.
+    if (
+        distinct_y_vals.shape[0] == distinct_hits.shape[0] == 1
+        or distinct_y_vals.shape[0] == distinct_hits.shape[0] == 0
+    ):
+        return 0.0
+    contingency = get_contingency_matrix(y_vals, hits_cats)
+    mi = mutual_information_contingency(contingency)
+    expect_mi = exp_mi.expected_mutual_information(contingency, y_vals.shape[0])
+    h_y, h_hits = entropy_ln(y_vals), entropy_ln(hits_cats)
+    mean_h = np.mean([h_y, h_hits])
+    denominator = mean_h - expect_mi
+    if denominator < 0:
+        denominator = min(denominator, -np.finfo("float64").eps)
+    else:
+        enominator = max(denominator, np.finfo("float64").eps)
+    ami = (mi - expect_mi) / denominator
+    return ami
+
+def conditional_adjusted_mutual_information(y_vals, hits_a, hits_b):
+    """Method to calculate the conditional adjusted mutual information
+        
+    Args:
+        y_vals (np.array): an array of discrete categories from the input data
+        hits_a (np.array): number of hits in each record on each strand for motif a
+        hits_b (np.array): number of hits in each record on each strand for motif b
+    Returns:
+        conditional adjusted mutual information
+    """
+
+    CMI = 0
+    total = y_vals.shape[0]
+    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
+    distinct_b,b_cats = np.unique(hits_b, return_inverse=True, axis=0)
+    distinct_b = np.unique(b_cats)
+    for b in distinct_b:
+        # set the indices we will look at in y_vals and hits_a
+        subset = (b_cats == b)
+
+        total_subset = np.sum(subset)
+        p_z = total_subset/total
+
+        y_cond_b = y_vals[subset]
+        a_cond_b = hits_a[subset,:]
+
+        ami_cond_b = adjusted_mutual_information(y_cond_b, a_cond_b)
+
+        CMI += p_z*ami_cond_b
+
+    return CMI
+
+
 @jit(nopython=True)
 def mutual_information(arrayx, arrayy, uniquey):
     """Method to calculate the mutual information between two discrete
@@ -1748,26 +2093,24 @@ def mutual_information(arrayx, arrayy, uniquey):
 
     total_x = arrayx.size 
     total_y = arrayy.size
-    #if total_x != total_y:
-    #    raise ValueError("Array sizes must be the same {} {}".format(total_x, total_y))
-    #else:
-    #    total = total_x + 0.0
     total = total_x
     MI = 0
     for x in np.unique(arrayx):
+        # p(x_i)
+        row_is_x = arrayx == x
+        p_x = np.sum(row_is_x)/total
         for y in uniquey:
-            # p(x_i)
-            p_x = np.sum(arrayx == x)/total
             # p(y_j)
             row_is_y = (arrayy == y)[:,0]
             p_y = np.sum(row_is_y)/total
             # p(x_i,y_j)
-            p_x_y = np.sum(np.logical_and(arrayx == x, row_is_y))/total
+            p_x_y = np.sum(np.logical_and(row_is_x, row_is_y))/total
             if p_x_y == 0 or p_x == 0 or p_y == 0:
                 MI += 0
             else:
                 MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
     return MI
+
 
 @jit(nopython=True)
 def conditional_mutual_information(arrayx, uniquex, arrayy, uniquey, arrayz, uniquez):

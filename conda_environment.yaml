@@ -17,3 +17,5 @@ dependencies:
     - r-glmnet
     - jupyter
     - rpy2
+    - seaborn
+    - cython

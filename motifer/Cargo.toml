@@ -10,6 +10,11 @@ ndarray = { version = "0.15.3", features = ["approx"] }
 ndarray-stats = "0.5.0"
 approx = "0.5.0"
 itertools = "0.10.1"
+statrs = "0.15.0"
+ndarray-npy = "0.8.1"
+serde-pickle = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+ordered-float = "2.8.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
