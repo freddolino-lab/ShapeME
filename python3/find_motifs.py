@@ -22,6 +22,7 @@ import numba
 from numba import jit,prange
 import pickle
 import tempfile
+import time
 
 
 class BasinHoppingBounds:
@@ -1880,6 +1881,7 @@ if __name__ == "__main__":
                         os.remove(config_fname)
 
                     else:
+                        start = time.time()
                         mi_results = records.compute_mi(
                             dist = this_dist,
                             max_count = max_count,
@@ -1887,6 +1889,8 @@ if __name__ == "__main__":
                             weights = weights,
                             threshold = match_threshold,
                         )
+                        end = time.time()
+                        print("MI calcualtion took {} minutes.".format(end/60))
                     raise()
 
                     mi_dict = {
