@@ -915,6 +915,11 @@ mod tests {
         for i in 0..seeds.len()-1 {
             assert!(seeds.seeds[i].mi >= seeds.seeds[i+1].mi);
         }
+
+        seeds.filter_seeds(
+            &rec_db,
+            &cfg.max_count,
+        );
     }
 }
 
@@ -964,6 +969,17 @@ impl Config {
 /// Parses arguments passed at the command line and places them into a [Config]
 pub fn parse_config(args: &[String]) -> Config {
     Config::new(args)
+}
+
+/// Get the AIC
+///
+/// # Arguments
+///
+/// * `par_num` - number of parameters
+/// * `rec_num` - number of records in the RecordsDB
+/// * `mi` - adjusted mutual information
+pub fn calc_aic(par_num: usize, rec_num: usize, mi: f64) -> f64 {
+    2.0 * par_num as f64 - 2.0 * rec_num as f64 * mi
 }
 
 /// Calculates the mutual information between vec1 and vec2, conditioned
@@ -2033,6 +2049,73 @@ impl Seeds<'_> {
     /// Sorts seeds by mi
     pub fn sort_seeds(&mut self) {
         self.seeds.sort_unstable_by_key(|seed| OrderedFloat(-seed.mi));
+    }
+
+    /// Filters seeds based on conditional mutual information
+    pub fn filter_seeds(&mut self, rec_db: &RecordsDB, max_count: &i64) -> Vec<Seed> {
+
+        // get number of parameters in model (shape number * seed length * 2)
+        //  we multiply by two because we'll be optimizing shape AND weight values
+        //  then add one for the threshold
+        let rec_num = rec_db.len();
+        let delta_k = self.seeds[0].params.params.raw_dim()[1]
+            * self.seeds[0].params.params.raw_dim()[0]
+            * 2 + 1;
+
+        self.sort_seeds();
+        let mut top_seeds = Vec::new();
+
+        // Make sure first seed passes AIC
+        let aic = calc_aic(delta_k, rec_num, self.seeds[0].mi);
+        if aic < 0.0 {
+            top_seeds.push(self.seeds[0]);
+        } else {
+            return top_seeds
+        }
+
+        // loop through candidate seeds
+        for cand_seed in self.seeds[1..self.seeds.len()-1].iter() {
+
+            let cand_hits = cand_seed.hits;
+            let cand_cats = categorize_hits(&cand_hits, max_count);
+            //let cc_view = cand_cats.view();
+            let mut seed_pass = true;
+
+            // if this seed doesn't pass AIC skip it
+            if calc_aic(delta_k, rec_num, cand_seed.mi) > 0.0 {
+                continue
+            }
+
+            for good_seed in top_seeds.iter() {
+
+                // check the conditional mutual information for this seed with
+                //   each of the chosen seeds
+                let good_seed_hits = good_seed.hits;
+                let good_cats = categorize_hits(&good_seed_hits, max_count);
+                //let gc_view = good_cats.view();
+
+                let contingency = construct_3d_contingency(
+                    cand_cats.view(),
+                    rec_db.values.view(),
+                    good_cats.view(),
+                );
+                let cmi = conditional_adjusted_mutual_information(
+                    contingency.view()
+                );
+                let this_aic = calc_aic(delta_k, rec_num, cmi);
+
+                // if candidate seed doesn't improve model as added to each of the
+                //   chosen seeds, skip it
+                if this_aic > 0.0 {
+                    seed_pass = false;
+                    break
+                }
+            }
+            if seed_pass {
+                top_seeds.push(*cand_seed);
+            }
+        }
+        return top_seeds
     }
 }
 
