@@ -918,7 +918,8 @@ mod tests {
 
         seeds.filter_seeds(
             &rec_db,
-            &cfg,
+            cfg.threshold,
+            cfg.max_count,
         );
     }
 }
@@ -1431,8 +1432,6 @@ pub struct SequenceView<'a> {
 ///                 considered a match.
 #[derive(Debug)]
 pub struct Motif<'a> {
-    // NOTE: we'll need to make this its own Sequence so that we can update
-    //  shapes as well as weights during optimization.
     params: SequenceView<'a>,
     weights: MotifWeights, // the MotifWeights struct contains two 2D-Arrays.
     threshold: f64,
@@ -1469,20 +1468,6 @@ pub struct Seed<'a> {
     hits: ndarray::Array2::<i64>,
     mi: f64,
 }
-
-// Implementing PartialOrd, and PartialEq for Seed should enable
-// sorting of seeds by MI, without any attention to hits or params
-//impl PartialOrd for Seed<'_> {
-//    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-//        Some(self.mi.cmp(other.mi))
-//    }
-//}
-//
-//impl PartialEq for Seed<'_> {
-//    fn eq(&self, other: &Self) -> bool {
-//        self.mi == other.mi
-//    }
-//}
 
 // We have to create a container to hold the weights with the seeds
 #[derive(Debug)]
@@ -1890,17 +1875,6 @@ impl<'a> Motif<'a> {
         Motif{params, weights, threshold, hits, mi}
     }
 
-    /// Returns a new motif from a seed.
-    pub fn from_seed(seed: Seed,
-            threshold: f64,
-            rec_num: usize) -> Motif {
-        let weights = MotifWeights::new(&seed.params);
-        let hits = seed.hits;
-        let params = seed.params;
-        let mi = seed.mi;
-        Motif{params, weights, threshold, hits, mi}
-    }
-
     /// Does constrained normalization of weights
     ///
     /// # Arguments
@@ -1972,6 +1946,17 @@ impl<'a> Seed<'a> {
             max_count,
         );
     }
+
+    /// Returns a new motif from a seed.
+    pub fn to_motif(&self,
+            threshold: f64) -> Motif<'a> {
+        let weights = MotifWeights::new(&self.params);
+        let hits = &self.hits;
+        let params = &self.params;
+        let mi = self.mi;
+        Motif{params, weights, threshold, hits, mi}
+    }
+
 }
 
 
@@ -2030,7 +2015,7 @@ impl<'a> MotifWeights {
     }
 }
 
-impl Seeds<'_> {
+impl<'a> Seeds<'a> {
     /// Return the length of the vector of seeds in Seeds
     pub fn len(&self) -> usize {
         self.seeds.len()
@@ -2067,7 +2052,7 @@ impl Seeds<'_> {
     }
 
     /// Filters seeds based on conditional mutual information
-    pub fn filter_seeds(&self, rec_db: &RecordsDB, config: &Config) -> Vec<Motif> {
+    pub fn filter_seeds(&mut self, rec_db: &'a RecordsDB, threshold: f64, max_count: i64) -> Vec<Motif<'a>> {
 
         // get number of parameters in model (shape number * seed length * 2)
         //  we multiply by two because we'll be optimizing shape AND weight values
@@ -2083,7 +2068,7 @@ impl Seeds<'_> {
         // Make sure first seed passes AIC
         let aic = calc_aic(delta_k, rec_num, self.seeds[0].mi);
         if aic < 0.0 {
-            let motif = Motif::from_seed(self.seeds[0], config.threshold, rec_num);
+            let motif = self.seeds[0].to_motif(threshold);
             top_motifs.push(motif);
         } else {
             return top_motifs
@@ -2092,8 +2077,8 @@ impl Seeds<'_> {
         // loop through candidate seeds
         for cand_seed in self.seeds[1..self.seeds.len()-1].iter() {
 
-            let cand_hits = cand_seed.hits;
-            let cand_cats = categorize_hits(&cand_hits, &config.max_count);
+            let cand_hits = &cand_seed.hits;
+            let cand_cats = categorize_hits(&cand_hits, &max_count);
             //let cc_view = cand_cats.view();
             let mut seed_pass = true;
 
@@ -2106,11 +2091,8 @@ impl Seeds<'_> {
 
                 // check the conditional mutual information for this seed with
                 //   each of the chosen seeds
-                ////////////////////////////////////////////////////////////////
-                // place hits and mi as fields in Motif ////////////////////////
-                ////////////////////////////////////////////////////////////////
-                let good_motif_hits = good_motif.hits;
-                let good_cats = categorize_hits(&good_motif_hits, &config.max_count);
+                let good_motif_hits = &good_motif.hits;
+                let good_cats = categorize_hits(&good_motif_hits, &max_count);
                 //let gc_view = good_cats.view();
 
                 let contingency = construct_3d_contingency(
@@ -2131,7 +2113,7 @@ impl Seeds<'_> {
                 }
             }
             if seed_pass {
-                let motif = Motif::from_seed(self.seeds[0], config.threshold, rec_num);
+                let motif = cand_seed.to_motif(threshold);
                 top_motifs.push(motif);
             }
         }
