@@ -1951,6 +1951,8 @@ impl<'a> Seed<'a> {
     pub fn to_motif(&self,
             threshold: f64) -> Motif<'a> {
         let weights = MotifWeights::new(&self.params);
+        // I think I may just need to copy the hits and params
+        //  to make the motif own them.
         let hits = &self.hits;
         let params = &self.params;
         let mi = self.mi;
