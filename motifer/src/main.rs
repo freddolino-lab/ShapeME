@@ -6,9 +6,9 @@ use std::time;
 // On Jeremy's laptop
 //   MI calculation took 36.28 minutes 
 // Running on lighthouse to see how that does
-//   MI calculation 38.79 minutes
+//   MI calculation took 38.79 minutes
 // Python's MI calculation on 1 core on lighthouse
-//
+//   MI calculation took {time} minutes
 
 fn main() {
     let args: Vec<String> = env::args().collect();
