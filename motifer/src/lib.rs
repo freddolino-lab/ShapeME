@@ -885,10 +885,16 @@ mod tests {
     #[test]
     fn test_all_seeds () {
         // simulates args as they'll come from env::args in main.rs
+        //let args = [
+        //    String::from("motifer"),
+        //    String::from("../test_data/subset_five_records.npy"),
+        //    String::from("../test_data/subset_five_y_vals.npy"),
+        //    String::from("../test_data/config.pkl"),
+        //];
         let args = [
             String::from("motifer"),
-            String::from("../test_data/subset_five_records.npy"),
-            String::from("../test_data/subset_five_y_vals.npy"),
+            String::from("../test_data/shapes.npy"),
+            String::from("../test_data/y_vals.npy"),
             String::from("../test_data/config.pkl"),
         ];
         let cfg = parse_config(&args);
@@ -916,11 +922,13 @@ mod tests {
             assert!(seeds.seeds[i].mi >= seeds.seeds[i+1].mi);
         }
 
-        seeds.filter_seeds(
+        let motifs = filter_seeds(
+            &mut seeds,
             &rec_db,
             cfg.threshold,
             cfg.max_count,
         );
+        println!("{:?}", motifs);
     }
 }
 
@@ -1306,6 +1314,74 @@ pub fn get_probs(vec: ndarray::ArrayView::<i64, Ix1>) -> HashMap<i64, f64> {
     p_i
 }
 
+/// Filters seeds based on conditional mutual information
+pub fn filter_seeds<'a>(seeds: &mut Seeds<'a>, rec_db: &'a RecordsDB, threshold: f64, max_count: i64) -> Vec<Motif<'a>> {
+
+    // get number of parameters in model (shape number * seed length * 2)
+    //  we multiply by two because we'll be optimizing shape AND weight values
+    //  then add one for the threshold
+    let rec_num = rec_db.len();
+    let delta_k = seeds.seeds[0].params.params.raw_dim()[1]
+        * seeds.seeds[0].params.params.raw_dim()[0]
+        * 2 + 1;
+
+    seeds.sort_seeds();
+    let mut top_motifs = Vec::new();
+
+    // Make sure first seed passes AIC
+    let aic = calc_aic(delta_k, rec_num, seeds.seeds[0].mi);
+    if aic < 0.0 {
+        let motif = seeds.seeds[0].to_motif(threshold);
+        top_motifs.push(motif);
+    } else {
+        return top_motifs
+    }
+
+    // loop through candidate seeds
+    for cand_seed in seeds.seeds[1..seeds.seeds.len()-1].iter() {
+
+        let cand_hits = &cand_seed.hits;
+        let cand_cats = categorize_hits(&cand_hits, &max_count);
+        //let cc_view = cand_cats.view();
+        let mut seed_pass = true;
+
+        // if this seed doesn't pass AIC skip it
+        if calc_aic(delta_k, rec_num, cand_seed.mi) > 0.0 {
+            continue
+        }
+
+        for good_motif in top_motifs.iter() {
+
+            // check the conditional mutual information for this seed with
+            //   each of the chosen seeds
+            let good_motif_hits = &good_motif.hits;
+            let good_cats = categorize_hits(&good_motif_hits, &max_count);
+            //let gc_view = good_cats.view();
+
+            let contingency = construct_3d_contingency(
+                cand_cats.view(),
+                rec_db.values.view(),
+                good_cats.view(),
+            );
+            let cmi = conditional_adjusted_mutual_information(
+                contingency.view()
+            );
+            let this_aic = calc_aic(delta_k, rec_num, cmi);
+
+            // if candidate seed doesn't improve model as added to each of the
+            //   chosen seeds, skip it
+            if this_aic > 0.0 {
+                seed_pass = false;
+                break
+            }
+        }
+        if seed_pass {
+            let motif = cand_seed.to_motif(threshold);
+            top_motifs.push(motif);
+        }
+    }
+    return top_motifs
+}
 
 /// An enumeration of possible parameter names
 /// Supported parameters could be added here in the future
@@ -1417,7 +1493,7 @@ pub struct SequenceIter<'a>{
 /// # Fields
 ///
 /// * `params` - The view is stored as a 2d ndarray
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct SequenceView<'a> {
     params: ndarray::ArrayView::<'a, f64, Ix2>
 }
@@ -1953,8 +2029,8 @@ impl<'a> Seed<'a> {
         let weights = MotifWeights::new(&self.params);
         // I think I may just need to copy the hits and params
         //  to make the motif own them.
-        let hits = &self.hits;
-        let params = &self.params;
+        let hits = self.hits.to_owned();
+        let params = self.params;
         let mi = self.mi;
         Motif{params, weights, threshold, hits, mi}
     }
@@ -2053,74 +2129,6 @@ impl<'a> Seeds<'a> {
         self.seeds.sort_unstable_by_key(|seed| OrderedFloat(-seed.mi));
     }
 
-    /// Filters seeds based on conditional mutual information
-    pub fn filter_seeds(&mut self, rec_db: &'a RecordsDB, threshold: f64, max_count: i64) -> Vec<Motif<'a>> {
-
-        // get number of parameters in model (shape number * seed length * 2)
-        //  we multiply by two because we'll be optimizing shape AND weight values
-        //  then add one for the threshold
-        let rec_num = rec_db.len();
-        let delta_k = self.seeds[0].params.params.raw_dim()[1]
-            * self.seeds[0].params.params.raw_dim()[0]
-            * 2 + 1;
-
-        self.sort_seeds();
-        let mut top_motifs = Vec::new();
-
-        // Make sure first seed passes AIC
-        let aic = calc_aic(delta_k, rec_num, self.seeds[0].mi);
-        if aic < 0.0 {
-            let motif = self.seeds[0].to_motif(threshold);
-            top_motifs.push(motif);
-        } else {
-            return top_motifs
-        }
-
-        // loop through candidate seeds
-        for cand_seed in self.seeds[1..self.seeds.len()-1].iter() {
-
-            let cand_hits = &cand_seed.hits;
-            let cand_cats = categorize_hits(&cand_hits, &max_count);
-            //let cc_view = cand_cats.view();
-            let mut seed_pass = true;
-
-            // if this seed doesn't pass AIC skip it
-            if calc_aic(delta_k, rec_num, cand_seed.mi) > 0.0 {
-                continue
-            }
-
-            for good_motif in top_motifs.iter() {
-
-                // check the conditional mutual information for this seed with
-                //   each of the chosen seeds
-                let good_motif_hits = &good_motif.hits;
-                let good_cats = categorize_hits(&good_motif_hits, &max_count);
-                //let gc_view = good_cats.view();
-
-                let contingency = construct_3d_contingency(
-                    cand_cats.view(),
-                    rec_db.values.view(),
-                    good_cats.view(),
-                );
-                let cmi = conditional_adjusted_mutual_information(
-                    contingency.view()
-                );
-                let this_aic = calc_aic(delta_k, rec_num, cmi);
-
-                // if candidate seed doesn't improve model as added to each of the
-                //   chosen seeds, skip it
-                if this_aic > 0.0 {
-                    seed_pass = false;
-                    break
-                }
-            }
-            if seed_pass {
-                let motif = cand_seed.to_motif(threshold);
-                top_motifs.push(motif);
-            }
-        }
-        return top_motifs
-    }
 }
 
 impl RecordsDB {
