@@ -4,16 +4,26 @@ use std::collections::HashMap;
 use std::cmp;
 use std::iter;
 use std::fs;
+use std::io::BufReader;
+// allow random iteration over RecordsDB
+use rand::thread_rng;
+use rand::seq::SliceRandom;
+// ndarray stuff
 use ndarray::prelude::*;
 use ndarray::Array;
 // ndarray_stats exposes ArrayBase to useful methods for descriptive stats like min.
 use ndarray_stats::QuantileExt;
 use itertools::Itertools;
+// ln_gamma is used a lot in expected mutual information to compute log-factorials
 use statrs::function::gamma::ln_gamma;
-use ndarray_npy; // check provenance
+use ndarray_npy; // check provenance, see if we can find what may be a more stable implementation. If ndarray_npy stops existing, we don't want our code to break.
+// figure out how to use serde on our Motif struct or on a Vec<Motif>
 use serde_pickle::de;
 use serde::{Serialize, Deserialize};
-use std::io::BufReader;
+// parallelization utilities provided by rayon crate
+use rayon::prelude::*;
+use rayon::ThreadPoolBuilder;
+// check the source code for OrderedFloat and consider implementing it in lib.rs instead of using the ordered_float crate. If ordered_float stops existing someday, we don't want our code to break.
 use ordered_float::OrderedFloat;
 
 #[cfg(test)]
@@ -508,47 +518,6 @@ mod tests {
         assert_eq!(answer, hash);
     }
 
-    ///////////////////////////////////////////////////////////////////
-    // Here I was testing whether transposing shapes was causing
-    // the distance calculation issue I'm having. This test fails
-    // for reasons beyond my current understanding, but I have found
-    // that these arrays transpose as I thought they would, and
-    // permuting array axes isn't causing my issue.
-    ///////////////////////////////////////////////////////////////////
-    #[test]
-    #[ignore]
-    fn test_transpose_arr() {
-        let fname = String::from("../test_data/transpose_target.npy");
-        let arr: Array4<i64> = ndarray_npy::read_npy(fname).unwrap();
-        
-        let check0 = arr.slice(s![0, 0..3, 0..3, 0]);
-        println!("{:?}", check0);
-        let answer0 = arr2(&[[0, 2, 4],
-                             [10, 12, 14],
-                             [20, 22, 24]]);
-        println!("{:?}", answer0);
-        assert_eq!(check0, answer0);
-
-        let check1 = arr.slice(s![0, 0..3, 0..3, 1]);
-        let answer1 = arr2(&[[1, 3, 5],
-                             [11, 13, 15],
-                             [21, 23, 25]]);
-        assert_eq!(check1, answer1);
-
-        let transposed = arr.permuted_axes([0,2,1,3]);
-        let check_t0 = transposed.slice(s![0, 0..3, 0..3, 0]);
-        let answer_t0 = arr2(&[[0, 10, 20],
-                               [2, 12, 14],
-                               [4, 14, 24]]);
-        assert_eq!(check_t0, answer_t0);
-
-        let check_t1 = transposed.slice(s![0, 0..3, 0..3, 1]);
-        let answer_t1 = arr2(&[[1, 11, 21],
-                               [3, 13, 15],
-                               [5, 15, 25]]);
-        assert_eq!(check_t1, answer_t1);
-    }
-
     #[test]
     fn test_db_from_file() {
         // read in shapes
@@ -592,82 +561,6 @@ mod tests {
         }
     }
     
-    #[test]
-    fn test_simple_db_dist() {
-        /////////////////////////////////////////////////////////////////////
-        // This test reads in a simple array of shape (2,3,2), sliced from
-        // actual shapes from the python implementaion. We manually subtract
-        // 0.5 from each element, multiply the differences by 0.1, take the
-        // element-wise absolute value, and sum the first two axes. This
-        // leaves us with a distance for each strand of [0.483, 0.792].
-        // We then repeat all the above operations, but using the tools
-        // we've implemented in rust.
-        // WE GET THE SAME RESULT! I'm thinking that, although my unit
-        // test in python went fine, there MUST be something going wrong
-        // in the python implementation.
-        /////////////////////////////////////////////////////////////////////
-        // read in shapes
-        let shape_fname = String::from("../test_data/subset_shapes.npy");
-        // read in y-vals
-        let y_fname = String::from("../test_data/subset_y_vals.npy");
-        let subset_rec_db = RecordsDB::new_from_files(
-            shape_fname,
-            y_fname,
-        );
-
-        let rec_db_seq_params = ndarray::array![
-            [ // first strand
-                // first shape | second shape
-                [0.14024065, -0.83476579], // first value
-                [-0.95497207, -2.22381607], // second value
-                [-0.54092823, -1.30891276] // third value
-            ],
-            [ // second strand
-                // first shape | second shape
-                [-0.91056253, -0.10117361], // first value
-                [ 0.40469446,  0.60029678], // second value
-                [ 0.03372454,  1.85484959] // third value
-            ]
-        ];
-        let manual_diff = &rec_db_seq_params - 0.5;
-        let w_diff_ans = manual_diff * 0.1; // weights of 0.1
-        let abs_diff = w_diff_ans.mapv(|a: f64| a.abs()); // abs value of each
-        // check abs val works as expected
-        for elem in abs_diff.iter() {
-            assert!(elem >= &0.0);
-        }
-        // sum over each of the first two axes to get the manhattan for each strand
-        let answer_diffs = abs_diff.sum_axis(Axis(0)).sum_axis(Axis(0));
-
-        // set up the seed to use in our implemented distance calculations
-        let mut param_vec = Vec::new();
-        let p = Param::new(ParamType::EP, Array::from_vec(vec![0.5; 3])).unwrap();
-        param_vec.push(p);
-        let p = Param::new(ParamType::MGW, Array::from_vec(vec![0.5; 3])).unwrap();
-        param_vec.push(p);
-
-        let seq = Sequence::new(param_vec).unwrap();
-        let sv = seq.view();
-        let seed = Seed::new(sv, 1);
-
-        // only one record in subset_rec_db
-        let mut dists = ndarray::array![0.0, 0.0];
-        for (i,rec) in subset_rec_db.iter().enumerate() {
-            for (j,window) in rec.seq.window_iter(0, 4, 3).enumerate() {
-                println!("{:?}", window);
-                let these_dists = stranded_weighted_manhattan_distance(
-                        &window.params,
-                        &seed.params.params,
-                        &ndarray::Array::from_elem((2,3), 0.1).view(),
-                );
-                println!("{:?}", these_dists);
-                dists.assign(&these_dists);
-            }
-        }
-        assert!(answer_diffs.abs_diff_eq(&dists, 1e-6));
-        println!("{:?}", answer_diffs);
-    }
-
     #[test]
     fn test_manual_dist() {
         ////////////////////////////////////////////////////////////////////
@@ -885,16 +778,10 @@ mod tests {
     #[test]
     fn test_all_seeds () {
         // simulates args as they'll come from env::args in main.rs
-        //let args = [
-        //    String::from("motifer"),
-        //    String::from("../test_data/subset_five_records.npy"),
-        //    String::from("../test_data/subset_five_y_vals.npy"),
-        //    String::from("../test_data/config.pkl"),
-        //];
         let args = [
             String::from("motifer"),
-            String::from("../test_data/shapes.npy"),
-            String::from("../test_data/y_vals.npy"),
+            String::from("../test_data/subset_five_records.npy"),
+            String::from("../test_data/subset_five_y_vals.npy"),
             String::from("../test_data/config.pkl"),
         ];
         let cfg = parse_config(&args);
@@ -915,12 +802,6 @@ mod tests {
 
         // test the first seed's MI has changed from its initial val of 0.0
         assert_ne!(seeds.seeds[0].mi, 0.0);
-        seeds.sort_seeds();
-
-        // test the seeds are sorted in descending order
-        for i in 0..seeds.len()-1 {
-            assert!(seeds.seeds[i].mi >= seeds.seeds[i+1].mi);
-        }
 
         let motifs = filter_seeds(
             &mut seeds,
@@ -940,6 +821,7 @@ pub struct Config {
     pub alpha: f64,
     pub max_count: i64,
     pub threshold: f64,
+    pub cores: usize,
 }
 
 impl Config {
@@ -970,8 +852,9 @@ impl Config {
         let alpha = *hash.get("alpha").unwrap();
         let max_count = *hash.get("max_count").unwrap() as i64;
         let threshold = *hash.get("threshold").unwrap();
+        let cores = *hash.get("cores").unwrap() as usize;
 
-        Config {shape_fname, yvals_fname, kmer, alpha, max_count, threshold}
+        Config {shape_fname, yvals_fname, kmer, alpha, max_count, threshold, cores}
     }
 }
 
@@ -1135,7 +1018,9 @@ pub fn mutual_information(contingency: ndarray::ArrayView<usize, Ix2>) -> f64 {
         }
     }
     mi_vec.iter()
+        // remove NaN values that come from categories with zero counts
         .filter(|elem| !elem.is_nan())
+        // sum what remains after NaN removal
         .sum::<f64>()
 }
 
@@ -1183,8 +1068,8 @@ pub fn construct_contingency_matrix(
 ///
 /// # Arguments
 ///
-/// * `vec1` - View to a vector containing assigned categories
-/// * `vec2` - View to a vector containing assigned categories
+/// * `contingency` - A 2D Array of joint counts for the categories in two vectors.
+///     This contingency matrix comes from construct_contingency_matrix
 pub fn adjusted_mutual_information(
     contingency: ndarray::ArrayView<usize, Ix2>
 ) -> f64 {
@@ -1211,7 +1096,8 @@ pub fn adjusted_mutual_information(
 ///
 /// # Arguments
 ///
-/// * `contingency` - Contingency table for the categories in two vectors
+/// * `contingency` - Contingency table for the joint counts for categories in
+///     two vectors
 pub fn expected_mutual_information(
     contingency: ndarray::ArrayView<usize, Ix2>
 ) -> f64 {
@@ -1493,7 +1379,7 @@ pub struct SequenceIter<'a>{
 /// # Fields
 ///
 /// * `params` - The view is stored as a 2d ndarray
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct SequenceView<'a> {
     params: ndarray::ArrayView::<'a, f64, Ix2>
 }
@@ -1506,7 +1392,7 @@ pub struct SequenceView<'a> {
 /// * `weights` - Stores the associated weights as a [MotifWeights]
 /// * `threshold` - Stores the associated threshold for what is
 ///                 considered a match.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Motif<'a> {
     params: SequenceView<'a>,
     weights: MotifWeights, // the MotifWeights struct contains two 2D-Arrays.
@@ -1521,7 +1407,7 @@ pub struct Motif<'a> {
 ///
 /// * `weights` - Stores the weights as a 2d array
 /// * `weights_norm` - Caches normalized weights as needed
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MotifWeights {
     weights: ndarray::Array2::<f64>,
     weights_norm: ndarray::Array2::<f64>,
@@ -1576,6 +1462,22 @@ pub struct RecordsDBIter<'a> {
     loc: usize,
     db: &'a RecordsDB,
     size: usize
+}
+
+/// Allows for iteration over a permuted records database
+///
+/// # Fields
+///
+/// * `loc` - Current location in the permuted database
+/// * `value` - A reference to the [RecordsDB]
+/// * `idx` - Index to grab for a given iteration over the permuted database
+/// * `idx` - Index to grab for a given iteration over the permuted database
+#[derive(Debug)]
+pub struct PermutedRecordsDBIter<'a> {
+    loc: usize,
+    db: &'a RecordsDB,
+    size: usize,
+    indices: Vec<usize>,
 }
 
 /// Stores a single entry of the RecordsDB 
@@ -2216,6 +2118,26 @@ impl RecordsDB {
         RecordsDBIter{loc: 0, db: &self, size: self.seqs.len()}
     }
 
+    /// Permute the indices of the database, then iterate over the permuted indices
+    pub fn random_iter(&self, sample_size: usize) -> PermutedRecordsDBIter{
+        // create vector of indices
+        let mut inds: Vec<usize> = (0..self.seqs.len()).collect();
+        // randomly shuffle the indices
+        inds.shuffle(&mut thread_rng());
+        // return the struct for iterating
+        if sample_size < self.seqs.len() {
+            let size = sample_size;
+        } else {
+            let size = self.seqs.len();
+        }
+        PermutedRecordsDBIter{
+            loc: 0,
+            db: &self,
+            size: size,
+            indices: inds,
+        }
+    }
+
     /// Iterate over each record in the database and count number of times
     /// `query` matches each record. Return a 2D array of hits, where each
     /// row represents a record in the database, and each column is the number
@@ -2235,6 +2157,8 @@ impl RecordsDB {
         max_count: i64) -> Array<i64, Ix2> {
 
         let mut hits = ndarray::Array2::zeros((self.len(), 2));
+        // par_iter comes from the rayon prelude
+        //for (i, entry) in self.par_iter().enumerate() {
         for (i, entry) in self.iter().enumerate() {
             let this_hit = entry.seq.count_hits_in_seq(
                 query,
@@ -2281,6 +2205,41 @@ impl<'a> Iterator for RecordsDBIter<'a> {
     }
 }
 
+/// Enables permuted iteration over the RecordsDB. Returns a [RecordsDBEntry] as 
+/// each item.
+impl<'a> Iterator for PermutedRecordsDBIter<'a> {
+    type Item = RecordsDBEntry<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.loc == self.size{
+            None
+        } else {
+            let out_seq = &self.db.seqs[self.indices[self.loc]];
+            let out_val = self.db.values[self.indices[self.loc]];
+            self.loc += 1;
+            Some(RecordsDBEntry::new(out_seq, out_val))
+        }
+    }
+}
+
+
+
+///// Enables iteration over the RecordsDB. Returns a [RecordsDBEntry] as 
+///// each item.
+//impl<'a> ParallelIterator for RecordsDBIter<'a> {
+//    type Item = RecordsDBEntry<'a>;
+//
+//    fn next(&mut self) -> Option<Self::Item> {
+//        if self.loc == self.size{
+//            None
+//        } else {
+//            let out_seq = &self.db.seqs[self.loc];
+//            let out_val = self.db.values[self.loc];
+//            self.loc += 1;
+//            Some(RecordsDBEntry::new(out_seq, out_val))
+//        }
+//    }
+//}
 
 /// Function to compute manhattan distance between two 2D array views
 ///
