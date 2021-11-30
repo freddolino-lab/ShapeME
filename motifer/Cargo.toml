@@ -16,6 +16,7 @@ serde-pickle = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 ordered-float = "2.8.0"
 rayon = "1.5.1"
+rand = "0.8.4"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

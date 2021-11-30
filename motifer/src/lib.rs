@@ -811,6 +811,37 @@ mod tests {
         );
         println!("{:?}", motifs);
     }
+
+    #[test]
+    fn test_init_threshold () {
+        // simulates args as they'll come from env::args in main.rs
+        let args = [
+            String::from("motifer"),
+            String::from("../test_data/shapes.npy"),
+            String::from("../test_data/y_vals.npy"),
+            String::from("../test_data/config.pkl"),
+        ];
+        let cfg = parse_config(&args);
+        let rec_db = RecordsDB::new_from_files(
+            cfg.shape_fname,
+            cfg.yvals_fname,
+        );
+
+        // create Seeds struct
+        let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
+        let thresh = set_initial_threshold(
+            &seeds,
+            &rec_db,
+            cfg.seed_sample_size,
+            cfg.records_per_seed,
+            cfg.windows_per_record,
+            &cfg.kmer,
+            &cfg.alpha,
+            cfg.thresh_sd_from_mean,
+        );
+        println!("Rust initial threshold: {}", thresh);
+        println!("Python initial threshold: {}", cfg.threshold);
+    }
 }
 
 /// Simple struct to hold command line arguments
@@ -822,6 +853,10 @@ pub struct Config {
     pub max_count: i64,
     pub threshold: f64,
     pub cores: usize,
+    pub seed_sample_size: usize,
+    pub records_per_seed: usize,
+    pub windows_per_record: usize,
+    pub thresh_sd_from_mean: f64,
 }
 
 impl Config {
@@ -848,13 +883,33 @@ impl Config {
             de::DeOptions::new()
         ).unwrap();
         
-        let kmer = *hash.get("kmer").unwrap() as usize;
-        let alpha = *hash.get("alpha").unwrap();
-        let max_count = *hash.get("max_count").unwrap() as i64;
-        let threshold = *hash.get("threshold").unwrap();
-        let cores = *hash.get("cores").unwrap() as usize;
+        let kmer = *hash.get("kmer").unwrap_or(&15.0) as usize;
+        let alpha = *hash.get("alpha").unwrap_or(&0.01) as f64;
+        let max_count = *hash.get("max_count").unwrap_or(&1.0) as i64;
+        let threshold = *hash.get("threshold").unwrap_or(&0.5) as f64;
+        let cores = *hash.get("cores").unwrap_or(&1.0) as usize;
+        let seed_sample_size = *hash.get("seed_sample_size")
+            .unwrap_or(&250.0) as usize;
+        let records_per_seed = *hash.get("records_per_seed")
+            .unwrap_or(&50.0) as usize;
+        let windows_per_record = *hash.get("windows_per_record")
+            .unwrap_or(&1.0) as usize;
+        let thresh_sd_from_mean = *hash.get("thresh_sd_from_mean")
+            .unwrap_or(&2.0) as f64;
 
-        Config {shape_fname, yvals_fname, kmer, alpha, max_count, threshold, cores}
+        Config{
+            shape_fname,
+            yvals_fname,
+            kmer,
+            alpha,
+            max_count,
+            threshold,
+            cores,
+            seed_sample_size,
+            records_per_seed,
+            windows_per_record,
+            thresh_sd_from_mean,
+        }
     }
 }
 
@@ -1201,7 +1256,7 @@ pub fn get_probs(vec: ndarray::ArrayView::<i64, Ix1>) -> HashMap<i64, f64> {
 }
 
 /// Filters seeds based on conditional mutual information
-pub fn filter_seeds<'a>(seeds: &mut Seeds<'a>, rec_db: &'a RecordsDB, threshold: f64, max_count: i64) -> Vec<Motif<'a>> {
+pub fn filter_seeds<'a>(seeds: &mut Seeds<'a>, rec_db: &'a RecordsDB, threshold: f64, max_count: i64) -> Vec<Motif> {
 
     // get number of parameters in model (shape number * seed length * 2)
     //  we multiply by two because we'll be optimizing shape AND weight values
@@ -1300,7 +1355,7 @@ pub struct Param {
 /// # Fields
 ///
 /// * `params` - Stores the full set of params in a single 2d Array
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Sequence {
     params: ndarray::Array2<f64>
 }
@@ -1331,7 +1386,28 @@ pub struct StrandedSequenceIter<'a>{
     sequence: &'a StrandedSequence
 }
 
-/// Represents the state needed for windowed iteration over a [StrandedSequence]
+/// Represents the state needed for random,
+/// windowed iteration over a [StrandedSequence]
+///
+/// # Fields
+///
+/// * `start` - start position of the iteration
+/// * `end` - exclusive end of the iteration
+/// * `size` - size of the window to iterate over
+/// * `sequence` - reference to the [StrandedSequence] to iterate over
+/// * `indices` - the randomized indices that will be iterated over
+#[derive(Debug)]
+pub struct PermutedStrandedSequenceIter<'a>{
+    start: usize,
+    end: usize,
+    size: usize,
+    sample_size: usize,
+    sequence: &'a StrandedSequence,
+    indices: Vec<usize>,
+}
+
+/// Represents the state needed for windowed iteration over a [StrandedSequence],
+/// but to return only the forward strand.
 ///
 /// # Fields
 ///
@@ -1344,6 +1420,11 @@ pub struct FwdStrandedSequenceIter<'a>{
     start: usize,
     end: usize,
     size: usize,
+    ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+    // We can probably save a lot by making this a StrandedSequenceView, but I honestly haven't thought about it in a while.
+    ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
     sequence: &'a StrandedSequence
 }
 
@@ -1379,7 +1460,7 @@ pub struct SequenceIter<'a>{
 /// # Fields
 ///
 /// * `params` - The view is stored as a 2d ndarray
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone)]
 pub struct SequenceView<'a> {
     params: ndarray::ArrayView::<'a, f64, Ix2>
 }
@@ -1393,8 +1474,8 @@ pub struct SequenceView<'a> {
 /// * `threshold` - Stores the associated threshold for what is
 ///                 considered a match.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Motif<'a> {
-    params: SequenceView<'a>,
+pub struct Motif {
+    params: Sequence,
     weights: MotifWeights, // the MotifWeights struct contains two 2D-Arrays.
     threshold: f64,
     hits: ndarray::Array2::<i64>,
@@ -1523,6 +1604,26 @@ impl StrandedSequence {
         &self, start: usize, end: usize, size: usize
     ) -> FwdStrandedSequenceIter {
         FwdStrandedSequenceIter{start, end, size, sequence: self}
+    }
+
+    pub fn random_window_iter(
+        &self, start: usize, end: usize, size: usize, sample_size: usize
+    ) -> PermutedStrandedSequenceIter {
+        // create vector of indices
+        let mut indices: Vec<usize> = (0..self.seq_len()-size).collect();
+        // randomly shuffle the indices
+        indices.shuffle(&mut thread_rng());
+        if sample_size > self.seq_len()-size {
+            let sample_size = self.seq_len()-size;
+        }
+        PermutedStrandedSequenceIter{
+            start,
+            end,
+            size,
+            sample_size,
+            sequence: self,
+            indices,
+        }
     }
 
     /// Returns a read-only StrandedSequenceView pointing to the data in Sequence
@@ -1755,8 +1856,8 @@ impl<'a> Iterator for FwdStrandedSequenceIter<'a> {
     }
 }
 
-/// Enables iteration over a given sequence. Returns a [SequenceView] at each
-/// iteration
+/// Enables iteration over a given StrandedSequence.
+/// Returns a [StrandedSequenceView] at each iteration.
 impl<'a> Iterator for StrandedSequenceIter<'a> {
     type Item = StrandedSequenceView<'a>;
 
@@ -1764,6 +1865,24 @@ impl<'a> Iterator for StrandedSequenceIter<'a> {
         let this_start = self.start;
         let this_end = self.start + self.size;
         if this_end == self.end {
+            None
+        } else {
+            let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
+            self.start += 1;
+            Some(StrandedSequenceView::new(out))
+        }
+    }
+}
+
+/// Enables random iteration over a given StrandedSequence.
+/// Returns a [StrandedSequenceView] at each iteration.
+impl<'a> Iterator for PermutedStrandedSequenceIter<'a> {
+    type Item = StrandedSequenceView<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this_start = self.indices[self.start];
+        let this_end = this_start + self.size;
+        if self.start == self.sample_size - 1 {
             None
         } else {
             let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
@@ -1839,15 +1958,15 @@ impl<'a> IntoIterator for &'a Param {
 }
 
 
-impl<'a> Motif<'a> {
+impl Motif {
     /// Returns a new motif instance by bundling with a weight vector
     /// of [MotifWeights] type. 
     ///
     /// # Arguments
     ///
-    /// * `params` - a [SequenceView] that defines the motif
-    pub fn new(params: SequenceView<'a>, threshold: f64, record_num: usize) -> Motif {
-        let weights = MotifWeights::new(&params);
+    /// * `params` - a [Sequence] that defines the motif
+    pub fn new(params: Sequence, threshold: f64, record_num: usize) -> Motif {
+        let weights = MotifWeights::new(&params.view());
         let mut hits = ndarray::Array2::zeros((record_num, 2));
         let mi = 0.0;
         Motif{params, weights, threshold, hits, mi}
@@ -1872,7 +1991,7 @@ impl<'a> Motif<'a> {
     /// * `ref_seq` - a [SequenceView] to compare this motif against.
     pub fn distance(&self, ref_seq: &SequenceView) -> f64 {
         weighted_manhattan_distance(
-            &self.params.params, 
+            &self.params.params.view(), 
             &ref_seq.params, 
             &self.weights.weights_norm.view()
         )
@@ -1927,12 +2046,13 @@ impl<'a> Seed<'a> {
 
     /// Returns a new motif from a seed.
     pub fn to_motif(&self,
-            threshold: f64) -> Motif<'a> {
+            threshold: f64) -> Motif {
         let weights = MotifWeights::new(&self.params);
         // I think I may just need to copy the hits and params
         //  to make the motif own them.
         let hits = self.hits.to_owned();
-        let params = self.params;
+        let arr = self.params.params.to_owned();
+        let params = Sequence{ params: arr };
         let mi = self.mi;
         Motif{params, weights, threshold, hits, mi}
     }
@@ -2125,10 +2245,9 @@ impl RecordsDB {
         // randomly shuffle the indices
         inds.shuffle(&mut thread_rng());
         // return the struct for iterating
-        if sample_size < self.seqs.len() {
-            let size = sample_size;
-        } else {
-            let size = self.seqs.len();
+        let mut size = sample_size;
+        if sample_size >= self.seqs.len() {
+            size = self.seqs.len();
         }
         PermutedRecordsDBIter{
             loc: 0,
@@ -2137,6 +2256,7 @@ impl RecordsDB {
             indices: inds,
         }
     }
+
 
     /// Iterate over each record in the database and count number of times
     /// `query` matches each record. Return a 2D array of hits, where each
@@ -2240,6 +2360,131 @@ impl<'a> Iterator for PermutedRecordsDBIter<'a> {
 //        }
 //    }
 //}
+
+/// Calculate distances for randomly chosen seeds and randomly selected
+/// RecordsDBEntry structs
+///
+/// # Arguments
+pub fn set_initial_threshold(seeds: &Seeds, rec_db: &RecordsDB, seed_sample_size: usize, records_per_seed: usize, windows_per_record: usize, kmer: &usize, alpha: &f64, thresh_sd_from_mean: f64) -> f64 {
+
+    let seed_vec = &seeds.seeds;
+    let mut inds: Vec<usize> = (0..seed_vec.len()).collect();
+    inds.shuffle(&mut thread_rng());
+    let keeper_inds = &inds[0..seed_sample_size];
+
+    let rows = seed_vec[0].params.params.raw_dim()[0];
+    let cols = seed_vec[0].params.params.raw_dim()[1];
+
+    let mut mw = MotifWeights::new_bysize(rows, cols);
+    mw.constrain_normalize(alpha);
+
+    let mut distances = Vec::new();
+    for (i,seed) in seed_vec.iter().enumerate() {
+        if keeper_inds.contains(&i) {
+            for entry in rec_db.random_iter(records_per_seed) {
+                let seq = entry.seq;
+                /////////////////////////////////////////////////////////
+                // currently, random_window_iter isn't yielding anything
+                /////////////////////////////////////////////////////////
+                for window in seq.random_window_iter(0, seq.seq_len()+1, *kmer, windows_per_record) {
+                    // get the distances.
+                    let dist = stranded_weighted_manhattan_distance(
+                        &window.params,
+                        &seed.params.params,
+                        &mw.weights_norm.view(),
+                    );
+                    println!("{:?}", dist);
+                    distances.push(dist[0]);
+                }
+            }
+        }
+    }
+
+    println!("{:?}", distances);
+    println!("NaN in distances: {}", distances.iter().any(|a| a.is_nan()));
+    let dist_sum = distances.iter().sum::<f64>();
+    println!("Distance sum: {}", dist_sum);
+    let mean_dist: f64 = dist_sum
+        / distances.len() as f64;
+    println!("Mean distance: {}", mean_dist);
+    // let mean_dist: f64 = distances.iter().sum::<f64>() / distances.len() as f64;
+    let variance: f64 = distances.iter()
+        .map(|a| {
+            let diff = a - mean_dist;
+            diff * diff
+        })
+        .sum::<f64>()
+        / distances.len() as f64;
+    println!("Distance variance: {}", variance);
+    let std_dev = variance.sqrt();
+    mean_dist - std_dev * thresh_sd_from_mean
+}
+
+    //def set_initial_threshold(self, dist, weights, alpha=0.1,
+    //                          threshold_sd_from_mean=2.0,
+    //                          seeds_per_seq=1, max_seeds=10000):
+    //    """Function to determine a reasonable starting threshold given a sample
+    //    of the data
+
+    //    Args:
+    //    -----
+    //    seeds_per_seq : int
+    //    max_seeds : int
+
+    //    Returns:
+    //    --------
+    //    threshold : float
+    //        A  threshold that is the
+    //        mean(distance)-2*stdev(distance))
+    //    """
+
+    //    online_mean = welfords.Welford()
+    //    total_seeds = []
+    //    seed_counter = 0
+    //    shuffled_db = self.permute_records()
+
+    //    for i,record_windows in enumerate(shuffled_db.windows):
+
+    //        rand_order = np.random.permutation(record_windows.shape[2])
+    //        curr_seeds_per_seq = 0
+    //        for index in rand_order:
+    //            window = record_windows[:,:,index]
+    //            if curr_seeds_per_seq >= seeds_per_seq:
+    //                break
+    //            total_seeds.append((window, weights))
+    //            curr_seeds_per_seq += 1
+    //            seed_counter += 1
+    //        if seed_counter >= max_seeds:
+    //            break
+
+    //    logging.info(
+    //        "Using {} random seeds to determine threshold from pairwise distances".format(
+    //            len(total_seeds)
+    //        )
+    //    )
+    //    distances = []
+    //    for i,seed_i in enumerate(total_seeds):
+    //        for j, seed_j in enumerate(total_seeds):
+    //            if i >= j:
+    //                continue
+    //            distances = dist(
+    //                seed_i[0],
+    //                seed_j[0],
+    //                seed_i[1],
+    //                alpha,
+    //            )
+    //            online_mean.update(distances[0]) # just use + strand for initial thresh
+
+    //    mean = online_mean.final_mean()
+    //    stdev = online_mean.final_stdev()
+
+    //    logging.info("Threshold mean: {} and stdev {}".format(mean,stdev))
+    //    thresh = max(mean - threshold_sd_from_mean * stdev, 0)
+    //    logging.info("Setting initial threshold for each seed to {}".format(thresh))
+
+    //    return thresh
+
+
 
 /// Function to compute manhattan distance between two 2D array views
 ///
