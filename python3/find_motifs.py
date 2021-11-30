@@ -1609,6 +1609,12 @@ if __name__ == "__main__":
             help="std deviations below mean for seed finding. Only matters for greedy search. Default=2.0")
     parser.add_argument('--threshold_match', type=float, default=2.0, 
             help="std deviations below mean for match threshold. Default=2.0")
+    parser.add_argument('--init_threshold_seed_num', type=float, default=500.0, 
+            help="Number of randomly selected seeds to compare to records in the database during initial threshold setting. Default=500.0")
+    parser.add_argument('--init_threshold_recs_per_seed', type=float, default=20.0, 
+            help="Number of randomly selected records to compare to each seed during initial threshold setting. Default=20.0")
+    parser.add_argument('--init_threshold_windows_per_record', type=float, default=2.0, 
+            help="Number of randomly selected windows within a given record to compare to each seed during initial threshold setting. Default=2.0")
     parser.add_argument('--motif_perc', type=float, default=1,
             help="fraction of data to EVALUATE motifs on. Default=1")
     parser.add_argument('--continuous', type=int, default=None,
@@ -1835,29 +1841,15 @@ if __name__ == "__main__":
                     match_threshold = mi_dict['match_threshold']
 
                 else:
-                    logging.info("Determining initial threshold")
-                    if args.distance_metric == "hamming":
-                        match_threshold = 4
-                        logging.info(
-                            "Using {} as an initial match threshold".format(threshold_match)
-                        )
-                    else:
-                        match_threshold = records.set_initial_threshold(
-                            dist = this_dist,
-                            threshold_sd_from_mean = args.threshold_seeds,
-                            weights = weights,
-                            alpha = alpha,
-                        )
-
-                    logging.info("Using {} as an initial match threshold".format(match_threshold))
 
                     logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
                     # generate initial MI score for the given shapes, weights, and threshold
                     if args.make_it_rusty:
-                        RUST = "motifer {} {} {}".format(
+                        RUST = "motifer {} {} {} {}".format(
                             shape_fname,
                             yval_fname,
                             config_fname,
+                            rust_out_fname,
                         )
                         args_dict = {
                             'alpha': args.alpha,
@@ -1865,6 +1857,10 @@ if __name__ == "__main__":
                             'kmer': float(args.kmer),
                             'threshold': float(match_threshold),
                             'cores': float(args.p),
+                            'seed_sample_size': float(args.init_threshold_seed_num),
+                            'records_per_seed': float(args.init_threshold_recs_per_seed),
+                            'windows_per_record': float(init_threshold_windows_per_record),
+                            'thresh_sd_from_mean': args.threshold_seeds,
                         }
 
                         with open(shape_fname, 'wb') as shape_f:
@@ -1880,7 +1876,20 @@ if __name__ == "__main__":
                         os.remove(yval_fname)
                         os.remove(config_fname)
 
+                        mi_results = inout.read_motifs_from_fust(rust_out_fname)
+
                     else:
+                        match_threshold = records.set_initial_threshold(
+                            dist = this_dist,
+                            threshold_sd_from_mean = args.threshold_seeds,
+                            weights = weights,
+                            alpha = alpha,
+                        )
+
+                        logging.info(
+                            "Using {} as an initial match threshold".format(
+                                match_threshold
+                        ))
                         start = time.time()
                         mi_results = records.compute_mi(
                             dist = this_dist,

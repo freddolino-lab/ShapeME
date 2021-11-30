@@ -13,6 +13,30 @@ from sklearn import metrics
 from math import log
 from emi import _expected_mutual_info_fast as exp_mi
 
+def wrangle_rust_motif(motif):
+    """Take information in motif dictionary and reshapes arrays to create
+    ndarrays using numpy
+    """
+    shapes = np.asarray(motif['params']['data']).reshape(motif['params']['dim'])
+    weights = np.asarray(
+        motif['weights']['weights']['data']
+    ).reshape(motif['weights']['weights']['dim']) 
+    hits = np.asarray(
+        motif['hits']['data']
+    ).reshape(motif['hits']['dim'])
+
+def read_motifs_from_rust(fname):
+    """Reads pickle file (fname) containing Motifs from rust, wrangles
+    data into appropriate shapes for next steps of find_motifs.py
+    """
+
+    with open(fname, 'rb') as f:
+        rust_mi_results = pickle.load(f)
+
+    for motif in rust_mi_results:
+    
+
+
 def consolidate_optim_batches(fname_list):
 
     opt_results = []

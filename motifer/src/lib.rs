@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::cmp;
 use std::iter;
 use std::fs;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 // allow random iteration over RecordsDB
 use rand::thread_rng;
 use rand::seq::SliceRandom;
@@ -17,8 +17,7 @@ use itertools::Itertools;
 // ln_gamma is used a lot in expected mutual information to compute log-factorials
 use statrs::function::gamma::ln_gamma;
 use ndarray_npy; // check provenance, see if we can find what may be a more stable implementation. If ndarray_npy stops existing, we don't want our code to break.
-// figure out how to use serde on our Motif struct or on a Vec<Motif>
-use serde_pickle::de;
+use serde_pickle::{de, ser};
 use serde::{Serialize, Deserialize};
 // parallelization utilities provided by rayon crate
 use rayon::prelude::*;
@@ -127,43 +126,28 @@ mod tests {
         assert_eq!(out.len(), (30-2)*(30-2));
     }
 
-    //#[test]
-    //fn test_motif_normalization() {
-    //    let this_seq = set_up_sequence(2.0, 31);
-    //    let mut this_motif: Motif = this_seq
-    //        .window_iter(0, 31, 12)
-    //        .next()
-    //        .unwrap()
-    //        .into();
-    //    // check that it initializes to 1
-    //    assert_eq!(this_motif.weights.weights.sum(), 1.0*12.0*5.0);
-    //    // check that normed weights intialize to 0
-    //    assert_eq!(this_motif.weights.weights_norm.sum(), 0.0);
-    //    this_motif.weights.normalize();
-    //    // check that when normalized, weights sum to 1
-    //    let sum_normed = this_motif.weights.weights_norm.sum();
-    //    assert!(AbsDiff::default().epsilon(1e-6).eq(&sum_normed, &1.0));
-    //    // check that when normalized. Unnormalized weights are untouched
-    //    assert_eq!(this_motif.weights.weights.sum(), 1.0*12.0*5.0);
-    //}
+    #[test]
+    fn test_motif_normalization() {
+        let length = 12;
+        let this_seq = set_up_sequence(2.0, length);
 
-    //#[test]
-    //fn test_pairwise_motif() {
-    //    let alpha = 0.1;
-    //    let this_seq = set_up_sequence(2.0, 30);
-    //    let mut out = Vec::new();
-    //    for seed in this_seq.window_iter(0, 31, 3){
-    //        // get the motif weights through type conversion
-    //        let mut this_motif: Motif = seed.into();
-    //        // normalize the weights before using them
-    //        this_motif.normalize_weights(&alpha);
-    //        for window in this_seq.window_iter(0, 31, 3){
-    //            let dist = this_motif.distance(&window);
-    //            out.push(dist);
-    //        }
-    //    }
-    //    assert_eq!(out.len(), (30-2)*(30-2));
-    //}
+        let mut this_motif = Motif::new(
+            this_seq,
+            1.0,
+            10,
+        );
+
+        // check that it initializes to 1
+        assert_eq!(this_motif.weights.weights.sum(), 1.0*length as f64*5.0);
+        // check that normed weights intialize to 0
+        assert_eq!(this_motif.weights.weights_norm.sum(), 0.0);
+        this_motif.weights.normalize();
+        // check that when normalized, weights sum to 1
+        let sum_normed = this_motif.weights.weights_norm.sum();
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&sum_normed, &1.0));
+        // check that when normalized. Unnormalized weights are untouched
+        assert_eq!(this_motif.weights.weights.sum(), 1.0*length as f64*5.0);
+    }
 
     #[test]
     fn test_constrain_norm() {
@@ -783,6 +767,7 @@ mod tests {
             String::from("../test_data/subset_five_records.npy"),
             String::from("../test_data/subset_five_y_vals.npy"),
             String::from("../test_data/config.pkl"),
+            String::from("../test_data/test_output.pkl"),
         ];
         let cfg = parse_config(&args);
         let rec_db = RecordsDB::new_from_files(
@@ -806,8 +791,8 @@ mod tests {
         let motifs = filter_seeds(
             &mut seeds,
             &rec_db,
-            cfg.threshold,
-            cfg.max_count,
+            &cfg.threshold,
+            &cfg.max_count,
         );
         println!("{:?}", motifs);
     }
@@ -820,6 +805,7 @@ mod tests {
             String::from("../test_data/shapes.npy"),
             String::from("../test_data/y_vals.npy"),
             String::from("../test_data/config.pkl"),
+            String::from("../test_data/test_output.pkl"),
         ];
         let cfg = parse_config(&args);
         let rec_db = RecordsDB::new_from_files(
@@ -846,10 +832,41 @@ mod tests {
         println!("Rust initial threshold: {}", thresh);
         println!("Python initial threshold: {}", cfg.threshold);
     }
+
+    #[test]
+    fn test_pickle_motifs() {
+        let args = [
+            String::from("motifer"),
+            String::from("../test_data/shapes.npy"),
+            String::from("../test_data/y_vals.npy"),
+            String::from("../test_data/config.pkl"),
+            String::from("../test_data/test_output.pkl"),
+        ];
+        let cfg = parse_config(&args);
+ 
+        let length = 12;
+        let this_seq = set_up_sequence(2.0, length);
+        let that_seq = set_up_sequence(0.0, length);
+
+        let mut this_motif = Motif::new(
+            this_seq,
+            1.0,
+            10,
+        );
+        let mut that_motif = Motif::new(
+            that_seq,
+            1.0,
+            10,
+        );
+
+        let motif_vec = vec![this_motif, that_motif];
+        pickle_motifs(&motif_vec, &cfg.out_fname)
+    }
 }
 
 /// Simple struct to hold command line arguments
 pub struct Config {
+    pub out_fname: String,
     pub shape_fname: String,
     pub yvals_fname: String,
     pub kmer: usize,
@@ -876,6 +893,7 @@ impl Config {
         let shape_fname = args[1].clone();
         let yvals_fname = args[2].clone();
         let opts_fname = args[3].clone();
+        let out_fname = args[4].clone();
 
         // read in options we'll need
         let mut file = fs::File::open(opts_fname).unwrap();
@@ -902,6 +920,7 @@ impl Config {
             .unwrap_or(&2.0) as f64;
 
         Config{
+            out_fname,
             shape_fname,
             yvals_fname,
             kmer,
@@ -920,6 +939,20 @@ impl Config {
 /// Parses arguments passed at the command line and places them into a [Config]
 pub fn parse_config(args: &[String]) -> Config {
     Config::new(args)
+}
+
+/// Writes a vector of Motif structs as a pickle file
+pub fn pickle_motifs(motifs: &Vec<Motif>, pickle_fname: &str) {
+    // set up writer
+    let mut file = fs::File::create(pickle_fname).unwrap();
+    // open a buffered writer to open the pickle file
+    let mut buf_writer = BufWriter::new(file);
+    // write to the writer
+    let res = ser::to_writer(
+        &mut buf_writer, 
+        motifs, 
+        ser::SerOptions::new(),
+    );
 }
 
 /// Get the AIC
@@ -1260,7 +1293,7 @@ pub fn get_probs(vec: ndarray::ArrayView::<i64, Ix1>) -> HashMap<i64, f64> {
 }
 
 /// Filters seeds based on conditional mutual information
-pub fn filter_seeds<'a>(seeds: &mut Seeds<'a>, rec_db: &'a RecordsDB, threshold: f64, max_count: i64) -> Vec<Motif> {
+pub fn filter_seeds<'a>(seeds: &mut Seeds<'a>, rec_db: &'a RecordsDB, threshold: &f64, max_count: &i64) -> Vec<Motif> {
 
     // get number of parameters in model (shape number * seed length * 2)
     //  we multiply by two because we'll be optimizing shape AND weight values
@@ -1286,7 +1319,7 @@ pub fn filter_seeds<'a>(seeds: &mut Seeds<'a>, rec_db: &'a RecordsDB, threshold:
     for cand_seed in seeds.seeds[1..seeds.seeds.len()-1].iter() {
 
         let cand_hits = &cand_seed.hits;
-        let cand_cats = categorize_hits(&cand_hits, &max_count);
+        let cand_cats = categorize_hits(&cand_hits, max_count);
         //let cc_view = cand_cats.view();
         let mut seed_pass = true;
 
@@ -1300,7 +1333,7 @@ pub fn filter_seeds<'a>(seeds: &mut Seeds<'a>, rec_db: &'a RecordsDB, threshold:
             // check the conditional mutual information for this seed with
             //   each of the chosen seeds
             let good_motif_hits = &good_motif.hits;
-            let good_cats = categorize_hits(&good_motif_hits, &max_count);
+            let good_cats = categorize_hits(&good_motif_hits, max_count);
             //let gc_view = good_cats.view();
 
             let contingency = construct_3d_contingency(
@@ -2054,7 +2087,7 @@ impl<'a> Seed<'a> {
 
     /// Returns a new motif from a seed.
     pub fn to_motif(&self,
-            threshold: f64) -> Motif {
+            threshold: &f64) -> Motif {
         let weights = MotifWeights::new(&self.params);
         // I think I may just need to copy the hits and params
         //  to make the motif own them.
@@ -2062,7 +2095,7 @@ impl<'a> Seed<'a> {
         let arr = self.params.params.to_owned();
         let params = Sequence{ params: arr };
         let mi = self.mi;
-        Motif{params, weights, threshold, hits, mi}
+        Motif{params, weights, threshold: *threshold, hits, mi}
     }
 
 }
