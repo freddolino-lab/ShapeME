@@ -3,7 +3,7 @@ use std::env;
 use std::time;
 use rayon::ThreadPoolBuilder;
 
-//  I ran target/release/motifer ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/test_args.pkl
+//  I ran target/release/motifer ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
 // On Jeremy's laptop, run in series:
 //   MI calculation took 36.28 minutes 
 // Running on lighthouse to see how that does, run in series:
@@ -41,5 +41,20 @@ fn main() {
         &cfg.max_count,
     );
     let duration = now.elapsed().as_secs_f64() / 60.0;
-    println!("MI calculation took {:?} minutes", duration)
+    println!("MI calculation took {:?} minutes.", duration);
+
+    println!("{} seeds prior to CMI-based filtering.", seeds.len());
+    let motifs = motifer::filter_seeds(
+        &mut seeds,
+        &rec_db,
+        &threshold,
+        &cfg.max_count,
+    );
+    println!("{} motifs left after CMI-based filtering.", motifs.len());
+
+    motifer::pickle_motifs(
+        &motifs,
+        &cfg.out_fname,
+    );
+    println!("Vector of motifs written to: {}", &cfg.out_fname);
 }
