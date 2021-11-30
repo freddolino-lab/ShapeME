@@ -4,11 +4,11 @@ use std::time;
 use rayon::ThreadPoolBuilder;
 
 //  I ran target/release/motifer ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/test_args.pkl
-// On Jeremy's laptop
+// On Jeremy's laptop, run in series:
 //   MI calculation took 36.28 minutes 
-// Running on lighthouse to see how that does
+// Running on lighthouse to see how that does, run in series:
 //   MI calculation took 38.79 minutes
-// Python's MI calculation on 1 core on lighthouse
+// Python's MI calculation on 1 core on lighthouse:
 //   MI calculation took 409.50 minutes
 
 fn main() {
@@ -22,11 +22,23 @@ fn main() {
         cfg.yvals_fname,
     );
     let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
+
+    let threshold = motifer::set_initial_threshold(
+        &seeds,
+        &rec_db,
+        cfg.seed_sample_size,
+        cfg.records_per_seed,
+        cfg.windows_per_record,
+        &cfg.kmer,
+        &cfg.alpha,
+        cfg.thresh_sd_from_mean,
+    );
+
     let now = time::Instant::now();
     seeds.compute_mi_values(
         &rec_db,
-        cfg.threshold,
-        cfg.max_count,
+        &threshold,
+        &cfg.max_count,
     );
     let duration = now.elapsed().as_secs_f64() / 60.0;
     println!("MI calculation took {:?} minutes", duration)
