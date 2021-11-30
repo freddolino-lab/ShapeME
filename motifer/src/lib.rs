@@ -230,8 +230,8 @@ mod tests {
         let hits = that_seq.count_hits_in_seq(
             &seed.params.params,
             &wv,
-            threshold1,
-            max_count,
+            &threshold1,
+            &max_count,
         );
         assert_eq!(hits[0], 0);
         assert_eq!(hits[1], 0);
@@ -239,8 +239,8 @@ mod tests {
         let hits = that_seq.count_hits_in_seq(
             &seed.params.params,
             &wv,
-            threshold2,
-            max_count,
+            &threshold2,
+            &max_count,
         );
         assert_eq!(hits[0], 2);
         assert_eq!(hits[1], 0);
@@ -267,8 +267,8 @@ mod tests {
         let test_seed = &seeds.seeds[100];
         let hits = db.get_hits(&test_seed.params.params,
                     &seeds.weights.weights_norm.view(),
-                    1.0,
-                    10);
+                    &1.0,
+                    &10);
         assert_eq!(hits[[6,0]], 10)
     }
 
@@ -351,8 +351,8 @@ mod tests {
         let test_seed = &seeds.seeds[100];
         let hits = db.get_hits(&test_seed.params.params,
                     &seeds.weights.weights_norm.view(),
-                    1.0,
-                    max_count);
+                    &1.0,
+                    &max_count);
         
         let hit_cats = categorize_hits(&hits, &max_count);
         let hv = hit_cats.view();
@@ -724,8 +724,8 @@ mod tests {
         let mut hits = rec_db.get_hits(
             &test_seed.params.params,
             &seeds.weights.weights_norm.view(),
-            threshold,
-            max_count,
+            &threshold,
+            &max_count,
         );
         // sort the columns of each row of hits
 
@@ -740,8 +740,8 @@ mod tests {
         test_seed.update_info(
             &rec_db,
             &seeds.weights.weights_norm.view(),
-            threshold,
-            max_count,
+            &threshold,
+            &max_count,
         );
         assert!(AbsDiff::default().epsilon(1e-6).eq(&test_seed.mi, &hash.get("mi").unwrap()));
 
@@ -756,8 +756,8 @@ mod tests {
         let hits2 = rec_db.get_hits(
             &other_seed.params.params,
             &seeds.weights.weights_norm.view(),
-            threshold,
-            max_count,
+            &threshold,
+            &max_count,
         );
         
         let hit_cats2 = categorize_hits(&hits2, &max_count);
@@ -796,8 +796,8 @@ mod tests {
 
         seeds.compute_mi_values(
             &rec_db,
-            cfg.threshold,
-            cfg.max_count,
+            &cfg.threshold,
+            &cfg.max_count,
         );
 
         // test the first seed's MI has changed from its initial val of 0.0
@@ -838,6 +838,10 @@ mod tests {
             &cfg.kmer,
             &cfg.alpha,
             cfg.thresh_sd_from_mean,
+        );
+        // assert that the python and rust estimates are within 0.03 of each other
+        assert!(
+            AbsDiff::default().epsilon(0.03).eq(&thresh, &cfg.threshold)
         );
         println!("Rust initial threshold: {}", thresh);
         println!("Python initial threshold: {}", cfg.threshold);
@@ -1557,7 +1561,7 @@ pub struct RecordsDBIter<'a> {
 pub struct PermutedRecordsDBIter<'a> {
     loc: usize,
     db: &'a RecordsDB,
-    size: usize,
+    sample_size: usize,
     indices: Vec<usize>,
 }
 
@@ -1650,8 +1654,8 @@ impl StrandedSequence {
     /// * `max_count` - maximum number of times a hit will be counted on each strand
     pub fn count_hits_in_seq(&self, query: &ndarray::ArrayView<f64,Ix2>,
                              weights: &ndarray::ArrayView<f64, Ix2>,
-                             threshold: f64,
-                             max_count: i64) -> Array<i64, Ix1> {
+                             threshold: &f64,
+                             max_count: &i64) -> Array<i64, Ix1> {
     
         // set maxed to false for each strand
         let mut f_maxed = false;
@@ -1672,16 +1676,16 @@ impl StrandedSequence {
                 weights,
             );
 
-            if (dist[0] < threshold) & (!f_maxed) {
+            if (dist[0] < *threshold) & (!f_maxed) {
                 hits[0] += 1;
-                if hits[0] == max_count {
+                if hits[0] == *max_count {
                     f_maxed = true;
                 }
             } 
 
-            if (dist[1] < threshold) & (!r_maxed) {
+            if (dist[1] < *threshold) & (!r_maxed) {
                 hits[1] += 1;
-                if hits[1] == max_count {
+                if hits[1] == *max_count {
                     r_maxed = true;
                 }
             } 
@@ -1756,7 +1760,7 @@ impl Sequence {
     /// * `max_count` - maximum number of times a hit will be counted on each strand
     pub fn count_hits_in_seq(&self, query: &ndarray::ArrayView<f64,Ix2>,
                              weights: &ndarray::ArrayView<f64, Ix2>,
-                             threshold: f64, max_count: i64) -> Array<i64, Ix1> {
+                             threshold: &f64, max_count: &i64) -> Array<i64, Ix1> {
     
         // set maxed to false for each strand
         let mut f_maxed = false;
@@ -1783,9 +1787,9 @@ impl Sequence {
             /////////////////////////////////////////////////
             // ONCE WE'VE IMPLEMENTED STRANDEDNESS, SLICE APPROPRIATE STRAND'S DISTANCE HERE
             /////////////////////////////////////////////////
-            if (dist < threshold) & (!f_maxed) {
+            if (dist < *threshold) & (!f_maxed) {
                 hits[0] += 1;
-                if hits[0] == max_count {
+                if hits[0] == *max_count {
                     f_maxed = true;
                 }
             } 
@@ -1880,9 +1884,13 @@ impl<'a> Iterator for PermutedStrandedSequenceIter<'a> {
     type Item = StrandedSequenceView<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // start at the 0-th index of the randomly shuffled indices in self.indices
         let this_start = self.indices[self.start];
+        // add the window width, self.size, to the start to get the end position
         let this_end = this_start + self.size;
-        if self.start == self.sample_size - 1 {
+        //println!("This start: {}\nThis end: {}", this_start, this_end);
+        // if we've reached the sample size, return None, exiting the iterator
+        if self.start == self.sample_size {
             None
         } else {
             let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
@@ -2010,8 +2018,8 @@ impl<'a> Seed<'a> {
     
     fn update_hits(&mut self, db: &RecordsDB,
                        weights: &ndarray::ArrayView<f64, Ix2>,
-                       threshold: f64,
-                       max_count: i64) {
+                       threshold: &f64,
+                       max_count: &i64) {
         self.hits = db.get_hits(
             &self.params.params,
             weights,
@@ -2020,7 +2028,7 @@ impl<'a> Seed<'a> {
         )
     }
 
-    fn update_mi(&mut self, db: &RecordsDB, max_count: i64) {
+    fn update_mi(&mut self, db: &RecordsDB, max_count: &i64) {
         let hit_cats = categorize_hits(&self.hits, &max_count);
         let hv = hit_cats.view();
         let vv = db.values.view();
@@ -2030,8 +2038,8 @@ impl<'a> Seed<'a> {
 
     pub fn update_info(&mut self, db: &RecordsDB,
                        weights: &ndarray::ArrayView<f64, Ix2>,
-                       threshold: f64,
-                       max_count: i64) {
+                       threshold: &f64,
+                       max_count: &i64) {
         self.update_hits(
             db,
             weights,
@@ -2130,8 +2138,8 @@ impl<'a> Seeds<'a> {
     ///     each [Seed] in self will be compared.
     pub fn compute_mi_values(&mut self,
                              rec_db: &RecordsDB,
-                             threshold: f64,
-                             max_count: i64) {
+                             threshold: &f64,
+                             max_count: &i64) {
 
         // iterate over vector of [Seed]s, updating hits and mi vals
         for seed in self.seeds.iter_mut() {
@@ -2252,7 +2260,7 @@ impl RecordsDB {
         PermutedRecordsDBIter{
             loc: 0,
             db: &self,
-            size: size,
+            sample_size: size,
             indices: inds,
         }
     }
@@ -2273,8 +2281,8 @@ impl RecordsDB {
         &self,
         query: &ndarray::ArrayView<f64, Ix2>,
         weights: &ndarray::ArrayView<f64, Ix2>,
-        threshold: f64,
-        max_count: i64) -> Array<i64, Ix2> {
+        threshold: &f64,
+        max_count: &i64) -> Array<i64, Ix2> {
 
         let mut hits = ndarray::Array2::zeros((self.len(), 2));
         // par_iter comes from the rayon prelude
@@ -2331,7 +2339,7 @@ impl<'a> Iterator for PermutedRecordsDBIter<'a> {
     type Item = RecordsDBEntry<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.loc == self.size{
+        if self.loc == self.sample_size{
             None
         } else {
             let out_seq = &self.db.seqs[self.indices[self.loc]];
@@ -2378,14 +2386,19 @@ pub fn set_initial_threshold(seeds: &Seeds, rec_db: &RecordsDB, seed_sample_size
     let mut mw = MotifWeights::new_bysize(rows, cols);
     mw.constrain_normalize(alpha);
 
+    ////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////
+    // NOTE: the random iter methods should really be tested to check their randomness
+    // I think simply asserting that a sample of 4 yields 4 items that do not match
+    // the first four items in the original sturct would be sufficient.
+    ////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////
+
     let mut distances = Vec::new();
     for (i,seed) in seed_vec.iter().enumerate() {
         if keeper_inds.contains(&i) {
             for entry in rec_db.random_iter(records_per_seed) {
                 let seq = entry.seq;
-                /////////////////////////////////////////////////////////
-                // currently, random_window_iter isn't yielding anything
-                /////////////////////////////////////////////////////////
                 for window in seq.random_window_iter(0, seq.seq_len()+1, *kmer, windows_per_record) {
                     // get the distances.
                     let dist = stranded_weighted_manhattan_distance(
@@ -2393,20 +2406,16 @@ pub fn set_initial_threshold(seeds: &Seeds, rec_db: &RecordsDB, seed_sample_size
                         &seed.params.params,
                         &mw.weights_norm.view(),
                     );
-                    println!("{:?}", dist);
                     distances.push(dist[0]);
+                    distances.push(dist[1]);
                 }
             }
         }
     }
 
-    println!("{:?}", distances);
-    println!("NaN in distances: {}", distances.iter().any(|a| a.is_nan()));
     let dist_sum = distances.iter().sum::<f64>();
-    println!("Distance sum: {}", dist_sum);
     let mean_dist: f64 = dist_sum
         / distances.len() as f64;
-    println!("Mean distance: {}", mean_dist);
     // let mean_dist: f64 = distances.iter().sum::<f64>() / distances.len() as f64;
     let variance: f64 = distances.iter()
         .map(|a| {
@@ -2415,75 +2424,9 @@ pub fn set_initial_threshold(seeds: &Seeds, rec_db: &RecordsDB, seed_sample_size
         })
         .sum::<f64>()
         / distances.len() as f64;
-    println!("Distance variance: {}", variance);
     let std_dev = variance.sqrt();
     mean_dist - std_dev * thresh_sd_from_mean
 }
-
-    //def set_initial_threshold(self, dist, weights, alpha=0.1,
-    //                          threshold_sd_from_mean=2.0,
-    //                          seeds_per_seq=1, max_seeds=10000):
-    //    """Function to determine a reasonable starting threshold given a sample
-    //    of the data
-
-    //    Args:
-    //    -----
-    //    seeds_per_seq : int
-    //    max_seeds : int
-
-    //    Returns:
-    //    --------
-    //    threshold : float
-    //        A  threshold that is the
-    //        mean(distance)-2*stdev(distance))
-    //    """
-
-    //    online_mean = welfords.Welford()
-    //    total_seeds = []
-    //    seed_counter = 0
-    //    shuffled_db = self.permute_records()
-
-    //    for i,record_windows in enumerate(shuffled_db.windows):
-
-    //        rand_order = np.random.permutation(record_windows.shape[2])
-    //        curr_seeds_per_seq = 0
-    //        for index in rand_order:
-    //            window = record_windows[:,:,index]
-    //            if curr_seeds_per_seq >= seeds_per_seq:
-    //                break
-    //            total_seeds.append((window, weights))
-    //            curr_seeds_per_seq += 1
-    //            seed_counter += 1
-    //        if seed_counter >= max_seeds:
-    //            break
-
-    //    logging.info(
-    //        "Using {} random seeds to determine threshold from pairwise distances".format(
-    //            len(total_seeds)
-    //        )
-    //    )
-    //    distances = []
-    //    for i,seed_i in enumerate(total_seeds):
-    //        for j, seed_j in enumerate(total_seeds):
-    //            if i >= j:
-    //                continue
-    //            distances = dist(
-    //                seed_i[0],
-    //                seed_j[0],
-    //                seed_i[1],
-    //                alpha,
-    //            )
-    //            online_mean.update(distances[0]) # just use + strand for initial thresh
-
-    //    mean = online_mean.final_mean()
-    //    stdev = online_mean.final_stdev()
-
-    //    logging.info("Threshold mean: {} and stdev {}".format(mean,stdev))
-    //    thresh = max(mean - threshold_sd_from_mean * stdev, 0)
-    //    logging.info("Setting initial threshold for each seed to {}".format(thresh))
-
-    //    return thresh
-
 
 
 /// Function to compute manhattan distance between two 2D array views
