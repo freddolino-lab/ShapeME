@@ -159,7 +159,8 @@ mod tests {
     }
 }
 
-/// Get the AIC
+/// Get the AIC, as we define it, for a given mutual information, number
+/// of records in a RecordsDB, and the number of parameters in the motif.
 ///
 /// # Arguments
 ///
@@ -170,14 +171,13 @@ pub fn calc_aic(par_num: usize, rec_num: usize, mi: f64) -> f64 {
     2.0 * par_num as f64 - 2.0 * rec_num as f64 * mi
 }
 
-/// Calculates the mutual information between vec1 and vec2, conditioned
-/// on the contents of vec3.
+/// Calculates the mutual information between axis 1 and 2 of contingency,
+/// conditioned on the counts in axis 3 of contingency.
 ///
 /// # Arguments
 ///
-/// * `vec1` - view to a vector
-/// * `vec2` - view to a vector
-/// * `vec3` - view to a vector
+/// * `contingency` - 3d contingency table between three vectors created
+///     using construct_3d_contingency.
 pub fn conditional_adjusted_mutual_information(
     contingency: ndarray::ArrayView<usize, Ix3>
 ) -> f64 {
@@ -260,11 +260,15 @@ pub fn construct_3d_contingency(
     contingency
 }
 
-
-/// Converts a 2D array of hit counts, sorts the hits on each strand so that
-/// the smaller number of hits comes first, and calculates the dot product
-/// of the sorted hits array and the vector [1, max_count+1]. The resulting
+/// Converts a 2D array of hit counts to categories by taking the dot product
+/// of the hits array and the vector [1, max_count+1]. The resulting
 /// vector is the hits categories, and is returned from this function.
+/// NOTE: you will almost always want to pass a hit_arr that has been sorted
+/// such that each row's max hit is in the second column. This sorting is
+/// performed by implementations in the motifer crate, so it not performed,
+/// usually redundantly, here. If, however, you are manually passing a hit_arr,
+/// you will probably want to sort the rows first using the `sort_hits` function
+/// found in the `motifer` crate.
 ///
 /// # Arguments
 ///
@@ -282,6 +286,7 @@ pub fn categorize_hits(hit_arr: &ndarray::Array<i64, Ix2>, max_count: &i64) -> n
 /// # Arguments
 ///
 /// * `contingency` - view to a matrix containing counts in each joint category.
+///     A contingency matrix can be generated using `construct_contingency_matrix`.
 pub fn mutual_information(contingency: ndarray::ArrayView<usize, Ix2>) -> f64 {
 
     let N = contingency.sum() as f64;
@@ -393,7 +398,8 @@ pub fn adjusted_mutual_information(
 /// # Arguments
 ///
 /// * `contingency` - Contingency table for the joint counts for categories in
-///     two vectors
+///     two vectors.
+///     A contingency table can be generated using `construct_contingency_matrix`.
 pub fn expected_mutual_information(
     contingency: ndarray::ArrayView<usize, Ix2>
 ) -> f64 {
@@ -496,6 +502,7 @@ pub fn get_probs(vec: ndarray::ArrayView::<i64, Ix1>) -> HashMap<i64, f64> {
     p_i
 }
 
+/// Returns a vector of the distinct categories found within arr
 pub fn unique_cats(arr: ndarray::ArrayView<i64, Ix1>) -> Vec<i64> {
     arr.iter().unique().cloned().collect_vec()
 }
