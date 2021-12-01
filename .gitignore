@@ -6,5 +6,7 @@ tests/*.pkl
 tests/test/*.pkl
 __pycache__
 utils/__pycache__
-motifer/target
-motifer/Cargo.lock
+rust_utils/target
+rust_utils/target
+*/Cargo.lock
+*/*/Cargo.lock

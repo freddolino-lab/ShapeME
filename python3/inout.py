@@ -17,13 +17,19 @@ def wrangle_rust_motif(motif):
     """Take information in motif dictionary and reshapes arrays to create
     ndarrays using numpy
     """
+
     shapes = np.asarray(motif['params']['data']).reshape(motif['params']['dim'])
+
     weights = np.asarray(
         motif['weights']['weights']['data']
     ).reshape(motif['weights']['weights']['dim']) 
+
     hits = np.asarray(
         motif['hits']['data']
     ).reshape(motif['hits']['dim'])
+
+    threshold = motif['threshold']
+    mi = motif['mi']
 
 def read_motifs_from_rust(fname):
     """Reads pickle file (fname) containing Motifs from rust, wrangles

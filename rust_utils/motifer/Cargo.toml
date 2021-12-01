@@ -5,7 +5,6 @@ authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc
 edition = "2018"
 
 [dependencies]
-# We need the approx feature to expose the ArrayBase struct to the abs_diff_eq method
 ndarray = { version = "0.15.3", features = ["approx","serde"] }
 ndarray-stats = "0.5.0"
 approx = "0.5.0"
@@ -17,6 +16,5 @@ serde = { version = "1.0", features = ["derive"] }
 ordered-float = "2.8.0"
 rayon = "1.5.1"
 rand = "0.8.4"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+info_theory = { path = "../info_theory" }
 

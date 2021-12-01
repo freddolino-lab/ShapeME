@@ -1,0 +1,15 @@
+[package]
+name = "info_theory"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ndarray = { version = "0.15.3", features = ["approx","serde"] }
+ndarray-stats = "0.5.0"
+statrs = "0.15.0"
+rayon = "1.5.1"
+itertools = "0.10.1"
+approx = "0.5.0"
+
