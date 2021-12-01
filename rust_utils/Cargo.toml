@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "info_theory",
+    "motifer",
+    "optim",
+    "find_motifs",
+]

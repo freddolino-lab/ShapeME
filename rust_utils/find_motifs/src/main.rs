@@ -3,7 +3,7 @@ use std::env;
 use std::time;
 use rayon::ThreadPoolBuilder;
 
-//  I ran target/release/motifer ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
+//  I ran target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
 // On Jeremy's laptop, run in series:
 //   MI calculation took 36.28 minutes 
 // Running on lighthouse to see how that does, run in series:

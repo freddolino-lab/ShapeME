@@ -1845,12 +1845,14 @@ if __name__ == "__main__":
                     logging.info("Computing initial MIs and saving to {}.".format(mi_fname))
                     # generate initial MI score for the given shapes, weights, and threshold
                     if args.make_it_rusty:
+
                         RUST = "motifer {} {} {} {}".format(
                             shape_fname,
                             yval_fname,
                             config_fname,
                             rust_out_fname,
                         )
+
                         args_dict = {
                             'alpha': args.alpha,
                             'max_count': float(args.max_count),
@@ -1871,6 +1873,8 @@ if __name__ == "__main__":
                             pickle.dump(args_dict, f)
 
                         retcode = subprocess.call(RUST, shell=True)
+                        if retcode != 0:
+                            sys.exit("ERROR: motifer binary execution exited with non-zero exit status")
 
                         os.remove(shape_fname)
                         os.remove(yval_fname)
