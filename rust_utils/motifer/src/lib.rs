@@ -722,6 +722,7 @@ mod tests {
         let motif_vec = vec![this_motif, that_motif];
         pickle_motifs(&motif_vec, &cfg.out_fname)
     }
+
 }
 
 /// Simple struct to hold command line arguments
@@ -1476,6 +1477,7 @@ impl<'a> Iterator for SequenceIter<'a> {
 
 
 impl Param {
+
     /// Returns a new container for a single parameter
     ///
     /// # Arguments
@@ -1497,10 +1499,12 @@ impl Param {
             self.iter().zip(other).map(|(a, b)| a - b).collect()
         }
     }
+
     /// Returns an iterator over the individual values in the inner array
     fn iter(&self) -> ndarray::iter::Iter<f64, Ix1> {
         self.vals.iter()
     }
+
     /// Returns a windowed iterator over the inner values array
     ///
     /// # Arguments
@@ -1567,7 +1571,7 @@ impl<'a> Seed<'a> {
 
     pub fn new(params: SequenceView<'a>,
                record_num: usize) -> Seed<'a> {
-        let mut hits = ndarray::Array2::zeros((record_num, 2));
+        let hits = ndarray::Array2::zeros((record_num, 2));
         let mi = 0.0;
         Seed{params, hits, mi}
     }
@@ -1680,6 +1684,7 @@ impl<'a> MotifWeights {
 }
 
 impl<'a> Seeds<'a> {
+
     /// Return the length of the vector of seeds in Seeds
     pub fn len(&self) -> usize {
         self.seeds.len()
@@ -1697,22 +1702,25 @@ impl<'a> Seeds<'a> {
                              threshold: &f64,
                              max_count: &i64) {
 
-        // iterate over vector of [Seed]s, updating hits and mi vals
-        for seed in self.seeds.iter_mut() {
+        // grab a view to the normalized weights. Cannot be done within the loop,
+        // since that would be borrowing a reference to self twice in the iterator.
+        let weights_view = self.weights.weights_norm.view();
+        // iterate over vector of [Seed]s in parallel, updating hits and mi vals
+        self.seeds.par_iter_mut().for_each(|seed| {
             // update_info does hit counting and ami calculation, placing
             // the results into seed.hits and seed.mi
             seed.update_info(
                 rec_db,
-                &self.weights.weights_norm.view(),
+                &weights_view,
                 threshold,
                 max_count,
             );
-        }
+        });
     }
 
     /// Sorts seeds by mi
     pub fn sort_seeds(&mut self) {
-        self.seeds.sort_unstable_by_key(|seed| OrderedFloat(-seed.mi));
+        self.seeds.par_sort_unstable_by_key(|seed| OrderedFloat(-seed.mi));
     }
 
 }
@@ -1841,18 +1849,30 @@ impl RecordsDB {
         max_count: &i64) -> Array<i64, Ix2> {
 
         let mut hits = ndarray::Array2::zeros((self.len(), 2));
-        // par_iter comes from the rayon prelude
-        //for (i, entry) in self.par_iter().enumerate() {
-        for (i, entry) in self.iter().enumerate() {
-            let this_hit = entry.seq.count_hits_in_seq(
-                query,
-                weights,
-                threshold,
-                max_count,
-            );
-            //println!("{:?}", this_hit);
-            hits.row_mut(i).assign(&this_hit);
-        }
+        hits.axis_iter_mut(Axis(0))
+            .into_par_iter()
+            .zip(&self.seqs)
+            .for_each(|(mut row, seq)| {
+                let this_hit = seq.count_hits_in_seq(
+                    query,
+                    weights,
+                    threshold,
+                    max_count,
+                );
+                row.assign(&this_hit);
+            });
+
+//        //for (i, entry) in self.iter().enumerate() {
+//            //let this_hit = entry.seq.count_hits_in_seq(
+//            let this_hit = seq.count_hits_in_seq(
+//                query,
+//                weights,
+//                threshold,
+//                max_count,
+//            );
+//            //println!("{:?}", this_hit);
+//            hits.row_mut(i).assign(&this_hit);
+//        });
 
         sort_hits(&mut hits);
 
@@ -1889,6 +1909,32 @@ impl<'a> Iterator for RecordsDBIter<'a> {
     }
 }
 
+///// Enables parallel iteration over the entries in RecordsDB.
+///// Returns a [RecordsDBEntry] as each item.
+//impl<'a> ParallelIterator for RecordsDBIter<'a> {
+//    type Item = RecordsDBEntry<'a>;
+//
+//    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+//    where
+//        C: UnindexedConsumer<Self::Item>,
+//    {
+//    
+////////////////////////////////////////////////////
+//    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+//    where
+//        C: UnindexedConsumer<Self::Item>,
+//    {
+//        let StepBy5 { start, end } = self;
+//
+//        // Start with a simple range, then map it to increment by 5
+//        (0..(end - start + 4) / 5)
+//            .into_par_iter()
+//            .map(|i| start + i * 5)
+//            .drive_unindexed(consumer)
+//    }
+////////////////////////////////////////////////////
+//
+
 /// Enables permuted iteration over the RecordsDB. Returns a [RecordsDBEntry] as 
 /// each item.
 impl<'a> Iterator for PermutedRecordsDBIter<'a> {
@@ -1905,25 +1951,6 @@ impl<'a> Iterator for PermutedRecordsDBIter<'a> {
         }
     }
 }
-
-
-
-///// Enables iteration over the RecordsDB. Returns a [RecordsDBEntry] as 
-///// each item.
-//impl<'a> ParallelIterator for RecordsDBIter<'a> {
-//    type Item = RecordsDBEntry<'a>;
-//
-//    fn next(&mut self) -> Option<Self::Item> {
-//        if self.loc == self.size{
-//            None
-//        } else {
-//            let out_seq = &self.db.seqs[self.loc];
-//            let out_val = self.db.values[self.loc];
-//            self.loc += 1;
-//            Some(RecordsDBEntry::new(out_seq, out_val))
-//        }
-//    }
-//}
 
 /// Calculate distances for randomly chosen seeds and randomly selected
 /// RecordsDBEntry structs
@@ -1969,6 +1996,7 @@ pub fn set_initial_threshold(seeds: &Seeds, rec_db: &RecordsDB, seed_sample_size
         }
     }
 
+    // could do these sums in parallel, but we wouldn't get that much benefit
     let dist_sum = distances.iter().sum::<f64>();
     let mean_dist: f64 = dist_sum
         / distances.len() as f64;
@@ -2011,16 +2039,21 @@ pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>,
 pub fn stranded_weighted_manhattan_distance(
     arr1: &ndarray::ArrayView::<f64, Ix3>, 
     arr2: &ndarray::ArrayView::<f64, Ix2>,
-    weights: &ndarray::ArrayView::<f64, Ix2>
+    weights: &ndarray::ArrayView::<f64, Ix2>,
 ) -> ndarray::Array1<f64> {
 
     ////////////////////////////////////////////////////
+    // NOTE: here's a perfect target for a benchmark test. Run the commented version,
+    //   and also run the uncommented version, check the speed of each. This will
+    //   benefit us greatly, since we run this function tens-of-thousands,
+    //   to hundreds-of-thousands of times.
     // leave this here for now. It yields identical results to the code below.
     // We could check to see which version is more performant.
     // I'm currently just guessing that the iter methods that are currently used are faster
     //   because they probably do clever things for memory allocation, whereas my array algebra
     //   code that commented out here allocates new arrays.
     ////////////////////////////////////////////////////
+
     //let diffs = arr1 - &arr2.insert_axis(Axis(2));
     //let weighted_diff = diffs * &weights.insert_axis(Axis(2));
     //let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
@@ -2075,29 +2108,6 @@ pub fn inv_logit(a: f64, alpha: Option<f64>) -> f64 {
 
 pub fn unique_cats(arr: ndarray::ArrayView<i64, Ix1>) -> Vec<i64> {
     arr.iter().unique().cloned().collect_vec()
-}
-
-/// Get entropy from a vector of counts per class
-///
-/// # Arguments
-///
-/// * `counts_vec` - a vector containing the number of times
-///    each category ocurred in the original data. For instance,
-///    if the original data were [0,1,1,0,2], counts_vec would be
-///    [2,2,1], since two zero's, two one's, and one two were in
-///    the original data.
-pub fn entropy(counts_vec: ndarray::ArrayView<usize, Ix1>) -> f64{
-    let mut entropy = 0.0;
-    let N = counts_vec.sum() as f64;
-    for (i,ni) in counts_vec.iter().enumerate() {
-        let pi = *ni as f64 / N;
-        if pi == 0.0 {
-            entropy += 0.0
-        } else {
-            entropy += pi * (pi.ln());
-        }
-    }
-    -entropy
 }
 
 /// Sorts the columns of each row in a hits array

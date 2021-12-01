@@ -5,7 +5,7 @@ authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc
 edition = "2018"
 
 [dependencies]
-ndarray = { version = "0.15.3", features = ["approx","serde"] }
+ndarray = { version = "0.15.3", features = ["approx","serde","rayon"] }
 ndarray-stats = "0.5.0"
 approx = "0.5.0"
 itertools = "0.10.1"
@@ -17,4 +17,5 @@ ordered-float = "2.8.0"
 rayon = "1.5.1"
 rand = "0.8.4"
 info_theory = { path = "../info_theory" }
+tester = "0.9.0"
 

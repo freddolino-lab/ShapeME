@@ -1,7 +1,7 @@
 use motifer;
 use std::env;
 use std::time;
-use rayon::ThreadPoolBuilder;
+//use rayon::ThreadPoolBuilder;
 
 //  I ran target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
 // On Jeremy's laptop, run in series:
@@ -15,7 +15,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let cfg = motifer::parse_config(&args);
 
-    ThreadPoolBuilder::new().num_threads(cfg.cores).build_global().unwrap();
+    //ThreadPoolBuilder::new().num_threads(cfg.cores).build_global().unwrap();
 
     let rec_db = motifer::RecordsDB::new_from_files(
         cfg.shape_fname,
