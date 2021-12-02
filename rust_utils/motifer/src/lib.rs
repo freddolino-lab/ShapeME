@@ -1525,7 +1525,6 @@ impl<'a> IntoIterator for &'a Param {
     }
 }
 
-
 impl Motif {
     /// Returns a new motif instance by bundling with a weight vector
     /// of [MotifWeights] type. 
@@ -1550,25 +1549,57 @@ impl Motif {
         self.weights.constrain_normalize(alpha);
     }
 
-    /// Calculates distance between this motif and each strand of
-    /// a reference SequenceView (well, it will do it for each strand...
-    /// for now we are only implementing the forward strand).
-    ///
-    /// # Arguments
-    ///
-    /// * `ref_seq` - a [SequenceView] to compare this motif against.
-    pub fn distance(&self, ref_seq: &SequenceView) -> f64 {
-        weighted_manhattan_distance(
-            &self.params.params.view(), 
-            &ref_seq.params, 
-            &self.weights.weights_norm.view()
+    //////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
+    // NOTE: these update_* methods are duplicated in the Seed implementations!!
+    // I was hoping we could write a trait to implement these methods within
+    // the trait, and implement the trait for each of Motif and Seed, but
+    // it looks like it isn't possible to have a trait access fields in
+    // its methods. The compiler doesn't look ahead to see what structs
+    // a trait is implemented for, so it doesn't "see" the fields.
+    //////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////
+    fn update_hits(&mut self, db: &RecordsDB,
+                       weights: &ndarray::ArrayView<f64, Ix2>,
+                       threshold: &f64,
+                       max_count: &i64) {
+        self.hits = db.get_hits(
+            &self.params.params.view(),
+            weights,
+            threshold,
+            max_count,
         )
+    }
+
+    fn update_mi(&mut self, db: &RecordsDB, max_count: &i64) {
+        let hit_cats = info_theory::categorize_hits(&self.hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = db.values.view();
+        let contingency = info_theory::construct_contingency_matrix(hv, vv);
+        self.mi = info_theory::adjusted_mutual_information(contingency.view())
+    }
+
+    pub fn update_info(&mut self, db: &RecordsDB,
+                       weights: &ndarray::ArrayView<f64, Ix2>,
+                       threshold: &f64,
+                       max_count: &i64) {
+        self.update_hits(
+            db,
+            weights,
+            threshold,
+            max_count,
+        );
+        self.update_mi(
+            db,
+            max_count,
+        );
     }
 }
 
 /////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////
-// NOTE: these impls will be used in Motif as well, but we can probably use Traits in the future to clean this up and avoid redundant code
+// NOTE: some of these impls are used in Motif as well. see not in the
+// Motif implementations
 /////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////
 impl<'a> Seed<'a> {
@@ -1620,8 +1651,6 @@ impl<'a> Seed<'a> {
     pub fn to_motif(&self,
             threshold: &f64) -> Motif {
         let weights = MotifWeights::new(&self.params);
-        // I think I may just need to copy the hits and params
-        //  to make the motif own them.
         let hits = self.hits.to_owned();
         let arr = self.params.params.to_owned();
         let params = Sequence{ params: arr };
@@ -2036,15 +2065,15 @@ pub fn stranded_weighted_manhattan_distance(
     // This approach is much, much faster than the broadcasted ndarray
     // approach I used to have here. The old way was allocating new
     // arrays, so I'm guessing that's where the time was being spent.
-    let fwd_diff = ndarray::Zip::from(arr1.slice(s![..,..,0])).
-        and(arr2).
-        and(weights).
-        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
+    let fwd_diff = ndarray::Zip::from(arr1.slice(s![..,..,0]))
+        .and(arr2)
+        .and(weights)
+        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
 
-    let rev_diff = ndarray::Zip::from(arr1.slice(s![..,..,1])).
-        and(arr2).
-        and(weights).
-        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
+    let rev_diff = ndarray::Zip::from(arr1.slice(s![..,..,1]))
+        .and(arr2)
+        .and(weights)
+        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
 
     ndarray::array![fwd_diff, rev_diff]
 }
@@ -2054,10 +2083,10 @@ pub fn weighted_manhattan_distance(
     arr2: &ndarray::ArrayView::<f64, Ix2>,
     weights: &ndarray::ArrayView::<f64, Ix2>
 ) -> f64 {
-    ndarray::Zip::from(arr1).
-        and(arr2).
-        and(weights).
-        fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+    ndarray::Zip::from(arr1)
+        .and(arr2)
+        .and(weights)
+        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
 }
 
 /// Function to compute inverse-logit element-wise for an array
