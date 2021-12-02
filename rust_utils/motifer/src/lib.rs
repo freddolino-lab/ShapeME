@@ -505,15 +505,15 @@ mod tests {
             for (j,window) in rec.seq.window_iter(0, rec.seq.params.raw_dim()[1]+1, kmer).enumerate() {
                 // calculate just some minus strand distances
                 let this_minus_dist = weighted_manhattan_distance(
-                        &window.params.slice(s![..,..,1]),
-                        &test_seed.params.params,
-                        &seeds.weights.weights_norm.view(),
+                    &window.params.slice(s![..,..,1]),
+                    &test_seed.params.params,
+                    &seeds.weights.weights_norm.view(),
                 );
                 // calculate stranded distances
                 let these_dists = stranded_weighted_manhattan_distance(
-                        &window.params,
-                        &test_seed.params.params,
-                        &seeds.weights.weights_norm.view(),
+                    &window.params,
+                    &test_seed.params.params,
+                    &seeds.weights.weights_norm.view(),
                 );
                 // place the respective distances into their appropriate containers
                 dists.row_mut(j).assign(
@@ -1566,7 +1566,11 @@ impl Motif {
     }
 }
 
-
+/////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
+// NOTE: these impls will be used in Motif as well, but we can probably use Traits in the future to clean this up and avoid redundant code
+/////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
 impl<'a> Seed<'a> {
 
     pub fn new(params: SequenceView<'a>,
@@ -1862,18 +1866,6 @@ impl RecordsDB {
                 row.assign(&this_hit);
             });
 
-//        //for (i, entry) in self.iter().enumerate() {
-//            //let this_hit = entry.seq.count_hits_in_seq(
-//            let this_hit = seq.count_hits_in_seq(
-//                query,
-//                weights,
-//                threshold,
-//                max_count,
-//            );
-//            //println!("{:?}", this_hit);
-//            hits.row_mut(i).assign(&this_hit);
-//        });
-
         sort_hits(&mut hits);
 
         hits
@@ -2035,30 +2027,15 @@ pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>,
 ///
 /// - `arr1` - a reference to a view of a 2D array, typically a window on a sequence to be compared
 /// - `arr2` - a reference to a view of a 3D array, typically a [Motif] `param` field
-/// - `weights` - a view of a 2D array, typically a [Motif] `weights` field
+/// - `weights` - a reference to a  view of a 2D array, typically a [Motif] `weights` field
 pub fn stranded_weighted_manhattan_distance(
     arr1: &ndarray::ArrayView::<f64, Ix3>, 
     arr2: &ndarray::ArrayView::<f64, Ix2>,
     weights: &ndarray::ArrayView::<f64, Ix2>,
 ) -> ndarray::Array1<f64> {
-
-    ////////////////////////////////////////////////////
-    // NOTE: here's a perfect target for a benchmark test. Run the commented version,
-    //   and also run the uncommented version, check the speed of each. This will
-    //   benefit us greatly, since we run this function tens-of-thousands,
-    //   to hundreds-of-thousands of times.
-    // leave this here for now. It yields identical results to the code below.
-    // We could check to see which version is more performant.
-    // I'm currently just guessing that the iter methods that are currently used are faster
-    //   because they probably do clever things for memory allocation, whereas my array algebra
-    //   code that commented out here allocates new arrays.
-    ////////////////////////////////////////////////////
-
-    //let diffs = arr1 - &arr2.insert_axis(Axis(2));
-    //let weighted_diff = diffs * &weights.insert_axis(Axis(2));
-    //let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
-    //abs_diffs.sum_axis(Axis(0)).sum_axis(Axis(0))
-
+    // This approach is much, much faster than the broadcasted ndarray
+    // approach I used to have here. The old way was allocating new
+    // arrays, so I'm guessing that's where the time was being spent.
     let fwd_diff = ndarray::Zip::from(arr1.slice(s![..,..,0])).
         and(arr2).
         and(weights).
@@ -2077,18 +2054,6 @@ pub fn weighted_manhattan_distance(
     arr2: &ndarray::ArrayView::<f64, Ix2>,
     weights: &ndarray::ArrayView::<f64, Ix2>
 ) -> f64 {
-
-    ////////////////////////////////////////////////////
-    // leave this here for now. It yields identical results to the code below.
-    // We could check to see which version is more performant.
-    // I'm currently just guessing that the iter methods that are currently used are faster
-    //   because they probably do clever things for memory allocation, whereas my array algebra
-    //   code that commented out here allocates new arrays.
-    ////////////////////////////////////////////////////
-    //let weighted_diff = (arr1 - arr2) * weights;
-    //let abs_diffs = weighted_diff.mapv(|elem| elem.abs());
-    //abs_diffs.sum()
-
     ndarray::Zip::from(arr1).
         and(arr2).
         and(weights).
