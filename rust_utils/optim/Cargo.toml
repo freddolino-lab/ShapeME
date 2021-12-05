@@ -11,3 +11,4 @@ rand_distr = "0.4.2"
 rand_xoshiro = "0.6.0"
 ordered-float = "2.8.0"
 approx = "0.5.0"
+motifer = { path = "../motifer" }

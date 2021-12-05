@@ -18,7 +18,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let cfg = motifer::parse_config(&args);
 
-    ThreadPoolBuilder::new().num_threads(cfg.cores).build_global().unwrap();
+    //ThreadPoolBuilder::new().num_threads(cfg.cores).build_global().unwrap();
 
     let rec_db = motifer::RecordsDB::new_from_files(
         cfg.shape_fname,
@@ -67,7 +67,7 @@ fn main() {
     let thresh_lb = 0.0;
     let thresh_ub = 5.0;
 
-    let test_motif = motifs[0];
+    let test_motif = &motifs[0];
     let (params,low,up) = motifer::wrangle_params_for_optim(
         &test_motif,
         &shape_lb,
@@ -84,32 +84,44 @@ fn main() {
     //let objective = partial!(
     //    motifer::optim_objective => _, &cfg.kmer, &rec_db<'a>, &cfg.max_count, &cfg.alpha
     //);
-    let mut obj_fn_args = HashMap::new();
-    obj_fn_args.insert("kmer", &cfg.kmer);
-    obj_fn_args.insert("rec_db", &rec_db);
-    obj_fn_args.insert("max_count", &cfg.max_count);
-    obj_fn_args.insert("alpha", &cfg.alpha);
+    //let mut obj_fn_args = HashMap::new();
+    //obj_fn_args.insert("kmer", &cfg.kmer);
+    //obj_fn_args.insert("rec_db", &rec_db);
+    //obj_fn_args.insert("max_count", &cfg.max_count);
+    //obj_fn_args.insert("alpha", &cfg.alpha);
 
     let temp = 1.0;
     let step = 0.25;
+    let params_copy = params.to_vec();
     
     let mut particle = optim::Particle::new(
-        params,
+        params_copy,
         low,
         up,
         temp,
         step,
-        motifer::optim_objective,
-        obj_fn_args,
+        &motifer::optim_objective,
+        &rec_db,
+        &cfg.kmer,
+        &cfg.max_count,
+        &cfg.alpha,
     );
 
-    let n_iter = 100;
+    let n_iter = 10000;
     let t_adjust = 0.10;
+    
+    let now = time::Instant::now();
     let optimized_result = optim::simulated_annealing(
         &mut particle,
         n_iter,
         &t_adjust,
+        &rec_db,
+        &cfg.kmer,
+        &cfg.max_count,
+        &cfg.alpha,
     );
+    let duration = now.elapsed().as_secs_f64() / 60.0;
+    println!("{} rounds of simulated annealing took {:?} minutes.", n_iter, duration);
     println!("{:?}", params);
     println!("{:?}", optimized_result);
 }

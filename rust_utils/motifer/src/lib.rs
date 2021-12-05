@@ -855,34 +855,26 @@ impl AsRef<Vec<StrandedSequence>> for RecordsDB {
 /// # Returns
 ///
 /// * `score` - negative adjusted mutual information
-pub fn optim_objective<V>(
+pub fn optim_objective(
         params: &Vec<f64>,
-        args: HashMap<&str,V>,
-        //kmer: &usize,
-        //rec_db: &RecordsDB,
-        //max_count: &i64,
-        //alpha: &f64,
-) -> f64 where V: ndarray::Dimension + AsRef<Vec<StrandedSequence>> {
+        rec_db: &RecordsDB,
+        kmer: &usize,
+        max_count: &i64,
+        alpha: &f64,
+) -> f64 {
     
-    let rec_db = *args.get(&"rec_db").unwrap();
-    let kmer = *args.get(&"kmer").unwrap();
-    let max_count = *args.get(&"max_count").unwrap();
-    let alpha = *args.get(&"alpha").unwrap();
-
-    //let shape_num = rec_db.seqs[0].params.raw_dim()[0];
-    let shape_num = rec_db.as_ref()[0].params.raw_dim()[0];
-
+    let shape_num = rec_db.seqs[0].params.raw_dim()[0];
     let length = kmer * shape_num;
 
     // view to slice of params containing shapes
     let shape_view = ArrayView::from_shape(
-        (shape_num, kmer),
+        (shape_num, *kmer),
         &params[0..length],
     ).unwrap();
 
     // view to slice of params containing shapes
     let weights_arr = ArrayView::from_shape(
-        (shape_num, kmer),
+        (shape_num, *kmer),
         &params[length..2 * length],
     ).unwrap().to_owned();
 
