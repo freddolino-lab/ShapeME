@@ -4,7 +4,6 @@ use std::env;
 use std::time;
 use std::collections::HashMap;
 use rayon::ThreadPoolBuilder;
-use partial_application::partial;
 
 //  I ran target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
 // On Jeremy's laptop, run in series:
