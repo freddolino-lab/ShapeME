@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::hash::Hash;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::cmp;
@@ -796,6 +797,182 @@ impl Config {
         }
     }
 }
+
+pub fn wrangle_params_for_optim(
+        motif: &Motif,
+        shape_lower_bound: &f64,
+        shape_upper_bound: &f64,
+        weights_lower_bound: &f64,
+        weights_upper_bound: &f64,
+        threshold_lower_bound: &f64,
+        threshold_upper_bound: &f64,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let mut params = Vec::new();
+    let mut lower_bound = Vec::new();
+    let mut upper_bound = Vec::new();
+
+    let shapes = motif.params.params.to_owned().into_raw_vec();
+    let shape_len = shapes.len();
+    params.extend(shapes);
+    lower_bound.extend(vec![*shape_lower_bound; shape_len]);
+    upper_bound.extend(vec![*shape_upper_bound; shape_len]);
+
+    let weights = motif.weights.weights.to_owned().into_raw_vec();
+    params.extend(weights);
+    lower_bound.extend(vec![*weights_lower_bound; shape_len]);
+    upper_bound.extend(vec![*weights_upper_bound; shape_len]);
+
+    params.push(motif.threshold);
+    lower_bound.push(*threshold_lower_bound);
+    upper_bound.push(*threshold_upper_bound);
+
+    (params, lower_bound, upper_bound)
+}
+
+impl AsRef<Vec<StrandedSequence>> for RecordsDB {
+    fn as_ref(&self) -> &Vec<StrandedSequence> {
+        &self.seqs
+    }
+}
+
+//impl AsMut<u32> for RecordsDB {
+//    fn as_mut(&mut self) -> &mut Vec<StrandedSequence> {
+//        &mut self.seqs
+//    }
+//}
+
+/// Objective function for optimization.
+///
+/// # Arguments
+///
+/// * `params` - The parameters for a motif,
+///      appended to each other and flattened to a Vec
+/// * `kmer` - The window size for our Motif instances
+/// * `rec_db` - A reference to our RecordsDB instance
+/// * `max_count` - The max count for hits counting. A reference to i64.
+/// * `alpha` - The lower bound on the normalized weights. Reference to f64.
+///
+/// # Returns
+///
+/// * `score` - negative adjusted mutual information
+pub fn optim_objective<V>(
+        params: &Vec<f64>,
+        args: HashMap<&str,V>,
+        //kmer: &usize,
+        //rec_db: &RecordsDB,
+        //max_count: &i64,
+        //alpha: &f64,
+) -> f64 where V: ndarray::Dimension + AsRef<Vec<StrandedSequence>> {
+    
+    let rec_db = *args.get(&"rec_db").unwrap();
+    let kmer = *args.get(&"kmer").unwrap();
+    let max_count = *args.get(&"max_count").unwrap();
+    let alpha = *args.get(&"alpha").unwrap();
+
+    //let shape_num = rec_db.seqs[0].params.raw_dim()[0];
+    let shape_num = rec_db.as_ref()[0].params.raw_dim()[0];
+
+    let length = kmer * shape_num;
+
+    // view to slice of params containing shapes
+    let shape_view = ArrayView::from_shape(
+        (shape_num, kmer),
+        &params[0..length],
+    ).unwrap();
+
+    // view to slice of params containing shapes
+    let weights_arr = ArrayView::from_shape(
+        (shape_num, kmer),
+        &params[length..2 * length],
+    ).unwrap().to_owned();
+
+    // threshold is the final element in the params Vec
+    let threshold = params[params.len() - 1];
+
+    // create a SequenceView so that we can then create a MotifWeights instance
+    let seq_view = SequenceView::new(shape_view);
+    let mut motif_weights = MotifWeights::new(&seq_view);
+    // normalize the weights
+    motif_weights.constrain_normalize(alpha);
+
+    // get the hits
+    let hits = rec_db.get_hits(
+        &shape_view,
+        &motif_weights.weights_norm.view(),
+        &threshold,
+        max_count,
+    );
+    // categorize the hits and calculate adjusted mutual information
+    let hit_cats = info_theory::categorize_hits(&hits, &max_count);
+    let contingency = info_theory::construct_contingency_matrix(
+        hit_cats.view(),
+        rec_db.values.view(),
+    );
+
+    -info_theory::adjusted_mutual_information(contingency.view())
+}
+
+///// Objective function for optimization.
+/////
+///// # Arguments
+/////
+///// * `params` - The parameters for a motif,
+/////      appended to each other and flattened to a Vec
+///// * `kmer` - The window size for our Motif instances
+///// * `rec_db` - A reference to our RecordsDB instance
+///// * `max_count` - The max count for hits counting. A reference to i64.
+///// * `alpha` - The lower bound on the normalized weights. Reference to f64.
+/////
+///// # Returns
+/////
+///// * `score` - negative adjusted mutual information
+//pub fn optim_objective(
+//        params: &Vec<f64>,
+//        kmer: &usize,
+//        rec_db: &RecordsDB,
+//        max_count: &i64,
+//        alpha: &f64,
+//) -> f64 {
+//    
+//    let shape_num = rec_db.seqs[0].params.raw_dim()[0];
+//
+//    // view to slice of params containing shapes
+//    let shape_view = ArrayView::from_shape(
+//        (shape_num, *kmer),
+//        &params[0..kmer*shape_num],
+//    ).unwrap();
+//
+//    // view to slice of params containing shapes
+//    let weights_arr = ArrayView::from_shape(
+//        (shape_num, *kmer),
+//        &params[kmer*shape_num..2*kmer*shape_num],
+//    ).unwrap().to_owned();
+//
+//    // threshold is the final element in the params Vec
+//    let threshold = params[params.len() - 1];
+//
+//    // create a SequenceView so that we can then create a MotifWeights instance
+//    let seq_view = SequenceView::new(shape_view);
+//    let mut motif_weights = MotifWeights::new(&seq_view);
+//    // normalize the weights
+//    motif_weights.constrain_normalize(alpha);
+//
+//    // get the hits
+//    let hits = rec_db.get_hits(
+//        &shape_view,
+//        &motif_weights.weights_norm.view(),
+//        &threshold,
+//        max_count,
+//    );
+//    // categorize the hits and calculate adjusted mutual information
+//    let hit_cats = info_theory::categorize_hits(&hits, &max_count);
+//    let contingency = info_theory::construct_contingency_matrix(
+//        hit_cats.view(),
+//        rec_db.values.view(),
+//    );
+//
+//    -info_theory::adjusted_mutual_information(contingency.view())
+//}
 
 /// Parses arguments passed at the command line and places them into a [Config]
 pub fn parse_config(args: &[String]) -> Config {
@@ -1659,15 +1836,6 @@ impl<'a> Seed<'a> {
     }
 
 }
-
-
-///// Allow conversion from a [SequenceView] to a [Motif]
-//impl<'a> From<SequenceView<'a>> for Motif<'a> {
-//    fn from(sv : SequenceView<'a>, rec_num: usize) -> Motif<'a>{
-//        Motif::new(sv, 0.0, rec_num)
-//    }
-//}
-
 
 impl<'a> MotifWeights {
     /// Returns a new motif weight instance based on the size of a
