@@ -465,6 +465,26 @@ struct ReplicaExchanger<'a> {
     iter_switch: usize,
 }
 
+//impl ReplicaExhanger {
+//    pub fn new(particle: &Particle, n_particles: usize) -> ReplicaExchanger {
+//        let mut particle_vec = Vec::new();
+//        for _ in (0..n_particles).iter() {
+//            let p = Particle.clone(
+//                data: Vec<f64>,
+//                lower: Vec<f64>,
+//                upper: Vec<f64>,
+//                temperature: f64,
+//                stepsize: f64,
+//                objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
+//                rec_db: &motifer::RecordsDB,
+//                kmer: &usize,
+//                max_count: &i64,
+//                alpha: &f64,
+//            );
+//        }
+//    }
+//}
+
 pub fn simulated_annealing(
         particle: &mut Particle,
         niter: usize,
@@ -493,8 +513,31 @@ pub fn simulated_annealing(
             alpha,
         );
     }
-    particle.position.to_vec()
+    particle.best_position.to_vec()
 }
+
+//pub fn replica_exchange(
+//        exchanger: &mut ReplicaExchanger,
+//        niter: usize,
+//        niter_between_exchange: usize,
+//        t_adj: &f64,
+//        rec_db: &motifer::RecordsDB,
+//        kmer: &usize,
+//        max_count: &i64,
+//        alpha: &f64,
+//) -> Vec<f64> {
+//    for particle in ReplicaEchanger.iter() {
+//        simulated_annealing(
+//            particle,
+//            niter: usize,
+//            t_adj: &f64,
+//            rec_db: &motifer::RecordsDB,
+//            kmer: &usize,
+//            max_count: &i64,
+//            alpha: &f64,
+//        );
+//    }
+//}
 
 //fn particle_swarm(swarm: &mut Swarm,
 //                  niter: usize,

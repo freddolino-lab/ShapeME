@@ -771,7 +771,7 @@ impl Config {
         let alpha = *hash.get("alpha").unwrap_or(&0.01) as f64;
         let max_count = *hash.get("max_count").unwrap_or(&1.0) as i64;
         let threshold = *hash.get("threshold").unwrap_or(&0.5) as f64;
-        let cores = *hash.get("cores").unwrap_or(&1.0) as usize;
+        let cores = *hash.get("cores").unwrap_or(&48.0) as usize;
         let seed_sample_size = *hash.get("seed_sample_size")
             .unwrap_or(&250.0) as usize;
         let records_per_seed = *hash.get("records_per_seed")
@@ -829,17 +829,57 @@ pub fn wrangle_params_for_optim(
     (params, lower_bound, upper_bound)
 }
 
-impl AsRef<Vec<StrandedSequence>> for RecordsDB {
-    fn as_ref(&self) -> &Vec<StrandedSequence> {
-        &self.seqs
-    }
-}
+pub fn opt_vec_to_motif(
+        params_vec: &Vec<f64>,
+        rec_db: &RecordsDB,
+        alpha: &f64,
+        max_count: &i64,
+        kmer: &usize,
+) -> Motif {
 
-//impl AsMut<u32> for RecordsDB {
-//    fn as_mut(&mut self) -> &mut Vec<StrandedSequence> {
-//        &mut self.seqs
-//    }
-//}
+    // get the number of shape params and window size
+    let shape_num = rec_db.seqs[0].params.raw_dim()[0];
+    let record_num = rec_db.len();
+    let slice_length = shape_num * kmer;
+    // create [Sequence] instance with optimized shape values
+    let opt_params = Sequence {
+        params: ndarray::Array::from_shape_vec(
+            (shape_num, *kmer),
+            params_vec[0..slice_length].to_vec(),
+        ).unwrap(),
+    };
+    // instantiate [MotifWeights] of appropriate shape and values of zero
+    let mut opt_weights = MotifWeights::new(
+        &opt_params.view(),
+    );
+    // get optimized values for the weights field
+    let these_weights = ndarray::Array::from_shape_vec(
+        (shape_num, *kmer),
+        params_vec[slice_length..slice_length*2].to_vec(),
+    ).unwrap();
+    // set the weights values; normalized values are set in this method as well
+    opt_weights.set_weights(
+        these_weights.view(),
+        alpha,
+    );
+    let opt_threshold = params_vec[params_vec.len()-1];
+    // finally, instantiate the Motif
+    let mut motif = Motif::new(
+        opt_params,
+        opt_threshold,
+        record_num,
+    );
+    // now set its hits and mi
+    let weights = motif.weights.weights_norm.to_owned();
+    motif.update_info(
+        &rec_db,
+        &weights.view(),
+        &opt_threshold,
+        max_count,
+    );
+
+    motif
+}
 
 /// Objective function for optimization.
 ///
@@ -983,6 +1023,72 @@ pub fn pickle_motifs(motifs: &Vec<Motif>, pickle_fname: &str) {
         motifs, 
         ser::SerOptions::new(),
     );
+}
+
+/// Filters motifs based on conditional mutual information
+pub fn filter_motifs<'a>(motifs: &'a mut Vec<Motif>, rec_db: &'a RecordsDB, threshold: &'a f64, max_count: &'a i64) -> Vec<&'a Motif> {
+
+    // get number of parameters in model (shape number * seed length * 2)
+    //  we multiply by two because we'll be optimizing shape AND weight values
+    //  then add one for the threshold
+    let rec_num = rec_db.len();
+    let delta_k = motifs[0].params.params.raw_dim()[1]
+        * motifs[0].params.params.raw_dim()[0]
+        * 2 + 1;
+
+    motifs.sort_unstable_by_key(|motif| OrderedFloat(motif.mi));
+    let mut top_motifs = Vec::new();
+
+    // Make sure first seed passes AIC
+    let aic = info_theory::calc_aic(delta_k, rec_num, motifs[0].mi);
+    if aic < 0.0 {
+        let motif = &motifs[0];
+        top_motifs.push(motif);
+    } else {
+        return top_motifs
+    }
+
+    // loop through candidate motifs
+    for cand_motif in motifs[1..motifs.len()-1].iter() {
+
+        let cand_hits = &cand_motif.hits;
+        let cand_cats = info_theory::categorize_hits(&cand_hits, max_count);
+        let mut motif_pass = true;
+
+        // if this motif doesn't pass AIC skip it
+        if info_theory::calc_aic(delta_k, rec_num, cand_motif.mi) > 0.0 {
+            continue
+        }
+
+        for good_motif in top_motifs.iter() {
+
+            // check the conditional mutual information for this seed with
+            //   each of the chosen seeds
+            let good_motif_hits = &good_motif.hits;
+            let good_cats = info_theory::categorize_hits(&good_motif_hits, max_count);
+
+            let contingency = info_theory::construct_3d_contingency(
+                cand_cats.view(),
+                rec_db.values.view(),
+                good_cats.view(),
+            );
+            let cmi = info_theory::conditional_adjusted_mutual_information(
+                contingency.view()
+            );
+            let this_aic = info_theory::calc_aic(delta_k, rec_num, cmi);
+
+            // if candidate seed doesn't improve model as added to each of the
+            //   chosen seeds, skip it
+            if this_aic > 0.0 {
+                motif_pass = false;
+                break
+            }
+        }
+        if motif_pass {
+            top_motifs.push(cand_motif);
+        }
+    }
+    return top_motifs
 }
 
 /// Filters seeds based on conditional mutual information
@@ -1848,6 +1954,15 @@ impl<'a> MotifWeights {
         let weights = Array::<f64, Ix2>::ones((rows, cols));
         let weights_norm = Array::<f64, Ix2>::zeros((rows, cols));
         MotifWeights{ weights, weights_norm}
+    }
+
+    pub fn set_weights(
+        &mut self,
+        new_weights: ndarray::ArrayView<f64, Ix2>,
+        alpha: &f64,
+    ) {
+        self.weights = new_weights.to_owned();
+        self.constrain_normalize(alpha);
     }
     
     /// Updates the weights_norm field in place based on the weights field.
