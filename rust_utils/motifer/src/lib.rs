@@ -1315,7 +1315,7 @@ pub struct Motif {
     weights: MotifWeights, // the MotifWeights struct contains two 2D-Arrays.
     threshold: f64,
     hits: ndarray::Array2::<i64>,
-    mi: f64,
+    pub mi: f64,
 }
 
 /// Represents the weights for a [Motif] in it's own structure

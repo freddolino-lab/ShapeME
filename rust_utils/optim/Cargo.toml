@@ -11,4 +11,6 @@ rand_distr = "0.4.2"
 rand_xoshiro = "0.6.0"
 ordered-float = "2.8.0"
 approx = "0.5.0"
+rayon = "1.5.1"
+ndarray = "0.15.3"
 motifer = { path = "../motifer" }

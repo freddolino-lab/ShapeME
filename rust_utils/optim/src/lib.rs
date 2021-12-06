@@ -5,176 +5,268 @@ use ordered_float::OrderedFloat;
 //use std::sync::{Arc, Mutex};
 use approx::assert_abs_diff_eq;
 use approx::assert_abs_diff_ne;
+use rayon::prelude::*;
+use ndarray::prelude::*;
 use motifer;
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    /// Himmelblau test function (copied directly from argmin-testfunctions
-//    /// source code then modified slightly)
-//    ///
-//    /// Defined as
-//    ///
-//    /// `f(x_1, x_2) = (x_1^2 + x_2 - 11)^2 + (x_1 + x_2^2 - 7)^2`
-//    ///
-//    /// where `x_i \in [-5, 5]`.
-//    ///
-//    /// The global minima are at
-//    ///  * `f(x_1, x_2) = f(3, 2) = 0`.
-//    ///  * `f(x_1, x_2) = f(-2.805118, 3.131312) = 0`.
-//    ///  * `f(x_1, x_2) = f(-3.779310, -3.283186) = 0`.
-//    ///  * `f(x_1, x_2) = f(3.584428, -1.848126) = 0`.
-//    fn himmelblau(param: &Vec<f64>) -> f64 {
-//        assert!(param.len() == 2);
-//        let (x1, x2) = (param[0], param[1]);
-//        (x1.powi(2) + x2 - 11.0).powi(2)
-//            + (x1 + x2.powi(2) - 7.0).powi(2)
-//    }
-//
-//    /// Multidimensional Rosenbrock test function (copied and slightly modified from
-//    /// the argmin-testfunctions source)
-//    ///
-//    /// Defined as
-//    ///
-//    /// `f(x_1, x_2, ..., x_n) = \sum_{i=1}^{n-1} \left[ (a - x_i)^2 + b * (x_{i+1} - x_i^2)^2 \right]`
-//    ///
-//    /// where `x_i \in (-\infty, \infty)`. The parameters a and b usually are: `a = 1` and `b = 100`.
-//    ///
-//    /// The global minimum is at `f(x_1, x_2, ..., x_n) = f(1, 1, ..., 1) = 0`.
-//    pub fn rosenbrock(param: &Vec<f64>) -> f64 {
-//        param.iter()
-//            .zip(param.iter().skip(1))
-//            .map(|(&xi, &xi1)| (1.0 - xi).powi(2) + 100.0 * (xi1 - xi.powi(2)).powi(2))
-//            .sum()
-//    }
-//
-//    fn set_up_particle(
-//            step: &f64,
-//            low: &Vec<f64>,
-//            up: &Vec<f64>,
-//            objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64
-//    ) -> Particle {
-//
-//        let data_vec = vec![1.0, 1.0];
-//        let T = 2.0;
-//        let particle = Particle::new(
-//            data_vec,
-//            low.to_vec(),
-//            up.to_vec(),
-//            T,
-//            *step,
-//            objective,
-//        );
-//        particle
-//    }
-//
-//    #[test]
-//    fn test_eval() {
-//        let step = 0.0;
-//        let low = vec![-5.0, -5.0];
-//        let up = vec![5.0, 5.0];
-//        let particle = set_up_particle(&step, &low, &up, himmelblau);
-//        let score = particle.evaluate();
-//        assert_eq!(&score, &106.0);
-//    }
-//
-//    #[test]
-//    fn test_jitter_only() {
-//        // Here we test that stepsize 0.0 and no velocity do not move particle
-//        let start_data = vec![1.0, 1.0];
-//        let step = 0.0;
-//        let low = vec![-5.0, -5.0];
-//        let up = vec![5.0, 5.0];
-//        let mut particle = set_up_particle(&step, &low, &up, himmelblau);
-//
-//        particle.perturb();
-//        // particle should have started at [1.0,1.0], and should not have moved
-//        // with step of 0.0
-//        particle.position.iter()
-//            .zip(&start_data)
-//            .for_each(|(a,b)| assert_abs_diff_eq!(a,b));
-//
-//        // Here we test that stepsize 1.0 does move particle
-//        let step = 1.0;
-//        let low = vec![-5.0, -5.0];
-//        let up = vec![5.0, 5.0];
-//        let mut particle = set_up_particle(&step, &low, &up, himmelblau);
-//        particle.perturb();
-//        // particle should end NOT at [1.0,1.0], so the sums should differ
-//        assert_ne!(
-//            particle.position.iter().sum::<f64>(),
-//            start_data.iter().sum::<f64>(),
-//        );
-//    }
-//
-//    #[test]
-//    fn test_velocity_only() {
-//        // Here we test that stepsize 0.0 and velocity [1.0, 1.0] moves particle
-//        // directionally
-//        let start_data = vec![1.0, 1.0];
-//        let step = 0.0;
-//        let inertia = 1.0;
-//        let local_weight = 0.5;
-//        let global_weight = 0.5;
-//        let global_best = vec![4.0, 4.0];
-//        let low = vec![-5.0, -5.0];
-//        let up = vec![5.0, 5.0];
-//        let mut particle = set_up_particle(&step, &low, &up, himmelblau);
-//        // particle velocity is set to [0.0, 0.0] initially
-//        particle.velocity.iter()
-//            .zip(&vec![0.0, 0.0])
-//            .for_each(|(a,b)| assert_abs_diff_eq!(a,b));
-//        //assert!(particle.velocity.abs_diff_eq(&array![0.0, 0.0], 1e-6));
-//        particle.set_velocity(
-//            &inertia,
-//            &local_weight,
-//            &global_weight,
-//            &global_best,
-//        );
-//        // particle velocity should have changed
-//        particle.velocity.iter()
-//            .zip(&vec![0.0,0.0])
-//            .for_each(|(a,b)| assert_abs_diff_ne!(a,b));
-//        //assert!(!particle.velocity.abs_diff_eq(&array![0.0, 0.0], 1e-6));
-//        particle.perturb();
-//        particle.position.iter()
-//            .zip(&start_data)
-//            .for_each(|(a,b)| assert_abs_diff_ne!(a,b));
-//        //assert!(!particle.position.abs_diff_eq(&start_data, 1e-6));
-//    }
-//
-//    #[test]
-//    fn test_annealing() {
-//        let step = 1.0;
-//        let low = vec![-5.0, -5.0];
-//        let up = vec![5.0, 5.0];
-//        let mut particle = set_up_particle(&step, &low, &up, rosenbrock);
-//        let niter = 1000;
-//        let t_adj = 0.1;
-//        let opt_params = simulated_annealing(
-//            &mut particle,
-//            niter,
-//            &t_adj,
-//        );
-//        println!("{:?}", opt_params);
-//    }
-//
-//    //#[test]
-//    //fn test_swarming() {
-//
-//    //    let low = array![-5.0, -5.0];
-//    //    let up = array![5.0, 5.0];
-//    //    let swarm = Swarm::new(
-//    //        100, // n_particles: usize
-//    //        &low, // upper_bounds: &'a Array<f64, Ix1>,
-//    //        &up, //lower_bounds: &'a Array<f64, Ix1>,
-//    //        rosenbrock, //objective: fn(&ArrayView<f64, Ix1>) -> f64)
-//    //    );
-//    //}
-//}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-pub struct Particle<'a> {
+    /// Himmelblau test function (copied directly from argmin-testfunctions
+    /// source code then modified slightly)
+    ///
+    /// Defined as
+    ///
+    /// `f(x_1, x_2) = (x_1^2 + x_2 - 11)^2 + (x_1 + x_2^2 - 7)^2`
+    ///
+    /// where `x_i \in [-5, 5]`.
+    ///
+    /// The global minima are at
+    ///  * `f(x_1, x_2) = f(3, 2) = 0`.
+    ///  * `f(x_1, x_2) = f(-2.805118, 3.131312) = 0`.
+    ///  * `f(x_1, x_2) = f(-3.779310, -3.283186) = 0`.
+    ///  * `f(x_1, x_2) = f(3.584428, -1.848126) = 0`.
+    fn himmelblau(param: &Vec<f64>, this: &motifer::RecordsDB, is: &usize, contrived: &i64, i_know: &f64) -> f64 {
+        assert!(param.len() == 2);
+        let (x1, x2) = (param[0], param[1]);
+        (x1.powi(2) + x2 - 11.0).powi(2)
+            + (x1 + x2.powi(2) - 7.0).powi(2)
+    }
+
+    /// Multidimensional Rosenbrock test function (copied and slightly modified from
+    /// the argmin-testfunctions source)
+    ///
+    /// Defined as
+    ///
+    /// `f(x_1, x_2, ..., x_n) = \sum_{i=1}^{n-1} \left[ (a - x_i)^2 + b * (x_{i+1} - x_i^2)^2 \right]`
+    ///
+    /// where `x_i \in (-\infty, \infty)`. The parameters a and b usually are: `a = 1` and `b = 100`.
+    ///
+    /// The global minimum is at `f(x_1, x_2, ..., x_n) = f(1, 1, ..., 1) = 0`.
+    pub fn rosenbrock(param: &Vec<f64>, rec_db: &motifer::RecordsDB, nothing: &usize, nada: &i64, zip: &f64) -> f64 {
+        param.iter()
+            .zip(param.iter().skip(1))
+            .map(|(&xi, &xi1)| (1.0 - xi).powi(2) + 100.0 * (xi1 - xi.powi(2)).powi(2))
+            .sum()
+    }
+
+    fn set_up_recdb() -> motifer::RecordsDB {
+        motifer::RecordsDB::new(
+            vec![motifer::StrandedSequence::new(Array3::zeros((2,2,2)))],
+            array![0],
+        )
+    }
+
+    fn set_up_swarm<'a>(
+            n_particles: usize,
+            temp: f64,
+            step: &'a f64,
+            low: &'a Vec<f64>,
+            up: &'a Vec<f64>,
+            init_jitter: f64,
+            objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64
+    ) -> Swarm<'a> {
+
+        let data_vec = vec![0.0, 0.0];
+        let rec_db = set_up_recdb();
+
+        Swarm::new(
+            n_particles,
+            data_vec,
+            low.to_vec(),
+            up.to_vec(),
+            temp,
+            *step,
+            init_jitter,
+            objective,
+            &rec_db,
+            &2,
+            &1,
+            &0.01,
+        )
+    }
+
+    fn set_up_particle(
+            step: &f64,
+            low: &Vec<f64>,
+            up: &Vec<f64>,
+            objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64
+    ) -> Particle {
+
+        let rec_db = set_up_recdb();
+        let data_vec = vec![0.0, 0.0];
+        let T = 2.0;
+        let particle = Particle::new(
+            data_vec,
+            low.to_vec(),
+            up.to_vec(),
+            objective,
+            T,
+            *step,
+            &rec_db, // this and the next three args are just place-holders to make code compile so that I can use himmelblau and rosenbrock
+            &15,
+            &1,
+            &0.1,
+        );
+        particle
+    }
+
+    #[test]
+    fn test_eval() {
+        let rec_db = set_up_recdb();
+        let step = 0.0;
+        let low = vec![-5.0, -5.0];
+        let up = vec![5.0, 5.0];
+        let particle = set_up_particle(&step, &low, &up, &himmelblau);
+        let score = particle.evaluate(
+            &himmelblau,
+            &rec_db,
+            &5,
+            &1,
+            &0.01,
+        );
+        assert_eq!(&score, &170.0);
+    }
+
+    #[test]
+    fn test_jitter_only() {
+        // Here we test that stepsize 0.0 and no velocity do not move particle
+        let start_data = vec![0.0, 0.0];
+        let step = 0.0;
+        let low = vec![-5.0, -5.0];
+        let up = vec![5.0, 5.0];
+        let mut particle = set_up_particle(&step, &low, &up, &himmelblau);
+
+        particle.perturb();
+        // particle should have started at [1.0,1.0], and should not have moved
+        // with step of 0.0
+        particle.position.iter()
+            .zip(&start_data)
+            .for_each(|(a,b)| assert_abs_diff_eq!(a,b));
+
+        // Here we test that stepsize 1.0 does move particle
+        let step = 1.0;
+        let low = vec![-5.0, -5.0];
+        let up = vec![5.0, 5.0];
+        let mut particle = set_up_particle(&step, &low, &up, &himmelblau);
+        particle.perturb();
+        // particle should end NOT at [1.0,1.0], so the sums should differ
+        assert_ne!(
+            particle.position.iter().sum::<f64>(),
+            start_data.iter().sum::<f64>(),
+        );
+    }
+
+    #[test]
+    fn test_velocity_only() {
+        // Here we test that stepsize 0.0 and velocity [1.0, 1.0] moves particle
+        // directionally
+        let start_data = vec![0.0, 0.0];
+        let step = 0.0;
+        let inertia = 1.0;
+        let local_weight = 0.5;
+        let global_weight = 0.5;
+        let global_best = vec![4.0, 4.0];
+        let low = vec![-5.0, -5.0];
+        let up = vec![5.0, 5.0];
+        let mut particle = set_up_particle(&step, &low, &up, &himmelblau);
+        // particle velocity is set to [0.0, 0.0] initially
+        particle.velocity.iter()
+            .zip(&vec![0.0, 0.0])
+            .for_each(|(a,b)| assert_abs_diff_eq!(a,b));
+        //assert!(particle.velocity.abs_diff_eq(&array![0.0, 0.0], 1e-6));
+        particle.set_velocity(
+            &inertia,
+            &local_weight,
+            &global_weight,
+            &global_best,
+        );
+        // particle velocity should have changed
+        particle.velocity.iter()
+            .zip(&vec![0.0,0.0])
+            .for_each(|(a,b)| assert_abs_diff_ne!(a,b));
+        //assert!(!particle.velocity.abs_diff_eq(&array![0.0, 0.0], 1e-6));
+        particle.perturb();
+        particle.position.iter()
+            .zip(&start_data)
+            .for_each(|(a,b)| assert_abs_diff_ne!(a,b));
+        //assert!(!particle.position.abs_diff_eq(&start_data, 1e-6));
+    }
+
+    #[test]
+    fn test_annealing() {
+        let rec_db = set_up_recdb();
+        let step = 0.25;
+        let start = vec![0.0, 0.0];
+        let low = vec![-5.0, -5.0];
+        let up = vec![5.0, 5.0];
+        let temp = 2.0;
+        let niter = 10000;
+        let t_adj = 0.01;
+
+        let opt_params = simulated_annealing(
+            start,
+            low,
+            up,
+            temp,
+            step,
+            niter,
+            &t_adj,
+            &rosenbrock,
+            &rec_db,
+            &5,
+            &1,
+            &0.01,
+        );
+
+        println!("{:?}", opt_params);
+    }
+
+    #[test]
+    fn test_swarming() {
+
+        let rec_db = set_up_recdb();
+        let step = 0.25;
+        let start = vec![0.0, 0.0];
+        let low = vec![-5.0, -5.0];
+        let up = vec![5.0, 5.0];
+        let n_particles = 50;
+        let inertia = 0.8;
+        let local_weight = 0.2;
+        let global_weight = 0.8;
+        let initial_jitter = &step * 8.0;
+
+        let niter = 1000;
+
+        let opt_params = particle_swarm(
+            start,
+            low,
+            up,
+            n_particles,
+            inertia,
+            local_weight,
+            global_weight,
+            initial_jitter,
+            niter,
+            &rosenbrock,
+            &rec_db,
+            &5,
+            &1,
+            &0.01,
+        );
+
+        println!("{:?}", opt_params);
+    }
+}
+
+enum Method {
+    SimulatedAnnealing,
+    ParticleSwarm,
+    ReplicaExchange,
+}
+
+pub struct Particle {
     position: Vec<f64>,
     prior_position: Vec<f64>,
     best_position: Vec<f64>,
@@ -186,7 +278,6 @@ pub struct Particle<'a> {
     velocity: Vec<f64>,
     prior_velocity: Vec<f64>,
     stepsize: f64,
-    objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
     // The idea for using an Arc<Mutex<_>> here is taken directly from an example
     // optimization from the argmin crate. They state that that using this for the
     // random number generator allows for thread safe interior mutability.
@@ -195,20 +286,24 @@ pub struct Particle<'a> {
     rng: ThreadRng,
 }
 
-impl Particle<'_> {
-    pub fn new<'a>(data: Vec<f64>,
+impl Particle {
+    pub fn new(
+        data: Vec<f64>,
         lower: Vec<f64>,
         upper: Vec<f64>,
+        objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
         temperature: f64,
         stepsize: f64,
-        objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
         rec_db: &motifer::RecordsDB,
         kmer: &usize,
         max_count: &i64,
         alpha: &f64,
-    ) -> Particle<'a> {
+    ) -> Particle {
 
         // initialize velocity for each parameter to zero
+        /////////////////////////////////////////////////////////////
+        // in future, randomly sample for initial velocity //////////
+        /////////////////////////////////////////////////////////////
         let v = vec![0.0; data.len()];
         let pv = vec![0.0; data.len()];
         // copy of data to place something into prior_position
@@ -225,12 +320,12 @@ impl Particle<'_> {
             temperature: temperature,
             velocity: v,
             prior_velocity: pv,
-            objective: objective,
             stepsize: stepsize,
             //rng: Arc::new(Mutex::new(Xoshiro256PlusPlus::from_entropy())),
             rng: thread_rng(),
         };
         particle.score = particle.evaluate(
+            objective,
             rec_db,
             kmer,
             max_count,
@@ -240,8 +335,12 @@ impl Particle<'_> {
         particle
     }
 
-    fn iterate(
-            &mut self, inertia: &f64,
+    fn step(
+            &mut self,
+            objective: &dyn Fn(
+                &Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64
+            ) -> f64,
+            inertia: &f64,
             local_weight: &f64,
             global_weight: &f64,
             global_best_position: &Vec<f64>,
@@ -250,6 +349,7 @@ impl Particle<'_> {
             kmer: &usize,
             max_count: &i64,
             alpha: &f64,
+            method: &Method,
     ) {
         // set the new velocity
         self.set_velocity(
@@ -259,13 +359,29 @@ impl Particle<'_> {
             global_best_position,
         );
         self.perturb();
-        let score = self.evaluate(rec_db, kmer, max_count, alpha);
+        let score = self.evaluate(objective, rec_db, kmer, max_count, alpha);
         // If we reject the move, revert to prior state and perturb again.
-        if !self.accept(&score) {
-            self.revert();
-        } else {
-            // Update prior [and possibly the best] score if we accepted the move
-            self.update_scores(&score);
+        ////////////////////////////////////////////////////////////////////
+        // figure out how to get particle swarm working here ///////////////
+        ////////////////////////////////////////////////////////////////////
+        match method {
+            Method::ParticleSwarm => self.update_scores(&score),
+            Method::SimulatedAnnealing => {
+                if !self.accept(&score) {
+                    self.revert();
+                } else {
+                    // Update prior [and possibly the best] score if we accepted the move
+                    self.update_scores(&score);
+                }
+            }
+            Method::ReplicaExchange => {
+                if !self.accept(&score) {
+                    self.revert();
+                } else {
+                    // Update prior [and possibly the best] score if we accepted the move
+                    self.update_scores(&score);
+                }
+            }
         }
         self.adjust_temp(t_adj);
     }
@@ -289,13 +405,16 @@ impl Particle<'_> {
     /// Gets the score for this Particle
     fn evaluate(
             &self,
+            objective: &dyn Fn(
+                &Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64
+            ) -> f64,
             rec_db: &motifer::RecordsDB,
             kmer: &usize,
             max_count: &i64,
             alpha: &f64,
     ) -> f64 {
         // the parens are necessary here!
-        (self.objective)(&self.position, rec_db, kmer, max_count, alpha)
+        (objective)(&self.position, rec_db, kmer, max_count, alpha)
     }
 
     /// Randomly chooses the index of position to update using jitter
@@ -386,8 +505,8 @@ impl Particle<'_> {
     fn accept(&mut self, score: &f64) -> bool {
         // compare this score to prior score
         let diff = score - self.score;
-        // if score < last score, accept
-        if diff < 0.0 {
+        // if score < last score, diff is < 0.0, and we accept
+        if diff <= 0.0 {
             true
         // if score > last score, decide probabilistically whether to accept
         } else {
@@ -418,143 +537,217 @@ impl Particle<'_> {
     }
 }
 
-struct Swarm<'a> {
-    particles: Vec<Particle<'a>>,
-    global_best: Vec<f64>,
+pub struct Swarm<'a> {
+    particles: Vec<Particle>,
+    global_best_position: Vec<f64>,
+    global_best_score: f64,
+    objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
 }
 
-//impl Swarm<'_> {
-//    pub fn new<'a>(n_particles: usize,
-//            upper_bounds: &'a Vec<f64>,
-//            lower_bounds: &'a Vec<f64>,
-//            objective: fn(&Vec<f64>) -> f64) -> Swarm<'a> {
-//
-//        let mut rng = thread_rng();
-//        let mut particle_vec = Vec::new();
-//        for _ in 0..n_particles {
-//            let mut data_vec = vec![0.0; upper_bounds.len()];
-//            data_vec.iter_mut()
-//                .enumerate()
-//                .for_each(|(i,a)| {
-//                    *a = rng.gen_range(lower_bounds[i]..upper_bounds[i]);
-//                });
-//            let particle = Particle::new(
-//                data_vec,
-//                lower_bounds.to_vec(),
-//                upper_bounds.to_vec(),
-//                0.0, // set temp and stepsize to 0.0 to turn off annealing
-//                0.0,
-//                &objective,
-//            );
-//            particle_vec.push(particle);
-//        }
-//        particle_vec.sort_unstable_by_key(|a| OrderedFloat(a.score));
-//        let best_pos = particle_vec[0].position.to_vec();
-//        Swarm{
-//            particles: particle_vec,
-//            global_best: best_pos,
-//        }
-//    }
-//
-//    fn iterate(&mut self) {
-//    }
-//}
+impl Swarm<'_> {
+    /// Returns a Swarm of particles whose positions are sampled from
+    /// a normal distribution defined by the original start position
+    /// plus 1.5 * stepsize.
+    pub fn new<'a>(
+            n_particles: usize,
+            data: Vec<f64>,
+            lower: Vec<f64>,
+            upper: Vec<f64>,
+            temperature: f64,
+            stepsize: f64,
+            initial_jitter: f64,
+            objective: &'a dyn Fn(
+                &Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64
+            ) -> f64,
+            rec_db: &motifer::RecordsDB,
+            kmer: &usize,
+            max_count: &i64,
+            alpha: &f64,
+    ) -> Swarm<'a> {
+        // instantiate the random number generator
+        let mut rng = thread_rng();
+        // set variance of new particles around data to initial_jitter^2
+        let distr = Normal::new(0.0, initial_jitter).unwrap();
 
-struct ReplicaExchanger<'a> {
-    particles: Vec<Particle<'a>>,
-    iter_switch: usize,
+        // instantiate a Vec
+        let mut particle_vec = Vec::new();
+        // instantiate particles around the actual data
+        for _ in 0..n_particles {
+            let mut data_vec = data.to_vec();
+            data_vec.iter_mut()
+                .enumerate()
+                .for_each(|(i,a)| {
+                    // set new particle's data to data + sample, clamp between bounds
+                    *a = *a + distr
+                        .sample(&mut rng)
+                        .clamp(lower[i],upper[i]);
+                });
+            let particle = Particle::new(
+                data_vec,
+                lower.to_vec(),
+                upper.to_vec(),
+                objective,
+                temperature,
+                stepsize,
+                rec_db,
+                kmer,
+                max_count,
+                alpha,
+            );
+            particle_vec.push(particle);
+        }
+        // sort by -score, since our score is opposite of AMI
+        particle_vec.sort_unstable_by_key(|a| OrderedFloat(-a.score));
+        let best_pos = particle_vec[0].best_position.to_vec();
+        let best_score = particle_vec[0].best_score;
+        Swarm{
+            particles: particle_vec,
+            global_best_position: best_pos,
+            global_best_score: best_score,
+            objective: objective,
+        }
+    }
+
+    fn step(
+            &mut self,
+            inertia: &f64,
+            local_weight: &f64,
+            global_weight: &f64,
+            t_adj: &f64,
+            rec_db: &motifer::RecordsDB,
+            kmer: &usize,
+            max_count: &i64,
+            alpha: &f64,
+            method: &Method,
+    ) {
+        for particle in self.particles.iter_mut() {
+        //self.particles.par_iter_mut().for_each(|particle| {
+            particle.step(
+                &self.objective,
+                &inertia,
+                &local_weight,
+                &global_weight,
+                &self.global_best_position,
+                t_adj,
+                rec_db,
+                kmer,
+                max_count,
+                alpha,
+                method,
+            );
+        //});
+        }
+        self.particles.sort_unstable_by_key(|particle| OrderedFloat(-particle.score));
+        self.global_best_position = self.particles[0].best_position.to_vec();
+        self.global_best_score = self.particles[0].best_score;
+    }
+
+    /// Returns the number of particles in the Swarm
+    pub fn len(&self) -> usize {self.particles.len()}
 }
 
-//impl ReplicaExhanger {
-//    pub fn new(particle: &Particle, n_particles: usize) -> ReplicaExchanger {
-//        let mut particle_vec = Vec::new();
-//        for _ in (0..n_particles).iter() {
-//            let p = Particle.clone(
-//                data: Vec<f64>,
-//                lower: Vec<f64>,
-//                upper: Vec<f64>,
-//                temperature: f64,
-//                stepsize: f64,
-//                objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
-//                rec_db: &motifer::RecordsDB,
-//                kmer: &usize,
-//                max_count: &i64,
-//                alpha: &f64,
-//            );
-//        }
-//    }
-//}
-
-pub fn simulated_annealing(
-        particle: &mut Particle,
+pub fn particle_swarm(
+        params: Vec<f64>,
+        lower: Vec<f64>,
+        upper: Vec<f64>,
+        n_particles: usize,
+        inertia: f64,
+        local_weight: f64,
+        global_weight: f64,
+        initial_jitter: f64,
         niter: usize,
-        t_adj: &f64,
+        objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
         rec_db: &motifer::RecordsDB,
         kmer: &usize,
         max_count: &i64,
         alpha: &f64,
-) -> Vec<f64> {
+) -> (Vec<f64>, f64) {
 
-    let inertia = 0.0;
-    let local_weight = 0.0;
-    let global_weight = 0.0;
-    let global_best_position = vec![0.0; particle.position.len()];
+    // turn off jitter, leaving only velocity to affect position
+    let step = 0.0;
+    let temp = 0.0;
+    let t_adj = 0.0;
 
-    for _ in 0..niter {
-        particle.iterate(
+    let mut swarm = Swarm::new(
+        n_particles,
+        params,
+        lower,
+        upper,
+        temp,
+        step,
+        initial_jitter,
+        objective,
+        rec_db,
+        kmer,
+        max_count,
+        alpha,
+    );
+
+    for i in 0..niter {
+        swarm.step(
             &inertia,
             &local_weight,
             &global_weight,
-            &global_best_position,
-            t_adj,
-            rec_db,
-            kmer,
-            max_count,
-            alpha,
+            &t_adj,
+            &rec_db,
+            &kmer,
+            &max_count,
+            &alpha,
+            &Method::ParticleSwarm,
         );
     }
-    particle.best_position.to_vec()
+    (swarm.global_best_position.to_vec(), swarm.global_best_score)
 }
 
-//pub fn replica_exchange(
-//        exchanger: &mut ReplicaExchanger,
-//        niter: usize,
-//        niter_between_exchange: usize,
-//        t_adj: &f64,
-//        rec_db: &motifer::RecordsDB,
-//        kmer: &usize,
-//        max_count: &i64,
-//        alpha: &f64,
-//) -> Vec<f64> {
-//    for particle in ReplicaEchanger.iter() {
-//        simulated_annealing(
-//            particle,
-//            niter: usize,
-//            t_adj: &f64,
-//            rec_db: &motifer::RecordsDB,
-//            kmer: &usize,
-//            max_count: &i64,
-//            alpha: &f64,
-//        );
-//    }
-//}
+pub fn simulated_annealing(
+        params: Vec<f64>,
+        lower: Vec<f64>,
+        upper: Vec<f64>,
+        temp: f64,
+        step: f64,
+        niter: usize,
+        t_adj: &f64,
+        objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
+        rec_db: &motifer::RecordsDB,
+        kmer: &usize,
+        max_count: &i64,
+        alpha: &f64,
+) -> (Vec<f64>, f64) {
 
-//fn particle_swarm(swarm: &mut Swarm,
-//                  niter: usize,
-//                  inertia: f64,
-//                  local_weight = f64,
-//                  global_weight = f64) -> Array<f64, Ix1> {
-//
-//    let inertia = 0.0;
-//    let local_weight = 0.0;
-//    let global_weight = 0.0;
-//
-//    for _ in 0..niter {
-//        swarm.iterate(
-//            &inertia,
-//            &local_weight,
-//            &global_weight,
-//        );
-//    }
-//    swarm.global_best.to_owned()
-//}
+    // set inertia, local_weight, and global_weight to 0.0 to turn off velocities,
+    // thus leaving only the jitter to affect particle position
+    let inertia = 0.0;
+    let local_weight = 0.0;
+    let global_weight = 0.0;
+
+    let mut swarm = Swarm::new(
+        1, // n_particles is 1 for simulated annealing
+        params, // Vec<f64>
+        lower,
+        upper,
+        temp,
+        step,
+        0.0, // initial_jitter is 0.0 to place particle exactly at data
+        objective,
+        rec_db,
+        kmer,
+        max_count,
+        alpha,
+    );
+
+    for i in 0..niter {
+        swarm.step(
+            &inertia,
+            &local_weight,
+            &global_weight,
+            &t_adj,
+            &rec_db,
+            &kmer,
+            &max_count,
+            &alpha,
+            &Method::SimulatedAnnealing,
+        );
+    }
+    (swarm.global_best_position.to_vec(), swarm.global_best_score)
+}
+

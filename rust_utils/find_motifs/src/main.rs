@@ -5,6 +5,7 @@ use std::time;
 use std::collections::HashMap;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
+use approx::AbsDiff;
 
 //  I ran target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
 // On Jeremy's laptop, run in series:
@@ -63,7 +64,16 @@ fn main() {
     let thresh_ub = 5.0;
 
     let mut optimized_motifs = Vec::new();
-    for motif in motifs.iter() {
+    for (i,motif) in motifs.iter().enumerate() {
+
+        // for now, just do one motif
+        if i == 1 {
+            break;
+        }
+        println!("Optimizing motif {} now.", i);
+
+        let start_mi = motif.mi;
+        let now = time::Instant::now();
         let (params,low,up) = motifer::wrangle_params_for_optim(
             &motif,
             &shape_lb,
@@ -74,35 +84,53 @@ fn main() {
             &thresh_ub,
         );
 
-        let temp = 1.0;
+        let temp = 0.20;
         let step = 0.25;
+        // initial particles are dropped onto the landscape at
+        // init_position + Normal(0.0, init_jitter)
+        let init_jitter = &step * 8.0;
+        // set n_particles = 1 for simulated annealing of a single particle
+        let n_particles = 50;
+        let inertia = 0.8;
+        let local_weight = 0.2;
+        let global_weight = 0.8,
+
         let params_copy = params.to_vec();
         
-        let mut particle = optim::Particle::new(
+        let n_iter = 1000;
+        let t_adjust = 0.05;
+
+        let (optimized_result,optimized_score) = optim::particle_swarm(
             params_copy,
             low,
             up,
-            temp,
-            step,
+            n_particles,
+            inertia,
+            local_weight,
+            global_weight,
+            init_jitter,
+            n_iter,
             &motifer::optim_objective,
             &rec_db,
             &cfg.kmer,
             &cfg.max_count,
             &cfg.alpha,
         );
-
-        let n_iter = 1000;
-        let t_adjust = 0.05;
         
-        let optimized_result = optim::simulated_annealing(
-            &mut particle,
-            n_iter,
-            &t_adjust,
-            &rec_db,
-            &cfg.kmer,
-            &cfg.max_count,
-            &cfg.alpha,
-        );
+        //let (optimized_result,optimized_score) = optim::simulated_annealing(
+        //    params_copy,
+        //    low,
+        //    up,
+        //    temp,
+        //    step,
+        //    n_iter,
+        //    &t_adjust,
+        //    &motifer::optim_objective,
+        //    &rec_db,
+        //    &cfg.kmer,
+        //    &cfg.max_count,
+        //    &cfg.alpha,
+        //);
         let optimized_motif = motifer::opt_vec_to_motif(
             &optimized_result,
             &rec_db,
@@ -110,6 +138,19 @@ fn main() {
             &cfg.max_count,
             &cfg.kmer,
         );
+        let duration = now.elapsed().as_secs_f64() / 60.0;
+        println!("Optimizing motif {} took {:?} minutes.", i, duration);
+        println!("It started with an adjusted mutual information of {}, and ended with a value of {}", &start_mi, &optimized_motif.mi);
+
+        println!("==============================================");
+        println!("Calculated MI for returned motif values was {}, and MI directly returned from optimizer was {}", &optimized_motif.mi, &optimized_score);
+        println!("==============================================");
+
+        assert!(AbsDiff::default()
+            .epsilon(1e-6)
+            .eq(&optimized_motif.mi,&optimized_score)
+        );
+
         optimized_motifs.push(optimized_motif);
     }
 
