@@ -195,6 +195,17 @@ mod tests {
     }
 
     #[test]
+    fn test_temp_switch() {
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    }
+
+    #[test]
     fn test_annealing() {
         let rec_db = set_up_recdb();
         let step = 0.25;
@@ -260,7 +271,7 @@ mod tests {
     }
 }
 
-enum Method {
+pub enum Method {
     SimulatedAnnealing,
     ParticleSwarm,
     ReplicaExchange,
@@ -301,11 +312,11 @@ impl Particle {
     ) -> Particle {
 
         // initialize velocity for each parameter to zero
-        /////////////////////////////////////////////////////////////
-        // in future, randomly sample for initial velocity //////////
-        /////////////////////////////////////////////////////////////
-        let v = vec![0.0; data.len()];
-        let pv = vec![0.0; data.len()];
+        let mut v = vec![0.0; data.len()];
+        for value in v.iter_mut() {
+            *value = *value + thread_rng().gen_range(-stepsize..stepsize)
+        }
+        let pv = v.to_vec();
         // copy of data to place something into prior_position
         let d = data.to_vec();
         let pr = data.to_vec();
@@ -351,7 +362,7 @@ impl Particle {
             alpha: &f64,
             method: &Method,
     ) {
-        // set the new velocity
+        // set the new velocity and move particle
         self.set_velocity(
             inertia,
             local_weight,
@@ -359,13 +370,13 @@ impl Particle {
             global_best_position,
         );
         self.perturb();
+
         let score = self.evaluate(objective, rec_db, kmer, max_count, alpha);
-        // If we reject the move, revert to prior state and perturb again.
-        ////////////////////////////////////////////////////////////////////
-        // figure out how to get particle swarm working here ///////////////
-        ////////////////////////////////////////////////////////////////////
+
         match method {
+            // if we did particle swarm, just update and move on
             Method::ParticleSwarm => self.update_scores(&score),
+            // If we reject the move, revert to prior state and perturb again.
             Method::SimulatedAnnealing => {
                 if !self.accept(&score) {
                     self.revert();
@@ -563,6 +574,7 @@ impl Swarm<'_> {
             kmer: &usize,
             max_count: &i64,
             alpha: &f64,
+            method: Method,
     ) -> Swarm<'a> {
         // instantiate the random number generator
         let mut rng = thread_rng();
@@ -572,29 +584,59 @@ impl Swarm<'_> {
         // instantiate a Vec
         let mut particle_vec = Vec::new();
         // instantiate particles around the actual data
-        for _ in 0..n_particles {
+        for i in 0..n_particles {
             let mut data_vec = data.to_vec();
-            data_vec.iter_mut()
-                .enumerate()
-                .for_each(|(i,a)| {
-                    // set new particle's data to data + sample, clamp between bounds
-                    *a = *a + distr
-                        .sample(&mut rng)
-                        .clamp(lower[i],upper[i]);
-                });
-            let particle = Particle::new(
-                data_vec,
-                lower.to_vec(),
-                upper.to_vec(),
-                objective,
-                temperature,
-                stepsize,
-                rec_db,
-                kmer,
-                max_count,
-                alpha,
-            );
-            particle_vec.push(particle);
+            let mut temp = 0.0;
+            // first particle should be right on data
+            match method {
+                Method::SimulatedAnnealing => {
+                    temp = temperature;
+                }
+                Method::ReplicaExchange => {
+                    temp = temperature + distr.sample(&mut rng);
+                }
+                Method::ParticleSwarm => {
+                    temp = 0.0;
+                }
+            }
+            if i == 0 {
+                let particle = Particle::new(
+                    data_vec,
+                    lower.to_vec(),
+                    upper.to_vec(),
+                    objective,
+                    temp,
+                    stepsize,
+                    rec_db,
+                    kmer,
+                    max_count,
+                    alpha,
+                );
+                particle_vec.push(particle);
+            } else {
+
+                data_vec.iter_mut()
+                    .enumerate()
+                    .for_each(|(i,a)| {
+                        // set new particle's data to data + sample, clamp between bounds
+                        *a = *a + distr
+                            .sample(&mut rng)
+                            .clamp(lower[i],upper[i]);
+                    });
+                let particle = Particle::new(
+                    data_vec,
+                    lower.to_vec(),
+                    upper.to_vec(),
+                    objective,
+                    temp,
+                    stepsize,
+                    rec_db,
+                    kmer,
+                    max_count,
+                    alpha,
+                );
+                particle_vec.push(particle);
+            }
         }
         // sort by -score, since our score is opposite of AMI
         particle_vec.sort_unstable_by_key(|a| OrderedFloat(-a.score));
@@ -642,8 +684,103 @@ impl Swarm<'_> {
         self.global_best_score = self.particles[0].best_score;
     }
 
+    pub fn exchange_odd(&mut self) {
+        let mut iterator = Vec::new();
+        let swap_num = self.len() / 2;
+        for i in 0..swap_num {
+            iterator.push((i*2,i*2+1));
+        }
+        self.particles.sort_unstable_by_key(|particle| OrderedFloat(particle.temperature));
+        for swap_idxs in iterator {
+            let temp_i = self.particles[swap_idxs.1].temperature;
+            let temp_i_plus_one = self.particles[swap_idxs.0].temperature;
+            self.particles[swap_idxs.0].temperature = temp_i;
+            self.particles[swap_idxs.1].temperature = temp_i_plus_one;
+        }
+    }
+
+    pub fn exchange_even(&mut self) {
+        let mut iterator = Vec::new();
+        let swap_num = self.len() / 2 - 1;
+        for i in 0..swap_num {
+            iterator.push((i*2,i*2+1));
+        }
+        self.particles.sort_unstable_by_key(|particle| OrderedFloat(particle.temperature));
+        for swap_idxs in iterator {
+            let temp_i = self.particles[swap_idxs.1].temperature;
+            let temp_i_plus_one = self.particles[swap_idxs.0].temperature;
+            self.particles[swap_idxs.0].temperature = temp_i;
+            self.particles[swap_idxs.1].temperature = temp_i_plus_one;
+        }
+    }
+
     /// Returns the number of particles in the Swarm
     pub fn len(&self) -> usize {self.particles.len()}
+}
+
+pub fn replica_exchange(
+        params: Vec<f64>,
+        lower: Vec<f64>,
+        upper: Vec<f64>,
+        n_particles: usize,
+        n_iter_exchange: usize,
+        temp: f64,
+        step: f64,
+        niter: usize,
+        t_adj: &f64,
+        objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
+        rec_db: &motifer::RecordsDB,
+        kmer: &usize,
+        max_count: &i64,
+        alpha: &f64,
+) -> (Vec<f64>, f64) {
+
+    // set inertia, local_weight, and global_weight to 0.0 to turn off velocities,
+    // thus leaving only the jitter to affect particle position
+    let inertia = 0.0;
+    let local_weight = 0.0;
+    let global_weight = 0.0;
+    // set initial_jitter to 0.0 to place all particles exactly at data
+    let initial_jitter = 0.0;
+
+    let mut swarm = Swarm::new(
+        n_particles,
+        params,
+        lower,
+        upper,
+        temp,
+        step,
+        initial_jitter,
+        objective,
+        rec_db,
+        kmer,
+        max_count,
+        alpha,
+        Method::ReplicaExchange,
+    );
+
+    let mut odds = true;
+    for i in 0..niter {
+        if i % n_iter_exchange == 0 {
+            if odds {
+                swarm.exchange_odd();
+            } else {
+                swarm.exchange_even();
+            }
+        }
+        swarm.step(
+            &inertia,
+            &local_weight,
+            &global_weight,
+            &t_adj,
+            &rec_db,
+            &kmer,
+            &max_count,
+            &alpha,
+            &Method::ReplicaExchange,
+        );
+    }
+    (swarm.global_best_position.to_vec(), swarm.global_best_score)
 }
 
 pub fn particle_swarm(
@@ -681,6 +818,7 @@ pub fn particle_swarm(
         kmer,
         max_count,
         alpha,
+        Method::ParticleSwarm,
     );
 
     for i in 0..niter {
@@ -733,6 +871,7 @@ pub fn simulated_annealing(
         kmer,
         max_count,
         alpha,
+        Method::SimulatedAnnealing,
     );
 
     for i in 0..niter {

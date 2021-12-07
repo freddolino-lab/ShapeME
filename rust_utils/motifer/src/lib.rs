@@ -848,20 +848,11 @@ pub fn opt_vec_to_motif(
             params_vec[0..slice_length].to_vec(),
         ).unwrap(),
     };
-    // instantiate [MotifWeights] of appropriate shape and values of zero
-    let mut opt_weights = MotifWeights::new(
-        &opt_params.view(),
-    );
     // get optimized values for the weights field
     let these_weights = ndarray::Array::from_shape_vec(
         (shape_num, *kmer),
         params_vec[slice_length..slice_length*2].to_vec(),
     ).unwrap();
-    // set the weights values; normalized values are set in this method as well
-    opt_weights.set_weights(
-        these_weights.view(),
-        alpha,
-    );
     let opt_threshold = params_vec[params_vec.len()-1];
     // finally, instantiate the Motif
     let mut motif = Motif::new(
@@ -869,6 +860,8 @@ pub fn opt_vec_to_motif(
         opt_threshold,
         record_num,
     );
+    // set the Motif's weights. constrain_normalize is called within set_weights
+    motif.weights.set_weights(these_weights.view(), &alpha);
     // now set its hits and mi
     let weights = motif.weights.weights_norm.to_owned();
     motif.update_info(

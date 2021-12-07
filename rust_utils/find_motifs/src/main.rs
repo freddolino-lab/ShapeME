@@ -84,33 +84,67 @@ fn main() {
             &thresh_ub,
         );
 
+        let pre_optim_obj_val = motifer::optim_objective(
+            &params,
+            &rec_db,
+            &cfg.kmer,
+            &cfg.max_count,
+            &cfg.alpha,
+        );
+        
         let temp = 0.20;
         let step = 0.25;
         // initial particles are dropped onto the landscape at
         // init_position + Normal(0.0, init_jitter)
         let init_jitter = &step * 8.0;
         // set n_particles = 1 for simulated annealing of a single particle
-        let n_particles = 50;
+        let n_particles = 100;
         let inertia = 0.8;
         let local_weight = 0.2;
-        let global_weight = 0.8,
+        let global_weight = 0.8;
 
         let params_copy = params.to_vec();
         
-        let n_iter = 1000;
+        let n_iter = 5000;
+        let n_iter_exchange = 5;
         let t_adjust = 0.05;
 
-        let (optimized_result,optimized_score) = optim::particle_swarm(
+        let (optimized_result,optimized_score) = optim::replica_exchange(
             params_copy,
             low,
             up,
             n_particles,
-            inertia,
-            local_weight,
-            global_weight,
-            init_jitter,
+            n_iter_exchange,
+            temp,
+            step,
             n_iter,
+            &t_adjust,
             &motifer::optim_objective,
+            &rec_db,
+            &cfg.kmer,
+            &cfg.max_count,
+            &cfg.alpha,
+        );
+
+        //let (optimized_result,optimized_score) = optim::particle_swarm(
+        //    params_copy,
+        //    low,
+        //    up,
+        //    n_particles,
+        //    inertia,
+        //    local_weight,
+        //    global_weight,
+        //    init_jitter,
+        //    n_iter,
+        //    &motifer::optim_objective,
+        //    &rec_db,
+        //    &cfg.kmer,
+        //    &cfg.max_count,
+        //    &cfg.alpha,
+        //);
+
+        let optim_obj_val = motifer::optim_objective(
+            &optimized_result,
             &rec_db,
             &cfg.kmer,
             &cfg.max_count,
@@ -131,6 +165,7 @@ fn main() {
         //    &cfg.max_count,
         //    &cfg.alpha,
         //);
+
         let optimized_motif = motifer::opt_vec_to_motif(
             &optimized_result,
             &rec_db,
@@ -139,11 +174,20 @@ fn main() {
             &cfg.kmer,
         );
         let duration = now.elapsed().as_secs_f64() / 60.0;
+
         println!("Optimizing motif {} took {:?} minutes.", i, duration);
         println!("It started with an adjusted mutual information of {}, and ended with a value of {}", &start_mi, &optimized_motif.mi);
 
         println!("==============================================");
         println!("Calculated MI for returned motif values was {}, and MI directly returned from optimizer was {}", &optimized_motif.mi, &optimized_score);
+        println!("==============================================");
+
+        println!("==============================================");
+        println!("Calculated MI using motifer::optim_objective and the optimized para_vec was {}, and MI directly returned from optimizer was {}", &optim_obj_val, &optimized_score);
+        println!("==============================================");
+
+        println!("==============================================");
+        println!("Calculated MI using motifer::optim_objective and the optimized para_vec was {}, and MI using::optim_objective prior to optimization was {}", &optim_obj_val, &pre_optim_obj_val);
         println!("==============================================");
 
         assert!(AbsDiff::default()
