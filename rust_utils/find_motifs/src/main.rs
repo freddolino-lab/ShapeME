@@ -22,20 +22,20 @@ fn main() {
     ThreadPoolBuilder::new().num_threads(cfg.cores).build_global().unwrap();
 
     let rec_db = motifer::RecordsDB::new_from_files(
-        cfg.shape_fname,
-        cfg.yvals_fname,
+        &cfg.shape_fname,
+        &cfg.yvals_fname,
     );
     let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
 
     let threshold = motifer::set_initial_threshold(
         &seeds,
         &rec_db,
-        cfg.seed_sample_size,
-        cfg.records_per_seed,
-        cfg.windows_per_record,
+        &cfg.seed_sample_size,
+        &cfg.records_per_seed,
+        &cfg.windows_per_record,
         &cfg.kmer,
         &cfg.alpha,
-        cfg.thresh_sd_from_mean,
+        &cfg.thresh_sd_from_mean,
     );
 
     let now = time::Instant::now();
@@ -48,13 +48,20 @@ fn main() {
     println!("MI calculation took {:?} minutes.", duration);
 
     println!("{} seeds prior to CMI-based filtering.", seeds.len());
-    let motifs = motifer::filter_seeds(
+    let mut motifs = motifer::filter_seeds(
         &mut seeds,
         &rec_db,
         &threshold,
         &cfg.max_count,
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
+
+    motifer::pickle_motifs(
+        //&optimized_motifs,
+        &motifs,
+        &String::from("/home/schroedj/original_motif_vec.pkl"),
+    );
+    println!("Vector of optimized motifs written to: {}", &cfg.out_fname);
 
     let shape_lb = -4.0;
     let shape_ub = 4.0;
@@ -63,13 +70,14 @@ fn main() {
     let thresh_lb = 0.0;
     let thresh_ub = 5.0;
 
-    let mut optimized_motifs = Vec::new();
-    for (i,motif) in motifs.iter().enumerate() {
+    //let mut optimized_motifs = Vec::new();
+    ///////////////////////////////////////////////////////////////
+    // CHECK THAT WE ACTUALLY CHANGE THE MOTIFS IN motifs HERE ////
+    ///////////////////////////////////////////////////////////////
+    println!("Grabbing the top two motifs to optimize");
+    motifs.par_iter_mut().enumerate().filter(|(i,motif)| i < &2).for_each(|(i,motif)| {
+    //for (i,motif) in motifs.iter().enumerate() {
 
-        // for now, just do one motif
-        if i == 1 {
-            break;
-        }
         println!("Optimizing motif {} now.", i);
 
         let start_mi = motif.mi;
@@ -92,13 +100,15 @@ fn main() {
             &cfg.alpha,
         );
         
-        let temp = 0.20;
+        let p_temp: f64 = 0.20;
+        // set temp to difference between p_temp and 0.5 on logit scale
+        let temp = ((0.5+p_temp)/(0.5-p_temp)).ln().abs();
         let step = 0.25;
         // initial particles are dropped onto the landscape at
         // init_position + Normal(0.0, init_jitter)
         let init_jitter = &step * 8.0;
         // set n_particles = 1 for simulated annealing of a single particle
-        let n_particles = 100;
+        let n_particles = 50;
         let inertia = 0.8;
         let local_weight = 0.2;
         let global_weight = 0.8;
@@ -109,33 +119,17 @@ fn main() {
         let n_iter_exchange = 5;
         let t_adjust = 0.05;
 
-        let (optimized_result,optimized_score) = optim::replica_exchange(
-            params_copy,
-            low,
-            up,
-            n_particles,
-            n_iter_exchange,
-            temp,
-            step,
-            n_iter,
-            &t_adjust,
-            &motifer::optim_objective,
-            &rec_db,
-            &cfg.kmer,
-            &cfg.max_count,
-            &cfg.alpha,
-        );
-
-        //let (optimized_result,optimized_score) = optim::particle_swarm(
+        //println!("Using replica exchange as the optimization method.");
+        //let (optimized_result,optimized_score) = optim::replica_exchange(
         //    params_copy,
         //    low,
         //    up,
         //    n_particles,
-        //    inertia,
-        //    local_weight,
-        //    global_weight,
-        //    init_jitter,
+        //    n_iter_exchange,
+        //    temp,
+        //    step,
         //    n_iter,
+        //    &t_adjust,
         //    &motifer::optim_objective,
         //    &rec_db,
         //    &cfg.kmer,
@@ -143,14 +137,25 @@ fn main() {
         //    &cfg.alpha,
         //);
 
-        let optim_obj_val = motifer::optim_objective(
-            &optimized_result,
+        println!("Using particle swarm as the optimization method.");
+        let (optimized_result,optimized_score) = optim::particle_swarm(
+            params_copy,
+            low,
+            up,
+            n_particles,
+            inertia,
+            local_weight,
+            global_weight,
+            init_jitter,
+            n_iter,
+            &motifer::optim_objective,
             &rec_db,
             &cfg.kmer,
             &cfg.max_count,
             &cfg.alpha,
         );
-        
+
+        //println!("Using simulated annealing as the optimization method.");
         //let (optimized_result,optimized_score) = optim::simulated_annealing(
         //    params_copy,
         //    low,
@@ -166,6 +171,14 @@ fn main() {
         //    &cfg.alpha,
         //);
 
+        let optim_obj_val = motifer::optim_objective(
+            &optimized_result,
+            &rec_db,
+            &cfg.kmer,
+            &cfg.max_count,
+            &cfg.alpha,
+        );
+        
         let optimized_motif = motifer::opt_vec_to_motif(
             &optimized_result,
             &rec_db,
@@ -190,22 +203,26 @@ fn main() {
         println!("Calculated MI using motifer::optim_objective and the optimized para_vec was {}, and MI using::optim_objective prior to optimization was {}", &optim_obj_val, &pre_optim_obj_val);
         println!("==============================================");
 
-        assert!(AbsDiff::default()
-            .epsilon(1e-6)
-            .eq(&optimized_motif.mi,&optimized_score)
-        );
+        //assert!(AbsDiff::default()
+        //    .epsilon(1e-6)
+        //    .eq(&optimized_motif.mi,&(&-1.0 * &optimized_score))
+        //);
 
-        optimized_motifs.push(optimized_motif);
-    }
+        //optimized_motifs.push(optimized_motif);
+        *motif = optimized_motif;
+    });
+    //}
 
     motifer::pickle_motifs(
-        &optimized_motifs,
+        //&optimized_motifs,
+        &motifs,
         &cfg.out_fname,
     );
     println!("Vector of optimized motifs written to: {}", &cfg.out_fname);
 
     let motifs = motifer::filter_motifs(
-        &mut optimized_motifs,
+        //&mut optimized_motifs,
+        &mut motifs,
         &rec_db,
         &threshold,
         &cfg.max_count,

@@ -313,8 +313,10 @@ impl Particle {
 
         // initialize velocity for each parameter to zero
         let mut v = vec![0.0; data.len()];
-        for value in v.iter_mut() {
-            *value = *value + thread_rng().gen_range(-stepsize..stepsize)
+        if stepsize > 0.0 {
+            for value in v.iter_mut() {
+                *value = *value + thread_rng().gen_range(-stepsize..stepsize)
+            }
         }
         let pv = v.to_vec();
         // copy of data to place something into prior_position
@@ -341,7 +343,7 @@ impl Particle {
             kmer,
             max_count,
             alpha,
-        );
+        ).clamp(f64::EPSILON, 1.0-f64::EPSILON);
         particle.best_score = particle.score;
         particle
     }
@@ -430,7 +432,7 @@ impl Particle {
 
     /// Randomly chooses the index of position to update using jitter
     fn choose_param_index(&mut self) -> usize {
-        let die = Uniform::from(0..self.position.len());
+        let die = Uniform::new_inclusive(0, self.position.len());
         die.sample(&mut self.rng)
     }
 
@@ -446,15 +448,25 @@ impl Particle {
         // self.rng.gen samples from [0.0, 1.0)
         let r_arr: [f64; 2] = self.rng.gen();
         // set the new velocity
+        let step = &self.stepsize;
         self.velocity.iter_mut() // mutably iterate over current velocity
             .zip(&self.best_position) // in lockstep with this Particle's best position
             .zip(global_best_position) // and the global best position
             .zip(&self.position) // and the current position
-            .for_each(|(((a, b), c), d)| { // a=vel, b=local_best, c=all_best, d=pos
+            .zip(&self.lower_bound) // and the lower bound
+            .zip(&self.upper_bound) // and the upper bound
+            // a=vel, b=local_best, c=swarm_best, d=pos, e=lower_bound, f=upper_bound
+            .for_each(|(((((a, b), c), d), e), f)| {
                 let term1 = inertia * *a;
+                // attraction to the particle's own best gets stronger with distance
                 let term2 = local_weight * r_arr[0] * (b - d);
+                // attraction to the swarms's best gets stronger with distance
                 let term3 = global_weight * r_arr[1] * (c - d);
-                *a = term1 + term2 + term3
+                // repulsion from lower bound defined by squared distance to lower bound
+                let term4 = -step / ((e - d) * (e - d));
+                // repulsion from upper bound defined by squared distance to upper bound
+                let term5 = -step / ((f - d) * (f - d));
+                *a = term1 + term2 + term3 + term4 + term5
             })
     }
 
@@ -484,7 +496,10 @@ impl Particle {
             .zip(&self.velocity) // in lockstep with velocity in each dimension
             .zip(&self.lower_bound) // and the lower bounds for each dim
             .zip(&self.upper_bound) // and the upper bounds for each dim
-            .for_each(|(((a, b), c), d)| *a = (*a + b).clamp(*c, *d)) // update position
+            .for_each(|(((a, b), c), d)| {
+                 // update pos, keeping slightly inward of upper and lower bounds
+                *a = (*a + b).clamp(*c+f64::EPSILON, *d-f64::EPSILON)
+            })
     }
 
     /// Sample once from a normal distribution with a mean of 0.0 and std dev
@@ -515,7 +530,8 @@ impl Particle {
     /// where T is temperature.
     fn accept(&mut self, score: &f64) -> bool {
         // compare this score to prior score
-        let diff = score - self.score;
+        let clamp_score = score.clamp(f64::EPSILON, 1.0-f64::EPSILON);
+        let diff = logit(score) - logit(&self.score);
         // if score < last score, diff is < 0.0, and we accept
         if diff <= 0.0 {
             true
@@ -638,8 +654,9 @@ impl Swarm<'_> {
                 particle_vec.push(particle);
             }
         }
-        // sort by -score, since our score is opposite of AMI
-        particle_vec.sort_unstable_by_key(|a| OrderedFloat(-a.score));
+        // sort in ascending order of score
+        particle_vec.sort_unstable_by_key(|a| OrderedFloat(a.score));
+        // lowest score is best, so take first one's position and score
         let best_pos = particle_vec[0].best_position.to_vec();
         let best_score = particle_vec[0].best_score;
         Swarm{
@@ -679,7 +696,7 @@ impl Swarm<'_> {
             );
         //});
         }
-        self.particles.sort_unstable_by_key(|particle| OrderedFloat(-particle.score));
+        self.particles.sort_unstable_by_key(|particle| OrderedFloat(particle.score));
         self.global_best_position = self.particles[0].best_position.to_vec();
         self.global_best_score = self.particles[0].best_score;
     }
@@ -716,6 +733,13 @@ impl Swarm<'_> {
 
     /// Returns the number of particles in the Swarm
     pub fn len(&self) -> usize {self.particles.len()}
+}
+
+///////////////////////////////////////////////////
+// I may use this in acceptance criterion /////////
+///////////////////////////////////////////////////
+pub fn logit(p: &f64) -> f64 {
+    (p / (1.0-p)).ln()
 }
 
 pub fn replica_exchange(

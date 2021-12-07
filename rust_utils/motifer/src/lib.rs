@@ -917,8 +917,8 @@ pub fn optim_objective(
     // create a SequenceView so that we can then create a MotifWeights instance
     let seq_view = SequenceView::new(shape_view);
     let mut motif_weights = MotifWeights::new(&seq_view);
-    // normalize the weights
-    motif_weights.constrain_normalize(alpha);
+    // set and normalize the weights
+    motif_weights.set_weights(weights_arr.view(), &alpha);
 
     // get the hits
     let hits = rec_db.get_hits(
@@ -2049,7 +2049,7 @@ impl RecordsDB {
     ///      length 2 to hold shape information for each of the two strands.
     /// * `y_val_file` - a npy file containing a 1D array of shape (R). Each
     ///      element of the array contains the given record's category.
-    pub fn new_from_files(shape_file: String, y_val_file: String) -> RecordsDB {
+    pub fn new_from_files(shape_file: &str, y_val_file: &str) -> RecordsDB {
         // read in the shape values and permute axes so that,
         //   instead of being shape (R,L,S,strand), arr is of
         //   shape (R,S,L,strand)
@@ -2245,12 +2245,21 @@ impl<'a> Iterator for PermutedRecordsDBIter<'a> {
 /// RecordsDBEntry structs
 ///
 /// # Arguments
-pub fn set_initial_threshold(seeds: &Seeds, rec_db: &RecordsDB, seed_sample_size: usize, records_per_seed: usize, windows_per_record: usize, kmer: &usize, alpha: &f64, thresh_sd_from_mean: f64) -> f64 {
+pub fn set_initial_threshold(
+        seeds: &Seeds,
+        rec_db: &RecordsDB,
+        seed_sample_size: &usize,
+        records_per_seed: &usize,
+        windows_per_record: &usize,
+        kmer: &usize,
+        alpha: &f64,
+        thresh_sd_from_mean: &f64,
+) -> f64 {
 
     let seed_vec = &seeds.seeds;
     let mut inds: Vec<usize> = (0..seed_vec.len()).collect();
     inds.shuffle(&mut thread_rng());
-    let keeper_inds = &inds[0..seed_sample_size];
+    let keeper_inds = &inds[0..*seed_sample_size];
 
     let rows = seed_vec[0].params.params.raw_dim()[0];
     let cols = seed_vec[0].params.params.raw_dim()[1];
@@ -2269,9 +2278,9 @@ pub fn set_initial_threshold(seeds: &Seeds, rec_db: &RecordsDB, seed_sample_size
     let mut distances = Vec::new();
     for (i,seed) in seed_vec.iter().enumerate() {
         if keeper_inds.contains(&i) {
-            for entry in rec_db.random_iter(records_per_seed) {
+            for entry in rec_db.random_iter(*records_per_seed) {
                 let seq = entry.seq;
-                for window in seq.random_window_iter(0, seq.seq_len()+1, *kmer, windows_per_record) {
+                for window in seq.random_window_iter(0, seq.seq_len()+1, *kmer, *windows_per_record) {
                     // get the distances.
                     let dist = stranded_weighted_manhattan_distance(
                         &window.params,
