@@ -83,8 +83,6 @@ fn main() {
         .for_each(|(i,motif)|
     {
 
-        println!("Optimizing motif {} now.", i);
-
         // get the starting MI just to see how the optimization went
         let start_mi = motif.mi;
 
