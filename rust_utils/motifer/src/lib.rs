@@ -6,6 +6,7 @@ use std::cmp;
 use std::iter;
 use std::fs;
 use std::io::{BufReader, BufWriter};
+use std::ops::Deref;
 // allow random iteration over RecordsDB
 use rand::thread_rng;
 use rand::seq::SliceRandom;
@@ -1019,7 +1020,7 @@ pub fn pickle_motifs(motifs: &Vec<Motif>, pickle_fname: &str) {
 }
 
 /// Filters motifs based on conditional mutual information
-pub fn filter_motifs<'a>(motifs: &'a mut Vec<Motif>, rec_db: &'a RecordsDB, threshold: &'a f64, max_count: &'a i64) -> Vec<&'a Motif> {
+pub fn filter_motifs<'a>(motifs: &'a mut Vec<Motif>, rec_db: &'a RecordsDB, threshold: &'a f64, max_count: &'a i64) -> Vec<Motif> {
 
     // get number of parameters in model (shape number * seed length * 2)
     //  we multiply by two because we'll be optimizing shape AND weight values
@@ -1029,13 +1030,14 @@ pub fn filter_motifs<'a>(motifs: &'a mut Vec<Motif>, rec_db: &'a RecordsDB, thre
         * motifs[0].params.params.raw_dim()[0]
         * 2 + 1;
 
-    motifs.sort_unstable_by_key(|motif| OrderedFloat(motif.mi));
+    // sort the Vec of Motifs in order of descending mutual information
+    motifs.sort_unstable_by_key(|motif| OrderedFloat(-motif.mi));
     let mut top_motifs = Vec::new();
 
     // Make sure first seed passes AIC
     let aic = info_theory::calc_aic(delta_k, rec_num, motifs[0].mi);
     if aic < 0.0 {
-        let motif = &motifs[0];
+        let motif = motifs[0].to_motif();
         top_motifs.push(motif);
     } else {
         return top_motifs
@@ -1078,7 +1080,7 @@ pub fn filter_motifs<'a>(motifs: &'a mut Vec<Motif>, rec_db: &'a RecordsDB, thre
             }
         }
         if motif_pass {
-            top_motifs.push(cand_motif);
+            top_motifs.push(cand_motif.to_motif());
         }
     }
     return top_motifs
@@ -1289,7 +1291,7 @@ pub struct SequenceIter<'a>{
 /// # Fields
 ///
 /// * `params` - The view is stored as a 2d ndarray
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct SequenceView<'a> {
     params: ndarray::ArrayView::<'a, f64, Ix2>
 }
@@ -1807,6 +1809,22 @@ impl Motif {
         Motif{params, weights, threshold, hits, mi}
     }
 
+    /// Returns a copy of Motif
+    fn to_motif(&self) -> Motif {
+        let mut weights = MotifWeights::new(&self.params.view());
+        weights.set_all_weights(
+            &self.weights.weights.to_owned(),
+            &self.weights.weights_norm.to_owned(),
+        );
+        let hits = self.hits.to_owned();
+        let arr = self.params.params.to_owned();
+        let params = Sequence{ params: arr };
+        let mi = self.mi;
+        let threshold = self.threshold;
+        Motif{params, weights, threshold, hits, mi}
+    }
+   
+
     /// Does constrained normalization of weights
     ///
     /// # Arguments
@@ -1957,7 +1975,15 @@ impl<'a> MotifWeights {
         self.weights = new_weights.to_owned();
         self.constrain_normalize(alpha);
     }
-    
+
+    pub fn set_all_weights(
+        &mut self,
+        new_weights: &ndarray::Array<f64, Ix2>,
+        new_weights_norm: &ndarray::Array<f64, Ix2>,
+    ) {
+        self.weights = new_weights.to_owned();
+        self.weights_norm = new_weights_norm.to_owned();
+    }
     /// Updates the weights_norm field in place based on the weights field.
     /// The motif must be mutably borrowed to be able to use this method
     ///

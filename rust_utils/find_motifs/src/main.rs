@@ -5,15 +5,8 @@ use std::time;
 use std::collections::HashMap;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
-use approx::AbsDiff;
 
-//  I ran target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
-// On Jeremy's laptop, run in series:
-//   MI calculation took 36.28 minutes 
-// Running on lighthouse to see how that does, run in series:
-//   MI calculation took 38.79 minutes
-// Python's MI calculation on 1 core on lighthouse:
-//   MI calculation took 409.50 minutes
+// Run target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -56,13 +49,6 @@ fn main() {
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
 
-    motifer::pickle_motifs(
-        //&optimized_motifs,
-        &motifs,
-        &String::from("/home/schroedj/original_motif_vec.pkl"),
-    );
-    println!("Vector of motifs pre-optimization written to: /home/schroedj/original_motif_vec.pkl");
-
     let shape_lb = -4.0;
     let shape_ub = 4.0;
     let weights_lb = -4.0;
@@ -70,17 +56,38 @@ fn main() {
     let thresh_lb = 0.0;
     let thresh_ub = 5.0;
 
-    //let mut optimized_motifs = Vec::new();
-    ///////////////////////////////////////////////////////////////
-    // CHECK THAT WE ACTUALLY CHANGE THE MOTIFS IN motifs HERE ////
-    ///////////////////////////////////////////////////////////////
-    println!("Grabbing the top two motifs to optimize");
-    motifs.par_iter_mut().enumerate().filter(|(i,motif)| i < &2).for_each(|(i,motif)| {
-    //for (i,motif) in motifs.iter().enumerate() {
+    // Optimization options
+    ////////////////////////////////////////////////////////////
+    // NOTE: needs placed into a config file or something //////
+    ////////////////////////////////////////////////////////////
+    let p_temp: f64 = 0.20;
+    // set temp to difference between p_temp and 0.5 on logit scale
+    let temp = ((0.5+p_temp)/(0.5-p_temp)).ln().abs();
+    let step = 0.25;
+    // initial particles are dropped onto the landscape at
+    // init_position + Normal(0.0, init_jitter)
+    let init_jitter = &step * 8.0;
+    let inertia = 0.8;
+    let local_weight = 0.2;
+    let global_weight = 0.8;
+
+    let n_particles = 20;
+    let n_iter = 10000;
+    let n_iter_exchange = 2;
+    let t_adjust = 0.0005;
+
+    //println!("Grabbing the top two motifs to optimize");
+    motifs.par_iter_mut()
+        .enumerate()
+        //.filter(|(i,motif)| i < &2)
+        .for_each(|(i,motif)|
+    {
 
         println!("Optimizing motif {} now.", i);
 
+        // get the starting MI just to see how the optimization went
         let start_mi = motif.mi;
+
         let now = time::Instant::now();
         let (params,low,up) = motifer::wrangle_params_for_optim(
             &motif,
@@ -92,36 +99,10 @@ fn main() {
             &thresh_ub,
         );
 
-        let pre_optim_obj_val = motifer::optim_objective(
-            &params,
-            &rec_db,
-            &cfg.kmer,
-            &cfg.max_count,
-            &cfg.alpha,
-        );
-        
-        let p_temp: f64 = 0.20;
-        // set temp to difference between p_temp and 0.5 on logit scale
-        let temp = ((0.5+p_temp)/(0.5-p_temp)).ln().abs();
-        let step = 0.25;
-        // initial particles are dropped onto the landscape at
-        // init_position + Normal(0.0, init_jitter)
-        let init_jitter = &step * 8.0;
-        // set n_particles = 1 for simulated annealing of a single particle
-        let inertia = 0.8;
-        let local_weight = 0.2;
-        let global_weight = 0.8;
-
-        let params_copy = params.to_vec();
-        
-        let n_particles = 20;
-        let n_iter = 1000;
-        let n_iter_exchange = 2;
-        let t_adjust = 0.05;
 
         //println!("Using replica exchange as the optimization method.");
         //let (optimized_result,optimized_score) = optim::replica_exchange(
-        //    params_copy,
+        //    params,
         //    low,
         //    up,
         //    n_particles,
@@ -140,7 +121,7 @@ fn main() {
 
         //println!("Using particle swarm as the optimization method.");
         //let (optimized_result,optimized_score) = optim::particle_swarm(
-        //    params_copy,
+        //    params,
         //    low,
         //    up,
         //    n_particles,
@@ -159,7 +140,7 @@ fn main() {
 
         println!("Using simulated annealing as the optimization method.");
         let (optimized_result,optimized_score) = optim::simulated_annealing(
-            params_copy,
+            params,
             low,
             up,
             temp,
@@ -174,14 +155,6 @@ fn main() {
             &true,
         );
 
-        let optim_obj_val = motifer::optim_objective(
-            &optimized_result,
-            &rec_db,
-            &cfg.kmer,
-            &cfg.max_count,
-            &cfg.alpha,
-        );
-        
         let optimized_motif = motifer::opt_vec_to_motif(
             &optimized_result,
             &rec_db,
@@ -191,45 +164,24 @@ fn main() {
         );
         let duration = now.elapsed().as_secs_f64() / 60.0;
 
-        println!("Optimizing motif {} took {:?} minutes.", i, duration);
-        println!("It started with an adjusted mutual information of {}, and ended with a value of {}", &start_mi, &optimized_motif.mi);
+        println!("Optimizing motif {} took {:?} minutes.\nIt started with an adjusted mutual information of {}, and ended with a value of {}.", i, duration, &start_mi, &optimized_motif.mi);
 
-        println!("==============================================");
-        println!("Calculated MI for returned motif values was {}, and MI directly returned from optimizer was {}", &optimized_motif.mi, &optimized_score);
-        println!("==============================================");
-
-        println!("==============================================");
-        println!("Calculated MI using motifer::optim_objective and the optimized para_vec was {}, and MI directly returned from optimizer was {}", &optim_obj_val, &optimized_score);
-        println!("==============================================");
-
-        println!("==============================================");
-        println!("Calculated MI using motifer::optim_objective and the optimized para_vec was {}, and MI using::optim_objective prior to optimization was {}", &optim_obj_val, &pre_optim_obj_val);
-        println!("==============================================");
-
-        //assert!(AbsDiff::default()
-        //    .epsilon(1e-6)
-        //    .eq(&optimized_motif.mi,&(&-1.0 * &optimized_score))
-        //);
-
-        //optimized_motifs.push(optimized_motif);
         *motif = optimized_motif;
     });
-    //}
 
-    motifer::pickle_motifs(
-        //&optimized_motifs,
-        &motifs,
-        &cfg.out_fname,
-    );
-    println!("Vector of optimized motifs written to: {}", &cfg.out_fname);
-
+    println!("Filtering optimized motifs based on connditional mutual information.");
     let motifs = motifer::filter_motifs(
-        //&mut optimized_motifs,
         &mut motifs,
         &rec_db,
         &threshold,
         &cfg.max_count,
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
+
+    motifer::pickle_motifs(
+        &motifs,
+        &cfg.out_fname,
+    );
+    println!("Vector of filtered, optimized motifs written to: {}", &cfg.out_fname);
 }
 
