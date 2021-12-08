@@ -138,7 +138,7 @@ fn main() {
         //    &true,
         //);
 
-        println!("Using simulated annealing as the optimization method.");
+        println!("Optimizing motif {} using simulated annealing as the optimization method.", i);
         let (optimized_result,optimized_score) = optim::simulated_annealing(
             params,
             low,
