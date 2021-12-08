@@ -23,6 +23,7 @@ from numba import jit,prange
 import pickle
 import tempfile
 import time
+import subprocess
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
@@ -434,10 +435,6 @@ if __name__ == "__main__":
             )
         )
 
-    logging.info("Computing all windows and initializing weights array for distance calculation.")
-
-    records.compute_windows(wsize = args.kmer)
-    weights = records.initialize_weights()[:,:,None]
     alpha = args.alpha
     max_count = args.max_count
 
@@ -448,10 +445,6 @@ if __name__ == "__main__":
     adapt = args.adapt
     maxfev = args.maxfev
     
-    basinhop_niter = args.basinhop_niter
-    basinhop_niter_success = args.basinhop_niter_success
-    method = "nelder-mead"
-
     constraints = {
         'threshold': args.threshold_constraints,
         'shapes': args.shape_constraints,
@@ -466,29 +459,13 @@ if __name__ == "__main__":
         ),
     )
 
-    shape_fname = os.path.join(
-        out_direc,
-        'shapes.npy'.format(
-            out_pref,
-            max_count,
-        ),
-    )
+    shape_fname = os.path.join(out_direc, 'shapes.npy')
 
-    yval_fname = os.path.join(
-        out_direc,
-        'y_vals.npy'.format(
-            out_pref,
-            max_count,
-        ),
-    )
+    yval_fname = os.path.join(out_direc, 'y_vals.npy')
 
-    config_fname = os.path.join(
-        out_direc,
-        'config.pkl'.format(
-            out_pref,
-            max_count,
-        ),
-    )
+    config_fname = os.path.join(out_direc, 'config.pkl')
+
+    rust_out_fname = os.path.join(out_direc, 'rust_results.pkl')
 
     cmi_fname = os.path.join(
         out_direc,
@@ -544,7 +521,7 @@ if __name__ == "__main__":
         'cores': float(args.p),
         'seed_sample_size': float(args.init_threshold_seed_num),
         'records_per_seed': float(args.init_threshold_recs_per_seed),
-        'windows_per_record': float(init_threshold_windows_per_record),
+        'windows_per_record': float(args.init_threshold_windows_per_record),
         'thresh_sd_from_mean': args.threshold_seeds,
     }
 
@@ -558,6 +535,8 @@ if __name__ == "__main__":
     with open(config_fname, 'wb') as f:
         pickle.dump(args_dict, f)
 
+    
+    logging.info("Running motif selection and optimization.")
     retcode = subprocess.call(RUST, shell=True)
     if retcode != 0:
         sys.exit("ERROR: motifer binary execution exited with non-zero exit status")

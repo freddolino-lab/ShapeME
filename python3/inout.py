@@ -11,7 +11,6 @@ import glob
 from sklearn import cluster 
 from sklearn import metrics
 from math import log
-from emi import _expected_mutual_info_fast as exp_mi
 
 def wrangle_rust_motif(motif):
     """Take information in motif dictionary and reshapes arrays to create
@@ -2041,76 +2040,76 @@ def mutual_information_contingency(contingency):
     return np.clip(mi.sum(), 0.0, None)
     
 
-def adjusted_mutual_information(y_vals, hits):
-    '''Calculated adjusted mutual information, which accounts for
-    the effect that increasing the number of categories has on
-    increasing mutual information between two vectors simply by
-    random chance.
-
-    Args:
-    -----
-    y_vals : np.array
-    hits : np.array
-
-    Returns:
-    --------
-    ami : float
-        Adjusted mutual information, the max of which is 1.0
-    '''
-
-    distinct_hits,hits_cats = np.unique(hits, return_inverse=True, axis=0)
-    distinct_y_vals = np.unique(y_vals)
-    # special case where there is only one category in each vector,
-    #  just return 0.0.
-    if (
-        distinct_y_vals.shape[0] == distinct_hits.shape[0] == 1
-        or distinct_y_vals.shape[0] == distinct_hits.shape[0] == 0
-    ):
-        return 0.0
-    contingency = get_contingency_matrix(y_vals, hits_cats)
-    mi = mutual_information_contingency(contingency)
-    expect_mi = exp_mi.expected_mutual_information(contingency, y_vals.shape[0])
-    h_y, h_hits = entropy_ln(y_vals), entropy_ln(hits_cats)
-    mean_h = np.mean([h_y, h_hits])
-    denominator = mean_h - expect_mi
-    if denominator < 0:
-        denominator = min(denominator, -np.finfo("float64").eps)
-    else:
-        enominator = max(denominator, np.finfo("float64").eps)
-    ami = (mi - expect_mi) / denominator
-    return ami
-
-def conditional_adjusted_mutual_information(y_vals, hits_a, hits_b):
-    """Method to calculate the conditional adjusted mutual information
-        
-    Args:
-        y_vals (np.array): an array of discrete categories from the input data
-        hits_a (np.array): number of hits in each record on each strand for motif a
-        hits_b (np.array): number of hits in each record on each strand for motif b
-    Returns:
-        conditional adjusted mutual information
-    """
-
-    CMI = 0
-    total = y_vals.shape[0]
-    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
-    distinct_b,b_cats = np.unique(hits_b, return_inverse=True, axis=0)
-    distinct_b = np.unique(b_cats)
-    for b in distinct_b:
-        # set the indices we will look at in y_vals and hits_a
-        subset = (b_cats == b)
-
-        total_subset = np.sum(subset)
-        p_z = total_subset/total
-
-        y_cond_b = y_vals[subset]
-        a_cond_b = hits_a[subset,:]
-
-        ami_cond_b = adjusted_mutual_information(y_cond_b, a_cond_b)
-
-        CMI += p_z*ami_cond_b
-
-    return CMI
+#def adjusted_mutual_information(y_vals, hits):
+#    '''Calculated adjusted mutual information, which accounts for
+#    the effect that increasing the number of categories has on
+#    increasing mutual information between two vectors simply by
+#    random chance.
+#
+#    Args:
+#    -----
+#    y_vals : np.array
+#    hits : np.array
+#
+#    Returns:
+#    --------
+#    ami : float
+#        Adjusted mutual information, the max of which is 1.0
+#    '''
+#
+#    distinct_hits,hits_cats = np.unique(hits, return_inverse=True, axis=0)
+#    distinct_y_vals = np.unique(y_vals)
+#    # special case where there is only one category in each vector,
+#    #  just return 0.0.
+#    if (
+#        distinct_y_vals.shape[0] == distinct_hits.shape[0] == 1
+#        or distinct_y_vals.shape[0] == distinct_hits.shape[0] == 0
+#    ):
+#        return 0.0
+#    contingency = get_contingency_matrix(y_vals, hits_cats)
+#    mi = mutual_information_contingency(contingency)
+#    expect_mi = exp_mi.expected_mutual_information(contingency, y_vals.shape[0])
+#    h_y, h_hits = entropy_ln(y_vals), entropy_ln(hits_cats)
+#    mean_h = np.mean([h_y, h_hits])
+#    denominator = mean_h - expect_mi
+#    if denominator < 0:
+#        denominator = min(denominator, -np.finfo("float64").eps)
+#    else:
+#        enominator = max(denominator, np.finfo("float64").eps)
+#    ami = (mi - expect_mi) / denominator
+#    return ami
+#
+#def conditional_adjusted_mutual_information(y_vals, hits_a, hits_b):
+#    """Method to calculate the conditional adjusted mutual information
+#        
+#    Args:
+#        y_vals (np.array): an array of discrete categories from the input data
+#        hits_a (np.array): number of hits in each record on each strand for motif a
+#        hits_b (np.array): number of hits in each record on each strand for motif b
+#    Returns:
+#        conditional adjusted mutual information
+#    """
+#
+#    CMI = 0
+#    total = y_vals.shape[0]
+#    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
+#    distinct_b,b_cats = np.unique(hits_b, return_inverse=True, axis=0)
+#    distinct_b = np.unique(b_cats)
+#    for b in distinct_b:
+#        # set the indices we will look at in y_vals and hits_a
+#        subset = (b_cats == b)
+#
+#        total_subset = np.sum(subset)
+#        p_z = total_subset/total
+#
+#        y_cond_b = y_vals[subset]
+#        a_cond_b = hits_a[subset,:]
+#
+#        ami_cond_b = adjusted_mutual_information(y_cond_b, a_cond_b)
+#
+#        CMI += p_z*ami_cond_b
+#
+#    return CMI
 
 
 @jit(nopython=True)
