@@ -61,7 +61,7 @@ fn main() {
         &motifs,
         &String::from("/home/schroedj/original_motif_vec.pkl"),
     );
-    println!("Vector of optimized motifs written to: {}", &cfg.out_fname);
+    println!("Vector of motifs pre-optimization written to: /home/schroedj/original_motif_vec.pkl");
 
     let shape_lb = -4.0;
     let shape_ub = 4.0;
@@ -108,15 +108,15 @@ fn main() {
         // init_position + Normal(0.0, init_jitter)
         let init_jitter = &step * 8.0;
         // set n_particles = 1 for simulated annealing of a single particle
-        let n_particles = 50;
         let inertia = 0.8;
         let local_weight = 0.2;
         let global_weight = 0.8;
 
         let params_copy = params.to_vec();
         
-        let n_iter = 5000;
-        let n_iter_exchange = 5;
+        let n_particles = 20;
+        let n_iter = 1000;
+        let n_iter_exchange = 2;
         let t_adjust = 0.05;
 
         //println!("Using replica exchange as the optimization method.");
@@ -135,41 +135,44 @@ fn main() {
         //    &cfg.kmer,
         //    &cfg.max_count,
         //    &cfg.alpha,
+        //    &true,
         //);
 
-        println!("Using particle swarm as the optimization method.");
-        let (optimized_result,optimized_score) = optim::particle_swarm(
-            params_copy,
-            low,
-            up,
-            n_particles,
-            inertia,
-            local_weight,
-            global_weight,
-            init_jitter,
-            n_iter,
-            &motifer::optim_objective,
-            &rec_db,
-            &cfg.kmer,
-            &cfg.max_count,
-            &cfg.alpha,
-        );
-
-        //println!("Using simulated annealing as the optimization method.");
-        //let (optimized_result,optimized_score) = optim::simulated_annealing(
+        //println!("Using particle swarm as the optimization method.");
+        //let (optimized_result,optimized_score) = optim::particle_swarm(
         //    params_copy,
         //    low,
         //    up,
-        //    temp,
-        //    step,
+        //    n_particles,
+        //    inertia,
+        //    local_weight,
+        //    global_weight,
+        //    init_jitter,
         //    n_iter,
-        //    &t_adjust,
         //    &motifer::optim_objective,
         //    &rec_db,
         //    &cfg.kmer,
         //    &cfg.max_count,
         //    &cfg.alpha,
+        //    &true,
         //);
+
+        println!("Using simulated annealing as the optimization method.");
+        let (optimized_result,optimized_score) = optim::simulated_annealing(
+            params_copy,
+            low,
+            up,
+            temp,
+            step,
+            n_iter,
+            &t_adjust,
+            &motifer::optim_objective,
+            &rec_db,
+            &cfg.kmer,
+            &cfg.max_count,
+            &cfg.alpha,
+            &true,
+        );
 
         let optim_obj_val = motifer::optim_objective(
             &optimized_result,

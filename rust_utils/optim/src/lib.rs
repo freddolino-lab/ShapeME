@@ -65,7 +65,8 @@ mod tests {
             low: &'a Vec<f64>,
             up: &'a Vec<f64>,
             init_jitter: f64,
-            objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64
+            objective: &'a dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
+            method: &Method,
     ) -> Swarm<'a> {
 
         let data_vec = vec![0.0, 0.0];
@@ -84,21 +85,23 @@ mod tests {
             &2,
             &1,
             &0.01,
+            method,
         )
     }
 
     fn set_up_particle(
+            data_vec: &Vec<f64>,
             step: &f64,
             low: &Vec<f64>,
             up: &Vec<f64>,
-            objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64
+            objective: &dyn Fn(&Vec<f64>, &motifer::RecordsDB, &usize, &i64, &f64) -> f64,
+            method: &Method
     ) -> Particle {
 
         let rec_db = set_up_recdb();
-        let data_vec = vec![0.0, 0.0];
         let T = 2.0;
         let particle = Particle::new(
-            data_vec,
+            data_vec.to_vec(),
             low.to_vec(),
             up.to_vec(),
             objective,
@@ -108,6 +111,7 @@ mod tests {
             &15,
             &1,
             &0.1,
+            method,
         );
         particle
     }
@@ -115,10 +119,11 @@ mod tests {
     #[test]
     fn test_eval() {
         let rec_db = set_up_recdb();
+        let start_data = vec![0.0, 0.0];
         let step = 0.0;
         let low = vec![-5.0, -5.0];
         let up = vec![5.0, 5.0];
-        let particle = set_up_particle(&step, &low, &up, &himmelblau);
+        let particle = set_up_particle(&start_data, &step, &low, &up, &himmelblau, &Method::SimulatedAnnealing);
         let score = particle.evaluate(
             &himmelblau,
             &rec_db,
@@ -136,10 +141,10 @@ mod tests {
         let step = 0.0;
         let low = vec![-5.0, -5.0];
         let up = vec![5.0, 5.0];
-        let mut particle = set_up_particle(&step, &low, &up, &himmelblau);
+        let mut particle = set_up_particle(&start_data, &step, &low, &up, &himmelblau, &Method::SimulatedAnnealing);
 
         particle.perturb();
-        // particle should have started at [1.0,1.0], and should not have moved
+        // particle should have started at [0.0,0.0], and should not have moved
         // with step of 0.0
         particle.position.iter()
             .zip(&start_data)
@@ -149,7 +154,7 @@ mod tests {
         let step = 1.0;
         let low = vec![-5.0, -5.0];
         let up = vec![5.0, 5.0];
-        let mut particle = set_up_particle(&step, &low, &up, &himmelblau);
+        let mut particle = set_up_particle(&start_data, &step, &low, &up, &himmelblau, &Method::SimulatedAnnealing);
         particle.perturb();
         // particle should end NOT at [1.0,1.0], so the sums should differ
         assert_ne!(
@@ -170,11 +175,10 @@ mod tests {
         let global_best = vec![4.0, 4.0];
         let low = vec![-5.0, -5.0];
         let up = vec![5.0, 5.0];
-        let mut particle = set_up_particle(&step, &low, &up, &himmelblau);
-        // particle velocity is set to [0.0, 0.0] initially
-        particle.velocity.iter()
-            .zip(&vec![0.0, 0.0])
-            .for_each(|(a,b)| assert_abs_diff_eq!(a,b));
+        let method = Method::ParticleSwarm;
+        let mut particle = set_up_particle(&start_data, &step, &low, &up, &himmelblau, &method);
+        // particle velocity is initialized randomly
+        let initial_velocity = particle.velocity.to_vec();
         //assert!(particle.velocity.abs_diff_eq(&array![0.0, 0.0], 1e-6));
         particle.set_velocity(
             &inertia,
@@ -184,14 +188,17 @@ mod tests {
         );
         // particle velocity should have changed
         particle.velocity.iter()
-            .zip(&vec![0.0,0.0])
+            .zip(&initial_velocity)
             .for_each(|(a,b)| assert_abs_diff_ne!(a,b));
-        //assert!(!particle.velocity.abs_diff_eq(&array![0.0, 0.0], 1e-6));
+        // move the particle
+        println!("Position prior to move: {:?}", &particle.position);
         particle.perturb();
+        // particle should have moved in direction of velocity, but magnitude will
+        //  be random
         particle.position.iter()
             .zip(&start_data)
             .for_each(|(a,b)| assert_abs_diff_ne!(a,b));
-        //assert!(!particle.position.abs_diff_eq(&start_data, 1e-6));
+        println!("Position after: {:?}", &particle.position);
     }
 
     #[test]
@@ -229,6 +236,7 @@ mod tests {
             &5,
             &1,
             &0.01,
+            &false,
         );
 
         println!("{:?}", opt_params);
@@ -265,6 +273,7 @@ mod tests {
             &5,
             &1,
             &0.01,
+            &false,
         );
 
         println!("{:?}", opt_params);
@@ -309,14 +318,26 @@ impl Particle {
         kmer: &usize,
         max_count: &i64,
         alpha: &f64,
+        method: &Method,
     ) -> Particle {
 
         // initialize velocity for each parameter to zero
         let mut v = vec![0.0; data.len()];
-        if stepsize > 0.0 {
-            for value in v.iter_mut() {
-                *value = *value + thread_rng().gen_range(-stepsize..stepsize)
+        // adjust the starting velocity if we're doing particle swarm
+        let mut rng = thread_rng();
+        match method {
+            Method::ParticleSwarm => {
+                v.iter_mut()
+                    .zip(&lower)
+                    .zip(&upper)
+                    .for_each(|((vel, low), up)| {
+                        // draw velocities from uniform dist from +/-(range/40)
+                        let init_range = (up - low) / 40.0;
+                        let nudge = rng.gen_range(-init_range..init_range);
+                        *vel = *vel + nudge;
+                });
             }
+            _ => (),
         }
         let pv = v.to_vec();
         // copy of data to place something into prior_position
@@ -343,7 +364,7 @@ impl Particle {
             kmer,
             max_count,
             alpha,
-        ).clamp(f64::EPSILON, 1.0-f64::EPSILON);
+        );
         particle.best_score = particle.score;
         particle
     }
@@ -363,39 +384,50 @@ impl Particle {
             max_count: &i64,
             alpha: &f64,
             method: &Method,
+            accept_from_logit: &bool,
     ) {
-        // set the new velocity and move particle
+        // set the new velocity
         self.set_velocity(
             inertia,
             local_weight,
             global_weight,
             global_best_position,
         );
+        // move the particle. Takes into account stepsize for jitter in a single
+        //  dimension, and velocity over all dimensions.
         self.perturb();
 
         let score = self.evaluate(objective, rec_db, kmer, max_count, alpha);
 
         match method {
-            // if we did particle swarm, just update and move on
+            // if we are doing particle swarm, just update and move on
             Method::ParticleSwarm => self.update_scores(&score),
-            // If we reject the move, revert to prior state and perturb again.
+            // If we are doing simulated annealing,
+            //  determine whether we accept the move.
+            //  if we reject, revert to prior state and perturb again.
             Method::SimulatedAnnealing => {
-                if !self.accept(&score) {
+                if !self.accept(&score, accept_from_logit) {
                     self.revert();
                 } else {
-                    // Update prior [and possibly the best] score if we accepted the move
+                    // Update prior score [and possibly the best score] if we accepted
                     self.update_scores(&score);
                 }
             }
             Method::ReplicaExchange => {
-                if !self.accept(&score) {
+                if !self.accept(&score, accept_from_logit) {
                     self.revert();
                 } else {
-                    // Update prior [and possibly the best] score if we accepted the move
+                    // Update prior score [and possibly the best score] if we accepted
                     self.update_scores(&score);
                 }
             }
         }
+        // adjust the temperature downward
+        ////////////////////////////////////////////////////
+        // NOTE: this could be included in the match control flow above
+        // I have to check if temp adjustment is used in replica exchange,
+        // or whether we just let the temps remain constant.
+        ////////////////////////////////////////////////////
         self.adjust_temp(t_adj);
     }
     
@@ -432,7 +464,7 @@ impl Particle {
 
     /// Randomly chooses the index of position to update using jitter
     fn choose_param_index(&mut self) -> usize {
-        let die = Uniform::new_inclusive(0, self.position.len());
+        let die = Uniform::new(0, self.position.len());
         die.sample(&mut self.rng)
     }
 
@@ -448,7 +480,6 @@ impl Particle {
         // self.rng.gen samples from [0.0, 1.0)
         let r_arr: [f64; 2] = self.rng.gen();
         // set the new velocity
-        let step = &self.stepsize;
         self.velocity.iter_mut() // mutably iterate over current velocity
             .zip(&self.best_position) // in lockstep with this Particle's best position
             .zip(global_best_position) // and the global best position
@@ -457,16 +488,17 @@ impl Particle {
             .zip(&self.upper_bound) // and the upper bound
             // a=vel, b=local_best, c=swarm_best, d=pos, e=lower_bound, f=upper_bound
             .for_each(|(((((a, b), c), d), e), f)| {
+                let range = f - e;
                 let term1 = inertia * *a;
                 // attraction to the particle's own best gets stronger with distance
                 let term2 = local_weight * r_arr[0] * (b - d);
                 // attraction to the swarms's best gets stronger with distance
                 let term3 = global_weight * r_arr[1] * (c - d);
                 // repulsion from lower bound defined by squared distance to lower bound
-                let term4 = -step / ((e - d) * (e - d));
+                //let term4 = -(range / 100.0) / ((e - d) * (e - d));
                 // repulsion from upper bound defined by squared distance to upper bound
-                let term5 = -step / ((f - d) * (f - d));
-                *a = term1 + term2 + term3 + term4 + term5
+                //let term5 = -(range / 100.0) / ((f - d) * (f - d));
+                *a = term1 + term2 + term3// + term4 + term5
             })
     }
 
@@ -528,23 +560,49 @@ impl Particle {
     /// `exp(-(score - prior_score)/T)`
     ///
     /// where T is temperature.
-    fn accept(&mut self, score: &f64) -> bool {
-        // compare this score to prior score
-        let clamp_score = score.clamp(f64::EPSILON, 1.0-f64::EPSILON);
-        let diff = logit(score) - logit(&self.score);
-        // if score < last score, diff is < 0.0, and we accept
-        if diff <= 0.0 {
-            true
-        // if score > last score, decide probabilistically whether to accept
-        } else {
-            // this is the function used by scipy.optimize.basinhopping for P(accept)
-            let accept_prob = (-diff/self.temperature).exp();
-            if accept_prob > self.rng.gen() {
+    fn accept(&mut self, score: &f64, accept_from_logit: &bool) -> bool {
+        if *accept_from_logit {
+            // clamp score to just barely above -1.0, up to just barely below 0.0
+            // this avoids runtime error in logit
+            let clamp_score = score.clamp(-(1.0-f64::EPSILON), -f64::EPSILON);
+            // take opposite of scores, since they're opposite of AMI
+            let diff = logit(&-clamp_score)
+                - logit(&-self.score.clamp(-(1.0-f64::EPSILON), -f64::EPSILON));
+            // testing if diff >= 0.0 here, and NOT <= 0.0, since we're doing
+            //   that thing of when we compare the logit of the opposite of
+            //   the scores. Therefore, a greater score than our previous
+            //   score is desireable.
+            if diff >= 0.0 {
                 true
+            // if score > last score, decide probabilistically whether to accept
+            } else {
+                // this is the function used by scipy.optimize.basinhopping for P(accept)
+                // the only difference here is that, again, because we're really maximizing
+                // a score, we just use diff, and not -diff.
+                let accept_prob = (diff/self.temperature).exp();
+                if accept_prob > self.rng.gen() {
+                    true
+                }
+                else {
+                    false
+                }
             }
-            else {
-                false
+        } else {
+            // compare this score to prior score
+            let diff = score - self.score;
+            if diff <= 0.0 {
+                true
+            } else {
+                // this is the function used by scipy.optimize.basinhopping for P(accept)
+                let accept_prob = (-diff/self.temperature).exp();
+                if accept_prob > self.rng.gen() {
+                    true
+                }
+                else {
+                    false
+                }
             }
+
         }
     }
 
@@ -590,7 +648,7 @@ impl Swarm<'_> {
             kmer: &usize,
             max_count: &i64,
             alpha: &f64,
-            method: Method,
+            method: &Method,
     ) -> Swarm<'a> {
         // instantiate the random number generator
         let mut rng = thread_rng();
@@ -609,13 +667,15 @@ impl Swarm<'_> {
                     temp = temperature;
                 }
                 Method::ReplicaExchange => {
-                    temp = temperature + distr.sample(&mut rng);
+                    let temp_distr = Uniform::new(temperature / 3.0, temperature*3.0);
+                    temp = temp_distr.sample(&mut rng);
                 }
                 Method::ParticleSwarm => {
                     temp = 0.0;
                 }
             }
             if i == 0 {
+                // if this is the first particle, place it directly at data_vec
                 let particle = Particle::new(
                     data_vec,
                     lower.to_vec(),
@@ -627,6 +687,7 @@ impl Swarm<'_> {
                     kmer,
                     max_count,
                     alpha,
+                    method,
                 );
                 particle_vec.push(particle);
             } else {
@@ -650,6 +711,7 @@ impl Swarm<'_> {
                     kmer,
                     max_count,
                     alpha,
+                    method,
                 );
                 particle_vec.push(particle);
             }
@@ -678,6 +740,7 @@ impl Swarm<'_> {
             max_count: &i64,
             alpha: &f64,
             method: &Method,
+            accept_from_logit: &bool,
     ) {
         for particle in self.particles.iter_mut() {
         //self.particles.par_iter_mut().for_each(|particle| {
@@ -693,6 +756,7 @@ impl Swarm<'_> {
                 max_count,
                 alpha,
                 method,
+                accept_from_logit,
             );
         //});
         }
@@ -701,26 +765,18 @@ impl Swarm<'_> {
         self.global_best_score = self.particles[0].best_score;
     }
 
-    pub fn exchange_odd(&mut self) {
+    pub fn exchange(&mut self, odds: bool) {
         let mut iterator = Vec::new();
-        let swap_num = self.len() / 2;
-        for i in 0..swap_num {
-            iterator.push((i*2,i*2+1));
-        }
-        self.particles.sort_unstable_by_key(|particle| OrderedFloat(particle.temperature));
-        for swap_idxs in iterator {
-            let temp_i = self.particles[swap_idxs.1].temperature;
-            let temp_i_plus_one = self.particles[swap_idxs.0].temperature;
-            self.particles[swap_idxs.0].temperature = temp_i;
-            self.particles[swap_idxs.1].temperature = temp_i_plus_one;
-        }
-    }
-
-    pub fn exchange_even(&mut self) {
-        let mut iterator = Vec::new();
-        let swap_num = self.len() / 2 - 1;
-        for i in 0..swap_num {
-            iterator.push((i*2,i*2+1));
+        if odds {
+            let swap_num = self.len() / 2;
+            for i in 0..swap_num {
+                iterator.push((i*2,i*2+1));
+            }
+        } else {
+            let swap_num = self.len() / 2 - 1;
+            for i in 0..swap_num {
+                iterator.push((i*2,i*2+1));
+            }
         }
         self.particles.sort_unstable_by_key(|particle| OrderedFloat(particle.temperature));
         for swap_idxs in iterator {
@@ -757,6 +813,7 @@ pub fn replica_exchange(
         kmer: &usize,
         max_count: &i64,
         alpha: &f64,
+        accept_from_logit: &bool,
 ) -> (Vec<f64>, f64) {
 
     // set inertia, local_weight, and global_weight to 0.0 to turn off velocities,
@@ -766,6 +823,14 @@ pub fn replica_exchange(
     let global_weight = 0.0;
     // set initial_jitter to 0.0 to place all particles exactly at data
     let initial_jitter = 0.0;
+    /////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////
+    // check on this: do we adjust temp in replica exchange?  ///
+    // if not, uncomment next line and remove t_adj from args ///
+    /////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////
+    // let t_adj = &0.0;
 
     let mut swarm = Swarm::new(
         n_particles,
@@ -780,17 +845,18 @@ pub fn replica_exchange(
         kmer,
         max_count,
         alpha,
-        Method::ReplicaExchange,
+        &Method::ReplicaExchange,
     );
 
-    let mut odds = true;
+    let mut from_one = true;
     for i in 0..niter {
         if i % n_iter_exchange == 0 {
-            if odds {
-                swarm.exchange_odd();
-            } else {
-                swarm.exchange_even();
-            }
+            // exchange neighboring temperatures
+            // choose between 1<->2, 3<->4, ... or 2<->3, 4<-5, ..., depending on
+            // the truth-iness of "from_one".
+            swarm.exchange(from_one);
+            // invert the truth-iness of "from_one"
+            from_one ^= true;
         }
         swarm.step(
             &inertia,
@@ -802,6 +868,7 @@ pub fn replica_exchange(
             &max_count,
             &alpha,
             &Method::ReplicaExchange,
+            accept_from_logit,
         );
     }
     (swarm.global_best_position.to_vec(), swarm.global_best_score)
@@ -822,6 +889,7 @@ pub fn particle_swarm(
         kmer: &usize,
         max_count: &i64,
         alpha: &f64,
+        accept_from_logit: &bool,
 ) -> (Vec<f64>, f64) {
 
     // turn off jitter, leaving only velocity to affect position
@@ -842,7 +910,7 @@ pub fn particle_swarm(
         kmer,
         max_count,
         alpha,
-        Method::ParticleSwarm,
+        &Method::ParticleSwarm,
     );
 
     for i in 0..niter {
@@ -856,6 +924,7 @@ pub fn particle_swarm(
             &max_count,
             &alpha,
             &Method::ParticleSwarm,
+            accept_from_logit,
         );
     }
     (swarm.global_best_position.to_vec(), swarm.global_best_score)
@@ -874,6 +943,7 @@ pub fn simulated_annealing(
         kmer: &usize,
         max_count: &i64,
         alpha: &f64,
+        accept_from_logit: &bool,
 ) -> (Vec<f64>, f64) {
 
     // set inertia, local_weight, and global_weight to 0.0 to turn off velocities,
@@ -895,7 +965,7 @@ pub fn simulated_annealing(
         kmer,
         max_count,
         alpha,
-        Method::SimulatedAnnealing,
+        &Method::SimulatedAnnealing,
     );
 
     for i in 0..niter {
@@ -909,6 +979,7 @@ pub fn simulated_annealing(
             &max_count,
             &alpha,
             &Method::SimulatedAnnealing,
+            accept_from_logit,
         );
     }
     (swarm.global_best_position.to_vec(), swarm.global_best_score)

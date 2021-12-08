@@ -370,8 +370,8 @@ mod tests {
         // read in y-vals
         let y_fname = String::from("../../test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
-            shape_fname,
-            y_fname,
+            &shape_fname,
+            &y_fname,
         );
         for (i,rec) in rec_db.iter().enumerate() {
             if i > 0 {
@@ -468,8 +468,8 @@ mod tests {
         // read in y-vals
         let y_fname = String::from("../../test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
-            shape_fname,
-            y_fname,
+            &shape_fname,
+            &y_fname,
         );
 
         // read in some other parameters we'll need
@@ -632,8 +632,8 @@ mod tests {
         ];
         let cfg = parse_config(&args);
         let rec_db = RecordsDB::new_from_files(
-            cfg.shape_fname,
-            cfg.yvals_fname,
+            &cfg.shape_fname,
+            &cfg.yvals_fname,
         );
 
         // create Seeds struct
@@ -670,8 +670,8 @@ mod tests {
         ];
         let cfg = parse_config(&args);
         let rec_db = RecordsDB::new_from_files(
-            cfg.shape_fname,
-            cfg.yvals_fname,
+            &cfg.shape_fname,
+            &cfg.yvals_fname,
         );
 
         // create Seeds struct
@@ -679,12 +679,12 @@ mod tests {
         let thresh = set_initial_threshold(
             &seeds,
             &rec_db,
-            cfg.seed_sample_size,
-            cfg.records_per_seed,
-            cfg.windows_per_record,
+            &cfg.seed_sample_size,
+            &cfg.records_per_seed,
+            &cfg.windows_per_record,
             &cfg.kmer,
             &cfg.alpha,
-            cfg.thresh_sd_from_mean,
+            &cfg.thresh_sd_from_mean,
         );
         // assert that the python and rust estimates are within 0.03 of each other
         assert!(
