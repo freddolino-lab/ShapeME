@@ -18,11 +18,13 @@ def wrangle_rust_motif(motif):
     ndarrays using numpy
     """
 
-    shapes = np.asarray(motif['params']['data']).reshape(motif['params']['dim'])
+    shapes = np.asarray(
+        motif['params']['data']
+    ).reshape(motif['params']['dim'])
 
     weights = np.asarray(
-        motif['weights']['weights']['data']
-    ).reshape(motif['weights']['weights']['dim']) 
+        motif['weights']['weights_norm']['data']
+    ).reshape(motif['weights']['weights_norm']['dim']) 
 
     hits = np.asarray(
         motif['hits']['data']
@@ -30,6 +32,8 @@ def wrangle_rust_motif(motif):
 
     threshold = motif['threshold']
     mi = motif['mi']
+
+    return {'motif': shapes, 'mi': mi, 'hits': hits, 'weights': weights, 'threshold': threshold}
 
 def read_motifs_from_rust(fname):
     """Reads pickle file (fname) containing Motifs from rust, wrangles
@@ -39,8 +43,11 @@ def read_motifs_from_rust(fname):
     with open(fname, 'rb') as f:
         rust_mi_results = pickle.load(f)
 
+    motif_results = []
     for motif in rust_mi_results:
-    
+        motif_results.append(wrangle_rust_motif(motif))
+
+    return motif_results
 
 
 def consolidate_optim_batches(fname_list):
