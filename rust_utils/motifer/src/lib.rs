@@ -1038,7 +1038,7 @@ pub fn filter_motifs<'a>(
         * 2 + 1;
 
     // sort the Vec of Motifs in order of descending mutual information
-    motifs.sort_unstable_by_key(|motif| OrderedFloat(-motif.mi));
+    motifs.par_sort_unstable_by_key(|motif| OrderedFloat(-motif.mi));
     let mut top_motifs = Vec::new();
 
     // Make sure first seed passes AIC
