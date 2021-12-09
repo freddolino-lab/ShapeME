@@ -18,8 +18,8 @@ def wrangle_rust_motif(motif):
     """
 
     shapes = np.asarray(
-        motif['params']['data']
-    ).reshape(motif['params']['dim'])
+        motif['params']['params']['data']
+    ).reshape(motif['params']['params']['dim'])
 
     weights = np.asarray(
         motif['weights']['weights_norm']['data']

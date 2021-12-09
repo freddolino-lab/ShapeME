@@ -231,6 +231,16 @@ mod tests {
         );
         assert_eq!(hits[0], 2);
         assert_eq!(hits[1], 0);
+
+        let a_stranded_seq = set_up_stranded_sequence(2.0, length);
+        let another_stranded_seq = set_up_stranded_sequence(2.1, length);
+        let hits = a_stranded_seq.count_hits_in_seq(
+            &seed.params.params,
+            &wv,
+            &threshold2,
+            &max_count,
+        );
+        println!("{:?}", hits);
     }
 
     fn setup_RecordsDB(num_seqs: usize, length_seqs: usize) -> RecordsDB{
@@ -1835,7 +1845,6 @@ impl Motif {
         Motif{params, weights, threshold, hits, mi}
     }
    
-
     /// Does constrained normalization of weights
     ///
     /// # Arguments
@@ -2167,7 +2176,6 @@ impl RecordsDB {
         }
     }
 
-
     /// Iterate over each record in the database and count number of times
     /// `query` matches each record. Return a 2D array of hits, where each
     /// row represents a record in the database, and each column is the number
@@ -2184,7 +2192,8 @@ impl RecordsDB {
         query: &ndarray::ArrayView<f64, Ix2>,
         weights: &ndarray::ArrayView<f64, Ix2>,
         threshold: &f64,
-        max_count: &i64) -> Array<i64, Ix2> {
+        max_count: &i64
+    ) -> Array<i64, Ix2> {
 
         let mut hits = ndarray::Array2::zeros((self.len(), 2));
         hits.axis_iter_mut(Axis(0))
