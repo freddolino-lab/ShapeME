@@ -9,4 +9,4 @@ utils/__pycache__
 rust_utils/target
 rust_utils/target
 */Cargo.lock
-*/*/Cargo.lock
+python3/build
