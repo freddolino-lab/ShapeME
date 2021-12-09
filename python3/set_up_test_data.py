@@ -1822,6 +1822,7 @@ if __name__ == "__main__":
                         #)
                         match_threshold = 0.8711171869882366
 
+                    # only grabbing one winodw from records, so only allocate for one hit
                     hits_test = np.zeros((1, 2), dtype='int64')
                     distances = np.zeros((records.windows.shape[3], 2))
                     lt = np.zeros((records.windows.shape[3], 2), dtype='bool')
@@ -1848,7 +1849,8 @@ if __name__ == "__main__":
                     print(match_threshold)
                     with open('distances.npy', 'wb') as f:
                         np.save(f, distances)
-                    # Here's where I'll write the shapes and necessary options to some npy files
+                    # Here's where I'll write the shapes and necessary options
+                    #  to some npy files
                     #  that I can read into rust using ndarray-npy
                     with open('shapes.npy', 'wb') as f:
                         np.save(f, records.X.transpose((0,2,1,3)))
@@ -1924,7 +1926,6 @@ if __name__ == "__main__":
                     with open('test_args.pkl', 'wb') as f:
                         pickle.dump(args_dict, f)
 
-                    raise()
 
 
 
@@ -1950,6 +1951,8 @@ if __name__ == "__main__":
 
                     with open(mi_fname, 'wb') as f:
                         pickle.dump(mi_dict, f)
+
+                    raise()
 
                 if args.exit_after_initial_mi:
                     logging.info("You selected to only compute initial MI for each seed. Exiting the program now.")
