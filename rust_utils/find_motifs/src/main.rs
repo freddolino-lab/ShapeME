@@ -20,16 +20,18 @@ fn main() {
     );
     let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
 
-    let threshold = motifer::set_initial_threshold(
-        &seeds,
-        &rec_db,
-        &cfg.seed_sample_size,
-        &cfg.records_per_seed,
-        &cfg.windows_per_record,
-        &cfg.kmer,
-        &cfg.alpha,
-        &cfg.thresh_sd_from_mean,
-    );
+    //let threshold = motifer::set_initial_threshold(
+    //    &seeds,
+    //    &rec_db,
+    //    &cfg.seed_sample_size,
+    //    &cfg.records_per_seed,
+    //    &cfg.windows_per_record,
+    //    &cfg.kmer,
+    //    &cfg.alpha,
+    //    &cfg.thresh_sd_from_mean,
+    //);
+
+    let threshold = &cfg.threshold;
 
     let now = time::Instant::now();
     seeds.compute_mi_values(
@@ -40,12 +42,20 @@ fn main() {
     let duration = now.elapsed().as_secs_f64() / 60.0;
     println!("MI calculation took {:?} minutes.", duration);
 
+    seeds.sort_seeds();
+    seeds.pickle_seeds(&String::from("/home/x-schroeder/pre_filter_seeds.pkl"));
     println!("{} seeds prior to CMI-based filtering.", seeds.len());
     let mut motifs = motifer::filter_seeds(
         &mut seeds,
         &rec_db,
         &threshold,
         &cfg.max_count,
+    );
+    // at this point, I've verified that the motifs
+    // pre-optimization have all hits categories
+    motifer::pickle_motifs(
+        &motifs,
+        &String::from("/home/x-schroeder/pre_opt_motifs.pkl"),
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
 
@@ -96,7 +106,6 @@ fn main() {
             &thresh_lb,
             &thresh_ub,
         );
-
 
         //println!("Using replica exchange as the optimization method.");
         //let (optimized_result,optimized_score) = optim::replica_exchange(
@@ -150,7 +159,11 @@ fn main() {
             &cfg.kmer,
             &cfg.max_count,
             &cfg.alpha,
-            &true,
+            // true here indicates that we'll use logit-transformed AMI
+            // for our acceptance test.
+            // The reason for this is that we don't want to make a jump
+            // from 0.99 to 0.79 as easy to make as a jump from 0.5 to 0.3.
+            &true, 
         );
 
 ///////////////////////////////////////////////////////////////////////

@@ -232,7 +232,9 @@ mod tests {
         assert_eq!(hits[0], 2);
         assert_eq!(hits[1], 0);
 
+        // a_stranded_seq matches seed exactly
         let a_stranded_seq = set_up_stranded_sequence(2.0, length);
+        // another_stranded_seq is off of seed by 0.1 at every position
         let another_stranded_seq = set_up_stranded_sequence(2.1, length);
         let hits = a_stranded_seq.count_hits_in_seq(
             &seed.params.params,
@@ -460,6 +462,177 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn test_filter() {
+        //////////////////////////////////////////////////////////////////////////////
+        // We're testing several aspects of working with rec_db structs and seeds here.
+        // Although the math look right everywhere I've investigated it, our rust
+        // implementation's distance calculations comparing a seed to plus strands
+        // match the values we get in our python implementation. The minus strand
+        // comparisons do not match, however. I do not understand this, especially since
+        // I have done tests with simplified examples and achieved correct results, i.e.,
+        // matching minus strand distances between python and rust.
+        // I'm a somewhat of a loss for ideas on what else to test here.
+        //////////////////////////////////////////////////////////////////////////////
+
+        // read in shapes
+        let shape_fname = String::from("../../test_data/shapes.npy");
+        // read in y-vals
+        let y_fname = String::from("../../test_data/y_vals.npy");
+        let rec_db = RecordsDB::new_from_files(
+            &shape_fname,
+            &y_fname,
+        );
+
+        // read in some other parameters we'll need
+        let fname = "../../test_data/test_args.pkl";
+        let mut file = fs::File::open(fname).unwrap();
+        // open a buffered reader to open the pickle file
+        let mut buf_reader = BufReader::new(file);
+        // create a hashmap from the pickle file's contents
+        let hash: HashMap<String, f64> = de::from_reader(
+            buf_reader,
+            de::DeOptions::new()
+        ).unwrap();
+    
+        let kmer = *hash.get("kmer").unwrap() as usize;
+        let alpha = *hash.get("alpha").unwrap();
+        let max_count = *hash.get("max_count").unwrap() as i64;
+        let threshold = *hash.get("threshold").unwrap();
+
+        let mut seeds = rec_db.make_seed_vec(kmer, alpha);
+        let test_seed = &mut seeds.seeds[1];
+
+        let mut dists: ndarray::Array2<f64> = ndarray::Array2::zeros((42, 2));
+        let mut minus_dists = ndarray::Array1::zeros(42);
+        //////////////////////////////////////////////////////////////////////////////
+        // The second record in the database was compared to the second seed in python.
+        // So look at second record in rec_db and second seed, just like I did in python
+        // when I made the file "../../test_data/distances.npy"
+        //////////////////////////////////////////////////////////////////////////////
+        for (i,rec) in rec_db.iter().enumerate() {
+            // skip all but i == 1
+            if i != 1 {
+                continue
+            }
+            for (j,window) in rec.seq.window_iter(0, rec.seq.params.raw_dim()[1]+1, kmer).enumerate() {
+                // calculate just some minus strand distances
+                let this_minus_dist = weighted_manhattan_distance(
+                    &window.params.slice(s![..,..,1]),
+                    &test_seed.params.params,
+                    &seeds.weights.weights_norm.view(),
+                );
+                // calculate stranded distances
+                let these_dists = stranded_weighted_manhattan_distance(
+                    &window.params,
+                    &test_seed.params.params,
+                    &seeds.weights.weights_norm.view(),
+                );
+                // place the respective distances into their appropriate containers
+                dists.row_mut(j).assign(
+                    &these_dists
+                );
+                minus_dists[j] = this_minus_dist;
+            }
+        }
+
+        // read in the distances output by python
+        let dist_answer: Array2<f64> = ndarray_npy::read_npy(
+            String::from("../../test_data/distances.npy")
+        ).unwrap();
+        //println!("Dist answer: {:?}", dist_answer);
+        //println!("Minus dists: {:?}", minus_dists);
+        //println!("Distances: {:?}", dists);
+
+        // assert that all but the final 5 plus strand distances are the same
+        // between the python and rust implementations.
+        // the reason we stop the comparison where we do is that in python,
+        // it hit the max count for each strand at that point, so its distances
+        // after that point are all 0.0, whereas the way I looped over the
+        // sequences above calculated the distances for all sequences.
+        assert!(
+            dists
+            .abs_diff_eq(
+                &dist_answer,
+                1e-6,
+            )
+        );
+        // assert that the minus strand distances are equal when
+        // calculated for just the minus strand, or when sliced from the
+        // stranded distance calc results
+        assert!(
+            minus_dists
+            .abs_diff_eq(
+                &dists.slice(s![..,1]),
+                1e-6,
+            )
+        );
+        // assert that the minus strand distances calculated in rust
+        // are equal to those calculated in python.
+        assert!(
+            minus_dists
+            .abs_diff_eq(
+                &dist_answer.slice(s![..,1]),
+                1e-6,
+            )
+        );
+
+        // get the test_seed hits in all elements of rec_db
+        let mut hits = rec_db.get_hits(
+            &test_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            &threshold,
+            &max_count,
+        );
+        // sort the columns of each row of hits
+
+        sort_hits(&mut hits);
+
+        let hit_cats = info_theory::categorize_hits(&hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = rec_db.values.view();
+        let contingency = info_theory::construct_contingency_matrix(hv, vv);
+        let ami = info_theory::adjusted_mutual_information(contingency.view());
+
+        test_seed.update_info(
+            &rec_db,
+            &seeds.weights.weights_norm.view(),
+            &threshold,
+            &max_count,
+        );
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&test_seed.mi, &hash.get("mi").unwrap()));
+
+        // yields the same results as our python hit counting.
+        let fname = "../../test_data/hits.npy";
+        let hits_true: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
+        assert_eq!(hits_true.sum(), hits.sum());
+        assert_eq!(hits_true, hits);
+
+        // get hits for the very first seed
+        let other_seed = &mut seeds.seeds[0];
+        let hits2 = rec_db.get_hits(
+            &other_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            &threshold,
+            &max_count,
+        );
+        
+        let hit_cats2 = info_theory::categorize_hits(&hits2, &max_count);
+        let h2v = hit_cats2.view();
+        let contingency_3d = info_theory::construct_3d_contingency(
+            hv,
+            vv,
+            h2v,
+        );
+        let cmi = info_theory::conditional_adjusted_mutual_information(
+            contingency_3d.view()
+        );
+
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&ami, &hash.get("mi").unwrap()));
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&cmi, &hash.get("cmi").unwrap()));
+    }
+
 
     #[test]
     fn test_db_operations() {
@@ -950,68 +1123,6 @@ pub fn optim_objective(
     -info_theory::adjusted_mutual_information(contingency.view())
 }
 
-///// Objective function for optimization.
-/////
-///// # Arguments
-/////
-///// * `params` - The parameters for a motif,
-/////      appended to each other and flattened to a Vec
-///// * `kmer` - The window size for our Motif instances
-///// * `rec_db` - A reference to our RecordsDB instance
-///// * `max_count` - The max count for hits counting. A reference to i64.
-///// * `alpha` - The lower bound on the normalized weights. Reference to f64.
-/////
-///// # Returns
-/////
-///// * `score` - negative adjusted mutual information
-//pub fn optim_objective(
-//        params: &Vec<f64>,
-//        kmer: &usize,
-//        rec_db: &RecordsDB,
-//        max_count: &i64,
-//        alpha: &f64,
-//) -> f64 {
-//    
-//    let shape_num = rec_db.seqs[0].params.raw_dim()[0];
-//
-//    // view to slice of params containing shapes
-//    let shape_view = ArrayView::from_shape(
-//        (shape_num, *kmer),
-//        &params[0..kmer*shape_num],
-//    ).unwrap();
-//
-//    // view to slice of params containing shapes
-//    let weights_arr = ArrayView::from_shape(
-//        (shape_num, *kmer),
-//        &params[kmer*shape_num..2*kmer*shape_num],
-//    ).unwrap().to_owned();
-//
-//    // threshold is the final element in the params Vec
-//    let threshold = params[params.len() - 1];
-//
-//    // create a SequenceView so that we can then create a MotifWeights instance
-//    let seq_view = SequenceView::new(shape_view);
-//    let mut motif_weights = MotifWeights::new(&seq_view);
-//    // normalize the weights
-//    motif_weights.constrain_normalize(alpha);
-//
-//    // get the hits
-//    let hits = rec_db.get_hits(
-//        &shape_view,
-//        &motif_weights.weights_norm.view(),
-//        &threshold,
-//        max_count,
-//    );
-//    // categorize the hits and calculate adjusted mutual information
-//    let hit_cats = info_theory::categorize_hits(&hits, &max_count);
-//    let contingency = info_theory::construct_contingency_matrix(
-//        hit_cats.view(),
-//        rec_db.values.view(),
-//    );
-//
-//    -info_theory::adjusted_mutual_information(contingency.view())
-//}
-
 /// Parses arguments passed at the command line and places them into a [Config]
 pub fn parse_config(args: &[String]) -> Config {
     Config::new(args)
@@ -1043,9 +1154,9 @@ pub fn filter_motifs<'a>(
     //  we multiply by two because we'll be optimizing shape AND weight values
     //  then add one for the threshold
     let rec_num = rec_db.len();
-    let delta_k = motifs[0].params.params.raw_dim()[1]
-        * motifs[0].params.params.raw_dim()[0]
-        * 2 + 1;
+    let shape_num = motifs[0].params.params.raw_dim()[0];
+    let win_len = motifs[0].params.params.raw_dim()[1];
+    let delta_k = shape_num * win_len * 2 + 1;
 
     // sort the Vec of Motifs in order of descending mutual information
     motifs.par_sort_unstable_by_key(|motif| OrderedFloat(-motif.mi));
@@ -1312,7 +1423,7 @@ pub struct SequenceIter<'a>{
 /// # Fields
 ///
 /// * `params` - The view is stored as a 2d ndarray
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SequenceView<'a> {
     params: ndarray::ArrayView::<'a, f64, Ix2>
 }
@@ -1357,7 +1468,7 @@ pub struct MotifWeights {
 //  the [Seed] struct, or both, to be able to rapidly pass seeds back to python.
 // Uncommenting the next line just yield a bunch of not implemented errors.
 //#[derive(Debug, Serialize, Deserialize)]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Seed<'a> {
     params: SequenceView<'a>,
     hits: ndarray::Array2::<i64>,
@@ -1365,7 +1476,7 @@ pub struct Seed<'a> {
 }
 
 // We have to create a container to hold the weights with the seeds
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Seeds<'a> {
     seeds: Vec<Seed<'a>>,
     weights: MotifWeights
@@ -1500,10 +1611,13 @@ impl StrandedSequence {
     /// * `weights` - an array of weights to be applied for the distance calc
     /// * `threshold` - distance between the query and seq below which a hit is called
     /// * `max_count` - maximum number of times a hit will be counted on each strand
-    pub fn count_hits_in_seq(&self, query: &ndarray::ArrayView<f64,Ix2>,
-                             weights: &ndarray::ArrayView<f64, Ix2>,
-                             threshold: &f64,
-                             max_count: &i64) -> Array<i64, Ix1> {
+    pub fn count_hits_in_seq(
+            &self,
+            query: &ndarray::ArrayView<f64,Ix2>,
+            weights: &ndarray::ArrayView<f64, Ix2>,
+            threshold: &f64,
+            max_count: &i64,
+    ) -> Array<i64, Ix1> {
     
         // set maxed to false for each strand
         let mut f_maxed = false;
@@ -2070,6 +2184,19 @@ impl<'a> Seeds<'a> {
         self.seeds.par_sort_unstable_by_key(|seed| OrderedFloat(-seed.mi));
     }
 
+    /// Writes a vector of Seed structs as a pickle file
+    pub fn pickle_seeds(&self, pickle_fname: &str) {
+        // set up writer
+        let mut file = fs::File::create(pickle_fname).unwrap();
+        // open a buffered writer to open the pickle file
+        let mut buf_writer = BufWriter::new(file);
+        // write to the writer
+        let res = ser::to_writer(
+            &mut buf_writer, 
+            &self.seeds, 
+            ser::SerOptions::new(),
+        );
+    }
 }
 
 impl RecordsDB {
