@@ -60,6 +60,52 @@ def plot_optim_trajectory(motif_list, file_name, top_n=20, opacity=1):
     plt.close()
 
 
+def plot_optim_shapes_and_weights(motif_list, file_name, records, alpha, top_n = 30, opacity=1, legend_loc="upper left"):
+    
+    shape_lut = {v:k for k,v in records.shape_name_lut.items()}
+    
+    motif_list,top_n = set_up(motif_list, top_n)
+    
+    fig,ax = plt.subplots(ncols=2,nrows=top_n,figsize=(9,top_n*2),sharex=True)
+    if top_n == 1:
+        ax = ax[None,:]
+
+    for i,res in enumerate(motif_list[:top_n]):
+
+        mi = round(res['mi'], 2)
+        opt_y = res['motif']
+        weights = res['weights']
+        
+        x_vals = [i+1 for i in range(opt_y.shape[0])]
+        
+        for j in range(opt_y.shape[1]):
+
+            ax[i,0].plot(
+                x_vals,
+                opt_y[:,j],
+                alpha = opacity,
+                label = shape_lut[j],
+            )
+            ax[i,1].plot(
+                x_vals,
+                weights[:,j],
+                alpha = opacity,
+                label = shape_lut[j],
+            )
+        ax[i,0].text(1, 3, "MI: {}".format(mi))
+        ax[i,0].set_ylabel("Index: {}".format(i))
+        if i == 0:
+            ax[i,0].set_title("Optimized shapes")
+            ax[i,1].set_title("Optimized weights")
+            for j in range(2):
+                ax[i,j].set_xticks(x_vals)
+    
+    handles, labels = ax[0,0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc=legend_loc)
+    fig.tight_layout()
+    plt.savefig(file_name)
+    plt.close()
+
 def plot_shapes_and_weights(motif_list, file_name, records, alpha, top_n = 30, opacity=1, legend_loc="upper left"):
     
     shape_lut = {v:k for k,v in records.shape_name_lut.items()}

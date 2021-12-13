@@ -20,18 +20,18 @@ fn main() {
     );
     let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
 
-    //let threshold = motifer::set_initial_threshold(
-    //    &seeds,
-    //    &rec_db,
-    //    &cfg.seed_sample_size,
-    //    &cfg.records_per_seed,
-    //    &cfg.windows_per_record,
-    //    &cfg.kmer,
-    //    &cfg.alpha,
-    //    &cfg.thresh_sd_from_mean,
-    //);
+    let threshold = motifer::set_initial_threshold(
+        &seeds,
+        &rec_db,
+        &cfg.seed_sample_size,
+        &cfg.records_per_seed,
+        &cfg.windows_per_record,
+        &cfg.kmer,
+        &cfg.alpha,
+        &cfg.thresh_sd_from_mean,
+    );
 
-    let threshold = &cfg.threshold;
+    //let threshold = &cfg.threshold;
 
     let now = time::Instant::now();
     seeds.compute_mi_values(
@@ -43,7 +43,7 @@ fn main() {
     println!("MI calculation took {:?} minutes.", duration);
 
     seeds.sort_seeds();
-    seeds.pickle_seeds(&String::from("/home/x-schroeder/pre_filter_seeds.pkl"));
+    //seeds.pickle_seeds(&String::from("/home/x-schroeder/pre_filter_seeds.pkl"));
     println!("{} seeds prior to CMI-based filtering.", seeds.len());
     let mut motifs = motifer::filter_seeds(
         &mut seeds,
@@ -51,14 +51,19 @@ fn main() {
         &threshold,
         &cfg.max_count,
     );
+    println!("{} motifs left after CMI-based filtering.", motifs.len());
     // at this point, I've verified that the motifs
     // pre-optimization have all hits categories
-    motifer::pickle_motifs(
-        &motifs,
-        &String::from("/home/x-schroeder/pre_opt_motifs.pkl"),
-    );
-    println!("{} motifs left after CMI-based filtering.", motifs.len());
+    // Potential issue arising where optimized motifs often
+    // have only either [0,0] or [0,1], but not [1,1].
+    //motifer::pickle_motifs(
+    //    &motifs,
+    //    &String::from("/home/x-schroeder/pre_opt_motifs.pkl"),
+    //);
 
+    /////////////////////////////////////////////////////////////
+    // NOTE: needs taken from config file ///////////////////////
+    /////////////////////////////////////////////////////////////
     let shape_lb = -4.0;
     let shape_ub = 4.0;
     let weights_lb = -4.0;
@@ -76,19 +81,19 @@ fn main() {
     let step = 0.25;
     // initial particles are dropped onto the landscape at
     // init_position + Normal(0.0, init_jitter)
-    let init_jitter = &step * 8.0;
+    let init_jitter = &step * 1.0;
     let inertia = 0.8;
     let local_weight = 0.2;
     let global_weight = 0.8;
 
-    let n_particles = 20;
+    let n_particles = 20; // ignored if doing simulated annealing
     let n_iter = 10000;
     let n_iter_exchange = 2;
     let t_adjust = 0.0005;
 
-    //println!("Grabbing the top two motifs to optimize");
     motifs.par_iter_mut()
         .enumerate()
+        // can uncomment this line when debugging to just optimize first two motifs
         //.filter(|(i,motif)| i < &2)
         .for_each(|(i,motif)|
     {
@@ -166,11 +171,6 @@ fn main() {
             &true, 
         );
 
-///////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////
-// the problem is either here or in objective fn. I am only getting hits of either [0,0] or [0,1], NEVER [1,1]!!!!!!!!!!!!!!!!!
-///////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////
         let optimized_motif = motifer::opt_vec_to_motif(
             &optimized_result,
             &rec_db,
@@ -185,14 +185,18 @@ fn main() {
         *motif = optimized_motif;
     });
 
-    println!("Filtering optimized motifs based on connditional mutual information.");
-    let motifs = motifer::filter_motifs(
+    println!("Filtering optimized motifs based on conditional mutual information.");
+    let mut motifs = motifer::filter_motifs(
         &mut motifs,
         &rec_db,
         &threshold,
         &cfg.max_count,
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
+
+    for motif in motifs.iter_mut() {
+        motif.update_min_dists(&rec_db);
+    }
 
     motifer::pickle_motifs(
         &motifs,

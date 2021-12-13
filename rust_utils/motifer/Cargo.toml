@@ -17,5 +17,4 @@ ordered-float = "2.8.0"
 rayon = "1.5.1"
 rand = "0.8.4"
 info_theory = { path = "../info_theory" }
-tester = "0.9.0"
 

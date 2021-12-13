@@ -506,6 +506,20 @@ if __name__ == "__main__":
         ),
     )
 
+    good_motif_plot_fname = os.path.join(
+        out_direc,
+        "{}_post_opt_cmi_filtered_motifs_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.png".format(
+            out_pref,
+            optim_str,
+            adapt,
+            fatol,
+            temp,
+            step,
+            alpha,
+            max_count,
+        ),
+    )
+
     RUST = "{} {} {} {} {}".format(
         rust_bin,
         shape_fname,
@@ -552,17 +566,20 @@ if __name__ == "__main__":
     with open(good_motif_out_fname, 'wb') as outf:
         pickle.dump(good_motifs, outf)
 
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
+    smv.plot_optim_shapes_and_weights(good_motifs, good_motif_plot_fname, records)
+
     raise()
 
+########################################################################
+########################################################################
+########################################################################
+########################################################################
+########################################################################
+
     X = [
-        generate_dist_vector(this_records, this_motif['motif'], rc=args.rc)
+        this_motif['dists']
         for this_motif in good_motifs
-    ] 
+    ]
     X = np.stack(X, axis=1)
     X = StandardScaler().fit_transform(X)
     y = this_records.get_values()
@@ -595,6 +612,10 @@ if __name__ == "__main__":
     cvlogistic.write_coef_per_class(clf_f, outpre + "_coef_per_class.txt")
     final_good_motifs = [good_motifs[index] for index in good_motif_index]
     logging.info("{} motifs survived".format(len(final_good_motifs)))
+
+    raise()
+
+########################################################################
     if args.debug:
         cvlogistic.plot_score(clf, outpre+"_score_logit.png")
         for cls in clf.classes_:

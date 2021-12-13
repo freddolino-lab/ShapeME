@@ -1231,8 +1231,8 @@ pub fn filter_seeds<'a>(
         * 2 + 1;
 
     seeds.sort_seeds();
+    //seeds.remove_low_aic_seeds(delta_k, rec_num);
     let mut top_motifs = Vec::new();
-
     // Make sure first seed passes AIC
     let aic = info_theory::calc_aic(delta_k, rec_num, seeds.seeds[0].mi);
     if aic < 0.0 {
@@ -1441,8 +1441,9 @@ pub struct Motif {
     params: Sequence,
     weights: MotifWeights, // the MotifWeights struct contains two 2D-Arrays.
     threshold: f64,
-    hits: ndarray::Array2::<i64>,
+    pub hits: ndarray::Array2::<i64>,
     pub mi: f64,
+    pub dists: ndarray::Array2::<f64>,
 }
 
 /// Represents the weights for a [Motif] in it's own structure
@@ -1463,11 +1464,6 @@ pub struct MotifWeights {
 // This way we can calculate all our initial MIs without copying unnecessarily.
 // After filtering by CMI we can then create Motif structs that each own their
 //  shapes and weights. 
-
-// We'll need to do something to serialize either the [Seeds] struct,
-//  the [Seed] struct, or both, to be able to rapidly pass seeds back to python.
-// Uncommenting the next line just yield a bunch of not implemented errors.
-//#[derive(Debug, Serialize, Deserialize)]
 #[derive(Debug, Serialize)]
 pub struct Seed<'a> {
     params: SequenceView<'a>,
@@ -1478,8 +1474,8 @@ pub struct Seed<'a> {
 // We have to create a container to hold the weights with the seeds
 #[derive(Debug, Serialize)]
 pub struct Seeds<'a> {
-    seeds: Vec<Seed<'a>>,
-    weights: MotifWeights
+    pub seeds: Vec<Seed<'a>>,
+    pub weights: MotifWeights
 }
 
 /// Represents a database of Sequences and their associated value
@@ -1491,7 +1487,7 @@ pub struct Seeds<'a> {
 #[derive(Debug)]
 pub struct RecordsDB {
     seqs: Vec<StrandedSequence>,
-    values: ndarray::Array1::<i64>
+    pub values: ndarray::Array1::<i64>
 }
 
 
@@ -1655,6 +1651,46 @@ impl StrandedSequence {
         }
         // return the hits
         hits
+    }
+
+    /// For a single Motif, get the minimum distance to each strand
+    /// on the StrandedSequence.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - an array which will be compared to each window in self.
+    /// * `weights` - an array of weights to be applied for the distance calc
+    pub fn get_min_dists_in_seq(
+            &self,
+            query: &ndarray::ArrayView<f64,Ix2>,
+            weights: &ndarray::ArrayView<f64, Ix2>,
+    ) -> Array<f64, Ix1> {
+    
+        // initialize minimum distances at infinity
+        let mut min_plus_dist = f64::INFINITY;
+        let mut min_minus_dist = f64::INFINITY;
+    
+        // iterate through windows of seq
+        for window in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]) {
+    
+            // get the distances.
+            let dist = stranded_weighted_manhattan_distance(
+                &window.params,
+                query,
+                weights,
+            );
+
+            if dist[0] < min_plus_dist {
+                min_plus_dist = dist[0];
+            }
+
+            if dist[1] < min_minus_dist {
+                min_minus_dist = dist[1];
+            }
+    
+        }
+        // return the minimum distances
+        array![min_plus_dist, min_minus_dist]
     }
 }
 
@@ -1940,8 +1976,9 @@ impl Motif {
     pub fn new(params: Sequence, threshold: f64, record_num: usize) -> Motif {
         let weights = MotifWeights::new(&params.view());
         let mut hits = ndarray::Array2::zeros((record_num, 2));
+        let mut dists = Array::from_elem((record_num,2), f64::INFINITY);
         let mi = 0.0;
-        Motif{params, weights, threshold, hits, mi}
+        Motif{params, weights, threshold, hits, mi, dists}
     }
 
     /// Returns a copy of Motif
@@ -1952,11 +1989,12 @@ impl Motif {
             &self.weights.weights_norm.to_owned(),
         );
         let hits = self.hits.to_owned();
+        let dists = self.dists.to_owned();
         let arr = self.params.params.to_owned();
         let params = Sequence{ params: arr };
         let mi = self.mi;
         let threshold = self.threshold;
-        Motif{params, weights, threshold, hits, mi}
+        Motif{params, weights, threshold, hits, mi, dists}
     }
    
     /// Does constrained normalization of weights
@@ -2014,6 +2052,16 @@ impl Motif {
             max_count,
         );
     }
+
+    pub fn update_min_dists(
+        &mut self,
+        db: &RecordsDB,
+    ) {
+        self.dists = db.get_min_dists(
+            &self.params.params.view(),
+            &self.weights.weights_norm.view(),
+        )
+    }
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -2030,7 +2078,15 @@ impl<'a> Seed<'a> {
         let mi = 0.0;
         Seed{params, hits, mi}
     }
+
+    pub fn set_hits(&mut self, hits: ndarray::ArrayView<i64, Ix2>) {
+        self.hits = hits.to_owned()
+    }
     
+    pub fn set_mi(&mut self, mi: f64) {
+        self.mi = mi
+    }
+
     fn update_hits(&mut self, db: &RecordsDB,
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: &f64,
@@ -2072,10 +2128,11 @@ impl<'a> Seed<'a> {
             threshold: &f64) -> Motif {
         let weights = MotifWeights::new(&self.params);
         let hits = self.hits.to_owned();
+        let dists = Array::from_elem(hits.raw_dim(), f64::INFINITY);
         let arr = self.params.params.to_owned();
         let params = Sequence{ params: arr };
         let mi = self.mi;
-        Motif{params, weights, threshold: *threshold, hits, mi}
+        Motif{params, weights, threshold: *threshold, hits, mi, dists}
     }
 
 }
@@ -2340,6 +2397,36 @@ impl RecordsDB {
 
         hits
     }
+
+    /// Iterate over each record in the database and count number of times
+    /// `query` matches each record. Return a 2D array of hits, where each
+    /// row represents a record in the database, and each column is the number
+    /// of hits counted on each strand for a given record.
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - A 2D arrayview, typically coming from a Seed's or Motif's params
+    /// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
+    pub fn get_min_dists(
+        &self,
+        query: &ndarray::ArrayView<f64, Ix2>,
+        weights: &ndarray::ArrayView<f64, Ix2>,
+    ) -> Array<f64, Ix2> {
+
+        let mut dists = ndarray::Array2::zeros((self.len(), 2));
+        dists.axis_iter_mut(Axis(0))
+            .into_par_iter()
+            .zip(&self.seqs)
+            .for_each(|(mut row, seq)| {
+                let this_dist = seq.get_min_dists_in_seq(
+                    query,
+                    weights,
+                );
+                row.assign(&this_dist);
+            });
+
+        dists
+    }
 }
 
 impl<'a> RecordsDBEntry<'a> {
@@ -2370,32 +2457,6 @@ impl<'a> Iterator for RecordsDBIter<'a> {
         }
     }
 }
-
-///// Enables parallel iteration over the entries in RecordsDB.
-///// Returns a [RecordsDBEntry] as each item.
-//impl<'a> ParallelIterator for RecordsDBIter<'a> {
-//    type Item = RecordsDBEntry<'a>;
-//
-//    fn drive_unindexed<C>(self, consumer: C) -> C::Result
-//    where
-//        C: UnindexedConsumer<Self::Item>,
-//    {
-//    
-////////////////////////////////////////////////////
-//    fn drive_unindexed<C>(self, consumer: C) -> C::Result
-//    where
-//        C: UnindexedConsumer<Self::Item>,
-//    {
-//        let StepBy5 { start, end } = self;
-//
-//        // Start with a simple range, then map it to increment by 5
-//        (0..(end - start + 4) / 5)
-//            .into_par_iter()
-//            .map(|i| start + i * 5)
-//            .drive_unindexed(consumer)
-//    }
-////////////////////////////////////////////////////
-//
 
 /// Enables permuted iteration over the RecordsDB. Returns a [RecordsDBEntry] as 
 /// each item.

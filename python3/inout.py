@@ -30,10 +30,14 @@ def wrangle_rust_motif(motif):
         motif['hits']['data']
     ).reshape(motif['hits']['dim'])
 
+    dists = np.asarray(
+        motif['dists']['data']
+    ).reshape(motif['dists']['dim'])
+
     threshold = motif['threshold']
     mi = motif['mi']
 
-    return {'motif': shapes, 'mi': mi, 'hits': hits, 'weights': weights, 'threshold': threshold}
+    return {'motif': shapes, 'mi': mi, 'hits': hits, 'dists': dists, 'weights': weights, 'threshold': threshold}
 
 def read_motifs_from_rust(fname):
     """Reads pickle file (fname) containing Motifs from rust, wrangles
