@@ -59,7 +59,6 @@ class FIREfile(object):
         shuffled_names = [self.names[val] for val in subset]
         self.names = shuffled_names
 
-
     def write(self, fname):
         with open(fname, mode="w") as outf:
             outf.write("name\tscore\n")

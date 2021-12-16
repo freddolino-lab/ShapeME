@@ -60,7 +60,7 @@ def plot_optim_trajectory(motif_list, file_name, top_n=20, opacity=1):
     plt.close()
 
 
-def plot_optim_shapes_and_weights(motif_list, file_name, records, alpha, top_n = 30, opacity=1, legend_loc="upper left"):
+def plot_optim_shapes_and_weights(motif_list, file_name, records, top_n = 30, opacity=1, legend_loc="upper left"):
     
     shape_lut = {v:k for k,v in records.shape_name_lut.items()}
     
@@ -76,19 +76,19 @@ def plot_optim_shapes_and_weights(motif_list, file_name, records, alpha, top_n =
         opt_y = res['motif']
         weights = res['weights']
         
-        x_vals = [i+1 for i in range(opt_y.shape[0])]
+        x_vals = [i+1 for i in range(opt_y.shape[1])]
         
-        for j in range(opt_y.shape[1]):
+        for j in range(opt_y.shape[0]):
 
             ax[i,0].plot(
                 x_vals,
-                opt_y[:,j],
+                opt_y[j,:],
                 alpha = opacity,
                 label = shape_lut[j],
             )
             ax[i,1].plot(
                 x_vals,
-                weights[:,j],
+                weights[j,:],
                 alpha = opacity,
                 label = shape_lut[j],
             )

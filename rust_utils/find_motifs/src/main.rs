@@ -86,8 +86,8 @@ fn main() {
     let local_weight = 0.2;
     let global_weight = 0.8;
 
-    let n_particles = 20; // ignored if doing simulated annealing
-    let n_iter = 10000;
+    let n_particles = 100; // ignored if doing simulated annealing
+    let n_iter = 12000;
     let n_iter_exchange = 2;
     let t_adjust = 0.0005;
 
@@ -131,7 +131,7 @@ fn main() {
         //    &true,
         //);
 
-        //println!("Using particle swarm as the optimization method.");
+        //println!("Optimizing motif {} using particle swarm.", i);
         //let (optimized_result,optimized_score) = optim::particle_swarm(
         //    params,
         //    low,
@@ -150,7 +150,7 @@ fn main() {
         //    &true,
         //);
 
-        println!("Optimizing motif {} using simulated annealing as the optimization method.", i);
+        println!("Optimizing motif {} using simulated annealing.", i);
         let (optimized_result,optimized_score) = optim::simulated_annealing(
             params,
             low,
