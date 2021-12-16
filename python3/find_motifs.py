@@ -404,6 +404,7 @@ if __name__ == "__main__":
     records = inout.RecordDatabase(
         os.path.join(in_direc, args.infile),
         shape_fname_dict,
+        shift_params = ["Roll", "HelT"],
     )
 
     # read in the values associated with each sequence and store them
@@ -460,11 +461,8 @@ if __name__ == "__main__":
     )
 
     shape_fname = os.path.join(out_direc, 'shapes.npy')
-
     yval_fname = os.path.join(out_direc, 'y_vals.npy')
-
     config_fname = os.path.join(out_direc, 'config.pkl')
-
     rust_out_fname = os.path.join(out_direc, 'rust_results.pkl')
 
     cmi_fname = os.path.join(
