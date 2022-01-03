@@ -84,11 +84,11 @@ class PeakList(object):
             for line in f:
                 self.data.append(Peak.from_line(line))
 
-
     def write_narrowPeak_file(self, filename):
         with open(filename, mode = 'w') as f:
             for peak in self.data:
                 f.write(str(peak) + "\n")
+
     def generator(self):
         for peak in self.data:
             yield peak

@@ -5,7 +5,7 @@ conda activate motifer
 
 BINDIR="/home/x-schroeder/src/DNAshape_motif_finder"
 #CONVERTER="${BINDIR}/convert_narrowpeak_to_fire.py"
-GENOMEFA="/anvil/projects/x-mcb140220/schroedj/motif_data/ncbi-genomes-2021-12-14/GCF_000001405.26_GRCh38_genomic.fna"
+GENOMEFA="/anvil/projects/x-mcb140220/schroedj/motif_data/ncbi-genomes-2021-12-14/GCF_000001405.26_GRCh38_chr_chroms.fa"
 TFNAME=$1
 PEAKFILE=$2
 INPUTDIR="${TFNAME}_input/"

@@ -34,10 +34,15 @@ def wrangle_rust_motif(motif):
         motif['dists']['data']
     ).reshape(motif['dists']['dim'])
 
+    positions = {'fwd':{}, 'rev':{}}
+    for i,vals in enumerate(motif['positions']):
+        positions['fwd'][i] = vals['fwd']
+        positions['rev'][i] = vals['rev']
+
     threshold = motif['threshold']
     mi = motif['mi']
 
-    return {'motif': shapes, 'mi': mi, 'hits': hits, 'dists': dists, 'weights': weights, 'threshold': threshold}
+    return {'motif': shapes, 'mi': mi, 'hits': hits, 'dists': dists, 'weights': weights, 'threshold': threshold, 'positions': positions}
 
 def read_motifs_from_rust(fname):
     """Reads pickle file (fname) containing Motifs from rust, wrangles

@@ -9,6 +9,10 @@ CENTER=$7
 PREFIX="${DATADIR}${GENE}_${WSIZE}_bp_${CENTER}"
 FOLDS=$8
 
+echo ${PEAKFILE}
+echo ${GENOME}
+echo ${PREFIX}
+
 python ${SCRIPTDIR}/convert_narrowpeak_to_fire.py \
     ${PEAKFILE} \
     ${GENOME} \

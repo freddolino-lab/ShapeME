@@ -131,6 +131,7 @@ if __name__ == "__main__":
     logging.warning("reading in full genome")
     with open(args.fasta) as inf:
         genome.read_whole_file(inf)
+    #print("Genome fasta chrom names: {}".format(genome.names))
 
     peaks = pk.PeakList()
     logging.warning("reading in narrowPeaks")
@@ -148,6 +149,7 @@ if __name__ == "__main__":
         else:
             peak_center = peak.find_geometric_center()
 
+        #print("This peak chrom name: {}".format(peak.chrm))
         this_chrm = genome.pull_entry(peak.chrm)
         this_entry.set_seq(
             this_chrm.pull_seq(

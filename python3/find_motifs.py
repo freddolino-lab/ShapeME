@@ -273,23 +273,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--infile', action='store', type=str, required=True,
         help='input text file with names and scores')
-    parser.add_argument('--mi_file', action="store_true",
-        help='Apply this flag if there is a file containing pre-computed mutual information for each seed.')
-    parser.add_argument('--cmi_file', action="store_true",
-        help='Apply this flag if there is a file containing CMI-filtered seeds. NOTE: If this flag is set, initial mutual informations will neither be calculated nor read in, even if you have set the --mi_file flag.')
-    parser.add_argument('--optim_file', action="store_true",
-        help='Apply this flag if there is a file containing optimized motifs that you would like to read ing. NOTE: If this flag is set, initial mutual informations will neither be calculated nor read in, even if you have set the --mi_file flag. Also, cmi-filtered seeds will not be read in, even if you have set the --cmi_file flag.')
-    parser.add_argument('--cmi_motif_file', action="store_true",
-        help='Apply this flag if there is a file containing CMI-filtered optimized motifs. NOTE: If this flag is set, initial MI calculation, CMI filtering of seeds, and optimization will be skipped. Pre-computed MIs, CMI-filtered seeds, and optimizations will not be read in, no matter whether you set the --mi_file, --cmi_file, or --optim_file flags.')
     parser.add_argument('--params', nargs="+", type=str,
                          help='inputfiles with shape scores')
     parser.add_argument('--param_names', nargs="+", type=str,
                          help='parameter names')
-    parser.add_argument('--no_optimize', action="store_true",
-        help="Set this if skipping optimization")
-    parser.add_argument('--optim_vars', nargs="+", type=str,
-        default=["weights","threshold"],
-        help="Names of the variables to optimize. Should be any combination of {'shapes', 'weights', 'threshold'}.")
     parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
         help="Sets the upper and lower limits on the match threshold during optimization. Defaults to 0 for the lower limit and 10 for the upper limit.")
     parser.add_argument('--shape_constraints', nargs=2, type=float, default=[-4,4],
@@ -298,28 +285,18 @@ if __name__ == "__main__":
         help="Sets the upper and lower limits on the pre-transformed, pre-normalized weights during optimization. Defaults to -4 for the lower limit and 4 for the upper limit.")
     parser.add_argument('--temperature', type=float, default=0.1,
         help="Sets the temperature argument for scipy.optimize.basinhopping")
+    parser.add_argument('--t_adj', type=float, default=0.001,
+        help="Fraction by which temperature decreases each iteration ofsimulated annealing.")
     parser.add_argument('--stepsize', type=float, default=0.25,
         help="Sets the stepsize argument for scipy.optimize.basinhopping")
-    parser.add_argument('--basinhop_niter', type=int, default=100,
-        help="Sets the number of basin hops to undergo during optimization. Defaults to 100.")
-    parser.add_argument('--basinhop_niter_success', type=int, default=None,
-        help="Sets the number of basin hops after which if the global minimum hasn't been improve, optimization terminates. Defaults to None, which means that the value set by basinhop_niter will be the sole determinant of how many hops will be carried out")
-    parser.add_argument('--fatol', type=float, default=0.01,
-        help="Sets the fatol argument to control convergence of the Nelder-Mead local optimizer.")
-    parser.add_argument('--maxfev', type=int, default=None,
-        help="Sets the maxfev argument to control the Nelder-Mead local optimizer.")
-    parser.add_argument('--adapt', action="store_true",
-        help="Applying this flag will set adapt=True for the Nelder-Mead optimizer")
+    parser.add_argument('--opt_niter', type=int, default=100,
+        help="Sets the number of simulated annealing iterations to undergo during optimization. Defaults to 100.")
     parser.add_argument('--kmer', type=int,
                          help='kmer size to search for. Default=15', default=15)
     parser.add_argument('--nonormalize', action="store_true",
                          help='don\'t normalize the input data by robustZ')
-    parser.add_argument('--threshold_perc', type=float, default=0.1,
-            help="fraction of data to determine threshold on. Default=0.1")
-    parser.add_argument('--threshold_seeds', type=float, default=2.0, 
+    parser.add_argument('--threshold_sd', type=float, default=2.0, 
             help="std deviations below mean for seed finding. Only matters for greedy search. Default=2.0")
-    parser.add_argument('--threshold_match', type=float, default=2.0, 
-            help="std deviations below mean for match threshold. Default=2.0")
     parser.add_argument('--init_threshold_seed_num', type=float, default=500.0, 
             help="Number of randomly selected seeds to compare to records in the database during initial threshold setting. Default=500.0")
     parser.add_argument('--init_threshold_recs_per_seed', type=float, default=20.0, 
@@ -330,37 +307,25 @@ if __name__ == "__main__":
             help="fraction of data to EVALUATE motifs on. Default=1")
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
-    parser.add_argument('--mi_perc', type=float, default=5,
-            help="ratio of CMI/MI to include an additional motif. Default=5")
     parser.add_argument('--alpha', type=float, default=0.0,
             help="Lower limit on transformed weight values prior to normalization to sum to 1. Defaults to 0.0.")
     parser.add_argument('--max_count', type=int, default=1,
             help="Maximum number of times a motif can match each of the forward and reverse strands in a reference.")
-    parser.add_argument('--infoz', type=int, default=2000, 
-            help="Calculate Z-score for final motif MI with n data permutations. default=2000. Turn off by setting to 0")
-    parser.add_argument('--inforobust', type=int, default=10, 
-            help="Calculate robustness of final motif with x jacknifes. Default=10. Requires infoz to be > 0.")
-    parser.add_argument('--fracjack', type=int, default=0.3, 
-            help="Fraction of data to hold out in jacknifes. Default=0.3.")
-    parser.add_argument('--distance_metric', type=str, default="constrained_manhattan",
-            help="distance metric to use, manhattan using constrained weights is the only supported one for now")
-    parser.add_argument('--seed', type=int, default=None,
-            help="set the random seed, default=None, based on system time")
+    #parser.add_argument('--infoz', type=int, default=2000, 
+    #        help="Calculate Z-score for final motif MI with n data permutations. default=2000. Turn off by setting to 0")
+    #parser.add_argument('--inforobust', type=int, default=10, 
+    #        help="Calculate robustness of final motif with x jacknifes. Default=10. Requires infoz to be > 0.")
+    #parser.add_argument('--fracjack', type=int, default=0.3, 
+    #        help="Fraction of data to hold out in jacknifes. Default=0.3.")
     parser.add_argument('-o', type=str, required=True, help="Prefix to apply to output files.")
     parser.add_argument('--data_dir', type=str, required=True, help="Directory from which input files will be read.")
     parser.add_argument('--out_dir', type=str, required=True, help="Directory (within 'data_dir') into which output files will be written.")
     parser.add_argument('-p', type=int, default=5,
         help="number of processors. Default=5")
-    parser.add_argument("--exit_after_initial_mi", action="store_true",
-        help="Run initial mutual information calculation, then exit, saving the result of the mutual information calculations.")
-    parser.add_argument("--exit_after_cmi_motifs", action="store_true",
-        help="Exit after filtering optmized motifs by their CMI.")
-    parser.add_argument("--exit_after_cmi_filter", action="store_true",
-        help="Run initial CMI filtering step prior to optimization, then exit, saving the retained seeds as a list in a pickle file.")
-    parser.add_argument("--exit_after_optimization", action="store_true",
-        help="Run initial CMI filtering step prior to optimization, then exit, saving the retained seeds as a list in a pickle file.")
-    parser.add_argument("--debug", action="store_true",
-        help="print debugging information to stderr. Write extra txt files.")
+    parser.add_argument('--batch_size', type=int, default=2000,
+        help="Number of records to process seeds from at a time. Set lower to avoid out-of-memory errors. Default=2000")
+    #parser.add_argument("--debug", action="store_true",
+    #    help="print debugging information to stderr. Write extra txt files.")
     #parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
     #parser.add_argument('--save_opt', action='store_true', help="write motifs to pickle file after initial weights optimization step?")
 
@@ -375,26 +340,11 @@ if __name__ == "__main__":
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
 
-    optim_vars = args.optim_vars
-    if args.debug:
-        level = logging.DEBUG
-    else:
-        level = logging.INFO
-    logging.basicConfig(format='%(asctime)s %(message)s', level=level) 
+    level = logging.INFO
+    logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
     logging.getLogger('matplotlib.font_manager').disabled = True
 
-    # choose a random seed
-    if args.seed:
-        np.random.seed(args.seed)
-    
     logging.info("Reading in files")
-    # possible distance metrics that could be used
-    dist_met = {"constrained_manhattan": inout.constrained_inv_logit_manhattan_distance,
-                "manhattan": inout.manhattan_distance, 
-                "hamming": inout.hamming_distance,
-                "euclidean": inout.euclidean_distance}
-    # store the distance metric chosen
-    this_dist = dist_met[args.distance_metric]
     # read in shapes
     shape_fname_dict = {
         n:os.path.join(in_direc,fname) for n,fname
@@ -425,6 +375,7 @@ if __name__ == "__main__":
     else:
         records.determine_center_spread()
         records.normalize_shape_values()
+
     for name,shape_idx in records.shape_name_lut.items():
         this_center = records.shape_centers[shape_idx]
         this_spread = records.shape_spreads[shape_idx]
@@ -438,20 +389,11 @@ if __name__ == "__main__":
 
     alpha = args.alpha
     max_count = args.max_count
+    optim_str = "shapes_weights_threshold"
 
-    optim_str = "_".join(optim_vars)
     temp = args.temperature
     step = args.stepsize
-    fatol = args.fatol
-    adapt = args.adapt
-    maxfev = args.maxfev
     
-    constraints = {
-        'threshold': args.threshold_constraints,
-        'shapes': args.shape_constraints,
-        'weights': args.weights_constraints,
-    }
-
     mi_fname = os.path.join(
         out_direc,
         '{}_initial_mutual_information_max_count_{}.pkl'.format(
@@ -465,38 +407,11 @@ if __name__ == "__main__":
     config_fname = os.path.join(out_direc, 'config.pkl')
     rust_out_fname = os.path.join(out_direc, 'rust_results.pkl')
 
-    cmi_fname = os.path.join(
-        out_direc,
-        "{}_cmi_filtered_seeds_opim_{}_max_count_{}.pkl".format(
-            out_pref,
-            optim_str,
-            max_count,
-        ),
-    )
-
-    opt_direc = os.path.join(out_direc, "optimizations")
-
-    opt_fname = os.path.join(
-        opt_direc,
-        "{}_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}_batch_{{:0=3}}.pkl".format(
-            out_pref,
-            optim_str,
-            adapt,
-            fatol,
-            temp,
-            step,
-            alpha,
-            max_count,
-        ),
-    )
-
     good_motif_out_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+        "{}_post_opt_cmi_filtered_motifs_optim_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
             out_pref,
             optim_str,
-            adapt,
-            fatol,
             temp,
             step,
             alpha,
@@ -506,11 +421,9 @@ if __name__ == "__main__":
 
     good_motif_plot_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_optim_{}_adapt_{}_fatol_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.png".format(
+        "{}_post_opt_cmi_filtered_motifs_optim_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.png".format(
             out_pref,
             optim_str,
-            adapt,
-            fatol,
             temp,
             step,
             alpha,
@@ -534,7 +447,18 @@ if __name__ == "__main__":
         'seed_sample_size': float(args.init_threshold_seed_num),
         'records_per_seed': float(args.init_threshold_recs_per_seed),
         'windows_per_record': float(args.init_threshold_windows_per_record),
-        'thresh_sd_from_mean': args.threshold_seeds,
+        'thresh_sd_from_mean': args.threshold_sd,
+        'threshold_lb': args.threshold_constraints[0],
+        'threshold_ub': args.threshold_constraints[1],
+        'shape_lb': args.shape_constraints[0],
+        'shape_ub': args.shape_constraints[1],
+        'weight_lb': args.weights_constraints[0],
+        'weight_ub': args.weights_constraints[1],
+        'temperature': args.temperature,
+        'stepsize': args.stepsize,
+        'n_opt_iter': args.opt_niter,
+        't_adjust': args.t_adj,
+        'batch_size': args.batch_size,
     }
 
     # write shapes to npy file. Permute axes 1 and 2.
@@ -551,7 +475,7 @@ if __name__ == "__main__":
     logging.info("Running motif selection and optimization.")
     retcode = subprocess.call(RUST, shell=True)
     if retcode != 0:
-        sys.exit("ERROR: motifer binary execution exited with non-zero exit status")
+        sys.exit("ERROR: find_motifs binary execution exited with non-zero exit status")
 
     good_motifs = inout.read_motifs_from_rust(rust_out_fname)
 
@@ -566,199 +490,198 @@ if __name__ == "__main__":
 
     smv.plot_optim_shapes_and_weights(good_motifs, good_motif_plot_fname, records)
 
-    raise()
 
-########################################################################
-########################################################################
-########################################################################
-########################################################################
-########################################################################
+#######################################################################
+#######################################################################
+#######################################################################
+#######################################################################
+#######################################################################
 
-    X = [
-        this_motif['dists']
-        for this_motif in good_motifs
-    ]
-    X = np.stack(X, axis=1)
-    X = StandardScaler().fit_transform(X)
-    y = this_records.get_values()
-    logging.info("Running L1 regularized logistic regression with CV to determine reg param")
+    #X = [
+    #    this_motif['dists']
+    #    for this_motif in good_motifs
+    #]
+    #X = np.stack(X, axis=1)
+    #X = StandardScaler().fit_transform(X)
+    #y = this_records.get_values()
+    #logging.info("Running L1 regularized logistic regression with CV to determine reg param")
 
-    clf = LogisticRegressionCV(
-        Cs=100,
-        cv=5,
-        multi_class='multinomial',
-        penalty='l1',
-        solver='saga',
-        max_iter=10000,
-    ).fit(X, y)
+    #clf = LogisticRegressionCV(
+    #    Cs=100,
+    #    cv=5,
+    #    multi_class='multinomial',
+    #    penalty='l1',
+    #    solver='saga',
+    #    max_iter=10000,
+    #).fit(X, y)
 
-    best_c = cvlogistic.find_best_c(clf)
+    #best_c = cvlogistic.find_best_c(clf)
 
-    clf_f = LogisticRegression(
-        C=best_c,
-        multi_class='multinomial',
-        penalty='l1',
-        solver='saga',
-        max_iter=10000,
-    ).fit(X,y)
+    #clf_f = LogisticRegression(
+    #    C=best_c,
+    #    multi_class='multinomial',
+    #    penalty='l1',
+    #    solver='saga',
+    #    max_iter=10000,
+    #).fit(X,y)
 
-    good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
-    if len(good_motif_index) < 1:
-        logging.info("No motifs found")
-        sys.exit()
+    #good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
+    #if len(good_motif_index) < 1:
+    #    logging.info("No motifs found")
+    #    sys.exit()
 
-    cvlogistic.write_coef_per_class(clf_f, outpre + "_coef_per_class.txt")
-    final_good_motifs = [good_motifs[index] for index in good_motif_index]
-    logging.info("{} motifs survived".format(len(final_good_motifs)))
+    #cvlogistic.write_coef_per_class(clf_f, outpre + "_coef_per_class.txt")
+    #final_good_motifs = [good_motifs[index] for index in good_motif_index]
+    #logging.info("{} motifs survived".format(len(final_good_motifs)))
 
-    raise()
+    #raise()
 
-########################################################################
-    if args.debug:
-        cvlogistic.plot_score(clf, outpre+"_score_logit.png")
-        for cls in clf.classes_:
-            cvlogistic.plot_coef_paths(clf, outpre+"_coef_path%s.png"%cls)
-        print_top_motifs(final_good_motifs)
-        print_top_motifs(final_good_motifs, reverse=False)
-        logging.info("Writing motifs after regression")
-        outmotifs = inout.ShapeMotifFile()
-        outmotifs.add_motifs(final_good_motifs)
-        outmotifs.write_file(outpre+"_called_motifs_after_regression.dsp", records)
+#########################################################################
+    #if args.debug:
+    #    cvlogistic.plot_score(clf, outpre+"_score_logit.png")
+    #    for cls in clf.classes_:
+    #        cvlogistic.plot_coef_paths(clf, outpre+"_coef_path%s.png"%cls)
+    #    print_top_motifs(final_good_motifs)
+    #    print_top_motifs(final_good_motifs, reverse=False)
+    #    logging.info("Writing motifs after regression")
+    #    outmotifs = inout.ShapeMotifFile()
+    #    outmotifs.add_motifs(final_good_motifs)
+    #    outmotifs.write_file(outpre+"_called_motifs_after_regression.dsp", records)
 
-    for motif in final_good_motifs:
-        add_motif_metadata(this_records, motif) 
-        logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-        logging.info("MI: {}".format(motif['mi']))
-        logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-        logging.info("Category Entropy: {}".format(motif['category_entropy']))
-        for key in sorted(motif['enrichment'].keys()):
-            logging.info("Two way table for cat {} is {}".format(
-                key,
-                motif['enrichment'][key]
-            ))
-            logging.info("Enrichment for Cat {} is {}".format(
-                key,
-                two_way_to_log_odds(motif['enrichment'][key])
-            ))
-    logging.info("Generating initial heatmap for passing motifs")
-    if len(final_good_motifs) > 25:
-        logging.info("Only plotting first 25 motifs")
-        enrich_hm = smv.EnrichmentHeatmap(final_good_motifs[:25])
-    else:
-        enrich_hm = smv.EnrichmentHeatmap(final_good_motifs)
+    #for motif in final_good_motifs:
+    #    add_motif_metadata(this_records, motif) 
+    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
+    #    logging.info("MI: {}".format(motif['mi']))
+    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
+    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
+    #    for key in sorted(motif['enrichment'].keys()):
+    #        logging.info("Two way table for cat {} is {}".format(
+    #            key,
+    #            motif['enrichment'][key]
+    #        ))
+    #        logging.info("Enrichment for Cat {} is {}".format(
+    #            key,
+    #            two_way_to_log_odds(motif['enrichment'][key])
+    #        ))
+    #logging.info("Generating initial heatmap for passing motifs")
+    #if len(final_good_motifs) > 25:
+    #    logging.info("Only plotting first 25 motifs")
+    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs[:25])
+    #else:
+    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs)
 
-    enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
-    if not args.txt_only:
-        enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
-        enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
-    if args.optimize:
-        logging.info("Optimizing motifs using {} processors".format(args.p))
-        final_motifs = mp_optimize_motifs(
-            final_good_motifs,
-            other_records,
-            args.optimize_perc,
-            p=args.p,
-        )
-        if args.optimize_perc != 1:
-            logging.info("Testing final optimized motifs on full database")
-            for i,this_entry in enumerate(final_motifs):
-                logging.info("Computing MI for motif {}".format(i))
-                this_discrete = generate_peak_vector(
-                    other_records,
-                    this_entry['motif'],
-                    this_entry['threshold'],
-                    args.rc,
-                )
-                this_entry['mi'] = other_records.mutual_information(this_discrete)
-                this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = other_records.shannon_entropy()
-                this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
-                this_entry['discrete'] = this_discrete
-    else:
-        if args.motif_perc != 1:
-            logging.info("Testing final optimized motifs on held out database")
-            for i,this_entry in enumerate(final_good_motifs):
-                logging.info("Computing MI for motif {}".format(i))
-                this_discrete = generate_peak_vector(
-                    other_records,
-                    this_entry['motif'],
-                    this_entry['threshold'],
-                    args.rc,
-                )
-                this_entry['mi'] = other_records.mutual_information(this_discrete)
-                this_entry['motif_entropy'] = inout.entropy(this_discrete)
-                this_entry['category_entropy'] = other_records.shannon_entropy()
-                this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
-                this_entry['discrete'] = this_discrete
-        final_motifs = final_good_motifs
+    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
+    #if not args.txt_only:
+    #    enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
+    #    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
+    #if args.optimize:
+    #    logging.info("Optimizing motifs using {} processors".format(args.p))
+    #    final_motifs = mp_optimize_motifs(
+    #        final_good_motifs,
+    #        other_records,
+    #        args.optimize_perc,
+    #        p=args.p,
+    #    )
+    #    if args.optimize_perc != 1:
+    #        logging.info("Testing final optimized motifs on full database")
+    #        for i,this_entry in enumerate(final_motifs):
+    #            logging.info("Computing MI for motif {}".format(i))
+    #            this_discrete = generate_peak_vector(
+    #                other_records,
+    #                this_entry['motif'],
+    #                this_entry['threshold'],
+    #                args.rc,
+    #            )
+    #            this_entry['mi'] = other_records.mutual_information(this_discrete)
+    #            this_entry['motif_entropy'] = inout.entropy(this_discrete)
+    #            this_entry['category_entropy'] = other_records.shannon_entropy()
+    #            this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
+    #            this_entry['discrete'] = this_discrete
+    #else:
+    #    if args.motif_perc != 1:
+    #        logging.info("Testing final optimized motifs on held out database")
+    #        for i,this_entry in enumerate(final_good_motifs):
+    #            logging.info("Computing MI for motif {}".format(i))
+    #            this_discrete = generate_peak_vector(
+    #                other_records,
+    #                this_entry['motif'],
+    #                this_entry['threshold'],
+    #                args.rc,
+    #            )
+    #            this_entry['mi'] = other_records.mutual_information(this_discrete)
+    #            this_entry['motif_entropy'] = inout.entropy(this_discrete)
+    #            this_entry['category_entropy'] = other_records.shannon_entropy()
+    #            this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
+    #            this_entry['discrete'] = this_discrete
+    #    final_motifs = final_good_motifs
 
-    logging.info(
-        "Filtering motifs by Conditional MI using {} as a cutoff".format(args.mi_perc)
-    )
-    novel_motifs = filter_motifs(
-        final_motifs,
-        other_records,
-        args.mi_perc,
-    )
+    #logging.info(
+    #    "Filtering motifs by Conditional MI using {} as a cutoff".format(args.mi_perc)
+    #)
+    #novel_motifs = filter_motifs(
+    #    final_motifs,
+    #    other_records,
+    #    args.mi_perc,
+    #)
 
-    if args.debug:
-        print_top_motifs(novel_motifs)
-        print_top_motifs(novel_motifs, reverse=False)
-    logging.info("{} motifs survived".format(len(novel_motifs)))
-    for i, motif in enumerate(novel_motifs):
-        logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-        logging.info("MI: {}".format(motif['mi']))
-        if args.infoz > 0:
-            logging.info("Calculating Z-score for motif {}".format(i))
-            # calculate zscore
-            zscore, passed = info_zscore(
-                motif['discrete'],
-                other_records.get_values(),
-                args.infoz,
-            )
-            motif['zscore'] = zscore
-            logging.info("Z-score: {}".format(motif['zscore']))
-        if args.infoz > 0 and args.inforobust > 0:
-            logging.info("Calculating Robustness for motif {}".format(i))
-            num_passed = info_robustness(
-                motif['discrete'],
-                other_records.get_values(), 
-                args.infoz,
-                args.inforobust,
-                args.fracjack,
-            )
-            motif['robustness'] = "{}/{}".format(num_passed,args.inforobust)
-            logging.info("Robustness: {}".format(motif['robustness']))
-        logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-        logging.info("Category Entropy: {}".format(motif['category_entropy']))
-        for key in sorted(motif['enrichment'].keys()):
-            logging.info("Two way table for cat {} is {}".format(
-                key,
-                motif['enrichment'][key]
-            ))
-            logging.info("Enrichment for Cat {} is {}".format(
-                key,
-                two_way_to_log_odds(motif['enrichment'][key])
-            ))
-        if args.optimize:
-            logging.info("Optimize Success?: {}".format(motif['opt_success']))
-            logging.info("Optimize Message: {}".format(motif['opt_message']))
-            logging.info("Optimize Iterations: {}".format(motif['opt_iter']))
-    logging.info("Generating final heatmap for motifs")
-    enrich_hm = smv.EnrichmentHeatmap(novel_motifs)
-    enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
+    #if args.debug:
+    #    print_top_motifs(novel_motifs)
+    #    print_top_motifs(novel_motifs, reverse=False)
+    #logging.info("{} motifs survived".format(len(novel_motifs)))
+    #for i, motif in enumerate(novel_motifs):
+    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
+    #    logging.info("MI: {}".format(motif['mi']))
+    #    if args.infoz > 0:
+    #        logging.info("Calculating Z-score for motif {}".format(i))
+    #        # calculate zscore
+    #        zscore, passed = info_zscore(
+    #            motif['discrete'],
+    #            other_records.get_values(),
+    #            args.infoz,
+    #        )
+    #        motif['zscore'] = zscore
+    #        logging.info("Z-score: {}".format(motif['zscore']))
+    #    if args.infoz > 0 and args.inforobust > 0:
+    #        logging.info("Calculating Robustness for motif {}".format(i))
+    #        num_passed = info_robustness(
+    #            motif['discrete'],
+    #            other_records.get_values(), 
+    #            args.infoz,
+    #            args.inforobust,
+    #            args.fracjack,
+    #        )
+    #        motif['robustness'] = "{}/{}".format(num_passed,args.inforobust)
+    #        logging.info("Robustness: {}".format(motif['robustness']))
+    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
+    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
+    #    for key in sorted(motif['enrichment'].keys()):
+    #        logging.info("Two way table for cat {} is {}".format(
+    #            key,
+    #            motif['enrichment'][key]
+    #        ))
+    #        logging.info("Enrichment for Cat {} is {}".format(
+    #            key,
+    #            two_way_to_log_odds(motif['enrichment'][key])
+    #        ))
+    #    if args.optimize:
+    #        logging.info("Optimize Success?: {}".format(motif['opt_success']))
+    #        logging.info("Optimize Message: {}".format(motif['opt_message']))
+    #        logging.info("Optimize Iterations: {}".format(motif['opt_iter']))
+    #logging.info("Generating final heatmap for motifs")
+    #enrich_hm = smv.EnrichmentHeatmap(novel_motifs)
+    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
 
-    if not args.txt_only:
-        enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
-        enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
-        if args.optimize:
-            logging.info("Plotting optimization for final motifs")
-            enrich_hm.plot_optimization(outpre+"_optimization.pdf")
+    #if not args.txt_only:
+    #    enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
+    #    enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
+    #    if args.optimize:
+    #        logging.info("Plotting optimization for final motifs")
+    #        enrich_hm.plot_optimization(outpre+"_optimization.pdf")
 
-    logging.info("Writing final motifs")
-    outmotifs = inout.ShapeMotifFile()
-    outmotifs.add_motifs(novel_motifs)
-    outmotifs.write_file(outpre+"_called_motifs.dsp", records)
+    #logging.info("Writing final motifs")
+    #outmotifs = inout.ShapeMotifFile()
+    #outmotifs.add_motifs(novel_motifs)
+    #outmotifs.write_file(outpre+"_called_motifs.dsp", records)
     #final = opt.minimize(lambda x: -optimize_mi(x, data=records, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
     #final = opt.basinhopping(lambda x: -optimize_mi(x, data=records), motif_to_optimize)
     #logging.info(final)

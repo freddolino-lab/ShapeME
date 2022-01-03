@@ -104,21 +104,22 @@ def complement(sequence):
 def substitute_motif_into_records(fa_file, y_vals, motif_seq,
                                   count_by_strand = (1,0),
                                   inter_motif_distance = 5,
-                                  motif_pos = None):
+                                  motif_pos = None, yval=1, motif_frac = 1.0):
     '''Iterates through records in fa_file and y_vals,
     substituting motif when appropriate.
     '''
 
     for i,fa_entry in enumerate(fa_file):
         y = y_vals[i]
-        if y == 1:
-            substitute_motif(
-                fa_entry,
-                motif_seq,
-                count_by_strand,
-                inter_motif_distance,
-                motif_pos,
-            )
+        if y == yval:
+            if np.random.rand(1) < motif_frac:
+                substitute_motif(
+                    fa_entry,
+                    motif_seq,
+                    count_by_strand,
+                    inter_motif_distance,
+                    motif_pos,
+                )
 
 def main():
 
@@ -173,8 +174,29 @@ def main():
         motif,
         (plus_strand_count, minus_strand_count),
         inter_motif_dist,
+        yval = 1,
+        motif_frac = motif_peak_frac,
     )
 
+    substitute_motif_into_records(
+        fa_seqs,
+        y_vals,
+        motif,
+        (1, 0),
+        0,
+        yval = 0,
+        motif_frac = motif_nonpeak_frac,
+    )
+
+    substitute_motif_into_records(
+        fa_seqs,
+        y_vals,
+        motif,
+        (0, 1),
+        0,
+        yval = 0,
+        motif_frac = motif_nonpeak_frac,
+    )
     with open(os.path.join(out_dir, out_pre + ".txt") ,'w') as fire_file:
         fire_file.write("name\tscore\n")
         for i,fa_rec in enumerate(fa_seqs):
@@ -184,7 +206,7 @@ def main():
     with open(fa_fname, "w") as fa_file:
         fa_seqs.write(fa_file)
 
-    RSCRIPT = "Rscript calc_shape.R {}"
+    RSCRIPT = "Rscript utils/calc_shape.R {}"
     RSCRIPT = RSCRIPT.format(fa_fname)
     subprocess.call(RSCRIPT, shell=True)
 

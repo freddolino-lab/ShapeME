@@ -1,8 +1,8 @@
 use motifer;
 use optim;
+use ndarray_npy;
 use std::env;
 use std::time;
-use std::collections::HashMap;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 
@@ -12,86 +12,86 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let cfg = motifer::parse_config(&args);
 
-    ThreadPoolBuilder::new().num_threads(cfg.cores).build_global().unwrap();
+    ThreadPoolBuilder::new()
+        .num_threads(cfg.cores)
+        .build_global()
+        .unwrap();
 
     let rec_db = motifer::RecordsDB::new_from_files(
         &cfg.shape_fname,
         &cfg.yvals_fname,
     );
-    let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
 
-    let threshold = motifer::set_initial_threshold(
-        &seeds,
-        &rec_db,
-        &cfg.seed_sample_size,
-        &cfg.records_per_seed,
-        &cfg.windows_per_record,
-        &cfg.kmer,
-        &cfg.alpha,
-        &cfg.thresh_sd_from_mean,
-    );
-
+    // Starting here, I need to loop over chunks of rec_db.
+    // I'll have to get the first chunk and calculate initial threshold,
+    // then use that threshold for all chunks
+    let mut motifs = motifer::Motifs::empty();
+    let mut threshold = 1000.0;
     //let threshold = &cfg.threshold;
 
-    let now = time::Instant::now();
-    seeds.compute_mi_values(
+    for (i,batch) in rec_db.batch_iter(cfg.batch_size).enumerate() {
+        println!("Making Seeds from batch {} of RecordsDB", i+1);
+        let mut seeds = batch.make_seed_vec(cfg.kmer, cfg.alpha);
+
+        if i == 0 {
+            println!("Calculating initial threshold");
+            threshold = motifer::set_initial_threshold(
+                &seeds,
+                &rec_db,
+                &cfg.seed_sample_size,
+                &cfg.records_per_seed,
+                &cfg.windows_per_record,
+                &cfg.kmer,
+                &cfg.alpha,
+                &cfg.thresh_sd_from_mean,
+            );
+            println!("Initial threshold is {}", &threshold);
+        }
+
+        let now = time::Instant::now();
+        seeds.compute_mi_values(
+            &rec_db,
+            &threshold,
+            &cfg.max_count,
+        );
+        let duration = now.elapsed().as_secs_f64() / 60.0;
+        println!("MI calculation for batch {} took {} minutes.", i+1, duration);
+
+        //seeds.pickle_seeds(&String::from("/home/x-schroeder/pre_filter_seeds.pkl"));
+        println!("{} seeds in batch {} prior to CMI-based filtering.", seeds.len(), i+1);
+        let these_motifs = motifer::filter_seeds(
+            &mut seeds,
+            &rec_db,
+            &threshold,
+            &cfg.max_count,
+        );
+        println!("{} seeds in batch {} after CMI-based filtering.", these_motifs.len(), i+1);
+        motifs.append(these_motifs);
+    }
+
+    println!("{} seeds collected during initial batched evaluation.", motifs.len());
+    let mut motifs = motifs.filter_motifs(
         &rec_db,
         &threshold,
         &cfg.max_count,
     );
-    let duration = now.elapsed().as_secs_f64() / 60.0;
-    println!("MI calculation took {:?} minutes.", duration);
-
-    seeds.sort_seeds();
-    //seeds.pickle_seeds(&String::from("/home/x-schroeder/pre_filter_seeds.pkl"));
-    println!("{} seeds prior to CMI-based filtering.", seeds.len());
-    let mut motifs = motifer::filter_seeds(
-        &mut seeds,
-        &rec_db,
-        &threshold,
-        &cfg.max_count,
-    );
-    println!("{} motifs left after CMI-based filtering.", motifs.len());
-    // at this point, I've verified that the motifs
-    // pre-optimization have all hits categories
-    // Potential issue arising where optimized motifs often
-    // have only either [0,0] or [0,1], but not [1,1].
-    //motifer::pickle_motifs(
-    //    &motifs,
-    //    &String::from("/home/x-schroeder/pre_opt_motifs.pkl"),
-    //);
-
-    /////////////////////////////////////////////////////////////
-    // NOTE: needs taken from config file ///////////////////////
-    /////////////////////////////////////////////////////////////
-    let shape_lb = -4.0;
-    let shape_ub = 4.0;
-    let weights_lb = -4.0;
-    let weights_ub = 4.0;
-    let thresh_lb = 0.0;
-    let thresh_ub = 5.0;
+    println!("{} motifs left after pooled CMI-based filtering.", motifs.len());
 
     // Optimization options
-    ////////////////////////////////////////////////////////////
-    // NOTE: needs placed into a config file or something //////
-    ////////////////////////////////////////////////////////////
-    let p_temp: f64 = 0.20;
     // set temp to difference between p_temp and 0.5 on logit scale
-    let temp = ((0.5+p_temp)/(0.5-p_temp)).ln().abs();
-    let step = 0.25;
+    let temp = ((0.5+cfg.temperature)/(0.5-cfg.temperature)).ln().abs();
+    // if doing an ensemble optimization technique,
     // initial particles are dropped onto the landscape at
     // init_position + Normal(0.0, init_jitter)
-    let init_jitter = &step * 1.0;
-    let inertia = 0.8;
-    let local_weight = 0.2;
-    let global_weight = 0.8;
+    //let init_jitter = &cfg.stepsize * 1.0;
+    //let inertia = 0.8;
+    //let local_weight = 0.2;
+    //let global_weight = 0.8;
 
-    let n_particles = 100; // ignored if doing simulated annealing
-    let n_iter = 12000;
-    let n_iter_exchange = 2;
-    let t_adjust = 0.0005;
+    //let n_particles = 100; // ignored if doing simulated annealing
+    //let n_iter_exchange = 2;
 
-    motifs.par_iter_mut()
+    motifs.motifs.par_iter_mut()
         .enumerate()
         // can uncomment this line when debugging to just optimize first two motifs
         //.filter(|(i,motif)| i < &2)
@@ -104,12 +104,12 @@ fn main() {
         let now = time::Instant::now();
         let (params,low,up) = motifer::wrangle_params_for_optim(
             &motif,
-            &shape_lb,
-            &shape_ub,
-            &weights_lb,
-            &weights_ub,
-            &thresh_lb,
-            &thresh_ub,
+            &cfg.shape_lower_bound,
+            &cfg.shape_upper_bound,
+            &cfg.weight_lower_bound,
+            &cfg.weight_upper_bound,
+            &cfg.thresh_lower_bound,
+            &cfg.thresh_upper_bound,
         );
 
         //println!("Using replica exchange as the optimization method.");
@@ -151,14 +151,14 @@ fn main() {
         //);
 
         println!("Optimizing motif {} using simulated annealing.", i);
-        let (optimized_result,optimized_score) = optim::simulated_annealing(
+        let (optimized_result,_optimized_score) = optim::simulated_annealing(
             params,
             low,
             up,
             temp,
-            step,
-            n_iter,
-            &t_adjust,
+            cfg.stepsize,
+            cfg.n_opt_iter,
+            &cfg.t_adjust,
             &motifer::optim_objective,
             &rec_db,
             &cfg.kmer,
@@ -186,22 +186,18 @@ fn main() {
     });
 
     println!("Filtering optimized motifs based on conditional mutual information.");
-    let mut motifs = motifer::filter_motifs(
-        &mut motifs,
+    let mut motifs = motifs.filter_motifs(
         &rec_db,
         &threshold,
         &cfg.max_count,
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
 
-    for motif in motifs.iter_mut() {
-        motif.update_min_dists(&rec_db);
-    }
+    motifs.post_optim_update(&rec_db, &cfg.max_count);
+    motifs.pickle_motifs(&cfg.out_fname);
+    let corr = motifs.get_motif_correlations();
+    ndarray_npy::write_npy("/anvil/projects/x-mcb140220/schroedj/motif_data/correlations.npy", &corr).unwrap();
 
-    motifer::pickle_motifs(
-        &motifs,
-        &cfg.out_fname,
-    );
     println!("Vector of filtered, optimized motifs written to: {}", &cfg.out_fname);
 }
 
