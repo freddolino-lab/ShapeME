@@ -1,11 +1,12 @@
 tests/test/*_input
+tests
 tests/test/*_out
 *.pkl
 tests/*.pkl
 tests/test/*.pkl
 __pycache__
 utils/__pycache__
-motifer/target
-emi
-build
-_expected_mutual_info_fast.c
+rust_utils/target
+rust_utils/target
+*/Cargo.lock
+python3/build
