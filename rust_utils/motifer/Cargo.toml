@@ -1,0 +1,20 @@
+[package]
+name = "motifer"
+version = "0.1.0"
+authors = ["Jeremy Schroeder <schroedj@umich.edu>", "Michael Wolfe <mwolfe6@wisc.edu>"]
+edition = "2018"
+
+[dependencies]
+ndarray = { version = "0.15.3", features = ["approx","serde","rayon"] }
+ndarray-stats = "0.5.0"
+approx = "0.5.0"
+itertools = "0.10.1"
+statrs = "0.15.0"
+ndarray-npy = { path = "../ndarray-npy" }
+serde-pickle = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+ordered-float = "2.8.0"
+rayon = "1.5.1"
+rand = "0.8.4"
+info_theory = { path = "../info_theory" }
+
