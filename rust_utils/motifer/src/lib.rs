@@ -1119,7 +1119,7 @@ pub fn filter_motifs<'a>(
     let mut top_motifs = Vec::new();
 
     // Make sure first seed passes AIC
-    let log_lik = rec_num as f64 * motifs[0].mi;
+    let log_lik = 0.5 * rec_num as f64 * motifs[0].mi;
     let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = motifs[0].to_motif();
@@ -1133,7 +1133,7 @@ pub fn filter_motifs<'a>(
     for cand_motif in motifs[1..motifs.len()].iter() {
 
         // if this motif doesn't pass AIC on its own, with delta_k params, skip it
-        let log_lik = rec_num as f64 * cand_motif.mi;
+        let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
         if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
@@ -1160,7 +1160,7 @@ pub fn filter_motifs<'a>(
 
             let param_num = delta_k * (top_motifs.len() + 1);
             //let proposed_info = info_vals_in_model.iter().sum() + cmi;
-            let log_lik = rec_num as f64 * cmi;
+            let log_lik = 0.5 * rec_num as f64 * cmi;
             let this_aic = info_theory::calc_aic(param_num, log_lik);
 
             // if candidate seed doesn't improve model as added to each of the
@@ -1199,7 +1199,7 @@ pub fn filter_seeds<'a>(
     let mut top_motifs = Vec::<Motif>::new();
 
     // Make sure first seed passes AIC
-    let log_lik = rec_num as f64 * seeds.seeds[0].mi;
+    let log_lik = 0.5 * rec_num as f64 * seeds.seeds[0].mi;
     let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = seeds.seeds[0].to_motif(threshold);
@@ -1212,9 +1212,9 @@ pub fn filter_seeds<'a>(
     // loop through candidate seeds
     for (i,cand_seed) in seeds.seeds[1..seeds.seeds.len()].iter().enumerate() {
 
-        let now = time::Instant::now();
+        //let now = time::Instant::now();
         // if this seed doesn't pass AIC on its own delta_k params, skip it
-        let log_lik = rec_num as f64 * cand_seed.mi;
+        let log_lik = 0.5 * rec_num as f64 * cand_seed.mi;
         if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
@@ -1246,7 +1246,7 @@ pub fn filter_seeds<'a>(
             // add cmi to sum of current info in model to get proposed info
             //let proposed_info = info_vals_in_model.iter().sum() + cmi;
             // calculate log_likelihood-like factor
-            let log_lik = rec_num as f64 * cmi;
+            let log_lik = 0.5 * rec_num as f64 * cmi;
             let this_aic = info_theory::calc_aic(param_num, log_lik);
 
             // if candidate seed doesn't improve model
@@ -1256,15 +1256,15 @@ pub fn filter_seeds<'a>(
             }
         }
         if seed_pass {
-            println!("Seed {} passed filter. Appending to motif vec.", i+2);
+            //println!("Seed {} passed filter. Appending to motif vec.", i+2);
             let motif = cand_seed.to_motif(threshold);
             top_motifs.push(motif);
             //info_vals_in_model.push(&cmi);
         } else {
-            println!("Seed {} did not pass filter.", i+2);
+            //println!("Seed {} did not pass filter.", i+2);
         }
-        let duration = now.elapsed().as_secs_f64() / 60.0;
-        println!("Evaluating whether seed {} took {} minutes.", i+2, duration);
+        //let duration = now.elapsed().as_secs_f64() / 60.0;
+        //println!("Evaluating whether seed {} took {} minutes.", i+2, duration);
     }
     Motifs::new(top_motifs)
 }
@@ -1522,7 +1522,7 @@ impl Motifs {
         let mut top_motifs = Vec::new();
 
         // Make sure first seed passes AIC
-        let log_lik = rec_num as f64 * self.motifs[0].mi;
+        let log_lik = 0.5 * rec_num as f64 * self.motifs[0].mi;
         let aic = info_theory::calc_aic(delta_k, log_lik);
         if aic < 0.0 {
             let motif = self.motifs[0].to_motif();
@@ -1536,7 +1536,7 @@ impl Motifs {
         for cand_motif in self.motifs[1..self.motifs.len()].iter() {
 
             // if this motif doesn't pass AIC on its own, with delta_k params, skip it
-            let log_lik = rec_num as f64 * cand_motif.mi;
+            let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
             if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
                 continue
             }
@@ -1563,7 +1563,7 @@ impl Motifs {
 
                 let param_num = delta_k * (top_motifs.len() + 1);
                 //let proposed_info = info_vals_in_model.iter().sum() + cmi;
-                let log_lik = rec_num as f64 * cmi;
+                let log_lik = 0.5 * rec_num as f64 * cmi;
                 let this_aic = info_theory::calc_aic(param_num, log_lik);
 
                 // if candidate seed doesn't improve model as added to each of the
