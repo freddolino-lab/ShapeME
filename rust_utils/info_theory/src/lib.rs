@@ -165,10 +165,9 @@ mod tests {
 /// # Arguments
 ///
 /// * `par_num` - number of parameters
-/// * `rec_num` - number of records in the RecordsDB
-/// * `mi` - adjusted mutual information
-pub fn calc_aic(par_num: usize, rec_num: usize, mi: f64) -> f64 {
-    2.0 * par_num as f64 - 2.0 * rec_num as f64 * mi
+/// * `log_lik` - log_likelihood
+pub fn calc_aic(par_num: usize, log_lik: f64) -> f64 {
+    2.0 * par_num as f64 - 2.0 * log_lik
 }
 
 /// Calculates the mutual information between axis 1 and 2 of contingency,
