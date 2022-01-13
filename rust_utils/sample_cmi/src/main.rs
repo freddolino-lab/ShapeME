@@ -101,9 +101,9 @@ fn main() {
     let (fitted_params, best_score) = fitting::simulated_annealing(
         &cmi_vals, // data
         vec![1.0,150.0], // starting param vals
-        vec![1.0,1.0], // lower bounds on each param
+        vec![0.0,0.0], // lower bounds on each param
         vec![1000.0,1000.0], // upper bounds on each param
-        10.0, // temp
+        100.0, // temp
         20.0, // step size
         20000, // niter
         &0.001, // t_adj
