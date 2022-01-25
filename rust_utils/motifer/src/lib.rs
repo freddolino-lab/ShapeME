@@ -7,6 +7,7 @@ use std::iter;
 use std::fs;
 use std::io::{BufReader, BufWriter};
 use std::ops::Deref;
+use statrs::function::gamma;
 // allow random iteration over RecordsDB
 use rand::thread_rng;
 use rand::seq::SliceRandom;
@@ -27,6 +28,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 // check the source code for OrderedFloat and consider implementing it in lib.rs instead of using the ordered_float crate. If ordered_float stops existing someday, we don't want our code to break.
 use ordered_float::OrderedFloat;
+use std::time;
 use info_theory;
 
 #[cfg(test)]
@@ -978,7 +980,122 @@ pub fn parse_config(args: &[String]) -> Config {
     Config::new(args)
 }
 
+/// Randomly chooses pairs of seeds and returns the CMI for each pair
+pub fn sample_cmi_vals(
+        n: usize,
+        seeds: &Seeds,
+        rec_db: &RecordsDB,
+        max_count: &i64,
+) -> Vec<f64> {
 
+    let mut cmi_vec = Vec::<f64>::new();
+    let seed_vec = &seeds.seeds;
+    let mut inds: Vec<usize> = (0..seed_vec.len()).collect();
+    // grab random n indices
+    inds.shuffle(&mut thread_rng());
+    let x_inds = &inds[0..n].to_vec();
+    // grab another random n indices
+    inds.shuffle(&mut thread_rng());
+    let y_inds = &inds[0..n].to_vec();
+
+    x_inds.iter().zip(y_inds).for_each(|(x,y)| {
+        let x_seed = &seed_vec[*x];
+        let y_seed = &seed_vec[*y];
+        let x_cats = info_theory::categorize_hits(&x_seed.hits, max_count);
+        let y_cats = info_theory::categorize_hits(&y_seed.hits, max_count);
+
+        let contingency = info_theory::construct_3d_contingency(
+            x_cats.view(),
+            rec_db.values.view(),
+            y_cats.view(),
+        );
+
+        let cmi = info_theory::conditional_adjusted_mutual_information(
+            contingency.view()
+        );
+        cmi_vec.push(cmi);
+    });
+    cmi_vec
+}
+
+pub fn gamma_objective(params: &Vec<f64>, data: &Vec<f64>) -> f64 {
+    let ecdf = get_ecdf(data, 0.8);
+    let fitted = get_fitted_gamma_cdf_vals(params, data);
+    sum_squared_residuals(&ecdf, &fitted)
+}
+
+pub fn beta_logp_objective(params: &Vec<f64>, data: &Vec<f64>) -> f64 {
+    // sort the data
+    let mut sorted_vals = data.to_vec();
+    sorted_vals.par_sort_unstable_by_key(|val| OrderedFloat(*val));
+
+    // take the lowest `retain_lower_p` fraction of data to get ecdf
+    let final_idx = (sorted_vals.len() as f64 * 0.8) as usize;
+
+    let logp: f64 = sorted_vals[0..final_idx].iter()
+        .map(|x| (beta_pdf(params, x) * 1.0/0.8).ln())
+        .sum();
+    -logp
+}
+
+fn beta_pdf(params: &Vec<f64>, x: &f64) -> f64 {
+    let numer1 = x.powf(params[0]-1.0);
+    let numer2 = (1.0 - x).powf(params[1]-1.0);
+    let numer = numer1 * numer2;
+    let denom = gamma::ln_gamma(params[0]).exp()
+        * gamma::ln_gamma(params[1]).exp()
+        / gamma::ln_gamma(params[0] + params[1]).exp();
+    numer/denom
+}
+
+pub fn get_fitted_beta_pdf(params: &Vec<f64>, data: &Vec<f64>) -> Vec<f64> {
+    data.iter()
+        .map(|x| beta_pdf(params, x))
+        .collect()
+}
+
+pub fn get_ecdf(data: &Vec<f64>, retain_lower_p: f64) -> Vec<f64> {
+
+    // vector to populate with value of ecdf for each value in data
+    let mut ecdf = Vec::<f64>::new();
+    let n = data.len();
+
+    // sort the data
+    let mut sorted_vals = data.to_vec();
+    sorted_vals.par_sort_unstable_by_key(|val| OrderedFloat(*val));
+
+    // take the lowest `retain_lower_p` fraction of data to get ecdf
+    let final_idx = (sorted_vals.len() as f64 * retain_lower_p) as usize;
+    for (i,_) in sorted_vals[0..final_idx].iter().enumerate() {
+        let p_leq = (i + 1) as f64 / n as f64;
+        ecdf.push(p_leq);
+    }
+    ecdf
+}
+
+fn sum_squared_residuals(ecdf: &Vec<f64>, fitted: &Vec<f64>) -> f64 {
+    ecdf.iter()
+        .zip(fitted)
+        .map(|(a,b)| (a - b).powf(2.0_f64))
+        .sum()
+}
+
+pub fn get_fitted_gamma_cdf_vals(params: &Vec<f64>, data: &Vec<f64>) -> Vec<f64> {
+    let min_val = data.to_vec().into_iter().reduce(f64::min).unwrap();
+    data.iter()
+        .map(|x| {
+            // if the minimum cmi is less than zero, shift dist by -min_val+epsilon
+            let mut x_i = f64::EPSILON;
+            if min_val <= 0.0 {
+                x_i = *x - min_val + f64::EPSILON;
+            }
+            let beta_x = params[1] * x_i;
+            let numer = gamma::gamma_li(params[0], beta_x);
+            let denom = gamma::ln_gamma(params[0]).exp();
+            numer/denom
+        })
+        .collect()
+}
 
 /// Filters motifs based on conditional mutual information
 pub fn filter_motifs<'a>(
@@ -995,16 +1112,19 @@ pub fn filter_motifs<'a>(
     let shape_num = motifs[0].params.params.raw_dim()[0];
     let win_len = motifs[0].params.params.raw_dim()[1];
     let delta_k = shape_num * win_len * 2 + 1;
+    //let mut info_vals_in_model = Vec::<&f64>::new();
 
     // sort the Vec of Motifs in order of descending mutual information
     motifs.par_sort_unstable_by_key(|motif| OrderedFloat(-motif.mi));
     let mut top_motifs = Vec::new();
 
     // Make sure first seed passes AIC
-    let aic = info_theory::calc_aic(delta_k, rec_num, motifs[0].mi);
+    let log_lik = 0.5 * rec_num as f64 * motifs[0].mi;
+    let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = motifs[0].to_motif();
         top_motifs.push(motif);
+        //info_vals_in_model.push(aic);
     } else {
         return Motifs::new(top_motifs)
     }
@@ -1012,8 +1132,9 @@ pub fn filter_motifs<'a>(
     // loop through candidate motifs
     for cand_motif in motifs[1..motifs.len()].iter() {
 
-        // if this motif doesn't pass AIC skip it
-        if info_theory::calc_aic(delta_k, rec_num, cand_motif.mi) > 0.0 {
+        // if this motif doesn't pass AIC on its own, with delta_k params, skip it
+        let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
+        if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
 
@@ -1036,7 +1157,11 @@ pub fn filter_motifs<'a>(
             let cmi = info_theory::conditional_adjusted_mutual_information(
                 contingency.view()
             );
-            let this_aic = info_theory::calc_aic(delta_k, rec_num, cmi);
+
+            let param_num = delta_k * (top_motifs.len() + 1);
+            //let proposed_info = info_vals_in_model.iter().sum() + cmi;
+            let log_lik = 0.5 * rec_num as f64 * cmi;
+            let this_aic = info_theory::calc_aic(param_num, log_lik);
 
             // if candidate seed doesn't improve model as added to each of the
             //   chosen seeds, skip it
@@ -1067,24 +1192,30 @@ pub fn filter_seeds<'a>(
     let delta_k = seeds.seeds[0].params.params.raw_dim()[1]
         * seeds.seeds[0].params.params.raw_dim()[0]
         * 2 + 1;
+    //let mut info_vals_in_model = Vec::<&f64>::new();
 
     seeds.sort_seeds();
-    //seeds.remove_low_aic_seeds(delta_k, rec_num);
-    let mut top_motifs = Vec::new();
+
+    let mut top_motifs = Vec::<Motif>::new();
+
     // Make sure first seed passes AIC
-    let aic = info_theory::calc_aic(delta_k, rec_num, seeds.seeds[0].mi);
+    let log_lik = 0.5 * rec_num as f64 * seeds.seeds[0].mi;
+    let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = seeds.seeds[0].to_motif(threshold);
         top_motifs.push(motif);
+        //info_vals_in_model.push(&seeds.seeds[0].mi);
     } else {
         return Motifs::new(top_motifs)
     }
 
     // loop through candidate seeds
-    for cand_seed in seeds.seeds[1..seeds.seeds.len()].iter() {
+    for (i,cand_seed) in seeds.seeds[1..seeds.seeds.len()].iter().enumerate() {
 
-        // if this seed doesn't pass AIC skip it
-        if info_theory::calc_aic(delta_k, rec_num, cand_seed.mi) > 0.0 {
+        //let now = time::Instant::now();
+        // if this seed doesn't pass AIC on its own delta_k params, skip it
+        let log_lik = 0.5 * rec_num as f64 * cand_seed.mi;
+        if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
 
@@ -1108,19 +1239,32 @@ pub fn filter_seeds<'a>(
             let cmi = info_theory::conditional_adjusted_mutual_information(
                 contingency.view()
             );
-            let this_aic = info_theory::calc_aic(delta_k, rec_num, cmi);
 
-            // if candidate seed doesn't improve model as added to each of the
-            //   chosen seeds, skip it
+            // adjust number of parameters according to how many motifs will
+            // be in the model if this one is added.
+            let param_num = delta_k * (top_motifs.len() + 1);
+            // add cmi to sum of current info in model to get proposed info
+            //let proposed_info = info_vals_in_model.iter().sum() + cmi;
+            // calculate log_likelihood-like factor
+            let log_lik = 0.5 * rec_num as f64 * cmi;
+            let this_aic = info_theory::calc_aic(param_num, log_lik);
+
+            // if candidate seed doesn't improve model
             if this_aic > 0.0 {
                 seed_pass = false;
                 break
             }
         }
         if seed_pass {
+            //println!("Seed {} passed filter. Appending to motif vec.", i+2);
             let motif = cand_seed.to_motif(threshold);
             top_motifs.push(motif);
+            //info_vals_in_model.push(&cmi);
+        } else {
+            //println!("Seed {} did not pass filter.", i+2);
         }
+        //let duration = now.elapsed().as_secs_f64() / 60.0;
+        //println!("Evaluating whether seed {} took {} minutes.", i+2, duration);
     }
     Motifs::new(top_motifs)
 }
@@ -1370,16 +1514,20 @@ impl Motifs {
         let shape_num = self.motifs[0].params.params.raw_dim()[0];
         let win_len = self.motifs[0].params.params.raw_dim()[1];
         let delta_k = shape_num * win_len * 2 + 1;
+        //let mut info_vals_in_model = Vec::<&f64>::new();
 
         // sort the Vec of Motifs in order of descending mutual information
         self.sort_motifs();
+
         let mut top_motifs = Vec::new();
 
         // Make sure first seed passes AIC
-        let aic = info_theory::calc_aic(delta_k, rec_num, self.motifs[0].mi);
+        let log_lik = 0.5 * rec_num as f64 * self.motifs[0].mi;
+        let aic = info_theory::calc_aic(delta_k, log_lik);
         if aic < 0.0 {
             let motif = self.motifs[0].to_motif();
             top_motifs.push(motif);
+            //info_vals_in_model.push(aic);
         } else {
             return Motifs::new(top_motifs)
         }
@@ -1387,8 +1535,9 @@ impl Motifs {
         // loop through candidate motifs
         for cand_motif in self.motifs[1..self.motifs.len()].iter() {
 
-            // if this motif doesn't pass AIC skip it
-            if info_theory::calc_aic(delta_k, rec_num, cand_motif.mi) > 0.0 {
+            // if this motif doesn't pass AIC on its own, with delta_k params, skip it
+            let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
+            if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
                 continue
             }
 
@@ -1411,7 +1560,11 @@ impl Motifs {
                 let cmi = info_theory::conditional_adjusted_mutual_information(
                     contingency.view()
                 );
-                let this_aic = info_theory::calc_aic(delta_k, rec_num, cmi);
+
+                let param_num = delta_k * (top_motifs.len() + 1);
+                //let proposed_info = info_vals_in_model.iter().sum() + cmi;
+                let log_lik = 0.5 * rec_num as f64 * cmi;
+                let this_aic = info_theory::calc_aic(param_num, log_lik);
 
                 // if candidate seed doesn't improve model as added to each of the
                 //   chosen seeds, skip it
@@ -1422,6 +1575,7 @@ impl Motifs {
             }
             if motif_pass {
                 top_motifs.push(cand_motif.to_motif());
+                //info_vals_in_model.push(&cmi);
             }
         }
         Motifs::new(top_motifs)

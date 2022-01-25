@@ -1,6 +1,7 @@
 use motifer;
 use optim;
 use ndarray_npy;
+use std::path;
 use std::env;
 use std::time;
 use rayon::ThreadPoolBuilder;
@@ -196,8 +197,12 @@ fn main() {
     motifs.post_optim_update(&rec_db, &cfg.max_count);
     motifs.pickle_motifs(&cfg.out_fname);
     let corr = motifs.get_motif_correlations();
-    ndarray_npy::write_npy("/anvil/projects/x-mcb140220/schroedj/motif_data/correlations.npy", &corr).unwrap();
+
+    let parent = path::Path::new(&cfg.out_fname).parent().unwrap();
+    let corr_out_fname = parent.join("motif_correlations.npy");
+    ndarray_npy::write_npy(&corr_out_fname, &corr).unwrap();
 
     println!("Vector of filtered, optimized motifs written to: {}", &cfg.out_fname);
+    println!("Numpy array of motif correlations written to: {:?}", &corr_out_fname);
 }
 

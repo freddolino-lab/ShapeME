@@ -1,4 +1,5 @@
 use std::cmp;
+use std::sync::{Arc,Mutex};
 use std::collections::HashMap;
 use itertools::Itertools;
 // ndarray stuff
@@ -98,6 +99,7 @@ mod tests {
         let cv = c.view();
 
         let contingency = construct_3d_contingency(av, bv, cv);
+        println!("{:?}", contingency);
         let answer = array![
             // zero in array a
             [
@@ -165,10 +167,9 @@ mod tests {
 /// # Arguments
 ///
 /// * `par_num` - number of parameters
-/// * `rec_num` - number of records in the RecordsDB
-/// * `mi` - adjusted mutual information
-pub fn calc_aic(par_num: usize, rec_num: usize, mi: f64) -> f64 {
-    2.0 * par_num as f64 - 2.0 * rec_num as f64 * mi
+/// * `log_lik` - log_likelihood
+pub fn calc_aic(par_num: usize, log_lik: f64) -> f64 {
+    2.0 * par_num as f64 - 2.0 * log_lik
 }
 
 /// Calculates the mutual information between axis 1 and 2 of contingency,
@@ -229,31 +230,28 @@ pub fn construct_3d_contingency(
     let vec2_cats = unique_cats(vec2);
     let vec3_cats = unique_cats(vec3);
 
+    // zip the three vectors into a vector of tuples
+    let all_zipped: Vec<(i64,i64,i64)> = vec1.iter()
+        .zip(vec2)
+        .zip(vec3)
+        .map(|((a,b), c)| (*a,*b,*c))
+        .collect::<Vec<(i64,i64,i64)>>();
+
     // allocate the contingency array of appropriate size
     let mut contingency = ndarray::Array::zeros(
         (vec1_cats.len(), vec2_cats.len(), vec3_cats.len())
     );
-
-    // zip the first two vectors into a vector of tuples
-    let zipped: Vec<(i64,i64)> = vec1.iter()
-        .zip(vec2)
-        .map(|(a,b)| (*a,*b))
-        .collect();
-    // zip the third vector's values into the tuples in the first vector
-    let all_zipped: Vec<(i64,i64,i64)> = zipped.iter()
-        .zip(vec3)
-        .map(|((a,b), c)| (*a, *b, *c))
-        .collect();
 
     // iterate over the categories for each vector and assign the number
     // of elements with each vector's value in our contingency array.
     for i in 0..vec1_cats.len() {
         for j in 0..vec2_cats.len() {
             for k in 0..vec3_cats.len() {
-                contingency[[i, j, k]] = all_zipped.iter()
+                contingency[[i, j, k]] = all_zipped.par_iter()
                     .filter(|x| **x == (vec1_cats[i], vec2_cats[j], vec3_cats[k]))
-                    .collect::<Vec<&(i64,i64,i64)>>()
-                    .len();
+                    .count();
+                    //.collect::<Vec<&(i64,i64,i64)>>()
+                    //.len();
             }
         }
     }

@@ -953,7 +953,7 @@ pub fn simulated_annealing(
     let global_weight = 0.0;
 
     let mut swarm = Swarm::new(
-        1, // n_particles is 1 for simulated annealing
+        1, // n_particles is always 1 for simulated annealing
         params, // Vec<f64>
         lower,
         upper,
