@@ -1,12 +1,5 @@
-tests/test/*_input
-tests
-tests/test/*_out
-*.pkl
-tests/*.pkl
-tests/test/*.pkl
 __pycache__
 utils/__pycache__
 rust_utils/target
-rust_utils/sample_cmi
 */Cargo.lock
 python3/build
