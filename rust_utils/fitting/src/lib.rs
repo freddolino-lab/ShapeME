@@ -240,7 +240,7 @@ mod tests {
         let t_adj = 0.01;
 
         let opt_params = simulated_annealing(
-            data,
+            &data,
             start,
             low,
             up,
@@ -248,6 +248,7 @@ mod tests {
             step,
             niter,
             &t_adj,
+            &0.0,
             &rosenbrock,
             &false,
         );
