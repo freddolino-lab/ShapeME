@@ -7,6 +7,6 @@ tests/test/*.pkl
 __pycache__
 utils/__pycache__
 rust_utils/target
-rust_utils/target
+rust_utils/sample_cmi
 */Cargo.lock
 python3/build
