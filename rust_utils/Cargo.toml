@@ -5,6 +5,5 @@ members = [
     "motifer",
     "optim",
     "find_motifs",
-    "fitting",
 ]
 
