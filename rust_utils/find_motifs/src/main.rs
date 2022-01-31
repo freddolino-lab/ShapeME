@@ -195,7 +195,7 @@ fn main() {
     println!("{} motifs left after CMI-based filtering.", motifs.len());
 
     motifs.post_optim_update(&rec_db, &cfg.max_count);
-    motifs.pickle_motifs(&cfg.out_fname);
+    motifs.json_motifs(&cfg.out_fname);
     let corr = motifs.get_motif_correlations();
 
     let parent = path::Path::new(&cfg.out_fname).parent().unwrap();

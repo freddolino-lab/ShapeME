@@ -21,6 +21,7 @@ import cvlogistic
 import numba
 from numba import jit,prange
 import pickle
+import json
 import tempfile
 import time
 import subprocess
@@ -181,93 +182,6 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
             num_passed += 1
     return num_passed
 
-@jit(nopython=True)
-def calc_aic(delta_k, rec_num, mi):
-    aic = 2*delta_k - 2*rec_num*mi
-    return aic
-
-def aic_motifs(motifs, records, optimized_vars):
-    """Select final motifs through AIC
-
-    Args:
-        motifs (list of dicts) - list of final motif dictionaries
-        records (SeqDatabase Class) - sequences motifs are compared against
-    
-    Returns:
-        final_motifs (list of dicts) - list of passing motif dictionaries
-    """
-
-    # get number of parameters based on window length * shape number * 2 + 1
-    #  We multiply by 2 because for each shape value we have a weight,
-    #  and we add 1 because the motif's threshold was a parameter.
-    rec_num,win_len,shape_num,win_num,strand_num = records.windows.shape
-
-    shape_num_multiplier = 0
-    if 'shapes' in optimized_vars:
-        shape_num_multiplier += 1
-    if 'weights' in optimized_vars:
-        shape_num_multiplier += 1
-
-    delta_k = win_len * shape_num * shape_num_multiplier
-
-    if 'threshold' in optimized_vars:
-        delta_k += 1
-
-    # sort motifs by mutual information
-    these_motifs = sorted(
-        motifs,
-        key = lambda x: x['mi'],
-        reverse = True,
-    )
-
-    # Make sure first motif passes AIC
-    if calc_aic(delta_k, rec_num, these_motifs[0]['mi']) < 0:
-        top_motif = these_motifs[0]
-        top_motif['distinct_hits'] = np.unique(top_motif['hits'], axis=0)
-        top_motifs = [these_motifs[0]]
-    else:
-        return []
-
-    distinct_y = np.unique(records.y)
-
-    # loop through candidate motifs
-    for cand_motif in these_motifs[1:]:
-        cand_hits = cand_motif['hits']
-        distinct_cand_hits = np.unique(cand_hits, axis=0)
-        motif_pass = True
-
-        # if the total MI for this motif doesn't pass AIC skip it
-        if calc_aic(delta_k, rec_num, cand_motif['mi']) > 0:
-            continue
-
-        for good_motif in top_motifs:
-            # check the conditional mutual information for this motif with
-            # each of the chosen motifs
-            good_motif_hits = good_motif['hits']
-            distinct_good_motif_hits = good_motif['distinct_hits']
-
-            this_cmi = inout.conditional_adjusted_mutual_information(
-                records.y, 
-                #distinct_y,
-                cand_hits, 
-                #distinct_cand_hits,
-                good_motif_hits,
-                #distinct_good_motif_hits,
-            )
-            this_aic = calc_aic(delta_k, rec_num, this_cmi)
-
-            # if candidate motif doesn't improve model as added to each of the
-            # chosen motifs, skip it
-            if this_aic > 0:
-                motif_pass = False
-                break
-
-        if motif_pass:
-            cand_motif['distinct_hits'] = distinct_cand_hits
-            top_motifs.append(cand_motif)
-
-    return top_motifs
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -297,11 +211,11 @@ if __name__ == "__main__":
                          help='don\'t normalize the input data by robustZ')
     parser.add_argument('--threshold_sd', type=float, default=2.0, 
             help="std deviations below mean for seed finding. Only matters for greedy search. Default=2.0")
-    parser.add_argument('--init_threshold_seed_num', type=float, default=500.0, 
+    parser.add_argument('--init_threshold_seed_num', type=int, default=500, 
             help="Number of randomly selected seeds to compare to records in the database during initial threshold setting. Default=500.0")
-    parser.add_argument('--init_threshold_recs_per_seed', type=float, default=20.0, 
+    parser.add_argument('--init_threshold_recs_per_seed', type=int, default=20, 
             help="Number of randomly selected records to compare to each seed during initial threshold setting. Default=20.0")
-    parser.add_argument('--init_threshold_windows_per_record', type=float, default=2.0, 
+    parser.add_argument('--init_threshold_windows_per_record', type=int, default=2, 
             help="Number of randomly selected windows within a given record to compare to each seed during initial threshold setting. Default=2.0")
     parser.add_argument('--motif_perc', type=float, default=1,
             help="fraction of data to EVALUATE motifs on. Default=1")
@@ -404,8 +318,8 @@ if __name__ == "__main__":
 
     shape_fname = os.path.join(out_direc, 'shapes.npy')
     yval_fname = os.path.join(out_direc, 'y_vals.npy')
-    config_fname = os.path.join(out_direc, 'config.pkl')
-    rust_out_fname = os.path.join(out_direc, 'rust_results.pkl')
+    config_fname = os.path.join(out_direc, 'config.json')
+    rust_out_fname = os.path.join(out_direc, 'rust_results.json')
 
     good_motif_out_fname = os.path.join(
         out_direc,
@@ -431,22 +345,32 @@ if __name__ == "__main__":
         ),
     )
 
-    RUST = "{} {} {} {} {}".format(
+    logit_reg_fname = os.path.join(
+        out_direc,
+        "{}_logistic_regression_result.pkl".format(out_pref),
+    )
+
+    coef_per_class_fname = os.path.join(
+        out_direc,
+        "{}_logistic_regression_coefs_per_class.txt".format(out_pref),
+    )
+
+    RUST = "{} {}".format(
         rust_bin,
-        shape_fname,
-        yval_fname,
         config_fname,
-        rust_out_fname,
     )
 
     args_dict = {
+        'out_fname': rust_out_fname,
+        'shape_fname': shape_fname,
+        'yvals_fname': yval_fname,
         'alpha': args.alpha,
-        'max_count': float(args.max_count),
-        'kmer': float(args.kmer),
-        'cores': float(args.p),
-        'seed_sample_size': float(args.init_threshold_seed_num),
-        'records_per_seed': float(args.init_threshold_recs_per_seed),
-        'windows_per_record': float(args.init_threshold_windows_per_record),
+        'max_count': args.max_count,
+        'kmer': args.kmer,
+        'cores': args.p,
+        'seed_sample_size': args.init_threshold_seed_num,
+        'records_per_seed': args.init_threshold_recs_per_seed,
+        'windows_per_record': args.init_threshold_windows_per_record,
         'thresh_sd_from_mean': args.threshold_sd,
         'threshold_lb': args.threshold_constraints[0],
         'threshold_ub': args.threshold_constraints[1],
@@ -459,8 +383,23 @@ if __name__ == "__main__":
         'n_opt_iter': args.opt_niter,
         't_adjust': args.t_adj,
         'batch_size': args.batch_size,
+        'good_motif_out_fname': good_motif_out_fname, 
     }
 
+    # supplement args info with shape center and spread from database
+    args_dict['names'] = []
+    args_dict['indices'] = []
+    args_dict['centers'] = []
+    args_dict['spreads'] = []
+
+    for name,shape_idx in records.shape_name_lut.items():
+        this_center = records.shape_centers[shape_idx]
+        this_spread = records.shape_spreads[shape_idx]
+        args_dict['names'].append(name)
+        args_dict['indices'].append(shape_idx)
+        args_dict['centers'].append(this_center)
+        args_dict['spreads'].append(this_spread)
+    
     # write shapes to npy file. Permute axes 1 and 2.
     with open(shape_fname, 'wb') as shape_f:
         np.save(shape_fname, records.X.transpose((0,2,1,3)))
@@ -468,10 +407,9 @@ if __name__ == "__main__":
     with open(yval_fname, 'wb') as f:
         np.save(f, records.y.astype(np.int64))
     # write cfg to file
-    with open(config_fname, 'wb') as f:
-        pickle.dump(args_dict, f)
+    with open(config_fname, 'w') as f:
+        json.dump(args_dict, f)
 
-    
     logging.info("Running motif selection and optimization.")
     retcode = subprocess.call(RUST, shell=True)
     if retcode != 0:
@@ -480,16 +418,18 @@ if __name__ == "__main__":
     good_motifs = inout.read_motifs_from_rust(rust_out_fname)
 
     # remove the files used or generated by rust
-    os.remove(shape_fname)
-    os.remove(yval_fname)
-    os.remove(config_fname)
-    os.remove(rust_out_fname)
+    #os.remove(shape_fname)
+    #os.remove(yval_fname)
+    #os.remove(rust_out_fname)
 
     with open(good_motif_out_fname, 'wb') as outf:
         pickle.dump(good_motifs, outf)
 
-    smv.plot_optim_shapes_and_weights(good_motifs, good_motif_plot_fname, records)
-
+    smv.plot_optim_shapes_and_weights(
+        good_motifs,
+        good_motif_plot_fname,
+        records,
+    )
 
 #######################################################################
 #######################################################################
@@ -497,56 +437,44 @@ if __name__ == "__main__":
 #######################################################################
 #######################################################################
 
-    #X = [
-    #    this_motif['dists']
-    #    for this_motif in good_motifs
-    #]
-    #X = np.stack(X, axis=1)
-    #X = StandardScaler().fit_transform(X)
-    #y = this_records.get_values()
-    #logging.info("Running L1 regularized logistic regression with CV to determine reg param")
+    rec_num = good_motifs[0]['dists'].shape[0]
+    X = np.zeros((rec_num, len(good_motifs)))
+    for i,motif in enumerate(good_motifs):
+        X[:,i] = motif['dists'].mean(axis=1)
+    X = StandardScaler().fit_transform(X)
+    y = records.y
+    logging.info("Running L1 regularized logistic regression with CV to determine reg param")
 
-    #clf = LogisticRegressionCV(
-    #    Cs=100,
-    #    cv=5,
-    #    multi_class='multinomial',
-    #    penalty='l1',
-    #    solver='saga',
-    #    max_iter=10000,
-    #).fit(X, y)
+    clf = LogisticRegressionCV(
+        Cs=100,
+        cv=5,
+        multi_class='multinomial',
+        penalty='l1',
+        solver='saga',
+        max_iter=10000,
+    ).fit(X, y)
 
-    #best_c = cvlogistic.find_best_c(clf)
+    best_c = cvlogistic.find_best_c(clf)
 
-    #clf_f = LogisticRegression(
-    #    C=best_c,
-    #    multi_class='multinomial',
-    #    penalty='l1',
-    #    solver='saga',
-    #    max_iter=10000,
-    #).fit(X,y)
+    clf_f = LogisticRegression(
+        C=best_c,
+        multi_class='multinomial',
+        penalty='l1',
+        solver='saga',
+        max_iter=10000,
+    ).fit(X,y)
 
-    #good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
-    #if len(good_motif_index) < 1:
-    #    logging.info("No motifs found")
-    #    sys.exit()
+    with open(logit_reg_fname, 'wb') as outf:
+        pickle.dump(clf_f, outf)
 
-    #cvlogistic.write_coef_per_class(clf_f, outpre + "_coef_per_class.txt")
-    #final_good_motifs = [good_motifs[index] for index in good_motif_index]
-    #logging.info("{} motifs survived".format(len(final_good_motifs)))
+    good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
+    if len(good_motif_index) < 1:
+        logging.info("No motifs found")
+        sys.exit()
 
-    #raise()
-
-#########################################################################
-    #if args.debug:
-    #    cvlogistic.plot_score(clf, outpre+"_score_logit.png")
-    #    for cls in clf.classes_:
-    #        cvlogistic.plot_coef_paths(clf, outpre+"_coef_path%s.png"%cls)
-    #    print_top_motifs(final_good_motifs)
-    #    print_top_motifs(final_good_motifs, reverse=False)
-    #    logging.info("Writing motifs after regression")
-    #    outmotifs = inout.ShapeMotifFile()
-    #    outmotifs.add_motifs(final_good_motifs)
-    #    outmotifs.write_file(outpre+"_called_motifs_after_regression.dsp", records)
+    cvlogistic.write_coef_per_class(clf_f, coef_per_class_fname)
+    final_good_motifs = [good_motifs[index] for index in good_motif_index]
+    logging.info("{} motifs survived".format(len(final_good_motifs)))
 
     #for motif in final_good_motifs:
     #    add_motif_metadata(this_records, motif) 

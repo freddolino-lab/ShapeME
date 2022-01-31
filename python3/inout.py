@@ -7,6 +7,7 @@ from scipy import stats
 from scipy import sparse
 from collections import OrderedDict
 import pickle
+import json
 import glob
 from sklearn import cluster 
 from sklearn import metrics
@@ -49,8 +50,8 @@ def read_motifs_from_rust(fname):
     data into appropriate shapes for next steps of find_motifs.py
     """
 
-    with open(fname, 'rb') as f:
-        rust_mi_results = pickle.load(f)
+    with open(fname, 'r') as f:
+        rust_mi_results = json.load(f)
 
     motif_results = []
     for motif in rust_mi_results:

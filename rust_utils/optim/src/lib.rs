@@ -27,7 +27,7 @@ mod tests {
     ///  * `f(x_1, x_2) = f(-2.805118, 3.131312) = 0`.
     ///  * `f(x_1, x_2) = f(-3.779310, -3.283186) = 0`.
     ///  * `f(x_1, x_2) = f(3.584428, -1.848126) = 0`.
-    fn himmelblau(param: &Vec<f64>, this: &motifer::RecordsDB, is: &usize, contrived: &i64, i_know: &f64) -> f64 {
+    fn himmelblau(param: &Vec<f64>, _this: &motifer::RecordsDB, _is: &usize, _contrived: &i64, _i_know: &f64) -> f64 {
         assert!(param.len() == 2);
         let (x1, x2) = (param[0], param[1]);
         (x1.powi(2) + x2 - 11.0).powi(2)
@@ -44,7 +44,7 @@ mod tests {
     /// where `x_i \in (-\infty, \infty)`. The parameters a and b usually are: `a = 1` and `b = 100`.
     ///
     /// The global minimum is at `f(x_1, x_2, ..., x_n) = f(1, 1, ..., 1) = 0`.
-    pub fn rosenbrock(param: &Vec<f64>, rec_db: &motifer::RecordsDB, nothing: &usize, nada: &i64, zip: &f64) -> f64 {
+    pub fn rosenbrock(param: &Vec<f64>, _rec_db: &motifer::RecordsDB, _nothing: &usize, _nada: &i64, _zip: &f64) -> f64 {
         param.iter()
             .zip(param.iter().skip(1))
             .map(|(&xi, &xi1)| (1.0 - xi).powi(2) + 100.0 * (xi1 - xi.powi(2)).powi(2))
@@ -488,7 +488,7 @@ impl Particle {
             .zip(&self.upper_bound) // and the upper bound
             // a=vel, b=local_best, c=swarm_best, d=pos, e=lower_bound, f=upper_bound
             .for_each(|(((((a, b), c), d), e), f)| {
-                let range = f - e;
+                //let range = f - e;
                 let term1 = inertia * *a;
                 // attraction to the particle's own best gets stronger with distance
                 let term2 = local_weight * r_arr[0] * (b - d);
@@ -913,7 +913,7 @@ pub fn particle_swarm(
         &Method::ParticleSwarm,
     );
 
-    for i in 0..niter {
+    for _ in 0..niter {
         swarm.step(
             &inertia,
             &local_weight,
@@ -968,7 +968,7 @@ pub fn simulated_annealing(
         &Method::SimulatedAnnealing,
     );
 
-    for i in 0..niter {
+    for _ in 0..niter {
         swarm.step(
             &inertia,
             &local_weight,
