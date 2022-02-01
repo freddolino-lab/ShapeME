@@ -14,9 +14,6 @@ mp.set_start_method('spawn', force=True)
 import itertools
 import welfords
 import sklearn
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegressionCV
-from sklearn.linear_model import LogisticRegression
 import cvlogistic
 import numba
 from numba import jit,prange
@@ -60,21 +57,6 @@ def generate_dist_vector(data, motif, rc=False):
         all_matches.append(np.min(this_seq_matches))
         this_seq_matches = []
     return np.array(all_matches)
-
-def seqs_per_bin(records):
-    """ Function to determine how many sequences are in each category
-
-    Args:
-        records (SeqDatabase) - database to calculate over
-    Returns:
-        outstring - a string enumerating the number of seqs in each category
-    """
-    string = ""
-    for value in np.unique(records.y):
-        string += "\nCat {}: {}".format(
-            value, np.sum(records.y ==  value)
-        )
-    return string
 
 def two_way_to_log_odds(two_way):
     """ Function to determine the log odds from a two way table
@@ -243,6 +225,8 @@ if __name__ == "__main__":
     #parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
     #parser.add_argument('--save_opt', action='store_true', help="write motifs to pickle file after initial weights optimization step?")
 
+    my_env = os.environ.copy()
+    my_env['RUST_BACKTRACE'] = "1"
     
     args = parser.parse_args()
     numba.set_num_threads(args.p)
@@ -281,7 +265,7 @@ if __name__ == "__main__":
         records.quantize_quant(args.continuous)
 
     logging.info("Distribution of sequences per class:")
-    logging.info(seqs_per_bin(records))
+    logging.info(inout.seqs_per_bin(records))
 
     logging.info("Normalizing parameters")
     if args.nonormalize:
@@ -408,10 +392,10 @@ if __name__ == "__main__":
         np.save(f, records.y.astype(np.int64))
     # write cfg to file
     with open(config_fname, 'w') as f:
-        json.dump(args_dict, f)
+        json.dump(args_dict, f, indent=1)
 
     logging.info("Running motif selection and optimization.")
-    retcode = subprocess.call(RUST, shell=True)
+    retcode = subprocess.call(RUST, shell=True, env=my_env)
     if retcode != 0:
         sys.exit("ERROR: find_motifs binary execution exited with non-zero exit status")
 
@@ -422,8 +406,8 @@ if __name__ == "__main__":
     #os.remove(yval_fname)
     #os.remove(rust_out_fname)
 
-    with open(good_motif_out_fname, 'wb') as outf:
-        pickle.dump(good_motifs, outf)
+    #with open(good_motif_out_fname, 'wb') as outf:
+    #    pickle.dump(good_motifs, outf)
 
     smv.plot_optim_shapes_and_weights(
         good_motifs,
@@ -437,35 +421,21 @@ if __name__ == "__main__":
 #######################################################################
 #######################################################################
 
-    rec_num = good_motifs[0]['dists'].shape[0]
-    X = np.zeros((rec_num, len(good_motifs)))
-    for i,motif in enumerate(good_motifs):
-        X[:,i] = motif['dists'].mean(axis=1)
-    X = StandardScaler().fit_transform(X)
+    X,var_lut = inout.prep_logit_reg_data(good_motifs, max_count)
     y = records.y
-    logging.info("Running L1 regularized logistic regression with CV to determine reg param")
+    logging.info(
+        "Running L1 regularized logistic regression with CV to determine reg param"
+    )
 
-    clf = LogisticRegressionCV(
-        Cs=100,
-        cv=5,
-        multi_class='multinomial',
-        penalty='l1',
-        solver='saga',
-        max_iter=10000,
-    ).fit(X, y)
-
-    best_c = cvlogistic.find_best_c(clf)
-
-    clf_f = LogisticRegression(
-        C=best_c,
-        multi_class='multinomial',
-        penalty='l1',
-        solver='saga',
-        max_iter=10000,
-    ).fit(X,y)
+    best_c = inout.choose_l1_penalty(X, y)
+    clf_f = inout.lasso_regression(X,y,best_c)
+    logit_reg_info = {
+        'model': clf_f,
+        'var_lut': var_lut,
+    }
 
     with open(logit_reg_fname, 'wb') as outf:
-        pickle.dump(clf_f, outf)
+        pickle.dump(logit_reg_info, outf)
 
     good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
     if len(good_motif_index) < 1:

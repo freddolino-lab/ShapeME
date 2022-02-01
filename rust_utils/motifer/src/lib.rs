@@ -681,6 +681,8 @@ mod tests {
     fn test_read_motifs () {
         let motifs: Motifs = read_motifs("../../test_data/test_motifs.json");
         println!("{:?}", motifs.motifs[0].params.params);
+        let motifs: Motifs = read_motifs("../../test_data/test_motifs_err.json");
+        println!("{:?}", motifs.motifs[0].params.params);
     }
 
     #[test]
@@ -721,9 +723,15 @@ mod tests {
 /// Simple struct to hold command line arguments
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
+    #[serde(default = "default_fname")]
     pub shape_fname: String,
+    #[serde(default = "default_fname")]
     pub yvals_fname: String,
-    #[serde(default = "default_out_fname")]
+    #[serde(default = "default_fname")]
+    pub eval_shape_fname: String,
+    #[serde(default = "default_fname")]
+    pub eval_yvals_fname: String,
+    #[serde(default = "default_fname")]
     pub out_fname: String,
     #[serde(default = "default_alpha")]
     pub alpha: f64,
@@ -773,14 +781,14 @@ pub struct Config {
     pub centers: Vec<f64>,
     #[serde(default = "default_spreads")]
     pub spreads: Vec<f64>,
-    #[serde(default = "default_motif_fname")]
+    #[serde(default = "default_fname")]
     pub motif_fname: String,
+    #[serde(default = "default_fname")]
+    pub logit_reg_fname: String,
 }
 
+fn default_fname() -> String { String::from("default") }
 fn default_names() -> Vec<String> { vec![String::from("default")] }
-fn default_yval_fname() -> String { String::from("default") }
-fn default_motif_fname() -> String { String::from("default") }
-fn default_out_fname() -> String { String::from("default") }
 fn default_indices() -> Vec<usize> { vec![0] }
 fn default_centers() -> Vec<f64> { vec![-1000.0] }
 fn default_spreads() -> Vec<f64> { vec![-1000.0] }
@@ -824,170 +832,10 @@ impl Config {
         let file = fs::File::open(opts_fname).unwrap();
         // open a buffered reader to open the binary json file
         let buf_reader = BufReader::new(file);
-        // create a hashmap from the pickle file's contents
-        let cfg: Config = serde_json::from_reader(
-            buf_reader,
-        ).unwrap();
-
+        let cfg: Config = serde_json::from_reader(buf_reader).unwrap();
         cfg
-        
-        //Config{
-        //    out_fname: cfg.out_fname,
-        //    shape_fname: cfg.shape_fname,
-        //    yvals_fname: cfg.yvals_fname,
-        //    motif_fname: cfg.motif_fname,
-        //    kmer: cfg.kmer,
-        //    alpha: cfg.alpha,
-        //    max_count: cfg.max_count,
-        //    threshold: cfg.threshold,
-        //    cores: cfg.cores,
-        //    seed_sample_size: cfg.seed_sample_size,
-        //    records_per_seed: cfg.records_per_seed,
-        //    windows_per_record: cfg.windows_per_record,
-        //    thresh_sd_from_mean: cfg.thresh_sd_from_mean,
-        //    thresh_lower_bound: cfg.thresh_lower_bound,
-        //    thresh_upper_bound: cfg.thresh_upper_bound,
-        //    shape_lower_bound: cfg.shape_lower_bound,
-        //    shape_upper_bound: cfg.shape_upper_bound,
-        //    weight_lower_bound: cfg.weight_lower_bound,
-        //    weight_upper_bound: cfg.weight_upper_bound,
-        //    temperature: cfg.temperature,
-        //    stepsize: cfg.stepsize,
-        //    n_opt_iter: cfg.n_opt_iter,
-        //    t_adjust: cfg.t_adjust,
-        //    batch_size: cfg.batch_size,
-        //    names: cfg.names,
-        //    indices: cfg.indices,
-        //    centers: cfg.centers,
-        //    spreads: cfg.spreads,
-        //}
     }
 }
-
-///// Simple struct to hold arguments for search_for_motifs
-//pub struct SearchConfig {
-//    pub motif_fname: String,
-//    pub out_fname: String,
-//    pub shape_fname: String,
-//    pub yvals_fname: String,
-//    pub alpha: f64,
-//    pub max_count: i64,
-//    pub threshold: f64,
-//    pub cores: usize,
-//    pub seed_sample_size: usize,
-//    pub records_per_seed: usize,
-//    pub windows_per_record: usize,
-//    pub thresh_sd_from_mean: f64,
-//    pub thresh_lower_bound: f64,
-//    pub thresh_upper_bound: f64,
-//    pub shape_lower_bound: f64,
-//    pub shape_upper_bound: f64,
-//    pub weight_lower_bound: f64,
-//    pub weight_upper_bound: f64,
-//    pub temperature: f64,
-//    pub stepsize: f64,
-//    pub n_opt_iter: usize,
-//    pub t_adjust: f64,
-//    pub batch_size: usize,
-//    pub names: Vec<String>,
-//    pub indices: Vec<usize>,
-//    pub centers: Vec<String>,
-//    pub spreads: Vec<f64>,
-//}
-//
-//
-//
-//impl Config {
-//    /// Returns a Config struct containing options contained in
-//    /// command line arguments
-//    ///
-//    /// # Arguments
-//    ///
-//    /// * `args` - an array of [String] structs. Comes from env::args in main.rs
-//    ///
-//    /// STILL NEEDS GOOD ERROR HANDLING, IMO
-//    pub fn new(args: &[String]) -> Config {
-//        let shape_fname = args[1].clone();
-//        let yvals_fname = args[2].clone();
-//        let opts_fname = args[3].clone();
-//        let out_fname = args[4].clone();
-//
-//        // read in options we'll need
-//        let file = fs::File::open(opts_fname).unwrap();
-//        // open a buffered reader to open the pickle file
-//        let buf_reader = BufReader::new(file);
-//        // create a hashmap from the pickle file's contents
-//        let hash: HashMap<String, f64> = de::from_reader(
-//            buf_reader,
-//            de::DeOptions::new()
-//        ).unwrap();
-//        
-//        let kmer = *hash.get("kmer").unwrap_or(&15.0) as usize;
-//        let alpha = *hash.get("alpha").unwrap_or(&0.01) as f64;
-//        let max_count = *hash.get("max_count").unwrap_or(&1.0) as i64;
-//        // leave this threshold default value as is (&0.8711171869882366)!
-//        // It's only used in our unit tests, and it
-//        // makes them work!!
-//        let threshold = *hash.get("threshold").unwrap_or(&0.8711171869882366) as f64;
-//        let cores = *hash.get("cores").unwrap_or(&48.0) as usize;
-//        let seed_sample_size = *hash.get("seed_sample_size")
-//            .unwrap_or(&250.0) as usize;
-//        let records_per_seed = *hash.get("records_per_seed")
-//            .unwrap_or(&50.0) as usize;
-//        let windows_per_record = *hash.get("windows_per_record")
-//            .unwrap_or(&1.0) as usize;
-//        let thresh_sd_from_mean = *hash.get("thresh_sd_from_mean")
-//            .unwrap_or(&2.0) as f64;
-//        let thresh_lower_bound = *hash.get("threshold_lb")
-//            .unwrap_or(&0.0) as f64;
-//        let thresh_upper_bound = *hash.get("threshold_ub")
-//            .unwrap_or(&4.0) as f64;
-//        let shape_lower_bound = *hash.get("shape_lb")
-//            .unwrap_or(&-4.0) as f64;
-//        let shape_upper_bound = *hash.get("shape_ub")
-//            .unwrap_or(&4.0) as f64;
-//        let weight_lower_bound = *hash.get("weight_lb")
-//            .unwrap_or(&-4.0) as f64;
-//        let weight_upper_bound = *hash.get("weight_ub")
-//            .unwrap_or(&-4.0) as f64;
-//        let temperature = *hash.get("temperature")
-//            .unwrap_or(&0.20) as f64;
-//        let stepsize = *hash.get("stepsize")
-//            .unwrap_or(&0.25) as f64;
-//        let n_opt_iter = *hash.get("n_opt_iter")
-//            .unwrap_or(&12000.0) as usize;
-//        let t_adjust = *hash.get("t_adjust")
-//            .unwrap_or(&0.0005) as f64;
-//        let batch_size = *hash.get("batch_size")
-//            .unwrap_or(&2000.0) as usize;
-//
-//        Config{
-//            out_fname,
-//            shape_fname,
-//            yvals_fname,
-//            kmer,
-//            alpha,
-//            max_count,
-//            threshold,
-//            cores,
-//            seed_sample_size,
-//            records_per_seed,
-//            windows_per_record,
-//            thresh_sd_from_mean,
-//            thresh_lower_bound,
-//            thresh_upper_bound,
-//            shape_lower_bound,
-//            shape_upper_bound,
-//            weight_lower_bound,
-//            weight_upper_bound,
-//            temperature,
-//            stepsize,
-//            n_opt_iter,
-//            t_adjust,
-//            batch_size,
-//        }
-//    }
-//}
 
 pub fn wrangle_params_for_optim(
         motif: &Motif,

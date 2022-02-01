@@ -139,7 +139,25 @@ if __name__ == "__main__":
     if retcode != 0:
         sys.exti("Rust binary returned non-zero exit status")
 
-    good_motifs = inout.read_motifs_from_rust(os.path.join(out_direc, "evaluated_motifs.json"))
+    good_motifs = inout.read_motifs_from_rust(
+        os.path.join(out_direc, "evaluated_motifs.json")
+    )
+    X = inout.prep_logit_reg_data(good_motifs)
+    y = records.y
+    ##################################################
+    ##################################################
+    ## I need to figure out how to appropriately handle
+    ##    strandedness and max count greater than 1
+    ##################################################
+    ##################################################
+    logging.info(
+        "Predicting classes from distance from motifs to records"
+    )
+
+    with open(args_dict['logit_reg_fname'], 'rb') as f:
+        clf_f = pickle.load(f)
+
+    probabilities = clf_f.predict_proba(X)
 
 
     ##################################################
@@ -152,7 +170,6 @@ if __name__ == "__main__":
     ##################################################
     ##################################################
     ##################################################
-    # Bring in logistic regression parameters
     # Run the prediction using the trained logistic reg model
     # Get the precision/recall curve and AUC
 

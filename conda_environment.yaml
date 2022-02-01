@@ -15,6 +15,7 @@ dependencies:
     - matplotlib
     - bioconductor-dnashaper
     - r-glmnet
+    - r-prroc
     - jupyter
     - rpy2
     - seaborn

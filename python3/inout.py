@@ -1,4 +1,5 @@
 import numpy as np
+import cvlogistic
 import dnashapeparams as dsp
 import logging
 from numba import jit,prange
@@ -9,10 +10,111 @@ from collections import OrderedDict
 import pickle
 import json
 import glob
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import LogisticRegression
 from sklearn import cluster 
 from sklearn import metrics
 from math import log
-from emi import _expected_mutual_info_fast as exp_mi
+
+from matplotlib import pyplot as plt
+
+def seqs_per_bin(records):
+    """ Function to determine how many sequences are in each category
+
+    Args:
+        records (SeqDatabase) - database to calculate over
+    Returns:
+        outstring - a string enumerating the number of seqs in each category
+    """
+    string = ""
+    for value in np.unique(records.y):
+        string += "\nCat {}: {}".format(
+            value, np.sum(records.y ==  value)
+        )
+    return string
+
+def get_precision_recall(yhat, y, plot_prefix=None):
+    ## NOTE: needs expanded for multiclass predictions
+    pos_probs = yhat[:, 1]
+    prec, recall, _ = metrics.precision_recall_curve(y, pos_probs)
+    auc = metrics.auc(recall, prec)
+    no_skill = len(y[y==1]) / len(y)
+
+    if plot_prefix is not None:
+        plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
+        plt.plot(recall, prec, marker='.', label='Motifs')
+        plt.savefig(plot_prefix + ".png")
+        plt.savefig(plot_prefix + ".pdf")
+
+    return (prec, recall, auc, no_skill)
+
+def lasso_regression(x, y, c, multi_class="multinomial", penalty="l1", solver="saga",
+            max_iter=10000, fit_intercept=True):
+
+    clf_f = LogisticRegression(
+        C=c,
+        multi_class=multi_class,
+        penalty=penalty,
+        solver=solver,
+        max_iter=max_iter,
+        fit_intercept=fit_intercept,
+    ).fit(x,y)
+    return clf_f
+
+def choose_l1_penalty(x, y, Cs=100, cv=5,
+                      multi_class="multinomial", solver="saga",
+                      max_iter=10000, fit_intercept=True):
+
+    clf = LogisticRegressionCV(
+        Cs=Cs,
+        cv=cv,
+        multi_class=multi_class,
+        penalty='l1',
+        solver=solver,
+        max_iter=max_iter,
+        fit_intercept=fit_intercept,
+    ).fit(x, y)
+
+    best_c = cvlogistic.find_best_c(clf)
+    return best_c
+
+def prep_logit_reg_data(motif_list, max_count):
+    """Converts motif hit categories to X matrix of
+    dummy variables for logistic regression.
+    """
+
+    n = max_count + 1
+    max_cat = int(n*n - n*(n-1)/2)
+    possible_cats = [_ for _ in range(max_cat)]
+    rec_num = motif_list[0]['hits'].shape[0]
+
+    X = np.zeros((rec_num, max_cat*len(motif_list)))
+
+    var_lut = {}
+    col_idx = 0
+
+    for i in range(max_count):
+        for j in range(max_count):
+            if j < i:
+                continue
+            
+            hit = [i,j]
+            # get the appropriate motif
+            motif_idx = col_idx // max_cat
+            motif = motif_list[motif_idx]
+
+            rows = np.where(np.all(motif['hits'] == hit, axis=1))[0]
+            X[rows,col_idx] = 1
+
+            var_lut[col_idx] = {
+                'motif_idx': motif_idx,
+                'hits': hit,
+            }
+
+            col_idx += 1
+
+    return (X,var_lut)
 
 def wrangle_rust_motif(motif):
     """Take information in motif dictionary and reshapes arrays to create
