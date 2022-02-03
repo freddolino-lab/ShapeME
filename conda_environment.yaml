@@ -14,9 +14,9 @@ dependencies:
     - ipython
     - matplotlib
     - bioconductor-dnashaper
-    - r-glmnet
     - r-prroc
+    - r-glmnet
     - jupyter
     - rpy2
     - seaborn
-    - cython
+    - meme

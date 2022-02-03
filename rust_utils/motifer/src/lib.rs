@@ -2378,6 +2378,12 @@ impl Motif {
             &self.weights.weights_norm.view(),
             &self.threshold,
             max_count,
+        );
+        self.hits = db.get_hits(
+            &self.params.params.view(),
+            &self.weights.weights_norm.view(),
+            &self.threshold,
+            max_count,
         )
     }
 }

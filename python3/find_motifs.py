@@ -409,42 +409,36 @@ if __name__ == "__main__":
     #with open(good_motif_out_fname, 'wb') as outf:
     #    pickle.dump(good_motifs, outf)
 
-    smv.plot_optim_shapes_and_weights(
-        good_motifs,
-        good_motif_plot_fname,
-        records,
-    )
-
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-
     X,var_lut = inout.prep_logit_reg_data(good_motifs, max_count)
     y = records.y
     logging.info(
         "Running L1 regularized logistic regression with CV to determine reg param"
     )
 
-    best_c = inout.choose_l1_penalty(X, y)
-    clf_f = inout.lasso_regression(X,y,best_c)
-    logit_reg_info = {
-        'model': clf_f,
-        'var_lut': var_lut,
-    }
+    smv.plot_optim_shapes_and_weights(
+        good_motifs,
+        good_motif_plot_fname,
+        records,
+    )
 
-    with open(logit_reg_fname, 'wb') as outf:
-        pickle.dump(logit_reg_info, outf)
+    #best_c = inout.choose_l1_penalty(X, y)
+    #clf_f = inout.lasso_regression(X,y,best_c)
+    #logit_reg_info = {
+    #    'model': clf_f,
+    #    'var_lut': var_lut,
+    #}
 
-    good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
-    if len(good_motif_index) < 1:
-        logging.info("No motifs found")
-        sys.exit()
+    #with open(logit_reg_fname, 'wb') as outf:
+    #    pickle.dump(logit_reg_info, outf)
 
-    cvlogistic.write_coef_per_class(clf_f, coef_per_class_fname)
-    final_good_motifs = [good_motifs[index] for index in good_motif_index]
-    logging.info("{} motifs survived".format(len(final_good_motifs)))
+    #good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
+    #if len(good_motif_index) < 1:
+    #    logging.info("No motifs found")
+    #    sys.exit()
+
+    #cvlogistic.write_coef_per_class(clf_f, coef_per_class_fname)
+    #final_good_motifs = [good_motifs[index] for index in good_motif_index]
+    #logging.info("{} motifs survived".format(len(final_good_motifs)))
 
     #for motif in final_good_motifs:
     #    add_motif_metadata(this_records, motif) 

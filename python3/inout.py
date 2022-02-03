@@ -85,7 +85,7 @@ def prep_logit_reg_data(motif_list, max_count):
     """
 
     n = max_count + 1
-    max_cat = int(n*n - n*(n-1)/2)
+    max_cat = int(n*n - n*(n-1)/2) - 1 # minus one to get rid of [0,0] category
     possible_cats = [_ for _ in range(max_cat)]
     rec_num = motif_list[0]['hits'].shape[0]
 
@@ -94,8 +94,12 @@ def prep_logit_reg_data(motif_list, max_count):
     var_lut = {}
     col_idx = 0
 
-    for i in range(max_count):
-        for j in range(max_count):
+    for i in range(n):
+        for j in range(n):
+            # skip [0,0] case since that will be in intercept
+            if (i == 0) and (j == 0):
+                continue
+            # don't do lower triangle
             if j < i:
                 continue
             

@@ -8,16 +8,47 @@ import pickle
 import numpy as np
 import subprocess
 from pprint import pprint
+from matplotlib import pyplot as plt
+
+from rpy2.robjects.packages import importr
+import rpy2.robjects as ro
+from rpy2.robjects import numpy2ri
+numpy2ri.activate()
+# import R's "PRROC" package
+prroc = importr('PRROC')
+glmnet = importr('glmnet')
 
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
 
+def read_yvals(fname):
+    yvals = []
+    with open(fname, 'r') as f:
+        for line in f:
+            if line.startswith('name'):
+                continue
+            elements = line.strip().split('\t')
+            yvals.append(int(elements[1]))
+    return(np.asarray(yvals))
+
+def save_prc_plot(precision, recall, no_skill, plot_prefix):
+
+    plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
+    plt.plot(recall, prec, marker='.', label='Shape motifs')
+    plt.legend()
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.savefig(plot_prefix + ".png")
+    plt.savefig(plot_prefix + ".pdf")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
+    parser.add_argument('--training_yvals_file', type=str, required=True,
+            help="file containing ground truth y-values used for training")
     parser.add_argument('--params', nargs="+", type=str,
                          help='inputfiles with shape scores')
     parser.add_argument('--param_names', nargs="+", type=str,
@@ -89,6 +120,7 @@ if __name__ == "__main__":
     )
     records.shape_centers = np.asarray(args_dict['centers'])
     records.shape_spreads = np.asarray(args_dict['spreads'])
+    logging.info("Number of records in test data: {}.".format(len(records)))
 
     logging.info("Normalizing parameters")
     records.normalize_shape_values()
@@ -124,40 +156,90 @@ if __name__ == "__main__":
     if retcode != 0:
         sys.exit("Rust binary returned non-zero exit status")
 
-    good_motifs = inout.read_motifs_from_rust(
+    test_motifs = inout.read_motifs_from_rust(
         os.path.join(out_direc, "evaluated_motifs.json")
     )
-    X,var_lut = inout.prep_logit_reg_data(good_motifs, args_dict['max_count'])
-    y = records.y
-    ##################################################
-    ##################################################
-    ## I need to figure out how to appropriately handle
-    ##    strandedness and max count greater than 1
-    ##################################################
-    ##################################################
-    logging.info(
-        "Predicting classes from distance from motifs to records"
+    test_X,var_lut = inout.prep_logit_reg_data(test_motifs, args_dict['max_count'])
+    test_y = records.y
+
+    train_motifs = inout.read_motifs_from_rust(
+        os.path.join(out_direc, "rust_results.json")
+    )
+    train_X,var_lut = inout.prep_logit_reg_data(train_motifs, args_dict['max_count'])
+    train_y = read_yvals(os.path.join(in_direc, args.training_yvals_file))
+
+    row_n,col_n = test_X.shape
+    test_X_r = ro.r.matrix(
+        test_X,
+        nrow=test_X.shape[0],
+        ncol=test_X.shape[1],
+    )
+    test_y_r = ro.IntVector(test_y)
+
+    train_X_r = ro.r.matrix(
+        train_X,
+        nrow=train_X.shape[0],
+        ncol=train_X.shape[1],
+    )
+    train_y_r = ro.IntVector(train_y)
+
+    # fit lasso regression, choosing best lambda using 10-fold CV
+    shape_fit = glmnet.cv_glmnet(
+        train_X_r,
+        train_y_r,
+        family="binomial",
+        alpha=1,
+        folds=10,
+    )
+    # NOTE: TODO: go through coefficients and weed out motifs for which all "match"
+    #   coefficients are zero.
+    # predict on test data
+    # NOTE: needs updated for multiclass
+    yhat = glmnet.predict_cv_glmnet(
+        shape_fit,
+        newx=test_X_r,
+        s="lambda.1se",
+    )
+    no_skill = len(test_y[test_y==1]) / len(test_y)
+
+    yhat_peaks = yhat[test_y==1]
+    yhat_nonpeaks = yhat[test_y!=1]
+
+    r_yhat_peaks = ro.FloatVector(yhat_peaks)
+    r_yhat_nonpeaks = ro.FloatVector(yhat_nonpeaks)
+
+    auc = prroc.pr_curve(
+        scores_class0 = r_yhat_peaks,
+        scores_class1 = r_yhat_nonpeaks,
+        curve=True,
     )
 
-    with open(logit_reg_fname, 'rb') as f:
-        logit_reg_info = pickle.load(f)
+    auprc = auc.rx2['auc.davis.goadrich'][0]
+    prec = auc.rx2['curve'][:,1]
+    recall = auc.rx2['curve'][:,0]
+    thresholds = auc.rx2['curve'][:,2]
 
-    clf_f = logit_reg_info['model']
-    var_lut = logit_reg_info['var_lut']
-
-    yhat = clf_f.predict_proba(X)
-    prec, recall, auc, no_skill = inout.get_precision_recall(
-        yhat,
-        y,
-        plot_prefix=prc_prefix,
-    )
     output = {
         'precision': list(prec),
         'recall': list(recall),
-        'auc': auc,
+        'logit_threshold': list(thresholds),
+        'auc': auprc,
         'random_auc': no_skill,
+        'shape_fit': shape_fit,
     }
     with open(eval_out_fname, 'w') as f:
         json.dump(output, f, indent=1)
-    logging.info("Done evaluating motifs on test data")
+
+    save_prc_plot(
+        prec,
+        recall,
+        no_skill,
+        prc_prefix,
+    )
+
+    logging.info("Done evaluating motifs on test data.")
+    logging.info("Area under precision-recall curve: {}".format(auprc))
+    logging.info("Expected area under precision-recall curve for random: {}".format(no_skill))
+    logging.info("Results of evaluation are in {}".format(eval_out_fname))
+    logging.info("Precision recall curve plotted. Saved as {} and {}".format(prc_prefix+".png", prc_prefix+".pdf"))
 
