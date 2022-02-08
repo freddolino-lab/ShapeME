@@ -13,6 +13,8 @@ sys.path.insert(0, utils_path)
 import fasta as fa
 import peak as pk
 
+BASES = ['A','C','T','G']
+
 class FIREfile(object):
 
     def __init__(self):
@@ -85,7 +87,6 @@ def make_kfold_datasets(k, fastafile, firefile, outpre):
             this_test_fasta.write(outf)
         this_test_fire.write(outpre+"_test_%i.txt"%test_idx)
         
-
         # make a sperate fasta and fire file for the train folds
         this_train_fasta = fa.FastaFile()
         this_train_fire = FIREfile()
@@ -151,12 +152,15 @@ if __name__ == "__main__":
 
         #print("This peak chrom name: {}".format(peak.chrm))
         this_chrm = genome.pull_entry(peak.chrm)
-        this_entry.set_seq(
-            this_chrm.pull_seq(
-                max(peak_center - args.wsize,0), 
-                min(peak_center + args.wsize, len(this_chrm))
-            )
+        this_seq = this_chrm.pull_seq(
+            max(peak_center - args.wsize,0), 
+            min(peak_center + args.wsize, len(this_chrm)),
         )
+        if not set(list(this_seq)).issubset(BASES):
+            print("WARNING: skipping peak_{} because it contains at least one character not in {}".format(i,BASES))
+            continue
+        
+        this_entry.set_seq(this_seq)
         this_entry.set_header(">"+"peak_%i"%(i))
         outfasta.add_entry(this_entry)
         if args.discretize:

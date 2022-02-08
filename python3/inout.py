@@ -9,6 +9,7 @@ from scipy import sparse
 from collections import OrderedDict
 import pickle
 import json
+import sys
 import glob
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegressionCV
@@ -998,6 +999,8 @@ class RecordDatabase(object):
         X
         """
 
+        reverse_name_lut = {v:k for k,v in self.record_name_lut.items()}
+
         self.normalized = False
         shape_idx = 0
         shape_count = len(shape_dict)
@@ -1023,6 +1026,7 @@ class RecordDatabase(object):
 
             for rec_name,rec_data in this_shape_dict.items():
                 r_idx = self.record_name_lut[rec_name]
+
                 if shape_name in shift_params:
                     #while len(rec_data) < self.X.shape[1]:
                     rec_data = np.append(rec_data, np.nan)
@@ -1037,10 +1041,31 @@ class RecordDatabase(object):
                     self.X[r_idx,:,s_idx,1] = rec_data[::-1]
 
         if exclude_na:
-            # identifies which positions have at least one NA for any shape
-            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2,3))
-            # grabs complete cases from X
-            self.X = self.X[:,complete_positions,:,:]
+
+            # remove the first- and final two bases from each shape/record
+            self.X = self.X[:,2:-2,:,:]
+            # identifies which positions have at least one NA for any record
+            complete_records = ~np.any(np.isnan(self.X), axis=(1,2,3))
+            incomplete_records = ~complete_records
+            # remove na-containing records from X and y
+            self.X = self.X[complete_records, ...]
+            self.y = self.y[complete_records]
+
+            # remove na-containing record names from lut
+            for i,incomplete in enumerate(incomplete_records):
+                if incomplete:
+                    del reverse_name_lut[i]
+            self.record_name_lut = {v:k for k,v in reverse_name_lut.items()}
+
+            has_na = np.any(np.isnan(self.X))
+
+            if has_na:
+                try:
+                    raise Exception()
+                except Exception as e:
+                    logging.error("ERROR: after clipping the first, and final two base pairs from all records in the input data, NaN values remained! Exiting the script now. Thoroughly examine your input data for non-canonical bases and other potential causes of this issue.")
+                    sys.exit()
+            self.complete_records = complete_records
 
     #def set_center_spread(self, center_spread):
     #    """Method to set the center spread for the database for each

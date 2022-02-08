@@ -1,4 +1,5 @@
 import inout
+import fimopytools as fimo
 import logging
 import argparse
 import sys
@@ -34,14 +35,113 @@ def read_yvals(fname):
     return(np.asarray(yvals))
 
 def save_prc_plot(precision, recall, no_skill, plot_prefix):
-
     plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
     plt.plot(recall, prec, marker='.', label='Shape motifs')
     plt.legend()
     plt.xlabel("Recall")
     plt.ylabel("Precision")
+    plt.ylim([-0.02,1.02])
     plt.savefig(plot_prefix + ".png")
     plt.savefig(plot_prefix + ".pdf")
+
+def get_X_and_y_from_motifs(fname, max_count, rec_db):
+    motifs = inout.read_motifs_from_rust(fname)
+    X,var_lut = inout.prep_logit_reg_data(motifs, max_count)
+    y = rec_db.y
+    return(X,y,var_lut)
+
+def train_glmnet(X,y,folds=10,family='binomial',alpha=1):
+    X_r = ro.r.matrix(
+        X,
+        nrow=X.shape[0],
+        ncol=X.shape[1],
+    )
+    y_r = ro.IntVector(y)
+
+    # fit lasso regression, choosing best lambda using 10-fold CV
+    fit = glmnet.cv_glmnet(
+        X_r,
+        y_r,
+        family=family,
+        alpha=alpha,
+        folds=folds,
+    )
+    return fit
+
+def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
+
+    test_X_r = ro.r.matrix(
+        test_X,
+        nrow=test_X.shape[0],
+        ncol=test_X.shape[1],
+    )
+
+    yhat = glmnet.predict_cv_glmnet(
+        fit,
+        newx=test_X_r,
+        s=lambda_cut,
+    )
+    no_skill = len(test_y[test_y==1]) / len(test_y)
+
+    yhat_peaks = yhat[test_y==1]
+    yhat_nonpeaks = yhat[test_y!=1]
+
+    r_yhat_peaks = ro.FloatVector(yhat_peaks)
+    r_yhat_nonpeaks = ro.FloatVector(yhat_nonpeaks)
+
+    auc = prroc.pr_curve(
+        scores_class0 = r_yhat_peaks,
+        scores_class1 = r_yhat_nonpeaks,
+        curve=True,
+    )
+
+    auprc = auc.rx2['auc.davis.goadrich'][0]
+    prec = auc.rx2['curve'][:,1]
+    recall = auc.rx2['curve'][:,0]
+    thresholds = auc.rx2['curve'][:,2]
+
+    output = {
+        'precision': list(prec),
+        'recall': list(recall),
+        'logit_threshold': list(thresholds),
+        'auc': auprc,
+        'random_auc': no_skill,
+    }
+
+    return output
+
+def read_records(args_dict, in_direc, infile, param_names, param_files, continuous=None, dset_type="training"):
+
+    logging.info("Reading in files")
+    # read in shapes
+    shape_fname_dict = {
+        n:os.path.join(in_direc,fname) for n,fname
+        in zip(param_names, param_files)
+    }
+    logging.info("Reading input data and shape info.")
+    records = inout.RecordDatabase(
+        os.path.join(in_direc, infile),
+        shape_fname_dict,
+        shift_params = ["Roll", "HelT"],
+    )
+    records.shape_centers = np.asarray(args_dict['centers'])
+    records.shape_spreads = np.asarray(args_dict['spreads'])
+    logging.info("Number of records in {} data: {}.".format(dset_type, len(records)))
+
+    logging.info("Normalizing parameters")
+    records.normalize_shape_values()
+
+    # read in the values associated with each sequence and store them
+    # in the sequence database
+    if continuous is not None:
+        #records.read(args.infile, float)
+        #logging.info("Discretizing data")
+        #records.discretize_quant(args.continuous)
+        #logging.info("Quantizing input data using k-means clustering")
+        records.quantize_quant(continuous)
+    return records
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -49,12 +149,19 @@ if __name__ == "__main__":
             help="number of bins to discretize continuous input data with")
     parser.add_argument('--training_yvals_file', type=str, required=True,
             help="file containing ground truth y-values used for training")
-    parser.add_argument('--params', nargs="+", type=str,
-                         help='inputfiles with shape scores')
+    parser.add_argument('--test_fimo_file', type=str, default=None,
+            help="full path to tsv file containing fimo output for a sequence motif matched on held-out test data")
+    parser.add_argument('--train_fimo_file', type=str, default=None,
+            help="full path to tsv file containing fimo output for a sequence motif matched on training data")
+    parser.add_argument('--test_params', nargs="+", type=str,
+                         help='inputfiles with test shape scores')
+    parser.add_argument('--train_params', nargs="+", type=str,
+                         help='inputfiles with training shape scores')
     parser.add_argument('--param_names', nargs="+", type=str,
                          help='parameter names')
     parser.add_argument('--data_dir', type=str, help="Directory containing data")
-    parser.add_argument('--infile', type=str, help="File with peak names and y-vals")
+    parser.add_argument('--train_infile', type=str, help="File with peak names and y-vals")
+    parser.add_argument('--test_infile', type=str, help="File with peak names and y-vals")
     parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
     parser.add_argument('-p', type=int, help="Number of cores to run in parallel")
     parser.add_argument('-o', type=str, help="Prefix to prepent to output files.")
@@ -83,14 +190,19 @@ if __name__ == "__main__":
     shape_fname = os.path.join(out_direc, 'test_shapes.npy')
     yval_fname = os.path.join(out_direc, 'test_y_vals.npy')
     config_fname = os.path.join(out_direc, 'config.json')
-    rust_out_fname = os.path.join(out_direc, 'test_rust_motifs.json')
-    eval_out_fname = os.path.join(out_direc, 'precision_recall.json')
-    prc_prefix = os.path.join(out_direc, 'precision_recall_curve')
+    rust_motifs_fname = os.path.join(out_direc, 'rust_results.json')
+    eval_out_fname = os.path.join(out_direc, 'shape_precision_recall.json')
+    seq_eval_out_fname = os.path.join(out_direc, 'seq_precision_recall.json')
+    seq_and_shape_eval_out_fname = os.path.join(out_direc, 'seq_and_shape_precision_recall.json')
+    prc_prefix = os.path.join(out_direc, 'shape_precision_recall_curve')
+    seq_prc_prefix = os.path.join(out_direc, 'seq_precision_recall_curve')
+    seq_and_shape_prc_prefix = os.path.join(out_direc, 'seq_and_shape_precision_recall_curve')
     out_pref = args.o
     
-    logit_reg_fname = os.path.join(
+    logit_reg_str = "{}_{}_logistic_regression_result.pkl"
+    shape_logit_reg_fname = os.path.join(
         out_direc,
-        "{}_logistic_regression_result.pkl".format(out_pref).replace('test','train'),
+        logit_reg_str.format(out_pref.replace('test','train'), "shape"),
     )
 
     with open(config_fname, 'r') as f:
@@ -106,140 +218,203 @@ if __name__ == "__main__":
 
     pprint(args_dict)
 
-    logging.info("Reading in files")
-    # read in shapes
-    shape_fname_dict = {
-        n:os.path.join(in_direc,fname) for n,fname
-        in zip(args.param_names, args.params)
-    }
-    logging.info("Reading input data and shape info.")
-    records = inout.RecordDatabase(
-        os.path.join(in_direc, args.infile),
-        shape_fname_dict,
-        shift_params = ["Roll", "HelT"],
+    test_records = read_records(
+        args_dict,
+        in_direc,
+        args.test_infile,
+        args.param_names,
+        args.test_params,
+        continuous=args.continuous,
+        dset_type="test",
     )
-    records.shape_centers = np.asarray(args_dict['centers'])
-    records.shape_spreads = np.asarray(args_dict['spreads'])
-    logging.info("Number of records in test data: {}.".format(len(records)))
-
-    logging.info("Normalizing parameters")
-    records.normalize_shape_values()
-
-    # read in the values associated with each sequence and store them
-    # in the sequence database
-    if args.continuous is not None:
-        #records.read(args.infile, float)
-        #logging.info("Discretizing data")
-        #records.discretize_quant(args.continuous)
-        #logging.info("Quantizing input data using k-means clustering")
-        records.quantize_quant(args.continuous)
 
     # write shapes to npy file. Permute axes 1 and 2.
     with open(shape_fname, 'wb') as shape_f:
-        np.save(shape_fname, records.X.transpose((0,2,1,3)))
+        np.save(shape_fname, test_records.X.transpose((0,2,1,3)))
     # write y-vals to npy file.
     with open(yval_fname, 'wb') as f:
-        np.save(f, records.y.astype(np.int64))
+        np.save(f, test_records.y.astype(np.int64))
 
     logging.info("Distribution of sequences per class:")
-    logging.info(inout.seqs_per_bin(records))
+    logging.info(inout.seqs_per_bin(test_records))
 
     logging.info("Getting distance between motifs and each record")
 
-    RUST = "{} {}".format(
-        rust_bin,
-        config_fname,
+    train_records = read_records(
+        args_dict,
+        in_direc,
+        args.train_infile,
+        args.param_names,
+        args.train_params,
+        continuous=args.continuous,
+        dset_type="training",
     )
 
-    retcode = subprocess.call(RUST, shell=True, env=my_env)
+    if os.path.isfile(rust_motifs_fname):
+        RUST = "{} {}".format(
+            rust_bin,
+            config_fname,
+        )
 
-    if retcode != 0:
-        sys.exit("Rust binary returned non-zero exit status")
+        retcode = subprocess.call(RUST, shell=True, env=my_env)
 
-    test_motifs = inout.read_motifs_from_rust(
-        os.path.join(out_direc, "evaluated_motifs.json")
-    )
-    test_X,var_lut = inout.prep_logit_reg_data(test_motifs, args_dict['max_count'])
-    test_y = records.y
+        if retcode != 0:
+            sys.exit("Rust binary returned non-zero exit status")
 
-    train_motifs = inout.read_motifs_from_rust(
-        os.path.join(out_direc, "rust_results.json")
-    )
-    train_X,var_lut = inout.prep_logit_reg_data(train_motifs, args_dict['max_count'])
-    train_y = read_yvals(os.path.join(in_direc, args.training_yvals_file))
+        test_X,test_y,var_lut = get_X_and_y_from_motifs(
+            os.path.join(out_direc, "evaluated_motifs.json"),
+            args_dict['max_count'],
+            test_records,
+        )
 
-    row_n,col_n = test_X.shape
-    test_X_r = ro.r.matrix(
-        test_X,
-        nrow=test_X.shape[0],
-        ncol=test_X.shape[1],
-    )
-    test_y_r = ro.IntVector(test_y)
+        train_X,train_y,_ = get_X_and_y_from_motifs(
+            os.path.join(out_direc, "rust_results.json"),
+            args_dict['max_count'],
+            train_records,
+        )
 
-    train_X_r = ro.r.matrix(
-        train_X,
-        nrow=train_X.shape[0],
-        ncol=train_X.shape[1],
-    )
-    train_y_r = ro.IntVector(train_y)
+        shape_fit = train_glmnet(
+            train_X,
+            train_y,
+            folds=10,
+            family='binomial',
+            alpha=1,
+        )
 
-    # fit lasso regression, choosing best lambda using 10-fold CV
-    shape_fit = glmnet.cv_glmnet(
-        train_X_r,
-        train_y_r,
-        family="binomial",
-        alpha=1,
-        folds=10,
-    )
-    # NOTE: TODO: go through coefficients and weed out motifs for which all "match"
-    #   coefficients are zero.
-    # predict on test data
-    # NOTE: needs updated for multiclass
-    yhat = glmnet.predict_cv_glmnet(
-        shape_fit,
-        newx=test_X_r,
-        s="lambda.1se",
-    )
-    no_skill = len(test_y[test_y==1]) / len(test_y)
+        # NOTE: TODO: go through coefficients and weed out motifs for which all "match"
+        #   coefficients are zero.
+        # predict on test data
+        # NOTE: needs updated for multiclass
+        shape_output = evaluate_fit(
+            shape_fit,
+            test_X,
+            test_y,
+            lambda_cut="lambda.1se",
+        )
 
-    yhat_peaks = yhat[test_y==1]
-    yhat_nonpeaks = yhat[test_y!=1]
+        with open(eval_out_fname, 'w') as f:
+            json.dump(shape_output, f, indent=1)
 
-    r_yhat_peaks = ro.FloatVector(yhat_peaks)
-    r_yhat_nonpeaks = ro.FloatVector(yhat_nonpeaks)
+        with open(shape_logit_reg_fname, 'wb') as f:
+            pickle.dump(shape_fit, f)
 
-    auc = prroc.pr_curve(
-        scores_class0 = r_yhat_peaks,
-        scores_class1 = r_yhat_nonpeaks,
-        curve=True,
-    )
+        save_prc_plot(
+            shape_output['precision'],
+            shape_output['recall'],
+            no_skill,
+            prc_prefix,
+        )
 
-    auprc = auc.rx2['auc.davis.goadrich'][0]
-    prec = auc.rx2['curve'][:,1]
-    recall = auc.rx2['curve'][:,0]
-    thresholds = auc.rx2['curve'][:,2]
+        logging.info("Done evaluating shape motifs on test data.")
+        logging.info("==========================================")
+        logging.info("Area under precision-recall curve: {}".format(shape_output['auc']))
+        logging.info(
+            "Expected area under precision-recall curve for random: {}".format(shape_output['random_auc'])
+        )
+        logging.info("Results of evaluation are in {}".format(eval_out_fname))
+        logging.info(
+            "Precision recall curve plotted. Saved as {} and {}".format(
+                prc_prefix+".png",
+                prc_prefix+".pdf",
+            )
+        )
 
-    output = {
-        'precision': list(prec),
-        'recall': list(recall),
-        'logit_threshold': list(thresholds),
-        'auc': auprc,
-        'random_auc': no_skill,
-        'shape_fit': shape_fit,
-    }
-    with open(eval_out_fname, 'w') as f:
-        json.dump(output, f, indent=1)
+    if args.test_fimo_file is not None:
 
-    save_prc_plot(
-        prec,
-        recall,
-        no_skill,
-        prc_prefix,
-    )
+        
+        train_seq_matches = fimo.FimoFile()
+        train_seq_matches.parse(args.train_fimo_file)
+        train_seq_X = train_seq_matches.get_design_matrix(train_records)
 
-    logging.info("Done evaluating motifs on test data.")
-    logging.info("Area under precision-recall curve: {}".format(auprc))
-    logging.info("Expected area under precision-recall curve for random: {}".format(no_skill))
-    logging.info("Results of evaluation are in {}".format(eval_out_fname))
-    logging.info("Precision recall curve plotted. Saved as {} and {}".format(prc_prefix+".png", prc_prefix+".pdf"))
+        seq_fit = train_glmnet(
+            train_seq_X,
+            train_y,
+            folds=10,
+            family='binomial',
+            alpha=1,
+        )
 
+        test_seq_matches = fimo.FimoFile()
+        test_seq_matches.parse(args.test_fimo_file)
+        test_seq_X = test_seq_matches.get_design_matrix(records)
+
+        seq_output = evaluate_fit(
+            seq_fit,
+            test_seq_X,
+            test_y,
+            lambda_cut="lambda.1se",
+        )
+        seq_logit_reg_fname = os.path.join(
+            out_direc,
+            logit_reg_str.format(out_pref.replace('test','train'), "sequence"),
+        )
+
+        save_prc_plot(
+            seq_output['precision'],
+            seq_output['recall'],
+            no_skill,
+            seq_prc_prefix,
+        )
+
+        with open(seq_eval_out_fname, 'w') as f:
+            json.dump(seq_output, f, indent=1)
+
+        logging.info("Done evaluating sequence motifs on test data.")
+        logging.info("==========================================")
+        logging.info("Area under precision-recall curve: {}".format(seq_output['auc']))
+        logging.info(
+            "Expected area under precision-recall curve for random: {}".format(seq_output['random_auc'])
+        )
+        logging.info("Results of evaluation are in {}".format(seq_eval_out_fname))
+        logging.info(
+            "Precision recall curve plotted. Saved as {} and {}".format(
+                seq_prc_prefix+".png",
+                seq_prc_prefix+".pdf",
+            )
+        )
+
+        if os.path.isfile(rust_motifs_fname):
+            train_seq_and_shape_X = np.append(train_X, train_seq_X, axis=1)
+            test_seq_and_shape_X = np.append(test_X, test_seq_X, axis=1)
+
+            seq_and_shape_fit = train_glmnet(
+                train_seq_and_shape_X,
+                train_y,
+                folds=10,
+                family='binomial',
+                alpha=1,
+            )
+            seq_and_shape_output = evaluate_fit(
+                seq_and_shape_fit,
+                test_seq_and_shape_X,
+                test_y,
+                lambda_cut="lambda.1se",
+            )
+            seq_shape_logit_reg_fname = os.path.join(
+                out_direc,
+                logit_reg_str.format(out_pref.replace('test','train'), "sequence_and_shape"),
+            )
+
+            save_prc_plot(
+                seq_and_shape_output['precision'],
+                seq_and_shape_output['recall'],
+                no_skill,
+                seq_and_shape_prc_prefix,
+            )
+
+            with open(seq_and_shape_eval_out_fname, 'w') as f:
+                json.dump(seq_and_shape_output, f, indent=1)
+
+            logging.info("Done evaluating sequence and shape motifs together on test data.")
+            logging.info("==========================================")
+            logging.info("Area under precision-recall curve: {}".format(seq_and_shape_output['auc']))
+            logging.info(
+                "Expected area under precision-recall curve for random: {}".format(seq_and_shape_output['random_auc'])
+            )
+            logging.info("Results of evaluation are in {}".format(seq_and_shape_eval_out_fname))
+            logging.info(
+                "Precision recall curve plotted. Saved as {} and {}".format(
+                    seq_and_shape_prc_prefix+".png",
+                    seq_and_shape_prc_prefix+".pdf",
+                )
+            )

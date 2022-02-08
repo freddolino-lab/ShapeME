@@ -1,6 +1,7 @@
 use motifer;
 use optim;
 use ndarray_npy;
+use std::process;
 use std::path;
 use std::env;
 use std::time;
@@ -70,6 +71,10 @@ fn main() {
         motifs.append(these_motifs);
     }
 
+    if motifs.len() == 0 {
+        println!("No motifs found. Exiting now.");
+        process::exit(0x0100);
+    }
     println!("{} seeds collected during initial batched evaluation.", motifs.len());
     let mut motifs = motifs.filter_motifs(
         &rec_db,

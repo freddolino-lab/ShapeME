@@ -254,6 +254,7 @@ if __name__ == "__main__":
         shape_fname_dict,
         shift_params = ["Roll", "HelT"],
     )
+    assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
 
     # read in the values associated with each sequence and store them
     # in the sequence database
@@ -409,11 +410,11 @@ if __name__ == "__main__":
     #with open(good_motif_out_fname, 'wb') as outf:
     #    pickle.dump(good_motifs, outf)
 
-    X,var_lut = inout.prep_logit_reg_data(good_motifs, max_count)
-    y = records.y
-    logging.info(
-        "Running L1 regularized logistic regression with CV to determine reg param"
-    )
+    #X,var_lut = inout.prep_logit_reg_data(good_motifs, max_count)
+    #y = records.y
+    #logging.info(
+    #    "Running L1 regularized logistic regression with CV to determine reg param"
+    #)
 
     smv.plot_optim_shapes_and_weights(
         good_motifs,
