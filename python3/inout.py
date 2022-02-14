@@ -836,6 +836,7 @@ class RecordDatabase(object):
                  shift_params=["HelT", "Roll"],
                  exclude_na=True):
 
+        self.record_name_list = []
         self.record_name_lut = {}
         self.shape_name_lut = {}
         if X is None:
@@ -977,7 +978,7 @@ class RecordDatabase(object):
                 #    if not i in keep_inds:
                 #        continue
                 linearr = line.rstrip().split("\t")
-                self.record_name_lut[linearr[0]] = i
+                self.record_name_list.append(linearr[0])
                 scores.append(linearr[1])
             self.y = np.asarray(
                 scores,
@@ -999,11 +1000,13 @@ class RecordDatabase(object):
         X
         """
 
-        reverse_name_lut = {v:k for k,v in self.record_name_lut.items()}
 
         self.normalized = False
         shape_idx = 0
         shape_count = len(shape_dict)
+
+        for i,rec_name in enumerate(self.record_name_list):
+            self.record_name_lut[rec_name] = i
 
         for shape_name,shape_infname in shape_dict.items():
 
@@ -1050,12 +1053,15 @@ class RecordDatabase(object):
             # remove na-containing records from X and y
             self.X = self.X[complete_records, ...]
             self.y = self.y[complete_records]
+            self.record_name_list = [
+                name for (name,complete)
+                in zip(self.record_name_list, complete_records)
+                if complete
+            ]
 
-            # remove na-containing record names from lut
-            for i,incomplete in enumerate(incomplete_records):
-                if incomplete:
-                    del reverse_name_lut[i]
-            self.record_name_lut = {v:k for k,v in reverse_name_lut.items()}
+            self.record_name_lut = {}
+            for i,rec_name in enumerate(self.record_name_list):
+                self.record_name_lut[rec_name] = i
 
             has_na = np.any(np.isnan(self.X))
 

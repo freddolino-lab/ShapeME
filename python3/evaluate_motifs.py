@@ -34,15 +34,43 @@ def read_yvals(fname):
             yvals.append(int(elements[1]))
     return(np.asarray(yvals))
 
-def save_prc_plot(precision, recall, no_skill, plot_prefix):
-    plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
-    plt.plot(recall, prec, marker='.', label='Shape motifs')
+def save_prc_plot(precision, recall, plot_prefix, plot_label, no_skill=None):
+
+    if no_skill is not None:
+        plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
+    plt.plot(recall, precision, marker='.', label=plot_label)
     plt.legend()
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.ylim([-0.02,1.02])
     plt.savefig(plot_prefix + ".png")
     plt.savefig(plot_prefix + ".pdf")
+    plt.close()
+
+def save_combined_prc_plot(results, plot_prefix):
+
+    for i,(data_type,type_results) in enumerate(results.items()):
+        if i == 0:
+            plt.plot(
+                [0,1],
+                [type_results['random_auc'],type_results['random_auc']],
+                linestyle='--',
+                label="Random",
+            )
+        plt.plot(
+            type_results['recall'],
+            type_results['precision'],
+            marker='.',
+            label=data_type,
+        )
+    plt.legend()
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.ylim([-0.02, 1.02])
+    plt.xlim([-0.02, 1.02])
+    plt.savefig(plot_prefix + ".png")
+    plt.savefig(plot_prefix + ".pdf")
+    plt.close()
 
 def get_X_and_y_from_motifs(fname, max_count, rec_db):
     motifs = inout.read_motifs_from_rust(fname)
@@ -80,7 +108,9 @@ def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
         fit,
         newx=test_X_r,
         s=lambda_cut,
-    )
+    )  
+    print("yhat: {}".format(yhat))
+    print(yhat.shape)
     no_skill = len(test_y[test_y==1]) / len(test_y)
 
     yhat_peaks = yhat[test_y==1]
@@ -88,6 +118,9 @@ def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
 
     r_yhat_peaks = ro.FloatVector(yhat_peaks)
     r_yhat_nonpeaks = ro.FloatVector(yhat_nonpeaks)
+
+    print(yhat_peaks.shape)
+    print(yhat_nonpeaks.shape)
 
     auc = prroc.pr_curve(
         scores_class0 = r_yhat_peaks,
@@ -112,6 +145,7 @@ def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
 
 def read_records(args_dict, in_direc, infile, param_names, param_files, continuous=None, dset_type="training"):
 
+    print("Infile: {}".format(infile))
     logging.info("Reading in files")
     # read in shapes
     shape_fname_dict = {
@@ -134,11 +168,8 @@ def read_records(args_dict, in_direc, infile, param_names, param_files, continuo
     # read in the values associated with each sequence and store them
     # in the sequence database
     if continuous is not None:
-        #records.read(args.infile, float)
-        #logging.info("Discretizing data")
-        #records.discretize_quant(args.continuous)
-        #logging.info("Quantizing input data using k-means clustering")
         records.quantize_quant(continuous)
+
     return records
 
 
@@ -147,8 +178,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
-    parser.add_argument('--training_yvals_file', type=str, required=True,
-            help="file containing ground truth y-values used for training")
     parser.add_argument('--test_fimo_file', type=str, default=None,
             help="full path to tsv file containing fimo output for a sequence motif matched on held-out test data")
     parser.add_argument('--train_fimo_file', type=str, default=None,
@@ -197,6 +226,7 @@ if __name__ == "__main__":
     prc_prefix = os.path.join(out_direc, 'shape_precision_recall_curve')
     seq_prc_prefix = os.path.join(out_direc, 'seq_precision_recall_curve')
     seq_and_shape_prc_prefix = os.path.join(out_direc, 'seq_and_shape_precision_recall_curve')
+    combined_plot_prefix = os.path.join(out_direc, 'combined_precision_recall_curve')
     out_pref = args.o
     
     logit_reg_str = "{}_{}_logistic_regression_result.pkl"
@@ -301,8 +331,9 @@ if __name__ == "__main__":
         save_prc_plot(
             shape_output['precision'],
             shape_output['recall'],
-            no_skill,
             prc_prefix,
+            "Shape motifs",
+            shape_output['random_auc'],
         )
 
         logging.info("Done evaluating shape motifs on test data.")
@@ -336,7 +367,7 @@ if __name__ == "__main__":
 
         test_seq_matches = fimo.FimoFile()
         test_seq_matches.parse(args.test_fimo_file)
-        test_seq_X = test_seq_matches.get_design_matrix(records)
+        test_seq_X = test_seq_matches.get_design_matrix(test_records)
 
         seq_output = evaluate_fit(
             seq_fit,
@@ -352,8 +383,9 @@ if __name__ == "__main__":
         save_prc_plot(
             seq_output['precision'],
             seq_output['recall'],
-            no_skill,
             seq_prc_prefix,
+            "Sequence motif",
+            seq_output['random_auc'],
         )
 
         with open(seq_eval_out_fname, 'w') as f:
@@ -398,8 +430,20 @@ if __name__ == "__main__":
             save_prc_plot(
                 seq_and_shape_output['precision'],
                 seq_and_shape_output['recall'],
-                no_skill,
                 seq_and_shape_prc_prefix,
+                "Sequence and shape motifs",
+                seq_and_shape_output['random_auc'],
+            )
+
+            combined_results = {
+                'Shape':shape_output,
+                'Sequence':seq_output,
+                'Shape and sequence':seq_and_shape_output,
+            }
+
+            save_combined_prc_plot(
+                combined_results,
+                combined_plot_prefix,
             )
 
             with open(seq_and_shape_eval_out_fname, 'w') as f:

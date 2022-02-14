@@ -2,6 +2,9 @@
 where ONE motif was searched
 """
 
+import numpy as np
+from pprint import pprint
+
 class FimoLine(object):
 
     def __init__(self, line=None):
@@ -78,8 +81,14 @@ class FimoFile(object):
 
     def parse(self, fname):
         with open(fname) as inf:
+            # skip first line
             inf.readline()
-            for line in inf:
+            for i,line in enumerate(inf):
+                # skip comments
+                if line.startswith("#"):
+                    continue
+                if line == "\n":
+                    continue
                 this_line = FimoLine(line)
                 if this_line.seqname in self.data:
                     self.data[this_line.seqname].append(this_line)
@@ -93,11 +102,14 @@ class FimoFile(object):
         return self.data[name]
 
     def get_design_matrix(self, rec_db):
-        # set up array of zeros with n_records rows and one column
-        X = np.zeros((len(rec_db),1))
+        # set up array of zeros with n_records rows. First column if for misses,
+        #  second column is for hits.
+        X = np.zeros((len(rec_db),2))
         for rec_name,rec_idx in rec_db.record_name_lut.items():
             # if this record's name is in the fimo hits, set its index in X to 1
             if rec_name in self.names:
+                X[rec_idx,1] = 1
+            else:
                 X[rec_idx,0] = 1
         return X
 
