@@ -3,14 +3,15 @@
 import inout
 import numpy as np
 import os
+import sys
 import argparse
 import subprocess
+from pathlib import Path
+
+this_path = Path(__file__).parent.absolute()
 
 """
-A script for generating a synthetic dataset for testing motif identification
-tools. Generates N records with Y peaks. Calls DNAShapeR on the sequences and
-creates an inout.RecordDatabase object, then writes the recorddatabase as a
-pickle file.
+Creates a reference genome and its associated y-values file.
 """
 
 def random_sequence_generator(length=60):
@@ -37,12 +38,44 @@ def make_random_seqs(n_records, length=60):
 
     return fa_seqs
 
-def make_binary_y_vals(n_records, frac_true=0.2):
-    '''Make vector of ground-truth'''
+#def make_binary_y_vals(n_records, frac_true=0.2):
+#    '''Make vector of ground-truth'''
+#
+#    y_vals = np.random.binomial(1, p=frac_true, size=n_records)
+#    return y_vals
 
-    y_vals = np.random.binomial(1, p=frac_true, size=n_records)
+def make_categorical_y_vals(n_records, weights=None, n_cats=10):
+    '''Make vector of categorical input values'''
+    if weights is None:
+        weights = np.tile(1.0/n_cats, n_cats)
+    y_vals = np.arange(n_cats)
+    y_vals = np.random.choice(y_vals, n_records, p=weights)
+    # randomly shuffle categories
+    np.random.shuffle(y_vals)
     return y_vals
 
+def make_continuous_y_vals(n_records, cat_centers, cat_sd, noise_center, noise_sd, n_cats=10):
+
+    # error out if user didn't pass correct number of centers
+    assert len(cat_centers) == n_cats, "ERROR: the number of category centers passed to make_continuous_y_vals must match the number of categories!"
+    y_cats = make_categorical_y_vals(n_records, n_cats)
+    if isinstance(cat_sd, float):
+        cat_sd = np.repeat(cat_sd, n_cats)
+    print(cat_sd)
+    # set up y-vals array as noise
+    y_vals = np.random.normal(noise_center, noise_sd, n_records)
+    for category in range(n_cats):
+        n_cat_records = len(y_cats[y_cats == category])
+        # sample n_cat_records time from this category's mean/sd
+        samples = np.random.normal(
+            cat_centers[category],
+            cat_sd[category],
+            n_cat_records,
+        )
+        # add category value to the noise that's already present
+        y_vals[y_cats == category] += samples
+    return y_vals,y_cats
+    
 
 def substitute_motif(fa_rec, motif_seq, count_by_strand = (1,0),
                      inter_motif_dist = 5, motif_pos = None):
@@ -100,7 +133,7 @@ def complement(sequence):
     return ''.join(comp_seq)[::-1]
 
 
-def substitute_motif_into_records(fa_file, y_vals, motif_seq,
+def substitute_motif_into_records(fa_file, y_cats, motif_seq,
                                   count_by_strand = (1,0),
                                   inter_motif_distance = 5,
                                   motif_pos = None, yval=1, motif_frac = 1.0):
@@ -109,7 +142,7 @@ def substitute_motif_into_records(fa_file, y_vals, motif_seq,
     '''
 
     for i,fa_entry in enumerate(fa_file):
-        y = y_vals[i]
+        y = y_cats[i]
         if y == yval:
             if np.random.rand(1) < motif_frac:
                 substitute_motif(
@@ -133,8 +166,8 @@ def main():
                          help="prefix to place at beginning of output file names.")
     parser.add_argument('--seqlen', action='store', type=int, default=60,
                          help="Length of sequences in synthetic dataset (default is 60).")
-    parser.add_argument('--motif', action='store', type=str,
-                         help="Sequence of the motif to place in the peaks")
+    parser.add_argument('--motifs', action='store', type=str, nargs='+',
+                         help="Space-separated list of sequences of the motifs to place in the peaks")
     parser.add_argument('--motif_peak_frac', action='store', type=float, default=1.0,
                          help="Fraction of peaks to place motif into (default is 1.0)")
     parser.add_argument('--motif_nonpeak_frac', action='store', type=float, default=0.0,
@@ -145,14 +178,19 @@ def main():
                          help="Number of occurances of the motif in the minus strand")
     parser.add_argument('--inter-motif-distance', action='store', type=int, default=5,
                          help="Distance between motif occurrances")
+    parser.add_argument('--dtype', action='store', type=str, choices=['continuous','categorical'],
+                        help="The type of data to be output.")
+    parser.add_argument('--ncats', action='store', type=int, default=2, help="The number of categories.")
 
     args = parser.parse_args()
 
+    dtype = args.dtype
+    ncats = args.ncats
     out_dir = args.outdir
     seq_len = args.seqlen
     rec_num = args.recnum
     frac_peaks = args.fracpeaks
-    motif = args.motif
+    motifs = args.motifs
     plus_strand_count = args.motif_count_plus
     minus_strand_count = args.motif_count_minus
     inter_motif_dist = args.inter_motif_distance
@@ -160,42 +198,95 @@ def main():
     motif_nonpeak_frac = args.motif_nonpeak_frac
     out_pre = args.outpre
 
-    motif_len = len(motif)
+    motif_len = len(motifs[0])
 
     fa_seqs = make_random_seqs(rec_num, length = seq_len)
-    y_vals = make_binary_y_vals(rec_num, frac_true = frac_peaks)
 
-    # fa_seqs modified in-place here to include the motif at a 
-    #  randomly chosen site in each record where y_val is 1
-    substitute_motif_into_records(
-        fa_seqs,
-        y_vals,
-        motif,
-        (plus_strand_count, minus_strand_count),
-        inter_motif_dist,
-        yval = 1,
-        motif_frac = motif_peak_frac,
-    )
+    if dtype == 'categorical':
 
-    substitute_motif_into_records(
-        fa_seqs,
-        y_vals,
-        motif,
-        (1, 0),
-        0,
-        yval = 0,
-        motif_frac = motif_nonpeak_frac,
-    )
+        if ncats == 2:
+            # weights as [0.75, 0.25] will give about 3x as many 0's as 1's
+            y_vals = make_categorical_y_vals(rec_num, weights=[0.8, 0.2], n_cats=ncats)
+            # fa_seqs modified in-place here to include the motif at a 
+            #  randomly chosen site in each record where y_val is cat
+            substitute_motif_into_records(
+                fa_seqs,
+                y_vals,
+                motifs[0],
+                (plus_strand_count, minus_strand_count),
+                inter_motif_dist,
+                yval = 1,
+                motif_frac = motif_peak_frac,
+            )
 
-    substitute_motif_into_records(
-        fa_seqs,
-        y_vals,
-        motif,
-        (0, 1),
-        0,
-        yval = 0,
-        motif_frac = motif_nonpeak_frac,
-    )
+
+        else:
+            # approximately even number of records per category
+            y_vals = make_categorical_y_vals(rec_num, n_cats=ncats)
+
+            for motif,cat in zip(motifs, np.unique(y_vals)):
+                # fa_seqs modified in-place here to include the motif at a 
+                #  randomly chosen site in each record where y_val is cat
+                substitute_motif_into_records(
+                    fa_seqs,
+                    y_vals,
+                    motif,
+                    (plus_strand_count, minus_strand_count),
+                    inter_motif_dist,
+                    yval = cat,
+                    motif_frac = motif_peak_frac,
+                )
+
+        ## sub in some off-target instances on one strand
+        #substitute_motif_into_records(
+        #    fa_seqs,
+        #    y_cats,
+        #    motifs,
+        #    (1, 0),
+        #    0,
+        #    yval = 0,
+        #    motif_frac = motif_nonpeak_frac,
+        #)
+
+        ## sub in some off-target instances on other strand
+        #substitute_motif_into_records(
+        #    fa_seqs,
+        #    y_cats,
+        #    motifs,
+        #    (0, 1),
+        #    0,
+        #    yval = 0,
+        #    motif_frac = motif_nonpeak_frac,
+        #)
+
+    if dtype == 'continuous':
+        y_vals,y_cats = make_continuous_y_vals(
+            rec_num,
+            cat_centers = np.linspace(
+                start= -(ncats-1.0)/2.0,
+                stop= ncats/2.0,
+                num=ncats
+            ),
+            cat_sd = 0.25,
+            noise_center = 0.0,
+            noise_sd = 0.25,
+            n_cats=ncats,
+        )
+
+        for motif,cat in zip(motifs, np.unique(y_cats)):
+            # fa_seqs modified in-place here to include the motif at a 
+            #  randomly chosen site in each record where y_val is cat
+            substitute_motif_into_records(
+                fa_seqs,
+                y_cats,
+                motif,
+                (plus_strand_count, minus_strand_count),
+                inter_motif_dist,
+                yval = cat,
+                motif_frac = motif_peak_frac,
+            )
+
+
     with open(os.path.join(out_dir, out_pre + ".txt") ,'w') as fire_file:
         fire_file.write("name\tscore\n")
         for i,fa_rec in enumerate(fa_seqs):
@@ -205,7 +296,9 @@ def main():
     with open(fa_fname, "w") as fa_file:
         fa_seqs.write(fa_file)
 
-    RSCRIPT = "Rscript utils/calc_shape.R {}"
+    print(this_path)
+
+    RSCRIPT = "Rscript {}/utils/calc_shape.R {{}}".format(this_path)
     RSCRIPT = RSCRIPT.format(fa_fname)
     subprocess.call(RSCRIPT, shell=True)
 
