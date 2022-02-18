@@ -161,6 +161,13 @@ class FastaFile(object):
         for name in self.names:
             yield self.pull_entry(name)
 
+    def __getitem__(self, item):
+        subset = FastaFile()
+        seq_names = self.names[item]
+        seq_data = { seq_name:self.data[seq_name] for seq_name in seq_names }
+        subset.names = seq_names
+        subset.data = seq_data
+        return subset
 
     def read_whole_file(self, fhandle):
         """ 

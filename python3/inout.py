@@ -638,6 +638,14 @@ class FastaFile(object):
         for name in self.names:
             yield self.pull_entry(name)
 
+    def __getitem__(self, sliced):
+        subset = FastaFile()
+        seq_names = [self.names[idx] for idx in sliced]
+        seq_data = { seq_name:self.data[seq_name] for seq_name in seq_names }
+        subset.names = seq_names
+        subset.data = seq_data
+        return subset
+
     def read_whole_file(self, fhandle):
         """ 
         Read an entire fasta file into memory and store it in the data attribute

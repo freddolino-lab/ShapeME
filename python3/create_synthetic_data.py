@@ -7,6 +7,7 @@ import sys
 import argparse
 import subprocess
 from pathlib import Path
+from sklearn.model_selection import KFold
 
 this_path = Path(__file__).parent.absolute()
 
@@ -38,12 +39,6 @@ def make_random_seqs(n_records, length=60):
 
     return fa_seqs
 
-#def make_binary_y_vals(n_records, frac_true=0.2):
-#    '''Make vector of ground-truth'''
-#
-#    y_vals = np.random.binomial(1, p=frac_true, size=n_records)
-#    return y_vals
-
 def make_categorical_y_vals(n_records, weights=None, n_cats=10):
     '''Make vector of categorical input values'''
     if weights is None:
@@ -58,7 +53,7 @@ def make_continuous_y_vals(n_records, cat_centers, cat_sd, noise_center, noise_s
 
     # error out if user didn't pass correct number of centers
     assert len(cat_centers) == n_cats, "ERROR: the number of category centers passed to make_continuous_y_vals must match the number of categories!"
-    y_cats = make_categorical_y_vals(n_records, n_cats)
+    y_cats = make_categorical_y_vals(n_records, n_cats=n_cats)
     if isinstance(cat_sd, float):
         cat_sd = np.repeat(cat_sd, n_cats)
     print(cat_sd)
@@ -181,9 +176,11 @@ def main():
     parser.add_argument('--dtype', action='store', type=str, choices=['continuous','categorical'],
                         help="The type of data to be output.")
     parser.add_argument('--ncats', action='store', type=int, default=2, help="The number of categories.")
+    parser.add_argument('--folds', action='store', type=int, default=5, help="The number of folds for k-fold CV.")
 
     args = parser.parse_args()
 
+    folds = args.folds
     dtype = args.dtype
     ncats = args.ncats
     out_dir = args.outdir
@@ -197,6 +194,9 @@ def main():
     motif_peak_frac = args.motif_peak_frac
     motif_nonpeak_frac = args.motif_nonpeak_frac
     out_pre = args.outpre
+
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
 
     motif_len = len(motifs[0])
 
@@ -237,28 +237,6 @@ def main():
                     motif_frac = motif_peak_frac,
                 )
 
-        ## sub in some off-target instances on one strand
-        #substitute_motif_into_records(
-        #    fa_seqs,
-        #    y_cats,
-        #    motifs,
-        #    (1, 0),
-        #    0,
-        #    yval = 0,
-        #    motif_frac = motif_nonpeak_frac,
-        #)
-
-        ## sub in some off-target instances on other strand
-        #substitute_motif_into_records(
-        #    fa_seqs,
-        #    y_cats,
-        #    motifs,
-        #    (0, 1),
-        #    0,
-        #    yval = 0,
-        #    motif_frac = motif_nonpeak_frac,
-        #)
-
     if dtype == 'continuous':
         y_vals,y_cats = make_continuous_y_vals(
             rec_num,
@@ -286,21 +264,87 @@ def main():
                 motif_frac = motif_peak_frac,
             )
 
+    if dtype == 'categorical':
+        y = y_vals
+    if dtype == 'continuous':
+        y = y_cats
+    # sub some instances of motif into off-target bins at given rate
+    if ncats == 2:
+        substitute_motif_into_records(
+            fa_seqs,
+            y,
+            motifs[0],
+            (1, 0),
+            inter_motif_dist,
+            yval = 0,
+            motif_frac = motif_nonpeak_frac/2,
+        )
+        substitute_motif_into_records(
+            fa_seqs,
+            y,
+            motifs[0],
+            (0, 1),
+            inter_motif_dist,
+            yval = 0,
+            motif_frac = motif_nonpeak_frac/2,
+        )
+    else:
+        distinct_cats = np.unique(y)
+        for i,(motif,cat) in enumerate(zip(motifs, distinct_cats)):
 
-    with open(os.path.join(out_dir, out_pre + ".txt") ,'w') as fire_file:
-        fire_file.write("name\tscore\n")
-        for i,fa_rec in enumerate(fa_seqs):
-            fire_file.write("{}\t{}\n".format(fa_rec.header[1:], y_vals[i]))
+            other_cats = distinct_cats[distinct_cats != cat]
+            for other_y in other_cats:
+                substitute_motif_into_records(
+                    fa_seqs,
+                    y,
+                    motif,
+                    (1, 0),
+                    inter_motif_dist,
+                    yval = other_y,
+                    motif_frac = motif_nonpeak_frac/2,
+                )
+                substitute_motif_into_records(
+                    fa_seqs,
+                    y,
+                    motif,
+                    (0, 1),
+                    inter_motif_dist,
+                    yval = other_y,
+                    motif_frac = motif_nonpeak_frac/2,
+                )
 
-    fa_fname = os.path.join(out_dir, out_pre + ".fa")
-    with open(fa_fname, "w") as fa_file:
-        fa_seqs.write(fa_file)
+    kf = KFold(n_splits=folds)
+    for i,(train_index, test_index) in enumerate(kf.split(y_vals)):
+        #print(i)
+        #print(len(train_index))
+        #print(len(test_index))
+        train_fa = fa_seqs[train_index]
+        train_y = y_vals[train_index]
+        test_fa = fa_seqs[test_index]
+        test_y = y_vals[test_index]
 
-    print(this_path)
+        with open(os.path.join(out_dir, out_pre + "_train_{}.txt".format(i)) ,'w') as train_fire_file:
+            train_fire_file.write("name\tscore\n")
+            for j,fa_rec in enumerate(train_fa):
+                train_fire_file.write("{}\t{}\n".format(fa_rec.header[1:], train_y[j]))
 
-    RSCRIPT = "Rscript {}/utils/calc_shape.R {{}}".format(this_path)
-    RSCRIPT = RSCRIPT.format(fa_fname)
-    subprocess.call(RSCRIPT, shell=True)
+        with open(os.path.join(out_dir, out_pre + "_test_{}.txt".format(i)) ,'w') as test_fire_file:
+            test_fire_file.write("name\tscore\n")
+            for j,fa_rec in enumerate(test_fa):
+                test_fire_file.write("{}\t{}\n".format(fa_rec.header[1:], test_y[j]))
+
+        train_fa_fname = os.path.join(out_dir, out_pre + "_train_{}.fa".format(i))
+        with open(train_fa_fname, "w") as train_fa_file:
+            train_fa.write(train_fa_file)
+
+        RSCRIPT = "Rscript {}/utils/calc_shape.R {{}}".format(this_path)
+        subprocess.call(RSCRIPT.format(train_fa_fname), shell=True)
+
+        test_fa_fname = os.path.join(out_dir, out_pre + "_test_{}.fa".format(i))
+        with open(test_fa_fname, "w") as test_fa_file:
+            test_fa.write(test_fa_file)
+
+        subprocess.call(RSCRIPT.format(test_fa_fname), shell=True)
 
 
 if __name__ == '__main__':
