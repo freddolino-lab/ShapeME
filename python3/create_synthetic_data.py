@@ -49,16 +49,22 @@ def make_categorical_y_vals(n_records, weights=None, n_cats=10):
     np.random.shuffle(y_vals)
     return y_vals
 
-def make_continuous_y_vals(n_records, cat_centers, cat_sd, noise_center, noise_sd, n_cats=10):
+def make_continuous_y_vals(n_records, cat_centers, cat_sd, noise_center, noise_sd, n_cats=10, pivot_cat=False):
 
     # error out if user didn't pass correct number of centers
     assert len(cat_centers) == n_cats, "ERROR: the number of category centers passed to make_continuous_y_vals must match the number of categories!"
-    y_cats = make_categorical_y_vals(n_records, n_cats=n_cats)
+    if pivot_cat:
+        tmp_cats = n_cats + 1
+    else:
+        tmp_cats = n_cats
+
+    y_cats = make_categorical_y_vals(n_records, n_cats=tmp_cats)
     if isinstance(cat_sd, float):
-        cat_sd = np.repeat(cat_sd, n_cats)
+        cat_sd = np.repeat(cat_sd, tmp_cats)
     print(cat_sd)
     # set up y-vals array as noise
     y_vals = np.random.normal(noise_center, noise_sd, n_records)
+    pivot_cat = 1
     for category in range(n_cats):
         n_cat_records = len(y_cats[y_cats == category])
         # sample n_cat_records time from this category's mean/sd
@@ -69,6 +75,17 @@ def make_continuous_y_vals(n_records, cat_centers, cat_sd, noise_center, noise_s
         )
         # add category value to the noise that's already present
         y_vals[y_cats == category] += samples
+        pivot_cat += 1
+
+    if pivot_cat:
+        n_cat_records = len(y_cats[y_cats == pivot_cat])
+        pivot_samples = np.random.normal(
+            np.max(cat_centers) + 5.0,
+            0.1,
+            n_cat_records,
+        )
+        y_vals[y_cats == pivot_cat] += pivot_samples
+
     return y_vals,y_cats
     
 
@@ -175,7 +192,8 @@ def main():
                          help="Distance between motif occurrances")
     parser.add_argument('--dtype', action='store', type=str, choices=['continuous','categorical'],
                         help="The type of data to be output.")
-    parser.add_argument('--ncats', action='store', type=int, default=2, help="The number of categories.")
+    parser.add_argument('--ncats', action='store', type=int, default=2, help="The number of categories containing motifs (see --pivot-category if you want to add one extra category without any motif).")
+    parser.add_argument('--pivot-category', action='store_true', default=False, help="If this flag is set, an extra category will be present in the synthetic data in which no motif is expected to be enriched. Ignored if ncats=1, since in that case, cat 1 will have the motif and cat 0 will not.")
     parser.add_argument('--folds', action='store', type=int, default=5, help="The number of folds for k-fold CV.")
 
     args = parser.parse_args()
@@ -221,10 +239,16 @@ def main():
 
 
         else:
+            # add one to ncats if the user decided to include a pivot
+            if args.pivot_category:
+                ncats += 1
             # approximately even number of records per category
             y_vals = make_categorical_y_vals(rec_num, n_cats=ncats)
+            motif_cats = np.unique(y_vals)
+            if args.pivot_category:
+                motif_cats = distinct_cats[:-1]
 
-            for motif,cat in zip(motifs, np.unique(y_vals)):
+            for motif,cat in zip(motifs, motif_cats):
                 # fa_seqs modified in-place here to include the motif at a 
                 #  randomly chosen site in each record where y_val is cat
                 substitute_motif_into_records(
@@ -249,9 +273,13 @@ def main():
             noise_center = 0.0,
             noise_sd = 0.25,
             n_cats=ncats,
+            pivot_cat = args.pivot_category,
         )
+        motif_cats = np.unique(y_cats)
+        if args.pivot_category:
+            motif_cats = motif_cats[:-1]
 
-        for motif,cat in zip(motifs, np.unique(y_cats)):
+        for motif,cat in zip(motifs, motif_cats):
             # fa_seqs modified in-place here to include the motif at a 
             #  randomly chosen site in each record where y_val is cat
             substitute_motif_into_records(
@@ -289,7 +317,11 @@ def main():
             motif_frac = motif_nonpeak_frac/2,
         )
     else:
+
         distinct_cats = np.unique(y)
+        if args.pivot_category:
+            distinct_cats = distinct_cats[:-1]
+
         for i,(motif,cat) in enumerate(zip(motifs, distinct_cats)):
 
             other_cats = distinct_cats[distinct_cats != cat]
