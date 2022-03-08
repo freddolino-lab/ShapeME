@@ -109,8 +109,8 @@ def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
         newx=test_X_r,
         s=lambda_cut,
     )  
-    print("yhat: {}".format(yhat))
-    print(yhat.shape)
+    #print("yhat: {}".format(yhat))
+    #print(yhat.shape)
     no_skill = len(test_y[test_y==1]) / len(test_y)
 
     yhat_peaks = yhat[test_y==1]
@@ -119,8 +119,8 @@ def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
     r_yhat_peaks = ro.FloatVector(yhat_peaks)
     r_yhat_nonpeaks = ro.FloatVector(yhat_nonpeaks)
 
-    print(yhat_peaks.shape)
-    print(yhat_nonpeaks.shape)
+    #print(yhat_peaks.shape)
+    #print(yhat_nonpeaks.shape)
 
     auc = prroc.pr_curve(
         scores_class0 = r_yhat_peaks,
@@ -246,8 +246,6 @@ if __name__ == "__main__":
     with open(config_fname, 'w') as f:
         json.dump(args_dict, f, indent=1)
 
-    pprint(args_dict)
-
     test_records = read_records(
         args_dict,
         in_direc,
@@ -280,6 +278,13 @@ if __name__ == "__main__":
         dset_type="training",
     )
 
+    distinct_cats = np.unique(train_records.y)
+    if len(distinct_cats) == 2:
+        fam = 'binomial'
+    else:
+        fam = 'multinomial'
+
+
     if os.path.isfile(rust_motifs_fname):
         RUST = "{} {}".format(
             rust_bin,
@@ -307,14 +312,13 @@ if __name__ == "__main__":
             train_X,
             train_y,
             folds=10,
-            family='binomial',
+            family=fam,
             alpha=1,
         )
 
         # NOTE: TODO: go through coefficients and weed out motifs for which all "match"
         #   coefficients are zero.
         # predict on test data
-        # NOTE: needs updated for multiclass
         shape_output = evaluate_fit(
             shape_fit,
             test_X,
@@ -352,7 +356,6 @@ if __name__ == "__main__":
 
     if args.test_fimo_file is not None:
 
-        
         train_seq_matches = fimo.FimoFile()
         train_seq_matches.parse(args.train_fimo_file)
         train_seq_X = train_seq_matches.get_design_matrix(train_records)
@@ -361,7 +364,7 @@ if __name__ == "__main__":
             train_seq_X,
             train_y,
             folds=10,
-            family='binomial',
+            family=fam,
             alpha=1,
         )
 
@@ -413,7 +416,7 @@ if __name__ == "__main__":
                 train_seq_and_shape_X,
                 train_y,
                 folds=10,
-                family='binomial',
+                family=fam,
                 alpha=1,
             )
             seq_and_shape_output = evaluate_fit(
