@@ -22,6 +22,7 @@ use itertools::Itertools;
 use statrs::statistics::Statistics;
 use ndarray_npy; // we've cloned the git repo for this crate for stability
 use serde_pickle::{de, ser};
+use serde_json;
 use serde::{Serialize, Deserialize};
 // parallelization utilities provided by rayon crate
 use rayon::prelude::*;
@@ -372,9 +373,9 @@ mod tests {
 
         // read in some other parameters we'll need
         let fname = "../../test_data/test_args.pkl";
-        let mut file = fs::File::open(fname).unwrap();
+        let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
-        let mut buf_reader = BufReader::new(file);
+        let buf_reader = BufReader::new(file);
         // create a hashmap from the pickle file's contents
         let hash: HashMap<String, f64> = de::from_reader(
             buf_reader,
@@ -495,9 +496,9 @@ mod tests {
 
         // read in some other parameters we'll need
         let fname = "../../test_data/test_args.pkl";
-        let mut file = fs::File::open(fname).unwrap();
+        let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
-        let mut buf_reader = BufReader::new(file);
+        let buf_reader = BufReader::new(file);
         // create a hashmap from the pickle file's contents
         let hash: HashMap<String, f64> = de::from_reader(
             buf_reader,
@@ -646,10 +647,7 @@ mod tests {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("../../test_data/subset_five_records.npy"),
-            String::from("../../test_data/subset_five_y_vals.npy"),
-            String::from("../../test_data/config.pkl"),
-            String::from("../../test_data/test_output.pkl"),
+            String::from("../../test_data/config.json"),
         ];
         let cfg = parse_config(&args);
         let rec_db = RecordsDB::new_from_files(
@@ -680,15 +678,21 @@ mod tests {
     }
 
     #[test]
+    fn test_read_motifs () {
+        let motifs: Motifs = read_motifs("../../test_data/test_motifs.json");
+        println!("{:?}", motifs.motifs[0].params.params);
+        let motifs: Motifs = read_motifs("../../test_data/test_motifs_err.json");
+        println!("{:?}", motifs.motifs[0].params.params);
+    }
+
+    #[test]
     fn test_init_threshold () {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("../../test_data/shapes.npy"),
-            String::from("../../test_data/y_vals.npy"),
-            String::from("../../test_data/config.pkl"),
-            String::from("../../test_data/test_output.pkl"),
+            String::from("../../test_data/config_init_thresh.json"),
         ];
+
         let cfg = parse_config(&args);
         let rec_db = RecordsDB::new_from_files(
             &cfg.shape_fname,
@@ -696,7 +700,7 @@ mod tests {
         );
 
         // create Seeds struct
-        let mut seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
+        let seeds = rec_db.make_seed_vec(cfg.kmer, cfg.alpha);
         let thresh = set_initial_threshold(
             &seeds,
             &rec_db,
@@ -714,35 +718,103 @@ mod tests {
         println!("Rust initial threshold: {}", thresh);
         println!("Python initial threshold: {}", cfg.threshold);
     }
-
 }
 
 /// Simple struct to hold command line arguments
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub out_fname: String,
+    #[serde(default = "default_fname")]
     pub shape_fname: String,
+    #[serde(default = "default_fname")]
     pub yvals_fname: String,
-    pub kmer: usize,
+    #[serde(default = "default_fname")]
+    pub eval_shape_fname: String,
+    #[serde(default = "default_fname")]
+    pub eval_yvals_fname: String,
+    #[serde(default = "default_fname")]
+    pub out_fname: String,
+    #[serde(default = "default_alpha")]
     pub alpha: f64,
+    #[serde(default = "default_max_count")]
     pub max_count: i64,
+    #[serde(default = "default_kmer")]
+    pub kmer: usize,
+    #[serde(default = "default_thresh")]
     pub threshold: f64,
+    #[serde(default = "default_core_num")]
     pub cores: usize,
+    #[serde(default = "default_seed_sample_size")]
     pub seed_sample_size: usize,
+    #[serde(default = "default_records_per_seed")]
     pub records_per_seed: usize,
+    #[serde(default = "default_windows_per_record")]
     pub windows_per_record: usize,
+    #[serde(default = "default_thresh_sd_from_mean")]
     pub thresh_sd_from_mean: f64,
+    #[serde(default = "default_thresh_lb")]
     pub thresh_lower_bound: f64,
+    #[serde(default = "default_thresh_ub")]
     pub thresh_upper_bound: f64,
+    #[serde(default = "default_shape_lb")]
     pub shape_lower_bound: f64,
+    #[serde(default = "default_shape_ub")]
     pub shape_upper_bound: f64,
+    #[serde(default = "default_weight_lb")]
     pub weight_lower_bound: f64,
+    #[serde(default = "default_weight_ub")]
     pub weight_upper_bound: f64,
+    #[serde(default = "default_temp")]
     pub temperature: f64,
+    #[serde(default = "default_stepsize")]
     pub stepsize: f64,
+    #[serde(default = "default_n_opt_iter")]
     pub n_opt_iter: usize,
+    #[serde(default = "default_tadj")]
     pub t_adjust: f64,
+    #[serde(default = "default_batch_size")]
     pub batch_size: usize,
+    #[serde(default = "default_names")]
+    pub names: Vec<String>,
+    #[serde(default = "default_indices")]
+    pub indices: Vec<usize>,
+    #[serde(default = "default_centers")]
+    pub centers: Vec<f64>,
+    #[serde(default = "default_spreads")]
+    pub spreads: Vec<f64>,
+    #[serde(default = "default_fname")]
+    pub motif_fname: String,
+    #[serde(default = "default_fname")]
+    pub logit_reg_fname: String,
 }
+
+fn default_fname() -> String { String::from("default") }
+fn default_names() -> Vec<String> { vec![String::from("default")] }
+fn default_indices() -> Vec<usize> { vec![0] }
+fn default_centers() -> Vec<f64> { vec![-1000.0] }
+fn default_spreads() -> Vec<f64> { vec![-1000.0] }
+fn default_seed_sample_size() -> usize { 250 }
+fn default_records_per_seed() -> usize { 50 }
+fn default_windows_per_record() -> usize { 1 }
+fn default_thresh_sd_from_mean() -> f64 { 2.0 }
+fn default_core_num() -> usize { 1 }
+fn default_max_count() -> i64 { 1 }
+// leave this threshold default value as is (&0.8711171869882366)!
+// It's only used in our unit tests, and it
+// makes them work!!
+fn default_thresh() -> f64 { 0.8711171869882366 }
+fn default_kmer() -> usize { 15 }
+fn default_alpha() -> f64 { 0.01 }
+fn default_batch_size() -> usize { 2000 }
+fn default_tadj() -> f64 { 0.0005 }
+fn default_n_opt_iter() -> usize { 12000 }
+fn default_stepsize() -> f64 { 0.25 }
+fn default_temp() -> f64 { 0.2 }
+fn default_weight_ub() -> f64 { 4.0 }
+fn default_weight_lb() -> f64 { -4.0 }
+fn default_shape_ub() -> f64 { 4.0 }
+fn default_shape_lb() -> f64 { -4.0 }
+fn default_thresh_ub() -> f64 { 4.0 }
+fn default_thresh_lb() -> f64 { 0.0 }
 
 impl Config {
     /// Returns a Config struct containing options contained in
@@ -754,85 +826,14 @@ impl Config {
     ///
     /// STILL NEEDS GOOD ERROR HANDLING, IMO
     pub fn new(args: &[String]) -> Config {
-        let shape_fname = args[1].clone();
-        let yvals_fname = args[2].clone();
-        let opts_fname = args[3].clone();
-        let out_fname = args[4].clone();
+        let opts_fname = args[1].clone();
 
         // read in options we'll need
         let file = fs::File::open(opts_fname).unwrap();
-        // open a buffered reader to open the pickle file
+        // open a buffered reader to open the binary json file
         let buf_reader = BufReader::new(file);
-        // create a hashmap from the pickle file's contents
-        let hash: HashMap<String, f64> = de::from_reader(
-            buf_reader,
-            de::DeOptions::new()
-        ).unwrap();
-        
-        let kmer = *hash.get("kmer").unwrap_or(&15.0) as usize;
-        let alpha = *hash.get("alpha").unwrap_or(&0.01) as f64;
-        let max_count = *hash.get("max_count").unwrap_or(&1.0) as i64;
-        // leave this threshold default value as is (&0.8711171869882366)!
-        // It's only used in our unit tests, and it
-        // makes them work!!
-        let threshold = *hash.get("threshold").unwrap_or(&0.8711171869882366) as f64;
-        let cores = *hash.get("cores").unwrap_or(&48.0) as usize;
-        let seed_sample_size = *hash.get("seed_sample_size")
-            .unwrap_or(&250.0) as usize;
-        let records_per_seed = *hash.get("records_per_seed")
-            .unwrap_or(&50.0) as usize;
-        let windows_per_record = *hash.get("windows_per_record")
-            .unwrap_or(&1.0) as usize;
-        let thresh_sd_from_mean = *hash.get("thresh_sd_from_mean")
-            .unwrap_or(&2.0) as f64;
-        let thresh_lower_bound = *hash.get("threshold_lb")
-            .unwrap_or(&0.0) as f64;
-        let thresh_upper_bound = *hash.get("threshold_ub")
-            .unwrap_or(&4.0) as f64;
-        let shape_lower_bound = *hash.get("shape_lb")
-            .unwrap_or(&-4.0) as f64;
-        let shape_upper_bound = *hash.get("shape_ub")
-            .unwrap_or(&4.0) as f64;
-        let weight_lower_bound = *hash.get("weight_lb")
-            .unwrap_or(&-4.0) as f64;
-        let weight_upper_bound = *hash.get("weight_ub")
-            .unwrap_or(&-4.0) as f64;
-        let temperature = *hash.get("temperature")
-            .unwrap_or(&0.20) as f64;
-        let stepsize = *hash.get("stepsize")
-            .unwrap_or(&0.25) as f64;
-        let n_opt_iter = *hash.get("n_opt_iter")
-            .unwrap_or(&12000.0) as usize;
-        let t_adjust = *hash.get("t_adjust")
-            .unwrap_or(&0.0005) as f64;
-        let batch_size = *hash.get("batch_size")
-            .unwrap_or(&2000.0) as usize;
-
-        Config{
-            out_fname,
-            shape_fname,
-            yvals_fname,
-            kmer,
-            alpha,
-            max_count,
-            threshold,
-            cores,
-            seed_sample_size,
-            records_per_seed,
-            windows_per_record,
-            thresh_sd_from_mean,
-            thresh_lower_bound,
-            thresh_upper_bound,
-            shape_lower_bound,
-            shape_upper_bound,
-            weight_lower_bound,
-            weight_upper_bound,
-            temperature,
-            stepsize,
-            n_opt_iter,
-            t_adjust,
-            batch_size,
-        }
+        let cfg: Config = serde_json::from_reader(buf_reader).unwrap();
+        cfg
     }
 }
 
@@ -1428,6 +1429,55 @@ pub struct Motif {
     positions: Vec<HashMap<String,Vec<usize>>>,
 }
 
+#[derive(Debug, Deserialize)]
+struct ShapeReader {
+    params: ArrayDeser<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ArrayDeser<T> {
+    v: usize,
+    dim: (usize,usize),
+    data: Vec<T>,
+}
+
+impl<T: std::clone::Clone> ArrayDeser<T> {
+    fn to_array(&self) -> Array2<T> {
+        Array::from_shape_vec(self.dim, self.data.to_vec()).unwrap()
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct WeightsReader {
+    weights: ArrayDeser<f64>,
+    weights_norm: ArrayDeser<f64>,
+}
+
+/// A struct for reading in Motifs data from a json file.
+#[derive(Debug, Deserialize)]
+pub struct MotifReader {
+    params: ShapeReader,
+    weights: WeightsReader,
+    threshold: f64,
+    hits: ArrayDeser<i64>,
+    mi: f64,
+    dists: ArrayDeser<f64>,
+    positions: Vec<HashMap<String, Vec<usize>>>,
+}
+
+/// Reads a vector of Motif structs from a pickle file
+pub fn read_motifs(motif_fname: &str) -> Motifs {
+    // read in options we'll need
+    let file = fs::File::open(motif_fname).unwrap();
+    // open a buffered reader to open the binary json file
+    let buf_reader = BufReader::new(file);
+    // create a hashmap from the pickle file's contents
+    let motif_reader: Vec<MotifReader> = serde_json::from_reader(
+        buf_reader,
+    ).unwrap();
+    Motifs::from_reader(motif_reader)
+}
+
 /// Represents a vector of Motif structs. It's basically just for convenience.
 ///
 /// # Fields
@@ -1445,6 +1495,27 @@ impl Motifs {
 
     fn new(motifs: Vec<Motif>) -> Motifs {
         Motifs{motifs}
+    }
+
+    fn from_reader(reader: Vec<MotifReader>) -> Motifs {
+        let mut motifs = Motifs::empty();
+        for motif_reader in reader.iter() {
+            let dim = motif_reader.params.params.dim;
+            let params = Sequence{ params: motif_reader.params.params.to_array() };
+            let mut weights = MotifWeights::new_bysize(dim.0, dim.1);
+            weights.set_all_weights(
+                &motif_reader.weights.weights.to_array(),
+                &motif_reader.weights.weights_norm.to_array(),
+            );
+            let threshold = motif_reader.threshold;
+            let hits = motif_reader.hits.to_array();
+            let mi = motif_reader.mi;
+            let dists = motif_reader.dists.to_array();
+            let positions = motif_reader.positions.to_vec();
+            let motif = Motif{params, weights, threshold, hits, mi, dists, positions};
+            motifs.motifs.push(motif);
+        }
+        motifs
     }
 
     pub fn append(&mut self, mut other: Motifs) {
@@ -1492,6 +1563,19 @@ impl Motifs {
             &mut buf_writer, 
             &self.motifs, 
             ser::SerOptions::new(),
+        );
+    }
+
+    /// Writes a vector of Motif structs as a json file
+    pub fn json_motifs(&self, fname: &str) {
+        // set up writer
+        let file = fs::File::create(fname).unwrap();
+        // open a buffered writer to open the pickle file
+        let mut buf_writer = BufWriter::new(file);
+        // write to the writer
+        serde_json::to_writer(
+            &mut buf_writer, 
+            &self.motifs, 
         );
     }
 
@@ -2290,6 +2374,12 @@ impl Motif {
         max_count: &i64
     ) {
         self.positions = db.get_hit_positions(
+            &self.params.params.view(),
+            &self.weights.weights_norm.view(),
+            &self.threshold,
+            max_count,
+        );
+        self.hits = db.get_hits(
             &self.params.params.view(),
             &self.weights.weights_norm.view(),
             &self.threshold,

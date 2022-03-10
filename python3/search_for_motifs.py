@@ -4,7 +4,17 @@ import logging
 import argparse
 import numpy as np
 import sys
+import json
+import sklearn
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import LogisticRegression
+import cvlogistic
 
+from pathlib import Path
+
+this_path = Path(__file__).parent.absolute()
+rust_bin = os.path.join(this_path, '../rust_utils/target/release/search_for_motifs')
 
 def read_parameter_file(infile):
     """ Wrapper to read a single parameter file
@@ -55,27 +65,114 @@ def write_matches_count(fhandle, name, matches, motif_name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--params', nargs="+", type=str,
-                         help='inputfile with mgw scores')
+                         help='inputfiles with shape scores')
     parser.add_argument('--param_names', nargs="+", type=str,
                          help='parameter names')
-    parser.add_argument('--motifs', type=str, help="motif with motifs to search for")
-    parser.add_argument('--threshold', type=float, help="overridding threshold for a match",
-            default=None)
-    parser.add_argument('--threshold_above', action='store_true', 
-            help="consider matches as being above the threshold")
-    parser.add_argument('--ignorestart', type=int,
-                         help='# bp to ignore at start of each sequence', default=2)
-    parser.add_argument('--ignoreend', type=int,
-                         help='# bp to ignore at end of each sequence', default=2)
-    parser.add_argument('--outfmt', type=str, default=".bed",
-            help=".bed for full matches or .txt for counts or .fimo for fimo-like format")
-    parser.add_argument('--rc', action="store_true",
-            help="search the reverse complement with each seed as well?")
-    parser.add_argument('-o', type=str, default="-")
+    parser.add_argument('--data_dir', type=str, help="Directory containing data")
+    parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
+    #parser.add_argument('--motifs', type=str, help="motif with motifs to search for")
+    #parser.add_argument('--threshold', type=float, help="overridding threshold for a match",
+    #        default=None)
+    #parser.add_argument('--threshold_above', action='store_true', 
+    #        help="consider matches as being above the threshold")
+    #parser.add_argument('--ignorestart', type=int,
+    #                     help='# bp to ignore at start of each sequence', default=2)
+    #parser.add_argument('--ignoreend', type=int,
+    #                     help='# bp to ignore at end of each sequence', default=2)
+    #parser.add_argument('--outfmt', type=str, default=".bed",
+    #        help=".bed for full matches or .txt for counts or .fimo for fimo-like format")
+    #parser.add_argument('--rc', action="store_true",
+    #        help="search the reverse complement with each seed as well?")
+    #parser.add_argument('-o', type=str, default="-")
 
     logging.warning("Reading in files")
 
     args = parser.parse_args()
+
+    in_direc = args.data_dir
+    out_direc = args.out_dir
+    out_direc = os.path.join(in_direc, out_direc)
+
+    config_fname = os.path.join(out_direc, 'config.json')
+    
+    with open(config_fname, 'r') as f:
+        args_dict = json.load(f)
+
+    logging.info("Reading in files")
+    # read in shapes
+    shape_fname_dict = {
+        n:os.path.join(in_direc,fname) for n,fname
+        in zip(args.param_names, args.params)
+    }
+    logging.info("Reading input data and shape info.")
+    records = inout.RecordDatabase(
+        os.path.join(in_direc, args.infile),
+        shape_fname_dict,
+        shift_params = ["Roll", "HelT"],
+    )
+    records.shape_centers = args_dict['centers']
+    records.shape_spreads = args_dict['spreads']
+    logging.info("Normalizing parameters")
+    records.normalize_shape_values()
+
+    # read in the values associated with each sequence and store them
+    # in the sequence database
+    if args.continuous is not None:
+        #records.read(args.infile, float)
+        #logging.info("Discretizing data")
+        #records.discretize_quant(args.continuous)
+        #logging.info("Quantizing input data using k-means clustering")
+        records.quantize_quant(args.continuous)
+
+    logging.info("Distribution of sequences per class:")
+    logging.info(seqs_per_bin(records))
+
+    logging.info("Getting distance between motifs and each record")
+
+    RUST = "{} {}".format(
+        rust_bin,
+        config_fname,
+    )
+
+    retcode = subprocess.call(RUST, shell=True)
+
+    if retcode != 0:
+        sys.exti("Rust binary returned non-zero exit status")
+
+    good_motifs = inout.read_motifs_from_rust(
+        os.path.join(out_direc, "evaluated_motifs.json")
+    )
+    X = inout.prep_logit_reg_data(good_motifs)
+    y = records.y
+    ##################################################
+    ##################################################
+    ## I need to figure out how to appropriately handle
+    ##    strandedness and max count greater than 1
+    ##################################################
+    ##################################################
+    logging.info(
+        "Predicting classes from distance from motifs to records"
+    )
+
+    with open(args_dict['logit_reg_fname'], 'rb') as f:
+        clf_f = pickle.load(f)
+
+    probabilities = clf_f.predict_proba(X)
+
+
+    ##################################################
+    ##################################################
+    ##################################################
+    ##################################################
+    ##################################################
+    ##################################################
+    ##################################################
+    ##################################################
+    ##################################################
+    ##################################################
+    # Run the prediction using the trained logistic reg model
+    # Get the precision/recall curve and AUC
+
     write_types = {".bed": write_matches_bed, ".txt": write_matches_count,
             ".fimo": write_matches_fimo}
     try:

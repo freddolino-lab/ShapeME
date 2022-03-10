@@ -1,5 +1,5 @@
 import matplotlib as mpl
-mpl.use('Agg')
+#mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import gridspec as gs
 import find_motifs as fm
@@ -7,7 +7,7 @@ import numpy as np
 import inout
 import sys
 
-plt.rc('figure', titlesize=10)
+#plt.rc('figure', titlesize=10)
 
 def plot_shapes(rec_db, rec_idx, file_name, take_complement=False):
 

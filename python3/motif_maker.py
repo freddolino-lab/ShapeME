@@ -13,7 +13,6 @@ creates an inout.RecordDatabase object, then writes the recorddatabase as a
 pickle file.
 """
 
-
 def random_sequence_generator(length=60):
     '''Make random DNA sequence of specified length'''
 

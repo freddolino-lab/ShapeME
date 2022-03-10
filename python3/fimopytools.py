@@ -2,6 +2,9 @@
 where ONE motif was searched
 """
 
+import numpy as np
+from pprint import pprint
+
 class FimoLine(object):
 
     def __init__(self, line=None):
@@ -9,6 +12,7 @@ class FimoLine(object):
             self.parse(line)
         else:
             self.patname=''
+            self.tfname=''
             self.seqname=''
             self.start=None
             self.stop=None
@@ -21,24 +25,25 @@ class FimoLine(object):
     def parse(self, line):
         linearr = line.rstrip().split('\t')
         self.patname = linearr[0]
-        self.seqname = linearr[1]
+        self.tfname = linearr[1]
+        self.seqname = linearr[2]
         # converts to normal 0-based coordinates
-        self.start = int(linearr[2])-1
-        self.stop = int(linearr[3])
-        self.strand = linearr[4]
+        self.start = int(linearr[3])-1
+        self.stop = int(linearr[4])
+        self.strand = linearr[5]
         try:
-            self.score = float(linearr[5])
+            self.score = float(linearr[6])
         except ValueError:
             self.score = None
         try:
-            self.pvalue = float(linearr[6])
+            self.pvalue = float(linearr[7])
         except ValueError:
             self.pvalue = None
         try:
-            self.qvalue = float(linearr[7])
+            self.qvalue = float(linearr[8])
         except ValueError:
             self.qvalue=None
-        self.matchedseq=linearr[8]
+        self.matchedseq=linearr[9]
 
 class FimoSeq(object):
 
@@ -76,8 +81,14 @@ class FimoFile(object):
 
     def parse(self, fname):
         with open(fname) as inf:
+            # skip first line
             inf.readline()
-            for line in inf:
+            for i,line in enumerate(inf):
+                # skip comments
+                if line.startswith("#"):
+                    continue
+                if line == "\n":
+                    continue
                 this_line = FimoLine(line)
                 if this_line.seqname in self.data:
                     self.data[this_line.seqname].append(this_line)
@@ -89,6 +100,18 @@ class FimoFile(object):
 
     def pull_entry(self, name):
         return self.data[name]
+
+    def get_design_matrix(self, rec_db):
+        # set up array of zeros with n_records rows. First column if for misses,
+        #  second column is for hits.
+        X = np.zeros((len(rec_db),2))
+        for rec_name,rec_idx in rec_db.record_name_lut.items():
+            # if this record's name is in the fimo hits, set its index in X to 1
+            if rec_name in self.names:
+                X[rec_idx,1] = 1
+            else:
+                X[rec_idx,0] = 1
+        return X
 
     def __iter__(self):
         for name in self.names:

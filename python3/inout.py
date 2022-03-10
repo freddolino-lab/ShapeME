@@ -1,4 +1,5 @@
 import numpy as np
+import cvlogistic
 import dnashapeparams as dsp
 import logging
 from numba import jit,prange
@@ -7,11 +8,118 @@ from scipy import stats
 from scipy import sparse
 from collections import OrderedDict
 import pickle
+import json
+import sys
 import glob
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import LogisticRegression
 from sklearn import cluster 
 from sklearn import metrics
 from math import log
-from emi import _expected_mutual_info_fast as exp_mi
+
+from matplotlib import pyplot as plt
+
+def seqs_per_bin(records):
+    """ Function to determine how many sequences are in each category
+
+    Args:
+        records (SeqDatabase) - database to calculate over
+    Returns:
+        outstring - a string enumerating the number of seqs in each category
+    """
+    string = ""
+    for value in np.unique(records.y):
+        string += "\nCat {}: {}".format(
+            value, np.sum(records.y ==  value)
+        )
+    return string
+
+def get_precision_recall(yhat, y, plot_prefix=None):
+    ## NOTE: needs expanded for multiclass predictions
+    pos_probs = yhat[:, 1]
+    prec, recall, _ = metrics.precision_recall_curve(y, pos_probs)
+    auc = metrics.auc(recall, prec)
+    no_skill = len(y[y==1]) / len(y)
+
+    if plot_prefix is not None:
+        plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
+        plt.plot(recall, prec, marker='.', label='Motifs')
+        plt.savefig(plot_prefix + ".png")
+        plt.savefig(plot_prefix + ".pdf")
+
+    return (prec, recall, auc, no_skill)
+
+def lasso_regression(x, y, c, multi_class="multinomial", penalty="l1", solver="saga",
+            max_iter=10000, fit_intercept=True):
+
+    clf_f = LogisticRegression(
+        C=c,
+        multi_class=multi_class,
+        penalty=penalty,
+        solver=solver,
+        max_iter=max_iter,
+        fit_intercept=fit_intercept,
+    ).fit(x,y)
+    return clf_f
+
+def choose_l1_penalty(x, y, Cs=100, cv=5,
+                      multi_class="multinomial", solver="saga",
+                      max_iter=10000, fit_intercept=True):
+
+    clf = LogisticRegressionCV(
+        Cs=Cs,
+        cv=cv,
+        multi_class=multi_class,
+        penalty='l1',
+        solver=solver,
+        max_iter=max_iter,
+        fit_intercept=fit_intercept,
+    ).fit(x, y)
+
+    best_c = cvlogistic.find_best_c(clf)
+    return best_c
+
+def prep_logit_reg_data(motif_list, max_count):
+    """Converts motif hit categories to X matrix of
+    dummy variables for logistic regression.
+    """
+
+    n = max_count + 1
+    max_cat = int(n*n - n*(n-1)/2) - 1 # minus one to get rid of [0,0] category
+    possible_cats = [_ for _ in range(max_cat)]
+    rec_num = motif_list[0]['hits'].shape[0]
+
+    X = np.zeros((rec_num, max_cat*len(motif_list)))
+
+    var_lut = {}
+    col_idx = 0
+
+    for i in range(n):
+        for j in range(n):
+            # skip [0,0] case since that will be in intercept
+            if (i == 0) and (j == 0):
+                continue
+            # don't do lower triangle
+            if j < i:
+                continue
+            
+            hit = [i,j]
+            # get the appropriate motif
+            motif_idx = col_idx // max_cat
+            motif = motif_list[motif_idx]
+
+            rows = np.where(np.all(motif['hits'] == hit, axis=1))[0]
+            X[rows,col_idx] = 1
+
+            var_lut[col_idx] = {
+                'motif_idx': motif_idx,
+                'hits': hit,
+            }
+
+            col_idx += 1
+
+    return (X,var_lut)
 
 def wrangle_rust_motif(motif):
     """Take information in motif dictionary and reshapes arrays to create
@@ -49,14 +157,25 @@ def read_motifs_from_rust(fname):
     data into appropriate shapes for next steps of find_motifs.py
     """
 
-    with open(fname, 'rb') as f:
-        rust_mi_results = pickle.load(f)
+    with open(fname, 'r') as f:
+        rust_mi_results = json.load(f)
 
     motif_results = []
     for motif in rust_mi_results:
         motif_results.append(wrangle_rust_motif(motif))
 
     return motif_results
+
+
+
+def consolidate_optim_batches(fname_list):
+
+    opt_results = []
+    for fname in fname_list:
+        with open(fname, 'rb') as f:
+            opt_results.extend(pickle.load(f))
+
+    return opt_results
 
 
 def consolidate_optim_batches(fname_list):
@@ -530,6 +649,14 @@ class FastaFile(object):
         for name in self.names:
             yield self.pull_entry(name)
 
+    def __getitem__(self, sliced):
+        subset = FastaFile()
+        seq_names = [self.names[idx] for idx in sliced]
+        seq_data = { seq_name:self.data[seq_name] for seq_name in seq_names }
+        subset.names = seq_names
+        subset.data = seq_data
+        return subset
+
     def read_whole_file(self, fhandle):
         """ 
         Read an entire fasta file into memory and store it in the data attribute
@@ -728,6 +855,7 @@ class RecordDatabase(object):
                  shift_params=["HelT", "Roll"],
                  exclude_na=True):
 
+        self.record_name_list = []
         self.record_name_lut = {}
         self.shape_name_lut = {}
         if X is None:
@@ -869,7 +997,7 @@ class RecordDatabase(object):
                 #    if not i in keep_inds:
                 #        continue
                 linearr = line.rstrip().split("\t")
-                self.record_name_lut[linearr[0]] = i
+                self.record_name_list.append(linearr[0])
                 scores.append(linearr[1])
             self.y = np.asarray(
                 scores,
@@ -891,9 +1019,13 @@ class RecordDatabase(object):
         X
         """
 
+
         self.normalized = False
         shape_idx = 0
         shape_count = len(shape_dict)
+
+        for i,rec_name in enumerate(self.record_name_list):
+            self.record_name_lut[rec_name] = i
 
         for shape_name,shape_infname in shape_dict.items():
 
@@ -916,6 +1048,7 @@ class RecordDatabase(object):
 
             for rec_name,rec_data in this_shape_dict.items():
                 r_idx = self.record_name_lut[rec_name]
+
                 if shape_name in shift_params:
                     #while len(rec_data) < self.X.shape[1]:
                     rec_data = np.append(rec_data, np.nan)
@@ -930,10 +1063,34 @@ class RecordDatabase(object):
                     self.X[r_idx,:,s_idx,1] = rec_data[::-1]
 
         if exclude_na:
-            # identifies which positions have at least one NA for any shape
-            complete_positions = ~np.any(np.isnan(self.X), axis=(0,2,3))
-            # grabs complete cases from X
-            self.X = self.X[:,complete_positions,:,:]
+
+            # remove the first- and final two bases from each shape/record
+            self.X = self.X[:,2:-2,:,:]
+            # identifies which positions have at least one NA for any record
+            complete_records = ~np.any(np.isnan(self.X), axis=(1,2,3))
+            incomplete_records = ~complete_records
+            # remove na-containing records from X and y
+            self.X = self.X[complete_records, ...]
+            self.y = self.y[complete_records]
+            self.record_name_list = [
+                name for (name,complete)
+                in zip(self.record_name_list, complete_records)
+                if complete
+            ]
+
+            self.record_name_lut = {}
+            for i,rec_name in enumerate(self.record_name_list):
+                self.record_name_lut[rec_name] = i
+
+            has_na = np.any(np.isnan(self.X))
+
+            if has_na:
+                try:
+                    raise Exception()
+                except Exception as e:
+                    logging.error("ERROR: after clipping the first, and final two base pairs from all records in the input data, NaN values remained! Exiting the script now. Thoroughly examine your input data for non-canonical bases and other potential causes of this issue.")
+                    sys.exit()
+            self.complete_records = complete_records
 
     #def set_center_spread(self, center_spread):
     #    """Method to set the center spread for the database for each

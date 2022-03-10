@@ -26,7 +26,7 @@ def count(inlist):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('infimo', type=str)
-    parser.add_argument('--infasta', type=str)
+    parser.add_argument('--infasta', type=str, required=True)
     parser.add_argument('--metric', type=str, default="max", help="max or min score")
     parser.add_argument('--score_field', type=int, default=5, help="what field is score in?")
     parser.add_argument('--motif_name', type=int, default=0, help="what field is motif name in?")
@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     metric = {"max": max, "min": min, "count" : count}
     this_metric = metric[args.metric]
-    if args.infimo is not "-":
+    if args.infimo != "-":
         seqs = inout.FastaFile()
         with open(args.infasta, mode="r") as inf:
             seqs.read_whole_file(inf)
