@@ -188,20 +188,62 @@ mod tests {
         }
     }
 
+    fn set_up_recdb(nrecs: usize) -> RecordsDB {
+        let mut seq_vec: Vec<StrandedSequence> = Vec::new();
+        for i in 0..nrecs {
+            seq_vec.push(set_up_stranded_sequence(i as f64, 1));
+        }
+        let y_vals: Array<i64, Ix1> = Array::from_vec(
+            (0..nrecs)
+            .map(|x| x as i64)
+            .collect()
+        );
+        RecordsDB::new(seq_vec, y_vals)
+    }
+
     #[test]
     fn test_batch_iter(){
-        let this_seq = set_up_stranded_sequence(1.0, 1);
-        let this_seq2 = set_up_stranded_sequence(2.0, 1);
-        let this_seq3 = set_up_stranded_sequence(3.0, 1);
-        let this_seq4 = set_up_stranded_sequence(4.0, 1);
-        let this_seq5 = set_up_stranded_sequence(5.0, 1);
-        let seq_vec = vec![this_seq, this_seq2, this_seq3, this_seq4, this_seq5];
-        let this_db = RecordsDB::new(seq_vec, array![0,1,2,3,4]);
-        for (i,batch) in this_db.batch_iter(2).enumerate() {
+        let this_db = set_up_recdb(6);
+        for (i,batch) in this_db.batch_iter(3).enumerate() {
             println!("-------------------------------");
             println!("batch {}: {:?}", i, batch);
             println!("-------------------------------");
+            if i == 0 {
+                assert_eq!(batch.len(), 3);
+            }
+            if i == 1 {
+                assert_eq!(batch.len(), 3);
+            }
+            if i == 2{
+                panic!();
+            }
         }
+        for (i,batch) in this_db.batch_iter(6).enumerate() {
+            println!("-------------------------------");
+            println!("batch {}: {:?}", i, batch);
+            println!("-------------------------------");
+            if i == 0 {
+                assert_eq!(batch.len(), 6);
+            }
+            if i == 1{
+                panic!();
+            }
+        }
+        for (i,batch) in this_db.batch_iter(5).enumerate() {
+            println!("-------------------------------");
+            println!("batch {}: {:?}", i, batch);
+            println!("-------------------------------");
+            if i == 0 {
+                assert_eq!(batch.len(), 5);
+            }
+            if i == 1 {
+                assert_eq!(batch.len(), 1);
+            }
+            if i == 2 {
+                panic!();
+            }
+        }
+
     }
 
     #[test]
@@ -1120,7 +1162,7 @@ pub fn filter_motifs<'a>(
     let mut top_motifs = Vec::new();
 
     // Make sure first seed passes AIC
-    let log_lik = 0.5 * rec_num as f64 * motifs[0].mi;
+    let log_lik = rec_num as f64 * motifs[0].mi;
     let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = motifs[0].to_motif();
@@ -1134,7 +1176,7 @@ pub fn filter_motifs<'a>(
     for cand_motif in motifs[1..motifs.len()].iter() {
 
         // if this motif doesn't pass AIC on its own, with delta_k params, skip it
-        let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
+        let log_lik = rec_num as f64 * cand_motif.mi;
         if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
@@ -1161,7 +1203,7 @@ pub fn filter_motifs<'a>(
 
             let param_num = delta_k * (top_motifs.len() + 1);
             //let proposed_info = info_vals_in_model.iter().sum() + cmi;
-            let log_lik = 0.5 * rec_num as f64 * cmi;
+            let log_lik = rec_num as f64 * cmi;
             let this_aic = info_theory::calc_aic(param_num, log_lik);
 
             // if candidate seed doesn't improve model as added to each of the
@@ -1200,7 +1242,7 @@ pub fn filter_seeds<'a>(
     let mut top_motifs = Vec::<Motif>::new();
 
     // Make sure first seed passes AIC
-    let log_lik = 0.5 * rec_num as f64 * seeds.seeds[0].mi;
+    let log_lik = rec_num as f64 * seeds.seeds[0].mi;
     let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = seeds.seeds[0].to_motif(threshold);
@@ -1215,7 +1257,7 @@ pub fn filter_seeds<'a>(
 
         //let now = time::Instant::now();
         // if this seed doesn't pass AIC on its own delta_k params, skip it
-        let log_lik = 0.5 * rec_num as f64 * cand_seed.mi;
+        let log_lik = rec_num as f64 * cand_seed.mi;
         if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
@@ -1247,7 +1289,7 @@ pub fn filter_seeds<'a>(
             // add cmi to sum of current info in model to get proposed info
             //let proposed_info = info_vals_in_model.iter().sum() + cmi;
             // calculate log_likelihood-like factor
-            let log_lik = 0.5 * rec_num as f64 * cmi;
+            let log_lik = rec_num as f64 * cmi;
             let this_aic = info_theory::calc_aic(param_num, log_lik);
 
             // if candidate seed doesn't improve model
@@ -1606,7 +1648,7 @@ impl Motifs {
         let mut top_motifs = Vec::new();
 
         // Make sure first seed passes AIC
-        let log_lik = 0.5 * rec_num as f64 * self.motifs[0].mi;
+        let log_lik = rec_num as f64 * self.motifs[0].mi;
         let aic = info_theory::calc_aic(delta_k, log_lik);
         if aic < 0.0 {
             let motif = self.motifs[0].to_motif();
@@ -1620,7 +1662,7 @@ impl Motifs {
         for cand_motif in self.motifs[1..self.motifs.len()].iter() {
 
             // if this motif doesn't pass AIC on its own, with delta_k params, skip it
-            let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
+            let log_lik = rec_num as f64 * cand_motif.mi;
             if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
                 continue
             }
@@ -1647,7 +1689,7 @@ impl Motifs {
 
                 let param_num = delta_k * (top_motifs.len() + 1);
                 //let proposed_info = info_vals_in_model.iter().sum() + cmi;
-                let log_lik = 0.5 * rec_num as f64 * cmi;
+                let log_lik = rec_num as f64 * cmi;
                 let this_aic = info_theory::calc_aic(param_num, log_lik);
 
                 // if candidate seed doesn't improve model as added to each of the
@@ -1759,7 +1801,7 @@ pub struct BatchedRecordsDBIter<'a> {
     loc: usize,
     db: &'a RecordsDB,
     batch_size: usize,
-    final_batch_idx: usize,
+    //final_batch_idx: usize,
 }
 
 /// Stores a single entry of the RecordsDB 
@@ -2688,21 +2730,10 @@ impl RecordsDB {
     
     /// Iterate over batches of the RecordsDB
     pub fn batch_iter(&self, batch_size: usize) -> BatchedRecordsDBIter {
-
-        // create vector of batch indices
-        let mut max_batch = 0;
-        for i in 0..self.len() {
-            let this_batch = i % batch_size;
-            if this_batch > max_batch {
-                max_batch = this_batch;
-            }
-        }
-
         BatchedRecordsDBIter{
             loc: 0,
             db: &self,
             batch_size: batch_size,
-            final_batch_idx: max_batch,
         }
     }
 
@@ -2861,12 +2892,12 @@ impl<'a> Iterator for BatchedRecordsDBIter<'a> {
 
         let mut end_idx = 0;
 
-        if self.loc > self.db.len() {
+        if self.loc >= self.db.len() {
             None
         } else {
 
             end_idx = self.loc + self.batch_size;
-            if end_idx > self.db.len() {
+            if end_idx >= self.db.len() {
                 end_idx = self.db.len();
             }
 
