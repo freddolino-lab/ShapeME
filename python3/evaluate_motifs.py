@@ -10,6 +10,9 @@ import numpy as np
 import subprocess
 from pprint import pprint
 from matplotlib import pyplot as plt
+from sklearn import metrics
+import seaborn as sns
+import pandas as pd
 
 from rpy2.robjects.packages import importr
 import rpy2.robjects as ro
@@ -34,49 +37,90 @@ def read_yvals(fname):
             yvals.append(int(elements[1]))
     return(np.asarray(yvals))
 
-def save_prc_plot(precision, recall, plot_prefix, plot_label, no_skill=None):
 
-    if no_skill is not None:
-        plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
-    plt.plot(recall, precision, marker='.', label=plot_label)
+def get_y_axis_limits(prc_dict):
+
+    max_val = 0.0
+    for class_name,class_info in prc_dict.items():
+        this_max = np.max(class_info['precision'])
+        if this_max > max_val:
+            max_val = this_max
+    expand = max_val * 0.02
+    min_val = -expand
+    max_val += expand
+    return (min_val, max_val)
+
+def save_prc_plot(prc_dict, plot_prefix, plot_label_prefix):
+
+    label_str = plot_label_prefix + "_class: {}"
+
+    ylims = get_y_axis_limits(prc_dict)
+
+    for class_name,class_info in prc_dict.items():
+
+        #no_skill = class_info['random_auc']
+        recall = class_info['recall']
+        precision = class_info['precision']
+        
+        #if no_skill is not None:
+        #    plt.plot([0, 1], [no_skill, no_skill], linestyle='--', label='Random')
+        plt.plot(recall, precision, marker='.', label=label_str.format(class_name))
+
     plt.legend()
     plt.xlabel("Recall")
     plt.ylabel("Precision")
-    plt.ylim([-0.02,1.02])
+    plt.ylim(ylims)
     plt.savefig(plot_prefix + ".png")
     plt.savefig(plot_prefix + ".pdf")
     plt.close()
 
 def save_combined_prc_plot(results, plot_prefix):
 
+    ylim_vals = []
     for i,(data_type,type_results) in enumerate(results.items()):
-        if i == 0:
+        ylim_vals.append(get_y_axis_limits(type_results))
+        #if i == 0:
+        #    plt.plot(
+        #        [0,1],
+        #        [type_results['random_auc'],type_results['random_auc']],
+        #        linestyle='--',
+        #        label="Random",
+        #    )
+        for class_name,class_info in type_results.items():
             plt.plot(
-                [0,1],
-                [type_results['random_auc'],type_results['random_auc']],
-                linestyle='--',
-                label="Random",
+                type_results['recall'],
+                type_results['precision'],
+                marker='.',
+                label=data_type + "_class: {}".format(class_name),
             )
-        plt.plot(
-            type_results['recall'],
-            type_results['precision'],
-            marker='.',
-            label=data_type,
-        )
+    max_val = np.max([_[1] for _ in ylim_vals])
+    min_val = np.min([_[0] for _ in ylim_vals])
     plt.legend()
     plt.xlabel("Recall")
     plt.ylabel("Precision")
-    plt.ylim([-0.02, 1.02])
+    plt.ylim([min_val, max_val])
     plt.xlim([-0.02, 1.02])
     plt.savefig(plot_prefix + ".png")
     plt.savefig(plot_prefix + ".pdf")
     plt.close()
 
-def get_X_and_y_from_motifs(fname, max_count, rec_db):
+
+def get_X_from_lut(fname, lut):
+    motifs = inout.read_motifs_from_rust(fname)
+    X = np.zeros((motifs[0]['hits'].shape[0], len(lut)), dtype='uint8')
+    for col_idx,col_info in lut.items():
+        motif = motifs[col_info['motif_idx']]
+        hit_cat = col_info['hits']
+        rows = np.all(motif['hits'] == hit_cat, axis=1)
+        X[rows,col_idx] = 1
+
+    return X
+
+
+def get_X_from_motifs(fname, max_count):
     motifs = inout.read_motifs_from_rust(fname)
     X,var_lut = inout.prep_logit_reg_data(motifs, max_count)
-    y = rec_db.y
-    return(X,y,var_lut)
+    return (X,var_lut)
 
 def train_glmnet(X,y,folds=10,family='binomial',alpha=1):
     X_r = ro.r.matrix(
@@ -96,35 +140,16 @@ def train_glmnet(X,y,folds=10,family='binomial',alpha=1):
     )
     return fit
 
-def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
-
-    test_X_r = ro.r.matrix(
-        test_X,
-        nrow=test_X.shape[0],
-        ncol=test_X.shape[1],
-    )
-
-    yhat = glmnet.predict_cv_glmnet(
-        fit,
-        newx=test_X_r,
-        s=lambda_cut,
-    )  
-    #print("yhat: {}".format(yhat))
-    #print(yhat.shape)
-    no_skill = len(test_y[test_y==1]) / len(test_y)
-
-    yhat_peaks = yhat[test_y==1]
-    yhat_nonpeaks = yhat[test_y!=1]
-
-    r_yhat_peaks = ro.FloatVector(yhat_peaks)
-    r_yhat_nonpeaks = ro.FloatVector(yhat_nonpeaks)
+def calc_prec_recall(yhat_background, yhat_foreground):
+    r_yhat_fg = ro.FloatVector(yhat_foreground)
+    r_yhat_bg = ro.FloatVector(yhat_background)
 
     #print(yhat_peaks.shape)
     #print(yhat_nonpeaks.shape)
 
     auc = prroc.pr_curve(
-        scores_class0 = r_yhat_peaks,
-        scores_class1 = r_yhat_nonpeaks,
+        scores_class0 = r_yhat_fg, # positive class scores
+        scores_class1 = r_yhat_bg, # negative class scores
         curve=True,
     )
 
@@ -138,10 +163,99 @@ def evaluate_fit(fit, test_X, test_y, lambda_cut="lambda.1se"):
         'recall': list(recall),
         'logit_threshold': list(thresholds),
         'auc': auprc,
-        'random_auc': no_skill,
     }
+    return output
+
+
+def prec_recall(yhat, target_y, family='binomial', prefix=None, plot=False):
+    if family == 'multinomial':
+        return multinomial_prec_recall(yhat, target_y, plot, prefix)
+    elif family == 'binomial':
+        return binomial_prec_recall(yhat, target_y)
+
+
+def multinomial_prec_recall(yhat, target_y, plot=False, prefix=None):
+
+    n_classes = yhat.shape[1]
+    pr_rec_dict = {}
+    for this_class in range(n_classes):
+
+        no_skill = len(target_y[target_y==this_class]) / len(target_y)
+
+        yhat_peaks = yhat[target_y==this_class,this_class,0]
+        yhat_nonpeaks = yhat[target_y!=this_class,this_class,0]
+
+        #inclass = np.zeros(len(target_y))
+        #inclass[target_y == this_class] = 1
+
+        if plot:
+            df = pd.DataFrame({'yhat': yhat[:,this_class,0], 'inclass': target_y == this_class})
+            sns.displot(df, x='yhat', hue='inclass', kde=True)
+            plt.savefig('{}_class_{}'.format(prefix, this_class))
+            plt.close()
+
+        pr_rec = calc_prec_recall(yhat_nonpeaks, yhat_peaks)
+        pr_rec['random_auc'] = no_skill
+        pr_rec_dict[this_class] = pr_rec
+
+    return pr_rec_dict
+
+
+def binary_prec_recall(yhat, target_y):
+
+    no_skill = len(target_y[target_y==1]) / len(target_y)
+
+    yhat_peaks = yhat[target_y==1]
+    yhat_nonpeaks = yhat[target_y!=1]
+
+    pr_rec = calc_prec_recall(yhat_nonpeaks, yhat_peaks)
+    pr_rec['random_auc'] = no_skill
+    # make key 1 and val a dict of prec/recall metrics
+    # this makes the binary case sympatico with the multinomial case
+    return {1: pr_rec}
+
+
+def evaluate_fit(fit, test_X, test_y, family, lambda_cut="lambda.1se", prefix=None, plot=False):
+
+    test_X_r = ro.r.matrix(
+        test_X,
+        nrow=test_X.shape[0],
+        ncol=test_X.shape[1],
+    )
+    test_y_r = ro.IntVector(test_y)
+
+    assess_res = glmnet.assess_glmnet(
+        fit,
+        newx = test_X_r,
+        newy = test_y_r,
+    )
+    print("glmnet fit deviance:")
+    print(assess_res.rx2["deviance"])
+    print("misclassification error:")
+    print(assess_res.rx2["class"])
+    print("mse:")
+    print(assess_res.rx2["mse"])
+    print("mae:")
+    print(assess_res.rx2["mae"])
+
+    conf_mat = glmnet.confusion_glmnet(
+        fit,
+        newx = test_X_r,
+        newy = test_y_r,
+    )
+    print("Confusion matrix on test data")
+    print(conf_mat)
+
+    yhat = glmnet.predict_cv_glmnet(
+        fit,
+        newx=test_X_r,
+        s=lambda_cut,
+    )
+
+    output = prec_recall(yhat, test_y, family, prefix, plot)
 
     return output
+
 
 def read_records(args_dict, in_direc, infile, param_names, param_files, continuous=None, dset_type="training"):
 
@@ -167,10 +281,12 @@ def read_records(args_dict, in_direc, infile, param_names, param_files, continuo
 
     # read in the values associated with each sequence and store them
     # in the sequence database
+    bins = []
+    orig_y = records.y
     if continuous is not None:
-        records.quantize_quant(continuous)
+        bins = records.quantize_quant(continuous)
 
-    return records
+    return records,bins,orig_y
 
 
 
@@ -227,48 +343,13 @@ if __name__ == "__main__":
     seq_prc_prefix = os.path.join(out_direc, 'seq_precision_recall_curve')
     seq_and_shape_prc_prefix = os.path.join(out_direc, 'seq_and_shape_precision_recall_curve')
     combined_plot_prefix = os.path.join(out_direc, 'combined_precision_recall_curve')
+    eval_dist_plot_prefix = os.path.join(out_direc, 'class_yhat_distribution')
     out_pref = args.o
     
-    logit_reg_str = "{}_{}_logistic_regression_result.pkl"
-    shape_logit_reg_fname = os.path.join(
-        out_direc,
-        logit_reg_str.format(out_pref.replace('test','train'), "shape"),
-    )
-
     with open(config_fname, 'r') as f:
         args_dict = json.load(f)
 
-    # update cores so rust gets the right number for this job
-    args_dict['cores'] = args.p
-    args_dict['eval_shape_fname'] = shape_fname
-    args_dict['eval_yvals_fname'] = yval_fname
-
-    with open(config_fname, 'w') as f:
-        json.dump(args_dict, f, indent=1)
-
-    test_records = read_records(
-        args_dict,
-        in_direc,
-        args.test_infile,
-        args.param_names,
-        args.test_params,
-        continuous=args.continuous,
-        dset_type="test",
-    )
-
-    # write shapes to npy file. Permute axes 1 and 2.
-    with open(shape_fname, 'wb') as shape_f:
-        np.save(shape_fname, test_records.X.transpose((0,2,1,3)))
-    # write y-vals to npy file.
-    with open(yval_fname, 'wb') as f:
-        np.save(f, test_records.y.astype(np.int64))
-
-    logging.info("Distribution of sequences per class:")
-    logging.info(inout.seqs_per_bin(test_records))
-
-    logging.info("Getting distance between motifs and each record")
-
-    train_records = read_records(
+    train_records,train_bins,train_orig_y = read_records(
         args_dict,
         in_direc,
         args.train_infile,
@@ -278,12 +359,48 @@ if __name__ == "__main__":
         dset_type="training",
     )
 
+    logit_reg_str = "{}_{}_logistic_regression_result.pkl"
+    shape_logit_reg_fname = os.path.join(
+        out_direc,
+        logit_reg_str.format(out_pref.replace('test','train'), "shape"),
+    )
+
+    # update cores so rust gets the right number for this job
+    args_dict['cores'] = args.p
+    args_dict['eval_shape_fname'] = shape_fname
+    args_dict['eval_yvals_fname'] = yval_fname
+
+    with open(config_fname, 'w') as f:
+        json.dump(args_dict, f, indent=1)
+
+    test_records,test_bins,test_orig_y = read_records(
+        args_dict,
+        in_direc,
+        args.test_infile,
+        args.param_names,
+        args.test_params,
+        continuous=args.continuous,
+        #quantize_bins = bins,
+        dset_type = "test",
+    )
+
+    # write shapes to npy file. Permute axes 1 and 2.
+    with open(shape_fname, 'wb') as shape_f:
+        np.save(shape_fname, test_records.X.transpose((0,2,1,3)))
+    # write y-vals to npy file.
+    with open(yval_fname, 'wb') as f:
+        np.save(f, test_records.y.astype(np.int64))
+
+    logging.info("Distribution of testing set sequences per class:")
+    logging.info(inout.seqs_per_bin(test_records))
+
+    logging.info("Getting distance between motifs and each record")
+
     distinct_cats = np.unique(train_records.y)
     if len(distinct_cats) == 2:
         fam = 'binomial'
     else:
         fam = 'multinomial'
-
 
     if os.path.isfile(rust_motifs_fname):
         RUST = "{} {}".format(
@@ -296,17 +413,24 @@ if __name__ == "__main__":
         if retcode != 0:
             sys.exit("Rust binary returned non-zero exit status")
 
-        test_X,test_y,var_lut = get_X_and_y_from_motifs(
+        test_y = test_records.y
+        test_X,var_lut = get_X_from_motifs(
             os.path.join(out_direc, "evaluated_motifs.json"),
             args_dict['max_count'],
-            test_records,
         )
 
-        train_X,train_y,_ = get_X_and_y_from_motifs(
+        train_y = train_records.y
+        train_X = get_X_from_lut(
             os.path.join(out_direc, "rust_results.json"),
-            args_dict['max_count'],
-            train_records,
+            var_lut,
         )
+
+        # categories need to start with 0, so subtract one from
+        #  each value until at least one of the y-val vectors has 0 as
+        #  its minimum
+        while (np.min(train_y) != 0) and (np.min(test_y) != 0):
+            train_y -= 1
+            test_y -= 1
 
         shape_fit = train_glmnet(
             train_X,
@@ -323,7 +447,10 @@ if __name__ == "__main__":
             shape_fit,
             test_X,
             test_y,
+            fam,
             lambda_cut="lambda.1se",
+            prefix=eval_dist_plot_prefix + "_shape_only",
+            plot=True,
         )
 
         with open(eval_out_fname, 'w') as f:
@@ -333,19 +460,20 @@ if __name__ == "__main__":
             pickle.dump(shape_fit, f)
 
         save_prc_plot(
-            shape_output['precision'],
-            shape_output['recall'],
+            shape_output,
             prc_prefix,
             "Shape motifs",
-            shape_output['random_auc'],
         )
 
         logging.info("Done evaluating shape motifs on test data.")
         logging.info("==========================================")
-        logging.info("Area under precision-recall curve: {}".format(shape_output['auc']))
-        logging.info(
-            "Expected area under precision-recall curve for random: {}".format(shape_output['random_auc'])
-        )
+
+        for class_name,class_info in shape_output.items():
+            logging.info("Area under precision-recall curve for class {}: {}".format(class_name, class_info['auc']))
+            logging.info(
+                "Expected area under precision-recall curve for random performance on class {}: {}".format(class_name, class_info['random_auc'])
+            )
+
         logging.info("Results of evaluation are in {}".format(eval_out_fname))
         logging.info(
             "Precision recall curve plotted. Saved as {} and {}".format(
@@ -376,7 +504,10 @@ if __name__ == "__main__":
             seq_fit,
             test_seq_X,
             test_y,
+            fam,
             lambda_cut="lambda.1se",
+            prefix=eval_dist_plot_prefix + "_seq_only",
+            plot=True,
         )
         seq_logit_reg_fname = os.path.join(
             out_direc,
@@ -384,11 +515,9 @@ if __name__ == "__main__":
         )
 
         save_prc_plot(
-            seq_output['precision'],
-            seq_output['recall'],
+            seq_output,
             seq_prc_prefix,
             "Sequence motif",
-            seq_output['random_auc'],
         )
 
         with open(seq_eval_out_fname, 'w') as f:
@@ -396,10 +525,13 @@ if __name__ == "__main__":
 
         logging.info("Done evaluating sequence motifs on test data.")
         logging.info("==========================================")
-        logging.info("Area under precision-recall curve: {}".format(seq_output['auc']))
-        logging.info(
-            "Expected area under precision-recall curve for random: {}".format(seq_output['random_auc'])
-        )
+
+        for class_name,class_info in seq_output.items():
+            logging.info("Area under precision-recall curve for class {}: {}".format(class_name, class_info['auc']))
+            logging.info(
+                "Expected area under precision-recall curve for random performance on class {}: {}".format(class_name, class_info['random_auc'])
+            )
+
         logging.info("Results of evaluation are in {}".format(seq_eval_out_fname))
         logging.info(
             "Precision recall curve plotted. Saved as {} and {}".format(
@@ -423,6 +555,9 @@ if __name__ == "__main__":
                 seq_and_shape_fit,
                 test_seq_and_shape_X,
                 test_y,
+                fam,
+                prefix=eval_dist_plot_prefix + "_seq_and_shape",
+                plot=True,
                 lambda_cut="lambda.1se",
             )
             seq_shape_logit_reg_fname = os.path.join(
@@ -431,11 +566,9 @@ if __name__ == "__main__":
             )
 
             save_prc_plot(
-                seq_and_shape_output['precision'],
-                seq_and_shape_output['recall'],
+                seq_and_shape_output,
                 seq_and_shape_prc_prefix,
                 "Sequence and shape motifs",
-                seq_and_shape_output['random_auc'],
             )
 
             combined_results = {
@@ -454,10 +587,13 @@ if __name__ == "__main__":
 
             logging.info("Done evaluating sequence and shape motifs together on test data.")
             logging.info("==========================================")
-            logging.info("Area under precision-recall curve: {}".format(seq_and_shape_output['auc']))
-            logging.info(
-                "Expected area under precision-recall curve for random: {}".format(seq_and_shape_output['random_auc'])
-            )
+
+            for class_name,class_info in seq_and_shape_output.items():
+                logging.info("Area under precision-recall curve for class {}: {}".format(class_name, class_info['auc']))
+                logging.info(
+                    "Expected area under precision-recall curve for random performance on class {}: {}".format(class_name, class_info['random_auc'])
+                )
+
             logging.info("Results of evaluation are in {}".format(seq_and_shape_eval_out_fname))
             logging.info(
                 "Precision recall curve plotted. Saved as {} and {}".format(

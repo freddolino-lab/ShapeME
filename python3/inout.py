@@ -90,34 +90,33 @@ def prep_logit_reg_data(motif_list, max_count):
     possible_cats = [_ for _ in range(max_cat)]
     rec_num = motif_list[0]['hits'].shape[0]
 
-    X = np.zeros((rec_num, max_cat*len(motif_list)))
+    X = np.zeros((rec_num, max_cat*len(motif_list)),dtype="uint8")
 
     var_lut = {}
     col_idx = 0
 
-    for i in range(n):
-        for j in range(n):
-            # skip [0,0] case since that will be in intercept
-            if (i == 0) and (j == 0):
-                continue
-            # don't do lower triangle
-            if j < i:
-                continue
-            
-            hit = [i,j]
-            # get the appropriate motif
-            motif_idx = col_idx // max_cat
-            motif = motif_list[motif_idx]
+    for motif_idx,motif in enumerate(motif_list):
+        for i in range(n):
+            for j in range(n):
+                # skip [0,0] case since that will be in intercept
+                if (i == 0) and (j == 0):
+                    continue
+                # don't do lower triangle
+                if j < i:
+                    continue
+                
+                hit = [i,j]
+                # get the appropriate motif
 
-            rows = np.where(np.all(motif['hits'] == hit, axis=1))[0]
-            X[rows,col_idx] = 1
+                rows = np.all(motif['hits'] == hit, axis=1)
+                X[rows,col_idx] = 1
 
-            var_lut[col_idx] = {
-                'motif_idx': motif_idx,
-                'hits': hit,
-            }
+                var_lut[col_idx] = {
+                    'motif_idx': motif_idx,
+                    'hits': hit,
+                }
 
-            col_idx += 1
+                col_idx += 1
 
     return (X,var_lut)
 
@@ -959,6 +958,7 @@ class RecordDatabase(object):
             bins.append(np.percentile(values, quant))
         logging.warning("Quantizing on bins: {}".format(bins))
         self.y = np.digitize(values, bins)
+        return bins
 
     def discretize_quant(self, nbins=10):
         """Discretize data into nbins bins according to K-means clustering
