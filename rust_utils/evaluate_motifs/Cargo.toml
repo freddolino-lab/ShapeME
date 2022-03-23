@@ -9,4 +9,3 @@ edition = "2018"
 motifer = { path = "../motifer" }
 rayon = "1.5.1"
 approx = "0.5.0"
-ndarray-npy = { path = "../ndarray-npy" }

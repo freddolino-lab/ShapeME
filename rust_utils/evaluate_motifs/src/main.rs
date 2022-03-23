@@ -1,5 +1,4 @@
 use motifer;
-use ndarray_npy;
 use std::path;
 use std::env;
 use rayon::ThreadPoolBuilder;

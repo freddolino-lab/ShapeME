@@ -10,12 +10,12 @@ ndarray-stats = "0.5.0"
 approx = "0.5.0"
 itertools = "0.10.1"
 statrs = "0.15.0"
-ndarray-npy = { path = "../ndarray-npy" }
+ndarray-npy = "0.8.1"
 serde-pickle = "1.0"
 serde_json = "1.0.59"
 serde = { version = "1.0", features = ["derive"] }
 ordered-float = "2.8.0"
 rayon = "1.5.1"
 rand = "0.8.4"
-info_theory = { path = "../info_theory" }
+info_theory = { git = "https://github.com/jwschroeder3/info_theory.git" }
 
