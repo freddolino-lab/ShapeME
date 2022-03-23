@@ -21,6 +21,7 @@ numpy2ri.activate()
 # import R's "PRROC" package
 prroc = importr('PRROC')
 glmnet = importr('glmnet')
+base = importr('base')
 
 from pathlib import Path
 
@@ -178,18 +179,28 @@ def multinomial_prec_recall(yhat, target_y, plot=False, prefix=None):
 
     n_classes = yhat.shape[1]
     pr_rec_dict = {}
+
     for this_class in range(n_classes):
 
         no_skill = len(target_y[target_y==this_class]) / len(target_y)
 
-        yhat_peaks = yhat[target_y==this_class,this_class,0]
-        yhat_nonpeaks = yhat[target_y!=this_class,this_class,0]
+        this_class_yhat = yhat[:,this_class,0].copy()
+        
+        # plotting the distribution of yhat vals and, more importantly, using the
+        # PPROC pr.curve function, requires a bit of difference between values
+        # in the yhat vector. I there's only one distinct value, add a tiny bit
+        # of noise to this class' yhat values just to make the funcitons work.
+        if len(np.unique(this_class_yhat)) == 1:
+            this_class_yhat += np.random.normal(0.0, 0.001, len(this_class_yhat))
+
+        yhat_peaks = this_class_yhat[target_y==this_class]
+        yhat_nonpeaks = this_class_yhat[target_y!=this_class]
 
         #inclass = np.zeros(len(target_y))
         #inclass[target_y == this_class] = 1
 
         if plot:
-            df = pd.DataFrame({'yhat': yhat[:,this_class,0], 'inclass': target_y == this_class})
+            df = pd.DataFrame({'yhat': this_class_yhat, 'inclass': target_y == this_class})
             sns.displot(df, x='yhat', hue='inclass', kde=True)
             plt.savefig('{}_class_{}'.format(prefix, this_class))
             plt.close()
@@ -215,7 +226,8 @@ def binary_prec_recall(yhat, target_y):
     return {1: pr_rec}
 
 
-def evaluate_fit(fit, test_X, test_y, family, lambda_cut="lambda.1se", prefix=None, plot=False):
+def evaluate_fit(fit, test_X, test_y, family,
+        lambda_cut="lambda.1se", prefix=None, plot=False):
 
     test_X_r = ro.r.matrix(
         test_X,
@@ -288,6 +300,17 @@ def read_records(args_dict, in_direc, infile, param_names, param_files, continuo
 
     return records,bins,orig_y
 
+
+def fetch_coefficients(fit, n_classes):
+    '''Yields an n_coefficients-by-n_classes array of fitted coefficients
+    The first row is intercept.
+    '''
+    ncoefs = fit.rx2["glmnet.fit"].rx2["dim"][0] + 1
+    coefs = glmnet.coef_cv_glmnet(fit, s="lambda.1se")
+    coefs_arr = np.zeros((n_classes, ncoefs))
+    for i in range(n_classes):
+        coefs_arr[i,:] = base.as_matrix(coefs.rx2[str(i)])[:,0]
+    return coefs_arr
 
 
 if __name__ == "__main__":
@@ -440,7 +463,9 @@ if __name__ == "__main__":
             alpha=1,
         )
 
-        # NOTE: TODO: go through coefficients and weed out motifs for which all "match"
+        coefs = fetch_coefficients(shape_fit, args.continuous)
+
+        # NOTE: TODO: go through coefficients and weed out motifs for which all
         #   coefficients are zero.
         # predict on test data
         shape_output = evaluate_fit(
@@ -601,3 +626,90 @@ if __name__ == "__main__":
                     seq_and_shape_prc_prefix+".pdf",
                 )
             )
+
+    #cvlogistic.write_coef_per_class(clf_f, coef_per_class_fname)
+    #final_good_motifs = [good_motifs[index] for index in good_motif_index]
+    #logging.info("{} motifs survived".format(len(final_good_motifs)))
+
+    #for motif in final_good_motifs:
+    #    add_motif_metadata(this_records, motif) 
+    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
+    #    logging.info("MI: {}".format(motif['mi']))
+    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
+    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
+    #    for key in sorted(motif['enrichment'].keys()):
+    #        logging.info("Two way table for cat {} is {}".format(
+    #            key,
+    #            motif['enrichment'][key]
+    #        ))
+    #        logging.info("Enrichment for Cat {} is {}".format(
+    #            key,
+    #            two_way_to_log_odds(motif['enrichment'][key])
+    #        ))
+    #logging.info("Generating initial heatmap for passing motifs")
+    #if len(final_good_motifs) > 25:
+    #    logging.info("Only plotting first 25 motifs")
+    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs[:25])
+    #else:
+    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs)
+
+    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
+    #if not args.txt_only:
+    #    enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
+    #    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
+
+    #for i, motif in enumerate(novel_motifs):
+    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
+    #    logging.info("MI: {}".format(motif['mi']))
+    #    if args.infoz > 0:
+    #        logging.info("Calculating Z-score for motif {}".format(i))
+    #        # calculate zscore
+    #        zscore, passed = info_zscore(
+    #            motif['discrete'],
+    #            other_records.get_values(),
+    #            args.infoz,
+    #        )
+    #        motif['zscore'] = zscore
+    #        logging.info("Z-score: {}".format(motif['zscore']))
+    #    if args.infoz > 0 and args.inforobust > 0:
+    #        logging.info("Calculating Robustness for motif {}".format(i))
+    #        num_passed = info_robustness(
+    #            motif['discrete'],
+    #            other_records.get_values(), 
+    #            args.infoz,
+    #            args.inforobust,
+    #            args.fracjack,
+    #        )
+    #        motif['robustness'] = "{}/{}".format(num_passed,args.inforobust)
+    #        logging.info("Robustness: {}".format(motif['robustness']))
+    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
+    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
+    #    for key in sorted(motif['enrichment'].keys()):
+    #        logging.info("Two way table for cat {} is {}".format(
+    #            key,
+    #            motif['enrichment'][key]
+    #        ))
+    #        logging.info("Enrichment for Cat {} is {}".format(
+    #            key,
+    #            two_way_to_log_odds(motif['enrichment'][key])
+    #        ))
+    #    if args.optimize:
+    #        logging.info("Optimize Success?: {}".format(motif['opt_success']))
+    #        logging.info("Optimize Message: {}".format(motif['opt_message']))
+    #        logging.info("Optimize Iterations: {}".format(motif['opt_iter']))
+    #logging.info("Generating final heatmap for motifs")
+    #enrich_hm = smv.EnrichmentHeatmap(novel_motifs)
+    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
+
+    #if not args.txt_only:
+    #    enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
+    #    enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
+    #    if args.optimize:
+    #        logging.info("Plotting optimization for final motifs")
+    #        enrich_hm.plot_optimization(outpre+"_optimization.pdf")
+
+    #logging.info("Writing final motifs")
+    #outmotifs = inout.ShapeMotifFile()
+    #outmotifs.add_motifs(novel_motifs)
+    #outmotifs.write_file(outpre+"_called_motifs.dsp", records)
+
