@@ -244,11 +244,11 @@ def main():
                 ncats += 1
             # approximately even number of records per category
             y_vals = make_categorical_y_vals(rec_num, n_cats=ncats)
-            motif_cats = np.unique(y_vals)
+            distinct_cats = np.unique(y_vals)
             if args.pivot_category:
-                motif_cats = distinct_cats[:-1]
+                distinct_cats = distinct_cats[:-1]
 
-            for motif,cat in zip(motifs, motif_cats):
+            for motif,cat in zip(motifs, distinct_cats):
                 # fa_seqs modified in-place here to include the motif at a 
                 #  randomly chosen site in each record where y_val is cat
                 substitute_motif_into_records(

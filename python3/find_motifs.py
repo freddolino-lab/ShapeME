@@ -371,6 +371,9 @@ if __name__ == "__main__":
         'good_motif_out_fname': good_motif_out_fname, 
     }
 
+    if args.continuous is not None:
+        args_dict['y_cat_num'] = args.continuous
+
     # supplement args info with shape center and spread from database
     args_dict['names'] = []
     args_dict['indices'] = []
