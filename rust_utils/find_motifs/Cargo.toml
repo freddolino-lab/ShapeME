@@ -10,4 +10,4 @@ motifer = { path = "../motifer" }
 optim = { path = "../optim" }
 rayon = "1.5.1"
 approx = "0.5.0"
-ndarray-npy = { path = "../ndarray-npy" }
+ndarray-npy = "0.8.1"
