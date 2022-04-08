@@ -28,6 +28,15 @@ from pathlib import Path
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
 
+
+def fetch_coefficients(family, fit, continuous):
+    if family == "multinomial":
+        coefs = fetch_coefficients_multinomial(fit, continuous)
+    else:
+        coefs = fetch_coefficients_binomial(fit)
+    return coefs
+
+
 def read_yvals(fname):
     yvals = []
     with open(fname, 'r') as f:
@@ -212,7 +221,7 @@ def multinomial_prec_recall(yhat, target_y, plot=False, prefix=None):
     return pr_rec_dict
 
 
-def binary_prec_recall(yhat, target_y):
+def binomial_prec_recall(yhat, target_y):
 
     no_skill = len(target_y[target_y==1]) / len(target_y)
 
@@ -300,8 +309,18 @@ def read_records(args_dict, in_direc, infile, param_names, param_files, continuo
 
     return records,bins,orig_y
 
+def fetch_coefficients_binomial(fit):
+    '''Returns a vector of coefficents.
+    '''
+    ncoefs = fit.rx2["glmnet.fit"].rx2["dim"][0] + 1
+    coefs = glmnet.coef_cv_glmnet(fit, s="lambda.1se")
+    coefs_arr = np.zeros((1, ncoefs))
+    coefs_arr[0,:] = base.as_vector(coefs)
+        
+    return coefs_arr
 
-def fetch_coefficients(fit, n_classes):
+
+def fetch_coefficients_multinomial(fit, n_classes):
     '''Yields an n_coefficients-by-n_classes array of fitted coefficients
     The first row is intercept.
     '''
@@ -310,7 +329,50 @@ def fetch_coefficients(fit, n_classes):
     coefs_arr = np.zeros((n_classes, ncoefs))
     for i in range(n_classes):
         coefs_arr[i,:] = base.as_matrix(coefs.rx2[str(i)])[:,0]
+        
     return coefs_arr
+
+
+def set_family(yvals):
+    distinct_cats = np.unique(yvals)
+    if len(distinct_cats) == 2:
+        fam = 'binomial'
+    else:
+        fam = 'multinomial'
+    return fam
+
+
+def filter_motifs(motif_list, coefs, var_lut):
+
+    # construct lookup table where motif index is key, and value is list
+    #  of column indices for that motif in coefs
+    motif_lut = {}
+    for k,coef in var_lut.items():
+        # if this motif index isn't yet in the lut, place it in and give it a list
+        if not coef['motif_idx'] in motif_lut:
+            motif_lut[coef['motif_idx']] = [k+1]
+        # if this motif idx is already present, append col to list
+        else:
+            motif_lut[coef['motif_idx']].append(k+1)
+
+    retain = []
+    # now go through coefs columns to see whether any motif has all zeros
+    for motif_idx,motif_col_inds in motif_lut.items():
+        # instantiate a list to carry bools
+        motif_any_nonzero = []
+        for col_idx in motif_col_inds:
+            # are any of these values non-zero?
+            motif_any_nonzero.append(np.any(coefs[:,col_idx] != 0))
+        
+        # if any column for this motif contained any non-zero values, retain the motif
+        if np.any(motif_any_nonzero):
+            retain.append(True)
+        else:
+            retain.append(False)
+            print("WARNING: all regression coefficients for motif at index {} were shrunken to 0 during LASSO regression. The motif has been removed from further consideration.".format(motif_idx))
+        
+    # keep motifs for which at least one coefficient was non-zero
+    return [motif_list[i] for i,_ in enumerate(retain) if _]
 
 
 if __name__ == "__main__":
@@ -340,16 +402,12 @@ if __name__ == "__main__":
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
-    
-    logging.warning("Reading in files")
 
     args = parser.parse_args()
 
-    in_direc = args.data_dir
-
-    logging.warning("Reading in files")
-
-    args = parser.parse_args()
+    logging.info("Arguments")
+    logging.info(str(args))
+    logging.info("Reading in files")
 
     in_direc = args.data_dir
     out_direc = args.out_dir
@@ -359,6 +417,7 @@ if __name__ == "__main__":
     yval_fname = os.path.join(out_direc, 'test_y_vals.npy')
     config_fname = os.path.join(out_direc, 'config.json')
     rust_motifs_fname = os.path.join(out_direc, 'rust_results.json')
+    lasso_fit_fname = os.path.join(out_direc, 'lasso_fit.pkl')
     eval_out_fname = os.path.join(out_direc, 'shape_precision_recall.json')
     seq_eval_out_fname = os.path.join(out_direc, 'seq_precision_recall.json')
     seq_and_shape_eval_out_fname = os.path.join(out_direc, 'seq_and_shape_precision_recall.json')
@@ -419,11 +478,7 @@ if __name__ == "__main__":
 
     logging.info("Getting distance between motifs and each record")
 
-    distinct_cats = np.unique(train_records.y)
-    if len(distinct_cats) == 2:
-        fam = 'binomial'
-    else:
-        fam = 'multinomial'
+    fam = set_family(train_records.y)
 
     if os.path.isfile(rust_motifs_fname):
         RUST = "{} {}".format(
@@ -455,15 +510,20 @@ if __name__ == "__main__":
             train_y -= 1
             test_y -= 1
 
-        shape_fit = train_glmnet(
-            train_X,
-            train_y,
-            folds=10,
-            family=fam,
-            alpha=1,
-        )
+        #shape_fit = train_glmnet(
+        #    train_X,
+        #    train_y,
+        #    folds=10,
+        #    family=fam,
+        #    alpha=1,
+        #)
+        with open(lasso_fit_fname, 'rb') as f:
+            shape_fit = pickle.load(f)
 
-        coefs = fetch_coefficients(shape_fit, args.continuous)
+        if fam == "multinomial":
+            coefs = fetch_coefficients_multinomial(shape_fit, args.continuous)
+        else:
+            coefs = fetch_coefficients_binomial(shape_fit)
 
         # NOTE: TODO: go through coefficients and weed out motifs for which all
         #   coefficients are zero.

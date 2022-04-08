@@ -1,28 +1,19 @@
 import inout
-import glob
 import sys
 import os
-import dnashapeparams as dsp
 import logging
 import argparse
 import numpy as np
-import scipy.optimize as opt
-from scipy.optimize import LinearConstraint
 import shapemotifvis as smv
-import multiprocessing as mp
-mp.set_start_method('spawn', force=True)
-import itertools
-import welfords
-import sklearn
-import cvlogistic
-import numba
-from numba import jit,prange
-import pickle
 import json
-import tempfile
+import pickle
 import time
 import subprocess
+import tempfile
 from pathlib import Path
+
+import evaluate_motifs as evm
+import fimopytools as fimo
 
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/find_motifs')
@@ -220,6 +211,12 @@ if __name__ == "__main__":
         help="number of processors. Default=5")
     parser.add_argument('--batch_size', type=int, default=2000,
         help="Number of records to process seeds from at a time. Set lower to avoid out-of-memory errors. Default=2000")
+    parser.add_argument('--seq_motifs', action="store_true",
+        help="Add this flag to call sequence motifs using streme in addition to calling shape motifs.")
+    parser.add_argument("--memedir", type=str, default="",
+        help="Full path to directory containing streme binary")
+    parser.add_argument("--seq_fasta", type=str,
+        help="Name of fasta file (located within in_direc, do not include the directory, just the file name) containing sequences in which to search for motifs")
     #parser.add_argument("--debug", action="store_true",
     #    help="print debugging information to stderr. Write extra txt files.")
     #parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
@@ -227,21 +224,75 @@ if __name__ == "__main__":
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
-    
-    args = parser.parse_args()
-    numba.set_num_threads(args.p)
-    out_pref = args.o
-    in_direc = args.data_dir
-    out_direc = args.out_dir
-    out_direc = os.path.join(in_direc, out_direc)
-
-    if not os.path.isdir(out_direc):
-        os.mkdir(out_direc)
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
     logging.getLogger('matplotlib.font_manager').disabled = True
 
+    args = parser.parse_args()
+
+    logging.info("Arguments:")
+    logging.info(str(args))
+
+    out_pref = args.o
+    in_direc = args.data_dir
+    out_direc = args.out_dir
+    out_direc = os.path.join(in_direc, out_direc)
+    in_fname = os.path.join(in_direc, args.infile)
+
+    if not os.path.isdir(out_direc):
+        os.mkdir(out_direc)
+
+    if args.seq_motifs:
+        if args.memedir == "":
+            logging.error("ERROR: you set the --seq_motifs argument without specifying the location containing the streme binary. Run again with --memedir set so that the streme binary can be located and run")
+            sys.exit()
+        in_seq_fa = os.path.join(in_direc, args.seq_fasta)
+        fa_file = inout.FastaFile()
+        pos_fa_file = inout.FastaFile()
+        neg_fa_file = inout.FastaFile()
+        with open(in_seq_fa, "r") as f:
+            fa_file.read_whole_file(f)
+        with open(in_fname, "r") as f:
+            # skip first line
+            f.readline()
+            for line in f:
+                name,yval = line.strip().split("\t")
+                header = f">{name}"
+                if yval == "1":
+                    entry = fa_file.pull_entry(header[1:])
+                    pos_fa_file.add_entry(entry)
+                elif yval == "0":
+                    entry = fa_file.pull_entry(header[1:])
+                    neg_fa_file.add_entry(entry)
+                else:
+                    logging.error("ERROR: using streme to find sequence motifs only implemented for binary input of value 0 and 1.")
+                    sys.exit()
+
+        with tempfile.NamedTemporaryFile(mode="w") as pos_f:
+            tmp_pos = pos_f.name
+            pos_fa_file.write(pos_f)
+            with tempfile.NamedTemporaryFile(mode="w") as neg_f:
+                tmp_neg = neg_f.name
+                neg_fa_file.write(neg_f)
+                STREME = f"streme --p {tmp_pos} --n {tmp_neg} --dna "\
+                    f"--oc {out_direc}/streme_out"
+                print()
+                logging.info("Running streme command:")
+                print(STREME)
+                retcode = subprocess.run(STREME, shell=True, env=my_env, check=True)
+
+        fimo_direc = f"{out_direc}/streme_out/fimo_out"
+        print()
+        logging.info(f"Running fimo on all sequences in {in_seq_fa} using motifs in {out_direc}/streme_out/streme.txt")
+        FIMO = f"fimo --max-strand --motif-pseudo 0.0 "\
+            f"--oc {fimo_direc} "\
+            f"{out_direc}/streme_out/streme.txt {in_seq_fa}"
+        logging.info("Running fimo command:")
+        print(FIMO)
+        retcode = subprocess.run(FIMO, shell=True, env=my_env, check=True)
+
+    print()
     logging.info("Reading in files")
     # read in shapes
     shape_fname_dict = {
@@ -250,12 +301,12 @@ if __name__ == "__main__":
     }
     logging.info("Reading input data and shape info.")
     records = inout.RecordDatabase(
-        os.path.join(in_direc, args.infile),
+        in_fname,
         shape_fname_dict,
         shift_params = ["Roll", "HelT"],
     )
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
-
+           
     # read in the values associated with each sequence and store them
     # in the sequence database
     if args.continuous is not None:
@@ -264,6 +315,7 @@ if __name__ == "__main__":
         #records.discretize_quant(args.continuous)
         #logging.info("Quantizing input data using k-means clustering")
         records.quantize_quant(args.continuous)
+
 
     logging.info("Distribution of sequences per class:")
     logging.info(inout.seqs_per_bin(records))
@@ -305,6 +357,47 @@ if __name__ == "__main__":
     yval_fname = os.path.join(out_direc, 'y_vals.npy')
     config_fname = os.path.join(out_direc, 'config.json')
     rust_out_fname = os.path.join(out_direc, 'rust_results.json')
+    shape_fit_fname = os.path.join(out_direc, 'shape_lasso_fit.pkl')
+    seq_fit_fname = os.path.join(out_direc, 'seq_lasso_fit.pkl')
+    shape_and_seq_fit_fname = os.path.join(out_direc, 'shape_and_seq_lasso_fit.pkl')
+
+    if args.seq_motifs:
+
+        print()
+        logging.info("Fitting LASSO regression model to sequence motifs")
+        seq_matches = fimo.FimoFile()
+        seq_matches.parse(f"{fimo_direc}/fimo.tsv")
+
+        #################################################################
+        #################################################################
+        ## Code needs updated for multiple seq motifs ###################
+        #################################################################
+        #################################################################
+        seq_X = seq_matches.get_design_matrix(records)
+
+        fam = evm.set_family(records.y)
+
+        seq_fit = evm.train_glmnet(
+            seq_X,
+            records.y,
+            folds=10,
+            family=fam,
+            alpha=1,
+        )
+        logging.info(f"Writing fitted LASSO regression model to {seq_fit_fname}")
+        with open(seq_fit_fname, "wb") as f:
+            pickle.dump(seq_fit, f)
+
+        seq_coefs = evm.fetch_coefficients(fam, seq_fit, args.continuous)
+        print(seq_coefs)
+        #################################################################
+        #################################################################
+        ## code needs worked out to fileter seq motifs ##################
+        #################################################################
+        #################################################################
+        #final_motifs = evm.filter_motifs(seq_motifs, seq_coefs, var_lut)
+ 
+    sys.exit()
 
     good_motif_out_fname = os.path.join(
         out_direc,
@@ -318,7 +411,7 @@ if __name__ == "__main__":
         ),
     )
 
-    good_motif_plot_fname = os.path.join(
+    final_motif_plot_fname = os.path.join(
         out_direc,
         "{}_post_opt_cmi_filtered_motifs_optim_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.png".format(
             out_pref,
@@ -403,37 +496,60 @@ if __name__ == "__main__":
     if retcode != 0:
         sys.exit("ERROR: find_motifs binary execution exited with non-zero exit status")
 
+    if not os.path.isfile(rust_out_fname):
+        info.warning("No output json file containing motifs from rust binary. This usually means no motifs were identified, but you should carfully check your log and error messages to make sure that's really the case.")
+        sys.exit()
+
     good_motifs = inout.read_motifs_from_rust(rust_out_fname)
 
-    # remove the files used or generated by rust
-    #os.remove(shape_fname)
-    #os.remove(yval_fname)
-    #os.remove(rust_out_fname)
+    shape_X,var_lut = evm.get_X_from_motifs(
+        rust_out_fname,
+        args.max_count,
+    )
 
-    #with open(good_motif_out_fname, 'wb') as outf:
-    #    pickle.dump(good_motifs, outf)
+    fam = evm.set_family(records.y)
 
-    #X,var_lut = inout.prep_logit_reg_data(good_motifs, max_count)
-    #y = records.y
-    #logging.info(
-    #    "Running L1 regularized logistic regression with CV to determine reg param"
-    #)
+    shape_fit = evm.train_glmnet(
+        shape_X,
+        records.y,
+        folds = 10,
+        family=fam,
+        alpha=1,
+    )
+
+    with open(shape_fit_fname, "wb") as f:
+        pickle.dump(shape_fit, f)
+
+    coefs = evm.fetch_coefficients(fam, shape_fit, args.continuous)
+
+    # go through coefficients and weed out motifs for which all
+    #   coefficients are zero.
+    final_motifs = evm.filter_motifs(good_motifs, coefs, var_lut)
+    if len(final_motifs) == 0:
+        info.warning("There were no motifs left after LASSO regression. Exiting now.")
+        sys.exit()
 
     smv.plot_optim_shapes_and_weights(
-        good_motifs,
-        good_motif_plot_fname,
+        final_motifs,
+        final_motif_plot_fname,
         records,
     )
 
-    #best_c = inout.choose_l1_penalty(X, y)
-    #clf_f = inout.lasso_regression(X,y,best_c)
-    #logit_reg_info = {
-    #    'model': clf_f,
-    #    'var_lut': var_lut,
-    #}
+    if args.seq_motifs:
 
-    #with open(logit_reg_fname, 'wb') as outf:
-    #    pickle.dump(logit_reg_info, outf)
+        shape_and_seq_X = np.append(shape_X, seq_X, axis=1)
+        fam = evm.set_family(records.y)
+
+        shape_and_seq_fit = evm.train_glmnet(
+            shape_and_seq_X,
+            records.y,
+            folds=10,
+            family=fam,
+            alpha=1,
+        )
+        with open(shape_and_seq_fit_fname, "wb") as f:
+            pickle.dump(shape_and_seq_fit, f)
+ 
 
     #good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
     #if len(good_motif_index) < 1:

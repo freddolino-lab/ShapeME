@@ -12,7 +12,7 @@ from sklearn.model_selection import KFold
 this_path = Path(__file__).parent.absolute()
 
 """
-Creates a reference genome and its associated y-values file.
+Creates a sequence database and its associated y-values file.
 """
 
 def random_sequence_generator(length=60):

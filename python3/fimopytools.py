@@ -101,6 +101,12 @@ class FimoFile(object):
     def pull_entry(self, name):
         return self.data[name]
 
+################################################################################
+################################################################################
+################################################################################
+## This code needs updated for multiple sequence motifs ########################
+################################################################################
+################################################################################
     def get_design_matrix(self, rec_db):
         # set up array of zeros with n_records rows. First column if for misses,
         #  second column is for hits.

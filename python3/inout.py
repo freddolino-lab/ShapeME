@@ -553,7 +553,6 @@ class FastaEntry(object):
         for base in self.seq:
             yield base
 
-
     def set_header(self, header):
         self.header = header
 
@@ -998,7 +997,7 @@ class RecordDatabase(object):
                 #        continue
                 linearr = line.rstrip().split("\t")
                 self.record_name_list.append(linearr[0])
-                scores.append(linearr[1])
+                scores.append(float(linearr[1]))
             self.y = np.asarray(
                 scores,
                 dtype=float,

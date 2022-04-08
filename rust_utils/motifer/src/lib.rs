@@ -2,6 +2,7 @@ use std::error::Error;
 use std::hash::Hash;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::cmp;
 use std::iter;
 use std::fs;
@@ -68,6 +69,75 @@ mod tests {
         
         let this_sequence = StrandedSequence::new(arr);
         this_sequence
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_len_mismatch() {
+        let seqA = "ACTGTCA";
+        let seqB = "AC";
+        let result5 = seq_hamming_distance(&seqA, &seqB).unwrap();
+    }
+
+    #[test]
+    fn test_no_key_error() {
+        let nonsense = "anfrlas";
+        let answer = "Key 'N' not found in lut {'A': 0, 'C': 1, 'G': 2, 'T': 3}";
+        let result = letter_seq_to_one_hot(&nonsense).unwrap_err();
+        assert_eq!(result, answer);
+    }
+
+    #[test]
+    fn test_hamming_dist() {
+        let seqA = "ACTGTCA";
+        let seqB = "actgtca";
+        let seqC = "aCtgTca";
+        let seqD = "agtgTca";
+        let seqE = "ggaccgt";
+        
+        let answer1: u64 = 0;
+        let answer2: u64 = 0;
+        let answer3: u64 = 1;
+        let answer4: u64 = 7;
+
+        let result1 = seq_hamming_distance(&seqA, &seqB).unwrap();
+        let result2 = seq_hamming_distance(&seqA, &seqC).unwrap();
+        let result3 = seq_hamming_distance(&seqA, &seqD).unwrap();
+        let result4 = seq_hamming_distance(&seqA, &seqE).unwrap();
+
+        assert_eq!(result1, answer1);
+        assert_eq!(result2, answer2);
+        assert_eq!(result3, answer3);
+        assert_eq!(result4, answer4);
+    }
+
+    #[test]
+    fn test_one_hot_to_letter() {
+        let answer = "ACGTGCA";
+        let arr = array![
+            [1, 0, 0, 0, 0, 0, 1], // A
+            [0, 1, 0, 0, 0, 1, 0], // C
+            [0, 0, 1, 0, 1, 0, 0], // T
+            [0, 0, 0, 1, 0, 0, 0], // G
+        ];
+        let result = one_hot_to_letter_seq(&arr.view()).unwrap();
+        assert_eq!(result, answer);
+    }
+
+    #[test]
+    fn test_letter_to_one_hot() {
+        let letter_seq = "ACGTGCA";
+        let answer = array![
+            [1, 0, 0, 0, 0, 0, 1], // A
+            [0, 1, 0, 0, 0, 1, 0], // C
+            [0, 0, 1, 0, 1, 0, 0], // T
+            [0, 0, 0, 1, 0, 0, 0], // G
+        ];
+        let result = letter_seq_to_one_hot(&letter_seq).unwrap();
+        assert_eq!(result, answer);
+        let letter_seq = "acgtgca";
+        let result = letter_seq_to_one_hot(&letter_seq).unwrap();
+        assert_eq!(result, answer);
     }
 
     #[test]
@@ -2984,6 +3054,76 @@ pub fn set_initial_threshold(
     mean_dist - std_dev * thresh_sd_from_mean
 }
 
+/// Recodes a one-hot encoded array of shape (4,L), where L is the length
+/// of seq to a letter sequence, i.e., a sequence of A, C, T, and Gs,
+pub fn one_hot_to_letter_seq(arr: &ndarray::ArrayView<u64, Ix2>) -> Result<String, String> {
+    let lut: BTreeMap<usize,char> = BTreeMap::from([
+        (0, 'A'),
+        (1, 'C'),
+        (2, 'G'),
+        (3, 'T'),
+    ]);
+
+    let categories = info_theory::one_hot_to_categorical(arr);
+    let mut out_seq = String::new();
+    for category in categories.iter() {
+        let cat = *category as usize;
+        let letter = lut.get(&cat);
+        if letter.is_none() {
+            return Err(format!(
+                "Key '{}' not found in lut {:?}",
+                &cat,
+                &lut,
+            ));
+        };
+        out_seq.push(*letter.unwrap());
+    }
+    Ok(out_seq)
+}
+
+/// Encodes a letter sequence, i.e., a sequence of A, C, T, and Gs,
+/// to a one-hot encoded array of shape (4,L), where L is the length
+/// of seq.
+pub fn letter_seq_to_one_hot(seq: &str) -> Result<ndarray::Array2<u64>, String> {
+    let lut: BTreeMap<char,usize> = BTreeMap::from([
+        ('A', 0),
+        ('C', 1),
+        ('G', 2),
+        ('T', 3),
+    ]);
+
+    let mut out_arr = ndarray::Array::zeros((4,seq.len()));
+    for (c_idx,base) in seq.to_uppercase().char_indices() {
+        let r_idx = lut.get(&base);
+        if r_idx.is_none() {
+            return Err(format!(
+                "Key '{}' not found in lut {:?}",
+                &base,
+                &lut,
+            ));
+        };
+        out_arr[[*r_idx.unwrap(), c_idx]] = 1;
+    }
+    Ok(out_arr)
+}
+
+pub fn seq_hamming_distance(seqA: &str, seqB: &str) -> Result<u64, Box<dyn Error>> {
+    let lenA = seqA.len();
+    let lenB = seqB.len();
+    assert_eq!(lenA, lenB);
+    let matA = letter_seq_to_one_hot(seqA)?;
+    let matB = letter_seq_to_one_hot(seqB)?;
+    Ok(hamming_distance(&matA.view(), &matB.view()))
+}
+
+/// Computes the Hamming distance between two letter sequences
+pub fn hamming_distance(matA: &ndarray::ArrayView::<u64, Ix2>,
+                        matB: &ndarray::ArrayView::<u64, Ix2>) -> u64 {
+    let xor = matA ^ matB;
+    // divide sum of XOR array by 2,
+    // since there will be two 1's in each mismatched column
+    xor.sum() / 2
+}
 
 /// Function to compute manhattan distance between two 2D array views
 ///

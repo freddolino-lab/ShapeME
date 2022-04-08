@@ -1,17 +1,4 @@
 import numpy as np
-from numba import jit
-
-@jit(nopython=True)
-def euclidean_distance(vec1, vec2):
-    return np.sqrt(np.sum((vec1 - vec2)**2))
-
-@jit(nopython=True)
-def manhattan_distance(vec1, vec2):
-    return np.sum(np.abs(vec1 - vec2))
-
-@jit(nopython=True)
-def hamming_distance(vec1, vec2):
-    return np.sum(vec1 != vec2)
 
 class ShapeParamSeq(object):
     """ Class to hold a sequence of parameters for a single DNA shape parameter
