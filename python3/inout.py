@@ -20,6 +20,57 @@ from math import log
 
 from matplotlib import pyplot as plt
 
+
+class NoSeqFaException(Exception):
+    def __init__(self):
+        self.message = f"ERROR: you requested finding of sequence motifs by "\
+            f"setting the --find_seq_motifs command line option, but you did not "\
+            f"provide the --seq_fasta option."
+        super().__init__(self.message)
+
+
+class RustBinaryException(Exception):
+    def __init__(self):
+        self.message = f"ERROR: find_motifs binary execution exited with "\
+            f"non-zero exit status"
+        super().__init__(self.message)
+
+
+class StremeClassException(Exception):
+    def __init__(self, val, line):
+        self.value = val
+        self.line = line
+        self.message = f"ERROR: using streme to find sequence motifs "\
+            f"only implemented for binary input of value 0 and 1. "\
+            f"Value at {self.line} has value {self.value}."
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f"{self.message}"
+
+
+class SeqMotifOptionException(Exception):
+    """Exception raised for error in sequence motif CLI usage
+
+    Attributes:
+        meme_fname - name of meme file passed at command line
+        message - explanation of the error
+    """
+
+    def __init__(self, fname):
+
+        self.meme_fname = fname
+        self.message = f"ERROR: you specified a known motifs file, "\
+                f"{self.meme_fname}, AND to search for new motifs by including "\
+                f"--find_seq_motifs at the command line. You must choose one or the "\
+                f"other if you want to work with sequence motifs. If you want "\
+                f"only to deal with shape motifs, include neither command line option."
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f'{self.message}'
+
+
 def seqs_per_bin(records):
     """ Function to determine how many sequences are in each category
 

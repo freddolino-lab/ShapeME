@@ -11,8 +11,13 @@ import subprocess
 from pprint import pprint
 from matplotlib import pyplot as plt
 from sklearn import metrics
+from sklearn import linear_model
+
 import seaborn as sns
 import pandas as pd
+
+from rpy2.robjects.functions import SignatureTranslatedFunction
+STM = SignatureTranslatedFunction
 
 from rpy2.robjects.packages import importr
 import rpy2.robjects as ro
@@ -22,6 +27,8 @@ numpy2ri.activate()
 prroc = importr('PRROC')
 glmnet = importr('glmnet')
 base = importr('base')
+
+glmnet.glmnet = STM(glmnet.glmnet, init_prm_translate = {"lam": "lambda"})
 
 from pathlib import Path
 
@@ -132,12 +139,94 @@ def get_X_from_motifs(fname, max_count):
     X,var_lut = inout.prep_logit_reg_data(motifs, max_count)
     return (X,var_lut)
 
-def train_glmnet(X,y,folds=10,family='binomial',alpha=1):
-    X_r = ro.r.matrix(
-        X,
-        nrow=X.shape[0],
-        ncol=X.shape[1],
+
+#######################################################################
+#######################################################################
+## get the actual likelihood ##########################################
+#######################################################################
+#######################################################################
+def calculate_bic(n, mse, num_params):
+    '''Gets BIC. Taken from https://en.wikipedia.org/wiki/Bayesian_information_criterion#Gaussian_special_case
+    '''
+    bic = n * log(mse) + num_params * log(n)
+    return bic
+
+
+def get_sklearn_bic(X,y,model,n_params):
+    n = X.shape[0]
+    yhat = model.predict(X)
+    mse = metrics.mean_squared_error(y, yhat)
+    return calculate_bic(n, mse, n_params)
+
+
+def get_glmnet_bic(X,y,fit,n_params):
+
+    X_r = convert_to_r_mat(X)
+    y_r = ro.IntVector(y)
+
+    assess_res = glmnet.assess_glmnet(
+        fit,
+        newx = X_r,
+        newy = y_r,
     )
+
+    mse = assess_res.rx2["mse"]
+    n = X.shape[0]
+    return calculate_bic(n, mse, n_params)
+
+
+def choose_model(y,model_list,return_index=False):
+    '''Calculates BIC for leach model in model_list,
+    returns model with lowest BIC.
+
+    Args:
+    -----
+    y : np.array
+        Numpy array containing target y values
+    model_list : list
+        List of tuples. Each element is (X,model), where
+        X is a 2d numpy array corresponding to the
+        design matrix used to fit model, and model is
+        the fit model.
+    return_index : bool
+        If true, only return the index of the model
+        with the lowest BIC. If false, return the best model.
+    '''
+    # initialize array of infinities to store BIC values
+    bics = np.fill(len(model_list), np.Inf)
+    n,param_num = X.shape
+    for (i,(X,model)) in enumerate(model_list):
+        bics[i] = get_sklearn_bic(X, y, model, param_num)
+
+    if return_index:
+        return np.argmin(bics)
+    else:
+        best_model = model_list[np.argmin(bics)]
+        return best_model
+
+
+def train_sklearn_glm(X,y,fit_intercept=False,family='binomial'):
+
+    if family == "multinomial":
+        model = linear_model.LogisticRegression(
+            penalty = "none",
+            multi_class = "multinomial",
+            fit_intercept = fit_intercept,
+        )
+    else:
+        model = linear_model.LogisticRegression(
+            penalty="none",
+            multi_class = "ovr",
+            fit_intercept = fit_intercept,
+        )
+
+    model.fit(X,y)
+
+    return model
+
+
+def train_glmnet(X,y,folds=10,family='binomial',alpha=1):
+    X_r = convert_to_r_mat(X)
     y_r = ro.IntVector(y)
 
     # fit lasso regression, choosing best lambda using 10-fold CV
@@ -149,6 +238,7 @@ def train_glmnet(X,y,folds=10,family='binomial',alpha=1):
         folds=folds,
     )
     return fit
+
 
 def calc_prec_recall(yhat_background, yhat_foreground):
     r_yhat_fg = ro.FloatVector(yhat_foreground)
@@ -209,7 +299,9 @@ def multinomial_prec_recall(yhat, target_y, plot=False, prefix=None):
         #inclass[target_y == this_class] = 1
 
         if plot:
-            df = pd.DataFrame({'yhat': this_class_yhat, 'inclass': target_y == this_class})
+            df = pd.DataFrame(
+                {'yhat': this_class_yhat, 'inclass': target_y == this_class}
+            )
             sns.displot(df, x='yhat', hue='inclass', kde=True)
             plt.savefig('{}_class_{}'.format(prefix, this_class))
             plt.close()
@@ -235,14 +327,19 @@ def binomial_prec_recall(yhat, target_y):
     return {1: pr_rec}
 
 
+def convert_to_r_mat(mat):
+    mat_r = ro.r.matrix(
+        mat,
+        nrow=mat.shape[0],
+        ncol=mat.shape[1],
+    )
+    return mat_r
+
+
 def evaluate_fit(fit, test_X, test_y, family,
         lambda_cut="lambda.1se", prefix=None, plot=False):
 
-    test_X_r = ro.r.matrix(
-        test_X,
-        nrow=test_X.shape[0],
-        ncol=test_X.shape[1],
-    )
+    test_X_r = convert_to_r_mat(test_X)
     test_y_r = ro.IntVector(test_y)
 
     assess_res = glmnet.assess_glmnet(
@@ -312,8 +409,11 @@ def read_records(args_dict, in_direc, infile, param_names, param_files, continuo
 def fetch_coefficients_binomial(fit):
     '''Returns a vector of coefficents.
     '''
-    ncoefs = fit.rx2["glmnet.fit"].rx2["dim"][0] + 1
-    coefs = glmnet.coef_cv_glmnet(fit, s="lambda.1se")
+    if "glmnet.fit" in fit.names:
+        ncoefs = fit.rx2["glmnet.fit"].rx2["dim"][0] + 1
+        coefs = glmnet.coef_cv_glmnet(fit, s="lambda.1se")
+    else:
+        ncoefs = 1
     coefs_arr = np.zeros((1, ncoefs))
     coefs_arr[0,:] = base.as_vector(coefs)
         
@@ -520,10 +620,7 @@ if __name__ == "__main__":
         with open(lasso_fit_fname, 'rb') as f:
             shape_fit = pickle.load(f)
 
-        if fam == "multinomial":
-            coefs = fetch_coefficients_multinomial(shape_fit, args.continuous)
-        else:
-            coefs = fetch_coefficients_binomial(shape_fit)
+        coefs = fetch_coefficients(fam, shape_fit, args.continuous)
 
         # NOTE: TODO: go through coefficients and weed out motifs for which all
         #   coefficients are zero.

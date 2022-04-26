@@ -9,7 +9,6 @@ import json
 import pickle
 import time
 import subprocess
-import tempfile
 from pathlib import Path
 
 import evaluate_motifs as evm
@@ -18,36 +17,15 @@ import fimopytools as fimo
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/find_motifs')
 
+from rpy2.robjects.packages import importr
+import rpy2.robjects as ro
+from rpy2.robjects import numpy2ri
+numpy2ri.activate()
+# import R's "PRROC" package
+prroc = importr('PRROC')
+glmnet = importr('glmnet')
+base = importr('base')
 
-def generate_dist_vector(data, motif, rc=False):
-    """ Function to calculate the best possible match value for each seq
-    Args:
-        data (SeqDatabase) - database to calculate over, must already have
-                             motifs pre_computed
-        motif (np.array) - numpy array containing motif vector
-        rc (bool) - check the reverse complement matches as well
-    Returns:
-        discrete (np.array) - a numpy array of minimum match value for each seq
-    """
-    all_matches = []
-    motif_vec = motif.as_vector(cache=True)
-    if rc:
-        motif.rev_comp()
-        motif_vec_rc = motif.as_vector()
-        motif.rev_comp()
-    this_seq_matches = []
-    for this_seq in data.iterate_through_precompute():
-        for this_motif in this_seq:
-            distance = this_motif.distance(motif_vec, vec=True, cache=True)
-            this_seq_matches.append(distance)
-        if rc:
-            for this_motif in this_seq:
-                distance = this_motif.distance(motif_vec_rc, vec=True, cache=True)
-                this_seq_matches.append(distance)
-
-        all_matches.append(np.min(this_seq_matches))
-        this_seq_matches = []
-    return np.array(all_matches)
 
 def two_way_to_log_odds(two_way):
     """ Function to determine the log odds from a two way table
@@ -62,47 +40,6 @@ def two_way_to_log_odds(two_way):
     denom = np.array(two_way[2], dtype=float) / np.array(two_way[3],dtype=float)
     return np.log(num/denom)
 
-def read_parameter_file(infile):
-    """ Wrapper to read a single parameter file
-
-    Args:
-        infile (str) - input file name
-    Returns:
-        inout.FastaFile object containing data
-    """
-    fastadata = inout.FastaFile()
-    with open(infile) as f:
-        fastadata.read_whole_datafile(f)
-    return fastadata
-
-def print_top_motifs(motifs, n= 5, reverse=True):
-    """
-    Function to print the top motifs sorted by MI
-
-    Args
-        motifs (list) - motifs to sort
-        n (int) - number of motifs to print
-        reverse (bool) - sort in reverse
-    Modifys
-        stdout through the logging function
-    """
-
-    sorted_motifs = sorted(
-        motifs,
-        key=lambda x: x['mi'],
-        reverse=reverse,
-    )
-    if reverse:
-        logging.debug("Printing top {} motifs.".format(n))
-    else:
-        logging.debug("Printing bottom {} motifs.".format(n))
-
-    for motif in sorted_motifs[0:n]:
-        logging.debug("Motif MI: {}\n Motif Mem: {}\n{}".format(
-            motif['mi'],
-            motif['motif'],
-            motif['motif'].as_vector(),
-        ))
 
 def info_zscore(vec1, vec2, n=10000):
     """ Similar to FIRE determine a Z score for vec1 based on MI scores
@@ -132,6 +69,7 @@ def info_zscore(vec1, vec2, n=10000):
     zscore = (actual-mean)/stdev
     return zscore, passed
 
+
 def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
     """ Similar to FIRE Robustness score, calculate Z score for
     jacknife replicates and report number that pass
@@ -156,77 +94,105 @@ def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
     return num_passed
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--infile', action='store', type=str, required=True,
-        help='input text file with names and scores')
-    parser.add_argument('--params', nargs="+", type=str,
-                         help='inputfiles with shape scores')
+        help='input text file with names and scores for training data')
+    parser.add_argument('--test_infile', action='store', type=str, default=None,
+        help='input text file with sequence names and scores for held-out testing data.')
+    parser.add_argument('--params', nargs="+", type=str, required=True,
+        help='input files with shape scores')
+    parser.add_argument('--test_params', nargs="+", type=str, default=None,
+        help='input files with shape scores for held-out testing data.')
     parser.add_argument('--param_names', nargs="+", type=str,
-                         help='parameter names')
+        help='parameter names (MUST BE IN SAME ORDER AS CORRESPONDING PARAMETER FILES)')
     parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
-        help="Sets the upper and lower limits on the match threshold during optimization. Defaults to 0 for the lower limit and 10 for the upper limit.")
+        help=f"Sets the upper and lower limits on the match "\
+            f"threshold during optimization. Defaults to 0 for the "\
+            f"lower limit and 10 for the upper limit.")
     parser.add_argument('--shape_constraints', nargs=2, type=float, default=[-4,4],
-        help="Sets the upper and lower limits on the shapes' z-scores during optimization. Defaults to -4 for the lower limit and 4 for the upper limit.")
+        help=f"Sets the upper and lower limits on the shapes' z-scores "\
+            f"during optimization. Defaults to -4 for the lower limit "\
+            f"and 4 for the upper limit.")
     parser.add_argument('--weights_constraints', nargs=2, type=float, default=[-4,4],
-        help="Sets the upper and lower limits on the pre-transformed, pre-normalized weights during optimization. Defaults to -4 for the lower limit and 4 for the upper limit.")
-    parser.add_argument('--temperature', type=float, default=0.1,
-        help="Sets the temperature argument for scipy.optimize.basinhopping")
+        help="Sets the upper and lower limits on the pre-transformed, "\
+            f"pre-normalized weights during optimization. Defaults to -4 "\
+            f"for the lower limit and 4 for the upper limit.")
+    parser.add_argument('--temperature', type=float, default=0.4,
+        help=f"Sets the temperature argument for simulated annealing. "\
+            f"Default: %(default)f")
     parser.add_argument('--t_adj', type=float, default=0.001,
-        help="Fraction by which temperature decreases each iteration ofsimulated annealing.")
+        help=f"Fraction by which temperature decreases each iteration of "\
+            f"simulated annealing. Default: %(default)f")
     parser.add_argument('--stepsize', type=float, default=0.25,
-        help="Sets the stepsize argument for scipy.optimize.basinhopping")
+        help=f"Sets the stepsize argument for scipy.optimize.basinhopping. "\
+            f"Default: %(default)f")
     parser.add_argument('--opt_niter', type=int, default=100,
-        help="Sets the number of simulated annealing iterations to undergo during optimization. Defaults to 100.")
+        help=f"Sets the number of simulated annealing iterations to "\
+            f"undergo during optimization. Default: %(default)d.")
     parser.add_argument('--kmer', type=int,
-                         help='kmer size to search for. Default=15', default=15)
+        help='kmer size to search for. Default=%(default)d', default=15)
     parser.add_argument('--nonormalize', action="store_true",
-                         help='don\'t normalize the input data by robustZ')
+        help='don\'t normalize the input data by robustZ')
     parser.add_argument('--threshold_sd', type=float, default=2.0, 
-            help="std deviations below mean for seed finding. Only matters for greedy search. Default=2.0")
+        help=f"std deviations below mean for seed finding. "\
+            f"Only matters for greedy search. Default=%(default)f")
     parser.add_argument('--init_threshold_seed_num', type=int, default=500, 
-            help="Number of randomly selected seeds to compare to records in the database during initial threshold setting. Default=500.0")
+        help=f"Number of randomly selected seeds to compare to records "\
+            f"in the database during initial threshold setting. Default=%(default)d")
     parser.add_argument('--init_threshold_recs_per_seed', type=int, default=20, 
-            help="Number of randomly selected records to compare to each seed during initial threshold setting. Default=20.0")
+        help=f"Number of randomly selected records to compare to each seed "\
+            f"during initial threshold setting. Default=%(default)d")
     parser.add_argument('--init_threshold_windows_per_record', type=int, default=2, 
-            help="Number of randomly selected windows within a given record to compare to each seed during initial threshold setting. Default=2.0")
+        help=f"Number of randomly selected windows within a given record "\
+            f"to compare to each seed during initial threshold setting. "\
+            f"Default=%(default)d")
     parser.add_argument('--motif_perc', type=float, default=1,
-            help="fraction of data to EVALUATE motifs on. Default=1")
+        help="fraction of data to EVALUATE motifs on. Default=%(default)f")
     parser.add_argument('--continuous', type=int, default=None,
-            help="number of bins to discretize continuous input data with")
+        help="number of bins to discretize continuous input data with")
     parser.add_argument('--alpha', type=float, default=0.0,
-            help="Lower limit on transformed weight values prior to normalization to sum to 1. Defaults to 0.0.")
+        help=f"Lower limit on transformed weight values prior to "\
+            f"normalization to sum to 1. Default: %(default)f")
     parser.add_argument('--max_count', type=int, default=1,
-            help="Maximum number of times a motif can match each of the forward and reverse strands in a reference.")
-    #parser.add_argument('--infoz', type=int, default=2000, 
-    #        help="Calculate Z-score for final motif MI with n data permutations. default=2000. Turn off by setting to 0")
-    #parser.add_argument('--inforobust', type=int, default=10, 
-    #        help="Calculate robustness of final motif with x jacknifes. Default=10. Requires infoz to be > 0.")
-    #parser.add_argument('--fracjack', type=int, default=0.3, 
-    #        help="Fraction of data to hold out in jacknifes. Default=0.3.")
-    parser.add_argument('-o', type=str, required=True, help="Prefix to apply to output files.")
-    parser.add_argument('--data_dir', type=str, required=True, help="Directory from which input files will be read.")
-    parser.add_argument('--out_dir', type=str, required=True, help="Directory (within 'data_dir') into which output files will be written.")
+        help=f"Maximum number of times a motif can match "\
+            f"each of the forward and reverse strands in a reference. "\
+            f"Default: %(default)d")
+    parser.add_argument('-o', type=str, required=True,
+        help="Prefix to apply to output files.")
+    parser.add_argument('--data_dir', type=str, required=True,
+        help="Directory from which input files will be read.")
+    parser.add_argument('--out_dir', type=str, required=True,
+        help="Directory (within 'data_dir') into which output files will be written.")
     parser.add_argument('-p', type=int, default=5,
-        help="number of processors. Default=5")
+        help="number of processors. Default: %(default)d")
     parser.add_argument('--batch_size', type=int, default=2000,
-        help="Number of records to process seeds from at a time. Set lower to avoid out-of-memory errors. Default=2000")
-    parser.add_argument('--seq_motifs', action="store_true",
-        help="Add this flag to call sequence motifs using streme in addition to calling shape motifs.")
-    parser.add_argument("--memedir", type=str, default="",
-        help="Full path to directory containing streme binary")
-    parser.add_argument("--seq_fasta", type=str,
-        help="Name of fasta file (located within in_direc, do not include the directory, just the file name) containing sequences in which to search for motifs")
-    #parser.add_argument("--debug", action="store_true",
-    #    help="print debugging information to stderr. Write extra txt files.")
-    #parser.add_argument('--txt_only', action='store_true', help="output only txt files?")
-    #parser.add_argument('--save_opt', action='store_true', help="write motifs to pickle file after initial weights optimization step?")
+        help=f"Number of records to process seeds from at a time. Set lower "\
+            f"to avoid out-of-memory errors. Default: %(default)d")
+    parser.add_argument('--find_seq_motifs', action="store_true",
+        help=f"Add this flag to call sequence motifs using streme in addition "\
+            f"to calling shape motifs.")
+    parser.add_argument('--streme_thresh', default = 0.05,
+        help="Threshold for including motifs identified by streme. Default: %(default)f")
+    parser.add_argument("--seq_fasta", type=str, default=None,
+        help=f"Name of fasta file (located within in_direc, do not include the "\
+            f"directory, just the file name) containing sequences in which to "\
+            f"search for motifs")
+    parser.add_argument("--seq_meme_file", type=str, default=None,
+        help=f"Name of meme-formatted file (file must be located in data_dir) "\
+            f"to be used for searching for known sequence motifs of interest in "\
+            f"seq_fasta")
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
 
     level = logging.INFO
-    logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
+    logging.basicConfig(
+        format='%(asctime)s %(message)s',
+        level=level,
+        stream=sys.stdout,
+    )
     logging.getLogger('matplotlib.font_manager').disabled = True
 
     args = parser.parse_args()
@@ -239,61 +205,85 @@ if __name__ == "__main__":
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
     in_fname = os.path.join(in_direc, args.infile)
+    find_seq_motifs = args.find_seq_motifs
+    seq_fasta = args.seq_fasta
+    if seq_fasta is not None:
+        seq_fasta = os.path.join(in_direc, seq_fasta)
+    known_motif_file = args.seq_meme_file
+    if known_motif_file is not None:
+        known_motif_file = os.path.join(in_direc, known_motif_file)
+    fimo_direc = f"{out_direc}/fimo_out"
+    streme_direc = f"{out_direc}/streme_out"
+    streme_thresh = args.streme_thresh
 
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
 
-    if args.seq_motifs:
-        if args.memedir == "":
-            logging.error("ERROR: you set the --seq_motifs argument without specifying the location containing the streme binary. Run again with --memedir set so that the streme binary can be located and run")
-            sys.exit()
-        in_seq_fa = os.path.join(in_direc, args.seq_fasta)
-        fa_file = inout.FastaFile()
-        pos_fa_file = inout.FastaFile()
-        neg_fa_file = inout.FastaFile()
-        with open(in_seq_fa, "r") as f:
-            fa_file.read_whole_file(f)
-        with open(in_fname, "r") as f:
-            # skip first line
-            f.readline()
-            for line in f:
-                name,yval = line.strip().split("\t")
-                header = f">{name}"
-                if yval == "1":
-                    entry = fa_file.pull_entry(header[1:])
-                    pos_fa_file.add_entry(entry)
-                elif yval == "0":
-                    entry = fa_file.pull_entry(header[1:])
-                    neg_fa_file.add_entry(entry)
-                else:
-                    logging.error("ERROR: using streme to find sequence motifs only implemented for binary input of value 0 and 1.")
-                    sys.exit()
+    if find_seq_motifs:
+        # if asked for seq motifs but didn't pass seq fa file, exception
+        if seq_fasta is None:
+            raise inout.NoSeqFaException()
+        # if both seq_motifs and meme file were passed, raise exception
+        if known_motif_file is not None:
+            raise inout.SeqMotifOptionException(known_motif_file)
 
-        with tempfile.NamedTemporaryFile(mode="w") as pos_f:
-            tmp_pos = pos_f.name
-            pos_fa_file.write(pos_f)
-            with tempfile.NamedTemporaryFile(mode="w") as neg_f:
-                tmp_neg = neg_f.name
-                neg_fa_file.write(neg_f)
-                STREME = f"streme --p {tmp_pos} --n {tmp_neg} --dna "\
-                    f"--oc {out_direc}/streme_out"
-                print()
-                logging.info("Running streme command:")
-                print(STREME)
-                retcode = subprocess.run(STREME, shell=True, env=my_env, check=True)
+        known_motif_file = f"{out_direc}/streme_out/streme.txt"
 
-        fimo_direc = f"{out_direc}/streme_out/fimo_out"
-        print()
-        logging.info(f"Running fimo on all sequences in {in_seq_fa} using motifs in {out_direc}/streme_out/streme.txt")
-        FIMO = f"fimo --max-strand --motif-pseudo 0.0 "\
-            f"--oc {fimo_direc} "\
-            f"{out_direc}/streme_out/streme.txt {in_seq_fa}"
-        logging.info("Running fimo command:")
-        print(FIMO)
-        retcode = subprocess.run(FIMO, shell=True, env=my_env, check=True)
+        STREME = f"run_streme.py "\
+            f"--seq_fname {seq_fasta} "\
+            f"--yvals_fname {in_fname} "\
+            f"--threshold {streme_thresh} "\
+            f"--out_direc {streme_direc}"
+
+        streme_result = subprocess.run(
+            STREME,
+            shell=True,
+            check=True,
+            capture_output=True,
+        )
+        streme_log_fname = f"{streme_direc}/streme_run.log"
+        streme_err_fname = f"{streme_direc}/streme_run.err"
+        logging.info(
+            f"Ran streme: for details, see "\
+            f"{streme_log_fname} and {streme_err_fname}"
+        )
+        with open(streme_log_fname, "w") as streme_out:
+            # streme log gets captured as stderr, so write stderr to file
+            streme_out.write(streme_result.stdout)
+        with open(streme_err_fname, "w") as streme_err:
+            # streme log gets captured as stderr, so write stderr to file
+            streme_err.write(streme_result.stderr)
+
+    # if user has a meme file (could be from streme above, or from input arg), run fimo
+    if known_motif_file is not None:
+
+        if seq_fasta is None:
+            raise inout.NoSeqFaException()
+
+        FIMO = f"run_fimo.py "\
+            f"--seq_fname {seq_fasta} "\
+            f"--meme_file {known_motif_file} "\
+            f"--out_direc {fimo_direc}"
+
+        fimo_result = subprocess.run(
+            FIMO,
+            shell=True,
+            check=True,
+            capture_output=True,
+        )
+        fimo_log_fname = f"{fimo_direc}/fimo_run.log"
+        fimo_err_fname = f"{fimo_direc}/fimo_run.err"
+        logging.info(
+            f"Ran fimo: for details, see "\
+            f"{fimo_log_fname} and {fimo_err_fname}"
+        )
+        with open(fimo_log_fname, "w") as fimo_out:
+            fimo_out.write(fimo_result.stdout)
+        with open(fimo_err_fname, "w") as fimo_err:
+            fimo_err.write(fimo_result.stderr)
 
     print()
-    logging.info("Reading in files")
+    logging.info("Reading in shape files")
     # read in shapes
     shape_fname_dict = {
         n:os.path.join(in_direc,fname) for n,fname
@@ -316,6 +306,12 @@ if __name__ == "__main__":
         #logging.info("Quantizing input data using k-means clustering")
         records.quantize_quant(args.continuous)
 
+    fam = evm.set_family(records.y)
+    ##############################################################################
+    ##############################################################################
+    ## incorporate test data if at CLI ###########################################
+    ##############################################################################
+    ##############################################################################
 
     logging.info("Distribution of sequences per class:")
     logging.info(inout.seqs_per_bin(records))
@@ -340,7 +336,6 @@ if __name__ == "__main__":
 
     alpha = args.alpha
     max_count = args.max_count
-    optim_str = "shapes_weights_threshold"
 
     temp = args.temperature
     step = args.stepsize
@@ -361,49 +356,145 @@ if __name__ == "__main__":
     seq_fit_fname = os.path.join(out_direc, 'seq_lasso_fit.pkl')
     shape_and_seq_fit_fname = os.path.join(out_direc, 'shape_and_seq_lasso_fit.pkl')
 
-    if args.seq_motifs:
+    # get the BIC for an intercept-only model, which will ultimately be compared
+    # to the BIC we get from any other fit to choose whether there is a motif or not.
+    intercept_X = np.ones((len(records), 1))
+    intercept_fit = evm.train_sklearn_glm(
+        intercept_X,
+        records.y,
+        fam,
+        fit_intercept=False,
+    )
+###########################################################################
+###########################################################################
+## change BIC calculation to use log-likelihood instead of mse ############
+###########################################################################
+###########################################################################
+    intercept_bic = evm.get_sklearn_bic(
+        intercept_X,
+        records.y,
+        intercept_fit,
+        n_params=1,
+    )
+
+    if find_seq_motifs:
 
         print()
-        logging.info("Fitting LASSO regression model to sequence motifs")
+        logging.info("Fitting regression model to sequence motifs")
         seq_matches = fimo.FimoFile()
         seq_matches.parse(f"{fimo_direc}/fimo.tsv")
+        seq_motifs = seq_matches.get_list()
 
-        #################################################################
-        #################################################################
-        ## Code needs updated for multiple seq motifs ###################
-        #################################################################
-        #################################################################
-        seq_X = seq_matches.get_design_matrix(records)
-
-        fam = evm.set_family(records.y)
-
-        seq_fit = evm.train_glmnet(
-            seq_X,
-            records.y,
-            folds=10,
-            family=fam,
-            alpha=1,
+        seq_X,seq_var_lut = seq_matches.get_design_matrix(
+            records,
+            # should I be filtering by p-value of fimo match here? I think not.
+            #streme_thresh,
         )
-        logging.info(f"Writing fitted LASSO regression model to {seq_fit_fname}")
-        with open(seq_fit_fname, "wb") as f:
-            pickle.dump(seq_fit, f)
 
-        seq_coefs = evm.fetch_coefficients(fam, seq_fit, args.continuous)
-        print(seq_coefs)
-        #################################################################
-        #################################################################
-        ## code needs worked out to fileter seq motifs ##################
-        #################################################################
-        #################################################################
-        #final_motifs = evm.filter_motifs(seq_motifs, seq_coefs, var_lut)
+        one_seq_motif = False
+        
+        if len(seq_motifs) == 0:
+            logging.info(f"No motifs passed significance "\
+                f"threshold of {streme_thresh}, setting find_seq_motifs "\
+                f"back to False and moving on to shape motif inference.")
+            find_seq_motifs = False
  
-    sys.exit()
+        elif len(seq_motifs) == 1:
 
+            logging.info(
+                f"Only one sequence motif present. "\
+                f"Performing model selection using BIC to determine whether "\
+                f"the motif is informative over intercept alone."
+            )
+            # toggle one_seq_motif to True for later use in building combined
+            # seq and shape motif design matrix
+            one_seq_motif = True
+
+        else:
+
+            ######################################################################
+            ######################################################################
+            ## Back it up a bit here! I can just get the mse from glmnet and calculate
+            ## the BIC for the LASSO fit vs intercept only, no matter how many
+            ## non-zero coefficients there are after LASSO 
+            ######################################################################
+            ######################################################################
+
+            ###################################################################
+            ###################################################################
+            ###################################################################
+            ## Next step is to get BIC from seq_fit somehow. ##################
+            ###################################################################
+            ###################################################################
+            ###################################################################
+            seq_fit = evm.train_glmnet(
+                seq_X,
+                records.y,
+                folds=10,
+                family=fam,
+                alpha=1,
+            )
+
+            seq_coefs = evm.fetch_coefficients(fam, seq_fit, args.continuous)
+
+            print()
+            logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
+
+            ##############################################################
+            ##############################################################
+            ## Also pass X to filter_motifs and return remaining covariates
+            ##############################################################
+            ##############################################################
+            seq_motifs = evm.filter_motifs(seq_motifs, seq_coefs, seq_var_lut)
+
+            logging.info(
+                f"Number of shape motifs left after LASSO regression: "\
+                f"{len(final_seq_motifs)}"
+            )
+
+            if len(final_seq_motifs) == 1:
+                logging.info(
+                    f"Only one sequence motif left after LASSO regression. "\
+                    f"Performing model selection using BIC to determine whether "\
+                    f"the remaining motif is informative over intercept alone."
+                )
+                one_seq_motif = True
+ 
+
+        # if there's only one covariate, create intercept-only and intercept
+        # plus motif design matrices
+        if one_seq_motif:
+            intercept_and_motif_X = np.append(intercept_X, seq_X, axis=1)
+
+            motif_fit = evm.train_sklearn_glm(
+                intercept_and_motif_X,
+                records.y,
+                fam,
+            )
+            model_list = [
+                (intercept_X, intercept_fit),
+                (intercept_and_motif_X, motif_fit)
+            ]
+
+            best_mod_idx = evm.choose_model(
+                records.y,
+                model_list,
+                return_index = True,
+            )
+
+            if best_mod_idx == 0:
+                logging.info(
+                    f"Intercept-only model had lower BIC than model fit using "\
+                    f"intercept and one motif. Therefore, there is no "\
+                    f"informative "\
+                    f"sequence motif. Not writing a sequence motif to output."
+                )
+            
+    
     good_motif_out_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_optim_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
+        "{}_post_opt_cmi_filtered_motifs_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
             out_pref,
-            optim_str,
             temp,
             step,
             alpha,
@@ -413,9 +504,8 @@ if __name__ == "__main__":
 
     final_motif_plot_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_optim_{}_temp_{}_stepsize_{}_alpha_{}_max_count_{}.png".format(
+        "{}_post_opt_cmi_filtered_motifs_temp_{}_stepsize_{}_alpha_{}_max_count_{}.png".format(
             out_pref,
-            optim_str,
             temp,
             step,
             alpha,
@@ -494,7 +584,7 @@ if __name__ == "__main__":
     logging.info("Running motif selection and optimization.")
     retcode = subprocess.call(RUST, shell=True, env=my_env)
     if retcode != 0:
-        sys.exit("ERROR: find_motifs binary execution exited with non-zero exit status")
+        raise inout.RustBinaryException(Exception)
 
     if not os.path.isfile(rust_out_fname):
         info.warning("No output json file containing motifs from rust binary. This usually means no motifs were identified, but you should carfully check your log and error messages to make sure that's really the case.")
@@ -502,12 +592,10 @@ if __name__ == "__main__":
 
     good_motifs = inout.read_motifs_from_rust(rust_out_fname)
 
-    shape_X,var_lut = evm.get_X_from_motifs(
+    shape_X,shape_var_lut = evm.get_X_from_motifs(
         rust_out_fname,
         args.max_count,
     )
-
-    fam = evm.set_family(records.y)
 
     shape_fit = evm.train_glmnet(
         shape_X,
@@ -521,12 +609,21 @@ if __name__ == "__main__":
         pickle.dump(shape_fit, f)
 
     coefs = evm.fetch_coefficients(fam, shape_fit, args.continuous)
+    print()
+    logging.info(f"Shape motif coefficients:\n{coefs}")
 
     # go through coefficients and weed out motifs for which all
-    #   coefficients are zero.
-    final_motifs = evm.filter_motifs(good_motifs, coefs, var_lut)
+    #   hits' coefficients are zero.
+    final_motifs = evm.filter_motifs(good_motifs, coefs, shape_var_lut)
+    logging.info(
+        f"Number of shape motifs left after LASSO regression: "\
+        f"{len(final_motifs)}"
+    )
     if len(final_motifs) == 0:
-        info.warning("There were no motifs left after LASSO regression. Exiting now.")
+        info.warning(
+            f"There were no shape motifs left after LASSO regression. "\
+            f"Exiting now."
+        )
         sys.exit()
 
     smv.plot_optim_shapes_and_weights(
@@ -535,10 +632,16 @@ if __name__ == "__main__":
         records,
     )
 
-    if args.seq_motifs:
-
+    if find_seq_motifs:
+        # if there was only one seq motif, grab it from seq_X
+        if one_seq_motif:
+            seq_X = seq_X[:,0]
         shape_and_seq_X = np.append(shape_X, seq_X, axis=1)
-        fam = evm.set_family(records.y)
+        shape_and_seq_var_lut = shape_var_lut
+        for seq_motif_key,seq_motif_info in seq_var_lut.items():
+            new_key = seq_motif_key + shape_X.shape[1]
+            seq_motif_info['motif_idx'] = new_key
+            shape_and_seq_var_lut[new_key] = seq_motif_info
 
         shape_and_seq_fit = evm.train_glmnet(
             shape_and_seq_X,
@@ -549,6 +652,25 @@ if __name__ == "__main__":
         )
         with open(shape_and_seq_fit_fname, "wb") as f:
             pickle.dump(shape_and_seq_fit, f)
+
+        shape_and_seq_motifs = good_motifs.copy()
+        shape_and_seq_motifs.extend(seq_motifs.copy())
+
+        shape_and_seq_coefs = evm.fetch_coefficients(
+            fam,
+            shape_and_seq_fit,
+            args.continuous,
+        )
+
+        print()
+        logging.info(f"Shape and sequence motif coefficients:\n{shape_and_seq_coefs}")
+
+        final_shape_and_seq_motifs = evm.filter_motifs(
+            shape_and_seq_motifs,
+            shape_and_seq_coefs,
+            shape_and_seq_var_lut,
+        )
+        logging.info(f"Number of final motifs: {len(final_shape_and_seq_motifs)}")
  
 
     #good_motif_index = cvlogistic.choose_features(clf_f, tol=0)

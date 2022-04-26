@@ -18,6 +18,7 @@ dependencies:
     - bioconductor-genomeinfodb
     - r-prroc
     - r-glmnet
+    - r-nnet
     - jupyter
     - rpy2
     - seaborn
