@@ -362,23 +362,14 @@ if __name__ == "__main__":
     intercept_fit = evm.train_sklearn_glm(
         intercept_X,
         records.y,
-        fam,
-        fit_intercept=False,
+        family = fam,
+        fit_intercept = False,
     )
-###########################################################################
-###########################################################################
-## change BIC calculation to use log-likelihood instead of mse ############
-###########################################################################
-###########################################################################
-    intercept_loglik = evm.log_likelihood(records.y, class_probs)
 
-    intercept_bic = evm.calculate_bic
-    
     intercept_bic = evm.get_sklearn_bic(
         intercept_X,
         records.y,
         intercept_fit,
-        n_params=1,
     )
 
     if find_seq_motifs:
@@ -416,21 +407,6 @@ if __name__ == "__main__":
 
         else:
 
-            ######################################################################
-            ######################################################################
-            ## Back it up a bit here! I can just get the mse from glmnet and calculate
-            ## the BIC for the LASSO fit vs intercept only, no matter how many
-            ## non-zero coefficients there are after LASSO 
-            ######################################################################
-            ######################################################################
-
-            ###################################################################
-            ###################################################################
-            ###################################################################
-            ## Next step is to get BIC from seq_fit somehow. ##################
-            ###################################################################
-            ###################################################################
-            ###################################################################
             seq_fit = evm.train_glmnet(
                 seq_X,
                 records.y,
@@ -444,12 +420,13 @@ if __name__ == "__main__":
             print()
             logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
 
-            ##############################################################
-            ##############################################################
-            ## Also pass X to filter_motifs and return remaining covariates
-            ##############################################################
-            ##############################################################
-            seq_motifs = evm.filter_motifs(seq_motifs, seq_coefs, seq_var_lut)
+            # clobber seq_X and seq_var_lut here
+            seq_motifs,seq_X,seq_var_lut = evm.filter_motifs(
+                seq_motifs,
+                seq_X,
+                seq_coefs,
+                seq_var_lut,
+            )
 
             logging.info(
                 f"Number of shape motifs left after LASSO regression: "\
@@ -473,15 +450,21 @@ if __name__ == "__main__":
             motif_fit = evm.train_sklearn_glm(
                 intercept_and_motif_X,
                 records.y,
-                fam,
+                family = fam,
+                fit_intercept = False, # intercept already in design mat
             )
-            model_list = [
-                (intercept_X, intercept_fit),
-                (intercept_and_motif_X, motif_fit)
-            ]
+
+            int_and_motif_bic = evm.get_sklearn_bic(
+                intercept_and_motif_X,
+                records.y,
+                motif_fit,
+            )
+
+            bic_list = [ intercept_bic, int_and_motif_bic ]
+            model_list = [ intercept_fit, motif_fit ]
 
             best_mod_idx = evm.choose_model(
-                records.y,
+                bic_list,
                 model_list,
                 return_index = True,
             )
@@ -489,7 +472,7 @@ if __name__ == "__main__":
             if best_mod_idx == 0:
                 logging.info(
                     f"Intercept-only model had lower BIC than model fit using "\
-                    f"intercept and one motif. Therefore, there is no "\
+                    f"intercept and one sequence motif. Therefore, there is no "\
                     f"informative "\
                     f"sequence motif. Not writing a sequence motif to output."
                 )
@@ -591,7 +574,12 @@ if __name__ == "__main__":
         raise inout.RustBinaryException(Exception)
 
     if not os.path.isfile(rust_out_fname):
-        info.warning("No output json file containing motifs from rust binary. This usually means no motifs were identified, but you should carfully check your log and error messages to make sure that's really the case.")
+        info.warning(
+            f"No output json file containing motifs from rust binary. "\
+            f"This usually means no motifs were identified, but you should "\
+            f"carfully check your log and error messages to make sure that's "\
+            f"really the case."
+        )
         sys.exit()
 
     good_motifs = inout.read_motifs_from_rust(rust_out_fname)
@@ -618,11 +606,60 @@ if __name__ == "__main__":
 
     # go through coefficients and weed out motifs for which all
     #   hits' coefficients are zero.
-    final_motifs = evm.filter_motifs(good_motifs, coefs, shape_var_lut)
+    final_motifs,final_X,final_var_lut = evm.filter_motifs(
+        good_motifs,
+        shape_X,
+        coefs,
+        shape_var_lut,
+    )
+
     logging.info(
         f"Number of shape motifs left after LASSO regression: "\
         f"{len(final_motifs)}"
     )
+   
+    # check whether there's only one informative coefficient
+    if final_X.shape[1] == 1:
+        logging.info(
+            f"Only one covariate for shape motifs was found to be "\
+            f"informative using LASSO regression. Calculating the BIC "\
+            f"for a model with only an intercept and this covariate to "\
+            f"compare to a model fit using only an intercept."
+        )
+
+        intercept_and_shape_X = np.append(intercept_X, final_X, axis=1)
+
+        motif_fit = evm.train_sklearn_glm(
+            intercept_and_shape_X,
+            records.y,
+            family = fam,
+            fit_intercept = False, # intercept already in design mat
+        )
+
+        int_and_motif_bic = evm.get_sklearn_bic(
+            intercept_and_shape_X,
+            records.y,
+            motif_fit,
+        )
+
+        bic_list = [ intercept_bic, int_and_motif_bic ]
+        model_list = [ intercept_fit, motif_fit ]
+
+        best_mod_idx = evm.choose_model(
+            bic_list,
+            model_list,
+            return_index = True,
+        )
+
+        if best_mod_idx == 0:
+            logging.info(
+                f"Intercept-only model had lower BIC than model fit using "\
+                f"intercept and one shape covariate. Therefore, there is no "\
+                f"informative shape motif. Not writing a shape motif to output. "\
+                f"Exiting now."
+            )
+            sys.exit()
+
     if len(final_motifs) == 0:
         info.warning(
             f"There were no shape motifs left after LASSO regression. "\
@@ -669,8 +706,13 @@ if __name__ == "__main__":
         print()
         logging.info(f"Shape and sequence motif coefficients:\n{shape_and_seq_coefs}")
 
-        final_shape_and_seq_motifs = evm.filter_motifs(
+        (
+            final_shape_and_seq_motifs,
+            final_shape_and_seq_X,
+            final_shape_and_seq_lut,
+        ) = evm.filter_motifs(
             shape_and_seq_motifs,
+            shape_and_seq_X,
             shape_and_seq_coefs,
             shape_and_seq_var_lut,
         )

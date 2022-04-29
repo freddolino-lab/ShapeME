@@ -148,12 +148,14 @@ def calculate_bic(n, loglik, num_params):
     return num_params * log(n) - 2 * loglik
 
 
-def get_sklearn_bic(X,y,model,n_params):
+def get_sklearn_bic(X,y,model):
     n = X.shape[0]
+    n_params = X.shape[1]
     class_probs = model.predict_proba(X)
     pred_probs = model.predict_proba(X)
-    loglik = log_likelihood()
-    return calculate_bic(n, mse, n_params)
+    loglik = log_likelihood(y, pred_probs)
+    bic = calculate_bic(n, loglik, n_params)
+    return bic
 
 
 def get_glmnet_bic(X,y,fit,n_params):
@@ -172,29 +174,20 @@ def get_glmnet_bic(X,y,fit,n_params):
     return calculate_bic(n, mse, n_params)
 
 
-def choose_model(y,model_list,return_index=False):
-    '''Calculates BIC for leach model in model_list,
-    returns model with lowest BIC.
+def choose_model(bic_list, model_list, return_index):
+    '''Returns model with lowest BIC.
 
     Args:
     -----
-    y : np.array
-        Numpy array containing target y values
+    bic_list : list
+        bic for each model in model_list
     model_list : list
-        List of tuples. Each element is (X,model), where
-        X is a 2d numpy array corresponding to the
-        design matrix used to fit model, and model is
-        the fit model.
+        List sklearn logistic regression fits
     return_index : bool
         If true, only return the index of the model
         with the lowest BIC. If false, return the best model.
     '''
     # initialize array of infinities to store BIC values
-    bics = np.fill(len(model_list), np.Inf)
-    n,param_num = X.shape
-    for (i,(X,model)) in enumerate(model_list):
-        bics[i] = get_sklearn_bic(X, y, model, param_num)
-
     if return_index:
         return np.argmin(bics)
     else:
@@ -439,37 +432,66 @@ def set_family(yvals):
     return fam
 
 
-def filter_motifs(motif_list, coefs, var_lut):
+def filter_motifs(motif_list, motif_X, coefs, var_lut):
+    '''Determines which coeficients were shrunk to zero during LASSO regression
+    and removes motifs for which all covariates in motif_X were zero. Returns
+    a filtered set of motifs, a new array of X values (motif hits covariates),
+    and a new var_lut to map columns of the new X array to motif information.
+    '''
 
+    # keys are X arr indices, vals are dict
+    # of {'motif_idx': motif index in list of motifs,
+    #     'hits': the class of hit this covariate represents, i.e., [0,1], [1,1], etc.}
+    new_lut = {}
     # construct lookup table where motif index is key, and value is list
     #  of column indices for that motif in coefs
     motif_lut = {}
     for k,coef in var_lut.items():
         # if this motif index isn't yet in the lut, place it in and give it a list
         if not coef['motif_idx'] in motif_lut:
+            # k+1 here, since coefs will have the intercept at index 0
+            # and k is the index in the covariates array
             motif_lut[coef['motif_idx']] = [k+1]
         # if this motif idx is already present, append col to list
         else:
             motif_lut[coef['motif_idx']].append(k+1)
 
     retain = []
+    # make nrow-by-zero array to start appending covariates from coeficiens with 
+    # predictive value
+    retained_X = np.zeros((motif_X.shape[0],0))
     # now go through coefs columns to see whether any motif has all zeros
-    for motif_idx,motif_col_inds in motif_lut.items():
+    for motif_idx,motif_coef_inds in motif_lut.items():
         # instantiate a list to carry bools
         motif_any_nonzero = []
-        for col_idx in motif_col_inds:
+        for coef_idx in motif_coef_inds:
             # are any of these values non-zero?
-            motif_any_nonzero.append(np.any(coefs[:,col_idx] != 0))
+            has_non_zero = np.any(coefs[:,coef_idx] != 0)
+            if has_non_zero:
+                retained_X = np.append(retained_X, motif_X[:,coef_idx-1]))
+                this_col_idx = retained_X.shape[1]
+                new_lut[this_col_idx] = {
+                    # don't add one to len(retain) here, since we need the index
+                    # in the filtered list corresponding to this motif
+                    'motif_idx': len(retain),
+                    'hits': var_lut[coef_idx-1]['hits'],
+                }
+            motif_any_nonzero.append(has_non_zero)
         
         # if any column for this motif contained any non-zero values, retain the motif
         if np.any(motif_any_nonzero):
             retain.append(True)
         else:
             retain.append(False)
-            print("WARNING: all regression coefficients for motif at index {} were shrunken to 0 during LASSO regression. The motif has been removed from further consideration.".format(motif_idx))
+            print(
+                f"WARNING: all regression coefficients for motif at "\
+                f"index {motif_idx} were shrunken to 0 during LASSO regression. "\
+                f"The motif has been removed from further consideration."
+            )
         
     # keep motifs for which at least one coefficient was non-zero
-    return [motif_list[i] for i,_ in enumerate(retain) if _]
+    retained_motifs = [motif_list[i] for i,_ in enumerate(retain) if _]
+    return (retained_motifs, retained_X, new_lut)
 
 
 if __name__ == "__main__":
