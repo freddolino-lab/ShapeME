@@ -140,22 +140,19 @@ def get_X_from_motifs(fname, max_count):
     return (X,var_lut)
 
 
-#######################################################################
-#######################################################################
-## get the actual likelihood ##########################################
-#######################################################################
-#######################################################################
-def calculate_bic(n, mse, num_params):
-    '''Gets BIC. Taken from https://en.wikipedia.org/wiki/Bayesian_information_criterion#Gaussian_special_case
-    '''
-    bic = n * log(mse) + num_params * log(n)
-    return bic
+def log_likelihood(truth, preds):
+    return -metrics.log_loss(truth, preds)
+
+
+def calculate_bic(n, loglik, num_params):
+    return num_params * log(n) - 2 * loglik
 
 
 def get_sklearn_bic(X,y,model,n_params):
     n = X.shape[0]
-    yhat = model.predict(X)
-    mse = metrics.mean_squared_error(y, yhat)
+    class_probs = model.predict_proba(X)
+    pred_probs = model.predict_proba(X)
+    loglik = log_likelihood()
     return calculate_bic(n, mse, n_params)
 
 

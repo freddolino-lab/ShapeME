@@ -370,6 +370,10 @@ if __name__ == "__main__":
 ## change BIC calculation to use log-likelihood instead of mse ############
 ###########################################################################
 ###########################################################################
+    intercept_loglik = evm.log_likelihood(records.y, class_probs)
+
+    intercept_bic = evm.calculate_bic
+    
     intercept_bic = evm.get_sklearn_bic(
         intercept_X,
         records.y,
