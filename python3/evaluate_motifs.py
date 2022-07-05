@@ -8,32 +8,65 @@ import json
 import pickle
 import numpy as np
 import subprocess
+import operator
 from pprint import pprint
 from matplotlib import pyplot as plt
 from sklearn import metrics
 from sklearn import linear_model
+from statsmodels.stats import rates
+from scipy.stats import contingency
 
 import seaborn as sns
 import pandas as pd
 
-from rpy2.robjects.functions import SignatureTranslatedFunction
-STM = SignatureTranslatedFunction
+from rpy2.robjects.functions import SignatureTranslatedFunction as STM
+#STM = SignatureTranslatedFunction
 
 from rpy2.robjects.packages import importr
 import rpy2.robjects as ro
 from rpy2.robjects import numpy2ri
+#from rpy2.robjects import pandas2ri
+#from rpy2.robjects.conversion import localconverter
 numpy2ri.activate()
 # import R's "PRROC" package
 prroc = importr('PRROC')
 glmnet = importr('glmnet')
-base = importr('base')
+base = importr('base',  robject_translations={'as.data.frame': 'as_data_frame'})
+#brms = importr('brms')
+#stats = importr('stats', robject_translations={'as.formula': 'as_formula'})
 
 glmnet.glmnet = STM(glmnet.glmnet, init_prm_translate = {"lam": "lambda"})
+#brms.set_prior = STM(brms.set_prior, init_prm_translate = {"cl": "class"})
 
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
+
+#EPSILON = sys.float_info.epsilon
+
+
+
+#def get_log_enrichments(motif_list):
+#    for motif in motif_list:
+#        motif["fitted_log_enrichment"] = get_log_enrichment(
+#            motif["contingency_fit"],
+#            motif["null_fit"],
+#        )
+#
+#
+#def get_log_enrichment(contingency_fit, null_fit):
+#
+#    contingency_sample_fitted = stats.fitted(contingency_fit, summary=False)
+#    null_sample_fitted = stats.fitted(null_fit, summary=False)
+#    rel_enrichment = contingency_sample_fitted / null_sample_fitted
+#    return np.log2(rel_enrichment)
+#
+#
+#def get_evid_ratio(arr, oper, compare_val=0):
+#    num_pass = len(np.where(oper(arr, compare_val)[0]))
+#    num_fail = len(arr) - num_pass
+#    pass
 
 
 def fetch_coefficients(family, fit, continuous):
@@ -134,18 +167,12 @@ def get_X_from_lut(fname, lut):
     return X
 
 
-def get_X_from_motifs(fname, max_count):
-    motifs = inout.read_motifs_from_rust(fname)
-    X,var_lut = inout.prep_logit_reg_data(motifs, max_count)
-    return (X,var_lut)
-
-
 def log_likelihood(truth, preds):
     return -metrics.log_loss(truth, preds)
 
 
 def calculate_bic(n, loglik, num_params):
-    return num_params * log(n) - 2 * loglik
+    return num_params * np.log(n) - 2 * loglik
 
 
 def get_sklearn_bic(X,y,model):
@@ -189,9 +216,9 @@ def choose_model(bic_list, model_list, return_index):
     '''
     # initialize array of infinities to store BIC values
     if return_index:
-        return np.argmin(bics)
+        return np.argmin(bic_list)
     else:
-        best_model = model_list[np.argmin(bics)]
+        best_model = model_list[np.argmin(bic_list)]
         return best_model
 
 
@@ -432,66 +459,84 @@ def set_family(yvals):
     return fam
 
 
-def filter_motifs(motif_list, motif_X, coefs, var_lut):
-    '''Determines which coeficients were shrunk to zero during LASSO regression
-    and removes motifs for which all covariates in motif_X were zero. Returns
-    a filtered set of motifs, a new array of X values (motif hits covariates),
-    and a new var_lut to map columns of the new X array to motif information.
-    '''
-
-    # keys are X arr indices, vals are dict
-    # of {'motif_idx': motif index in list of motifs,
-    #     'hits': the class of hit this covariate represents, i.e., [0,1], [1,1], etc.}
-    new_lut = {}
-    # construct lookup table where motif index is key, and value is list
-    #  of column indices for that motif in coefs
-    motif_lut = {}
-    for k,coef in var_lut.items():
-        # if this motif index isn't yet in the lut, place it in and give it a list
-        if not coef['motif_idx'] in motif_lut:
-            # k+1 here, since coefs will have the intercept at index 0
-            # and k is the index in the covariates array
-            motif_lut[coef['motif_idx']] = [k+1]
-        # if this motif idx is already present, append col to list
-        else:
-            motif_lut[coef['motif_idx']].append(k+1)
-
-    retain = []
-    # make nrow-by-zero array to start appending covariates from coeficiens with 
-    # predictive value
-    retained_X = np.zeros((motif_X.shape[0],0))
-    # now go through coefs columns to see whether any motif has all zeros
-    for motif_idx,motif_coef_inds in motif_lut.items():
-        # instantiate a list to carry bools
-        motif_any_nonzero = []
-        for coef_idx in motif_coef_inds:
-            # are any of these values non-zero?
-            has_non_zero = np.any(coefs[:,coef_idx] != 0)
-            if has_non_zero:
-                retained_X = np.append(retained_X, motif_X[:,coef_idx-1]))
-                this_col_idx = retained_X.shape[1]
-                new_lut[this_col_idx] = {
-                    # don't add one to len(retain) here, since we need the index
-                    # in the filtered list corresponding to this motif
-                    'motif_idx': len(retain),
-                    'hits': var_lut[coef_idx-1]['hits'],
-                }
-            motif_any_nonzero.append(has_non_zero)
-        
-        # if any column for this motif contained any non-zero values, retain the motif
-        if np.any(motif_any_nonzero):
-            retain.append(True)
-        else:
-            retain.append(False)
-            print(
-                f"WARNING: all regression coefficients for motif at "\
-                f"index {motif_idx} were shrunken to 0 during LASSO regression. "\
-                f"The motif has been removed from further consideration."
-            )
-        
-    # keep motifs for which at least one coefficient was non-zero
-    retained_motifs = [motif_list[i] for i,_ in enumerate(retain) if _]
-    return (retained_motifs, retained_X, new_lut)
+#def filter_motifs(motif_list, motif_X, coefs, var_lut):
+#    '''Determines which coeficients were shrunk to zero during LASSO regression
+#    and removes motifs for which all covariates in motif_X were zero. Returns
+#    a filtered set of motifs, a new array of X values (motif hits covariates),
+#    and a new var_lut to map columns of the new X array to motif information.
+#    '''
+#
+#    # keys are X arr indices, vals are dict
+#    # of {'motif_idx': motif index in list of motifs,
+#    #     'hits': the class of hit this covariate represents, i.e., [0,1], [1,1], etc.}
+#    new_lut = {}
+#    # construct lookup table where motif index is key, and value is list
+#    #  of column indices for that motif in coefs
+#    motif_lut = {}
+#    
+#    #print("------------------------------")
+#    #print(var_lut)
+#    #print("------------------------------")
+#    for k,coef in var_lut.items():
+#        # if this motif index isn't yet in the lut, place it in and give it a list
+#        if not coef['motif_idx'] in motif_lut:
+#            # k+1 here, since coefs will have the intercept at index 0
+#            # and k is the index in the covariates array
+#            motif_lut[coef['motif_idx']] = [k+1]
+#        # if this motif idx is already present, append col to list
+#        else:
+#            motif_lut[coef['motif_idx']].append(k+1)
+#
+#    retain = []
+#    # make nrow-by-zero array to start appending covariates from coeficiens with 
+#    # predictive value
+#    retained_X = np.zeros((motif_X.shape[0],0))
+#    #print(retained_X.shape)
+#    # now go through coefs columns to see whether any motif has all zeros
+#    #print("------------------------------")
+#    #print(motif_lut)
+#    #print("------------------------------")
+#    for motif_idx,motif_coef_inds in motif_lut.items():
+#        # instantiate a list to carry bools
+#        motif_any_nonzero = []
+#        for coef_idx in motif_coef_inds:
+#            # are any of these values non-zero?
+#            #print(f"motif_idx: {motif_idx}")
+#            #print(f"coef_idx: {coef_idx}")
+#            #print(f"coefs: {coefs[:,coef_idx]}")
+#            has_non_zero = np.any(coefs[:,coef_idx] != 0)
+#            #print(f"has_non_zero: {has_non_zero}")
+#            if has_non_zero:
+#                retained_X = np.append(
+#                    retained_X,
+#                    motif_X[:,coef_idx-1][:,None],
+#                    axis=1,
+#                )
+#                this_col_idx = retained_X.shape[1] - 1
+#                new_lut[this_col_idx] = {
+#                    # don't add one to len(retain) here, since we need the index
+#                    # in the filtered list corresponding to this motif
+#                    'motif_idx': len(retain),
+#                    'hits': var_lut[coef_idx-1]['hits'],
+#                }
+#            motif_any_nonzero.append(has_non_zero)
+#        
+#        # if any column for this motif contained any non-zero values, retain the motif
+#        #print(f"motif_any_nonzero: {motif_any_nonzero}")
+#        if np.any(motif_any_nonzero):
+#            retain.append(True)
+#        else:
+#            retain.append(False)
+#            print(
+#                f"WARNING: all regression coefficients for motif at "\
+#                f"index {motif_idx} were shrunken to 0 during LASSO regression. "\
+#                f"The motif has been removed from further consideration."
+#            )
+#        
+#    #print(f"retain: {retain}")
+#    # keep motifs for which at least one coefficient was non-zero
+#    retained_motifs = [motif_list[i] for i,_ in enumerate(retain) if _]
+#    return (retained_motifs, retained_X, new_lut)
 
 
 if __name__ == "__main__":

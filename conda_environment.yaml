@@ -5,7 +5,6 @@ channels:
     - defaults
 dependencies:
     - python
-    - scipy
     - scikit-learn
     - R
     - pip
@@ -19,7 +18,11 @@ dependencies:
     - r-prroc
     - r-glmnet
     - r-nnet
+    - r-brms
+    - r-bh
+    - boost
     - jupyter
     - rpy2
     - seaborn
     - meme
+    

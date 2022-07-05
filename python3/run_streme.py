@@ -6,7 +6,9 @@ Wrapper script for identifying sequence motifs using streme
 
 import argparse
 import inout
+import subprocess
 import tempfile
+import sys
 
 def run_streme(seq_fname, yvals_fname, threshold, out_direc):
     '''Runs streme to find motifs present in `seq_fname` enriched
@@ -81,6 +83,7 @@ def main():
     parser.add_argument('--out_direc', action='store', type=str, required=True,
         help=f"Absolute path to the directory to be created, or clobbered if it "\
             f"already exists, by streme. Will contain streme output.")
+    args = parser.parse_args()
 
     result = run_streme(
         args.seq_fname,

@@ -2,6 +2,7 @@
 where ONE motif was searched
 """
 
+import re
 import numpy as np
 from pprint import pprint
 
@@ -97,23 +98,36 @@ class FimoFile(object):
                 if line == "\n":
                     continue
                 this_line = FimoLine(line)
-                if this_line.seqname in self.data:
-                    self.data[this_line.seqname].append(this_line)
-                else:
-                    this_entry = FimoSeq(this_line.seqname)
-                    this_entry.append(this_line)
-                    self.data[this_line.seqname] = this_entry
-                    self.names.append(this_line.seqname)
+                self.insert_entry(this_line)
+
+    def insert_entry(self, fimoline):
+        if fimoline.seqname in self.data:
+            self.data[fimoline.seqname].append(fimoline)
+        else:
+            this_entry = FimoSeq(fimoline.seqname)
+            this_entry.append(fimoline)
+            self.data[fimoline.seqname] = this_entry
+            self.names.append(fimoline.seqname)
 
     def pull_entry(self, name):
         return self.data[name]
 
+    def filter_by_id(self, identifier_list):
+        newfimo = FimoFile()
+        for name in self.names:
+            hit = self.pull_entry(name).data[0]
+            if hit.patname in identifier_list:
+                newfimo.insert_entry(hit)
+        return newfimo
+ 
     def gather_hits_dict(self, pval_thresh=1.0):
         hits = {}
         for seqname,hit_info in self.data.items():
             #print(dir(hit_info.data[0]))
             if hit_info.data[0].pvalue is not None:
-                if np.all(np.asarray([this.pvalue for this in hit_info.data]) > pval_thresh):
+                if np.all(
+                    np.asarray([this.pvalue for this in hit_info.data]) > pval_thresh
+                ):
                     continue
             motif_name = hit_info.data[0].tfname
             if motif_name in hits:
@@ -148,6 +162,9 @@ class FimoFile(object):
     def __iter__(self):
         for name in self.names:
             yield self.data[name]
+
+    def __len__(self):
+        return len(self.data)
 
 
 class StremeLine(MemeLine):
@@ -277,4 +294,4 @@ class StremeFile(object):
         for name in self.names:
             yield self.data[name]
 
-
+                   

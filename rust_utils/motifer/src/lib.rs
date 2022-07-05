@@ -553,20 +553,6 @@ mod tests {
     
     #[test]
     fn test_manual_dist() {
-        ////////////////////////////////////////////////////////////////////
-        // to further test distance calculation and broadcasting accuracy,
-        //   I'll create the following:
-        //
-        //   test_arr1 - a 3d array of shape (2,5,2) with values of 0
-        //      for first index of final
-        //      axis and of 1 for second index of final axis.
-        //   test_arr2 - a 2d array of shape (2,5) with values of 0.5
-        //   test_weights - a 2d array of shape (2,5) with values of 1.0
-        //   answer_arr - a 1d array with values [5.0, 5.0].
-        //
-        // running the test arrays through my stranded weighted distance
-        //   calculation should yield answer_arr
-        ////////////////////////////////////////////////////////////////////
 
         // a is 2x5 and all 0.0
         let a = Array::zeros((2,5));
@@ -1539,6 +1525,8 @@ pub struct Motif {
     pub mi: f64,
     pub dists: ndarray::Array2::<f64>,
     positions: Vec<HashMap<String,Vec<usize>>>,
+    zscore: Option<f64>,
+    robustness: Option<(u8,u8)>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1575,6 +1563,8 @@ pub struct MotifReader {
     mi: f64,
     dists: ArrayDeser<f64>,
     positions: Vec<HashMap<String, Vec<usize>>>,
+    zscore: Option<f64>,
+    robustness: Option<(u8,u8)>,
 }
 
 /// Reads a vector of Motif structs from a pickle file
@@ -1624,7 +1614,19 @@ impl Motifs {
             let mi = motif_reader.mi;
             let dists = motif_reader.dists.to_array();
             let positions = motif_reader.positions.to_vec();
-            let motif = Motif{params, weights, threshold, hits, mi, dists, positions};
+            let zscore = motif_reader.zscore;
+            let robustness = motif_reader.robustness;
+            let motif = Motif {
+                params,
+                weights,
+                threshold,
+                hits,
+                mi,
+                dists,
+                positions,
+                zscore,
+                robustness,
+            };
             motifs.motifs.push(motif);
         }
         motifs
@@ -1636,10 +1638,21 @@ impl Motifs {
 
     pub fn len(&self) -> usize {self.motifs.len()}
 
+    pub fn supplement_robustness(&mut self, rec_db: &RecordsDB, max_count: &i64) {
+        for (i,motif) in self.motifs.iter_mut().enumerate() {
+            println!("Calculating robustness and z-score for motif {}", i);
+            motif.update_robustness(rec_db, max_count);
+            motif.update_zscore(rec_db, max_count);
+        }
+    }
+
     pub fn post_optim_update(&mut self, rec_db: &RecordsDB, max_count: &i64) {
-        for motif in self.motifs.iter_mut() {
+        for (i,motif) in self.motifs.iter_mut().enumerate() {
+            println!("Calculating final distances, mutual information, robustness, and z-score for motif {}", i);
             motif.update_min_dists(rec_db);
             motif.update_hit_positions(rec_db, max_count);
+            motif.update_robustness(rec_db, max_count);
+            motif.update_zscore(rec_db, max_count);
         }
     }
 
@@ -2394,7 +2407,9 @@ impl Motif {
         let dists = Array::from_elem((record_num,2), f64::INFINITY);
         let positions = vec![HashMap::from([(String::from("placeholder"), vec![usize::MAX])])];
         let mi = 0.0;
-        Motif{params, weights, threshold, hits, mi, dists, positions}
+        let zscore = None;
+        let robustness = None;
+        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness}
     }
 
     /// Returns a copy of Motif
@@ -2411,7 +2426,9 @@ impl Motif {
         let params = Sequence{ params: arr };
         let mi = self.mi;
         let threshold = self.threshold;
-        Motif{params, weights, threshold, hits, mi, dists, positions}
+        let zscore = self.zscore;
+        let robustness = self.robustness;
+        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness}
     }
    
     /// Does constrained normalization of weights
@@ -2422,6 +2439,25 @@ impl Motif {
     ///   but prior to their normalization to sum to one.
     pub fn normalize_weights(&mut self, alpha: &f64) -> () {
         self.weights.constrain_normalize(alpha);
+    }
+
+    /// Similar to FIRE robustness score.
+    fn update_robustness(&mut self, db: &RecordsDB, max_count: &i64) {
+        let hit_cats = info_theory::categorize_hits(&self.hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = db.values.view();
+        let (num_passed,num_jacks) = info_theory::info_robustness(hv, vv);
+        self.robustness = Some((num_passed, num_jacks));
+    }
+
+    /// Similar to FIRE z-score. Calculates z-score for
+    /// jacknife replicates and places number that pass into Motif
+    fn update_zscore(&mut self, db: &RecordsDB, max_count: &i64) {
+        let hit_cats = info_theory::categorize_hits(&self.hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = db.values.view();
+        let (zscore,_) = info_theory::info_zscore(hv, vv);
+        self.zscore = Some(zscore);
     }
 
     //////////////////////////////////////////////////////////////////////
@@ -2527,6 +2563,7 @@ impl<'a> Seed<'a> {
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: &f64,
                        max_count: &i64) {
+        //println!("Updating some hits");
         self.hits = db.get_hits(
             &self.params.params,
             weights,
@@ -2536,6 +2573,7 @@ impl<'a> Seed<'a> {
     }
 
     fn update_mi(&mut self, db: &RecordsDB, max_count: &i64) {
+        //println!("Updating some mis");
         let hit_cats = info_theory::categorize_hits(&self.hits, &max_count);
         let hv = hit_cats.view();
         let vv = db.values.view();
@@ -2547,6 +2585,7 @@ impl<'a> Seed<'a> {
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: &f64,
                        max_count: &i64) {
+        //println!("Updating some info");
         self.update_hits(
             db,
             weights,
@@ -2569,7 +2608,19 @@ impl<'a> Seed<'a> {
         let arr = self.params.params.to_owned();
         let params = Sequence{ params: arr };
         let mi = self.mi;
-        Motif{params, weights, threshold: *threshold, hits, mi, dists, positions}
+        let zscore = None;
+        let robustness = None;
+        Motif {
+            params,
+            weights,
+            threshold: *threshold,
+            hits,
+            mi,
+            dists,
+            positions,
+            zscore,
+            robustness,
+        }
     }
 
 }
@@ -2671,7 +2722,10 @@ impl<'a> Seeds<'a> {
                 threshold,
                 max_count,
             );
+            //println!("Done updating a seed\n=====================");
         });
+        //println!("Done updating all seeds");
+
     }
 
     /// Sorts seeds by mi

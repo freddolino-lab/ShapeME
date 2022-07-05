@@ -5,5 +5,6 @@ members = [
     "optim",
     "find_motifs",
     "evaluate_motifs",
+    "get_robustness",
 ]
 

@@ -15,7 +15,9 @@ import evaluate_motifs as evm
 import fimopytools as fimo
 
 this_path = Path(__file__).parent.absolute()
-rust_bin = os.path.join(this_path, '../rust_utils/target/release/find_motifs')
+sys.path.insert(0, this_path)
+find_bin = os.path.join(this_path, '../rust_utils/target/release/find_motifs')
+supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
 
 from rpy2.robjects.packages import importr
 import rpy2.robjects as ro
@@ -39,60 +41,6 @@ def two_way_to_log_odds(two_way):
     num = np.array(two_way[0], dtype=float) / np.array(two_way[1],dtype=float)
     denom = np.array(two_way[2], dtype=float) / np.array(two_way[3],dtype=float)
     return np.log(num/denom)
-
-
-def info_zscore(vec1, vec2, n=10000):
-    """ Similar to FIRE determine a Z score for vec1 based on MI scores
-    from randomly shuffled vec2
-
-    Args:
-        vec1 - vector to not shuffle
-        vec2 -vector to shuffle
-        n - number of shuffles to do
-    
-    Returns:
-        zscore - (MI_actual - mean MI_shuff)/std
-        passed - was MI_actual greater than all shuffles?
-    """
-    # doing welford's again
-    online_mean = welfords.Welford()
-    passed = True
-    actual = inout.mutual_information(vec1, vec2)
-    for i in range(n):
-        shuffle = np.random.permutation(len(vec2))
-        newval = inout.mutual_information(vec1, vec2[shuffle])
-        online_mean.update(newval)
-        if newval >= actual:
-            passed = False
-    mean = online_mean.final_mean()
-    stdev = online_mean.final_stdev()
-    zscore = (actual-mean)/stdev
-    return zscore, passed
-
-
-def info_robustness(vec1, vec2, n=10000, r=10, holdout_frac=0.3):
-    """ Similar to FIRE Robustness score, calculate Z score for
-    jacknife replicates and report number that pass
-
-    Args:
-        vec1 - vector to not shuffle
-        vec2 -vector to shuffle
-        n - number of shuffles to do for zscore
-        r - number of jackknife replicates
-        holdout_frac - fraction of data to remove for jackknife
-    
-    Returns:
-        num_passed - number of jacknife reps that passed
-    """
-    num_passed = 0
-    num_to_use = int(np.floor((1-holdout_frac)*len(vec1)))
-    for i in range(r):
-        jk_selector = np.random.permutation(len(vec1))[0:num_to_use]
-        zscore, passed = info_zscore(vec1[jk_selector], vec2[jk_selector], n=n)
-        if passed:
-            num_passed += 1
-    return num_passed
-
 
 
 if __name__ == "__main__":
@@ -183,6 +131,12 @@ if __name__ == "__main__":
         help=f"Name of meme-formatted file (file must be located in data_dir) "\
             f"to be used for searching for known sequence motifs of interest in "\
             f"seq_fasta")
+    parser.add_argument("--shape_rust_file", type=str, default=None,
+        help=f"Name of json file containing output from rust binary")
+    parser.add_argument("--no_shape_motifs", action="store_true",
+        help=f"Add this flag to turn off shape motif inference. "\
+            f"This is useful if you basically want to use this script "\
+            f"as a wrapper for streme to just find sequence motifs.")
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
@@ -198,23 +152,26 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logging.info("Arguments:")
-    logging.info(str(args))
+    print(str(args))
 
     out_pref = args.o
     in_direc = args.data_dir
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
     in_fname = os.path.join(in_direc, args.infile)
+    out_motif_fname = os.path.join(out_direc, "final_motifs.dsm")
+    out_heatmap_fname = os.path.join(out_direc, "final_heatmap.png")
     find_seq_motifs = args.find_seq_motifs
     seq_fasta = args.seq_fasta
     if seq_fasta is not None:
         seq_fasta = os.path.join(in_direc, seq_fasta)
-    known_motif_file = args.seq_meme_file
-    if known_motif_file is not None:
-        known_motif_file = os.path.join(in_direc, known_motif_file)
+    seq_meme_file = args.seq_meme_file
+    if seq_meme_file is not None:
+        seq_meme_file = os.path.join(in_direc, seq_meme_file)
     fimo_direc = f"{out_direc}/fimo_out"
     streme_direc = f"{out_direc}/streme_out"
     streme_thresh = args.streme_thresh
+    no_shape_motifs = args.no_shape_motifs
 
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
@@ -224,12 +181,13 @@ if __name__ == "__main__":
         if seq_fasta is None:
             raise inout.NoSeqFaException()
         # if both seq_motifs and meme file were passed, raise exception
-        if known_motif_file is not None:
-            raise inout.SeqMotifOptionException(known_motif_file)
+        if seq_meme_file is not None:
+            raise inout.SeqMotifOptionException(seq_meme_file)
 
-        known_motif_file = f"{out_direc}/streme_out/streme.txt"
+        seq_meme_file = f"{streme_direc}/streme.txt"
+        streme_exec = os.path.join(this_path, "run_streme.py")
 
-        STREME = f"run_streme.py "\
+        STREME = f"python {streme_exec} "\
             f"--seq_fname {seq_fasta} "\
             f"--yvals_fname {in_fname} "\
             f"--threshold {streme_thresh} "\
@@ -238,31 +196,43 @@ if __name__ == "__main__":
         streme_result = subprocess.run(
             STREME,
             shell=True,
-            check=True,
             capture_output=True,
         )
+        if streme_result.returncode != 0:
+            print(
+                f"run_streme.py returned non-zero exit status. "\
+                f"Error: {streme_result.stderr}",
+                file=sys.stderr
+            )
+            sys.exit()
+
         streme_log_fname = f"{streme_direc}/streme_run.log"
         streme_err_fname = f"{streme_direc}/streme_run.err"
+        print()
         logging.info(
             f"Ran streme: for details, see "\
             f"{streme_log_fname} and {streme_err_fname}"
         )
         with open(streme_log_fname, "w") as streme_out:
             # streme log gets captured as stderr, so write stderr to file
-            streme_out.write(streme_result.stdout)
+            streme_out.write(streme_result.stdout.decode())
         with open(streme_err_fname, "w") as streme_err:
             # streme log gets captured as stderr, so write stderr to file
-            streme_err.write(streme_result.stderr)
+            try:
+                streme_err.write(streme_result.stderr.decode())
+            except UnicodeDecodeError as e:
+                logging.warning("Problem writing to {streme_err_fname}:\n{e}")
 
     # if user has a meme file (could be from streme above, or from input arg), run fimo
-    if known_motif_file is not None:
+    if seq_meme_file is not None:
 
         if seq_fasta is None:
             raise inout.NoSeqFaException()
 
-        FIMO = f"run_fimo.py "\
+        fimo_exec = os.path.join(this_path, "run_fimo.py")
+        FIMO = f"python {fimo_exec} "\
             f"--seq_fname {seq_fasta} "\
-            f"--meme_file {known_motif_file} "\
+            f"--meme_file {seq_meme_file} "\
             f"--out_direc {fimo_direc}"
 
         fimo_result = subprocess.run(
@@ -273,14 +243,15 @@ if __name__ == "__main__":
         )
         fimo_log_fname = f"{fimo_direc}/fimo_run.log"
         fimo_err_fname = f"{fimo_direc}/fimo_run.err"
+        print()
         logging.info(
             f"Ran fimo: for details, see "\
             f"{fimo_log_fname} and {fimo_err_fname}"
         )
         with open(fimo_log_fname, "w") as fimo_out:
-            fimo_out.write(fimo_result.stdout)
+            fimo_out.write(fimo_result.stdout.decode())
         with open(fimo_err_fname, "w") as fimo_err:
-            fimo_err.write(fimo_result.stderr)
+            fimo_err.write(fimo_result.stderr.decode())
 
     print()
     logging.info("Reading in shape files")
@@ -300,18 +271,9 @@ if __name__ == "__main__":
     # read in the values associated with each sequence and store them
     # in the sequence database
     if args.continuous is not None:
-        #records.read(args.infile, float)
-        #logging.info("Discretizing data")
-        #records.discretize_quant(args.continuous)
-        #logging.info("Quantizing input data using k-means clustering")
         records.quantize_quant(args.continuous)
 
     fam = evm.set_family(records.y)
-    ##############################################################################
-    ##############################################################################
-    ## incorporate test data if at CLI ###########################################
-    ##############################################################################
-    ##############################################################################
 
     logging.info("Distribution of sequences per class:")
     logging.info(inout.seqs_per_bin(records))
@@ -326,13 +288,7 @@ if __name__ == "__main__":
     for name,shape_idx in records.shape_name_lut.items():
         this_center = records.shape_centers[shape_idx]
         this_spread = records.shape_spreads[shape_idx]
-        logging.info(
-            "{}: center={}, spread={}".format(
-                name,
-                this_center,
-                this_spread
-            )
-        )
+        logging.info(f"{name}: center={this_center:.2f}, spread={this_spread:.2f}")
 
     alpha = args.alpha
     max_count = args.max_count
@@ -342,10 +298,7 @@ if __name__ == "__main__":
     
     mi_fname = os.path.join(
         out_direc,
-        '{}_initial_mutual_information_max_count_{}.pkl'.format(
-            out_pref,
-            max_count,
-        ),
+        f'{out_pref}_initial_mutual_information_max_count_{max_count}.pkl'
     )
 
     shape_fname = os.path.join(out_direc, 'shapes.npy')
@@ -372,30 +325,45 @@ if __name__ == "__main__":
         intercept_fit,
     )
 
-    if find_seq_motifs:
+    seq_motif_exists = False
+    shape_motif_exists = False
 
-        print()
-        logging.info("Fitting regression model to sequence motifs")
-        seq_matches = fimo.FimoFile()
-        seq_matches.parse(f"{fimo_direc}/fimo.tsv")
-        seq_motifs = seq_matches.get_list()
+    # if we found motifs using streme, we'll have a value for seq_meme_file.
+    # also will work if we passed a known motif file instead of finding our own
+    # sequence motif
+    if seq_meme_file is not None:
 
-        seq_X,seq_var_lut = seq_matches.get_design_matrix(
-            records,
-            # should I be filtering by p-value of fimo match here? I think not.
-            #streme_thresh,
+        # This step will just get the motif names and sequences,
+        # hits arrays and such will be supplemented later using fimo output
+        seq_motifs = inout.Motifs(
+            fname = seq_meme_file,
+            motif_type = "sequence",
+            evalue_thresh = streme_thresh,
         )
 
-        one_seq_motif = False
-        
         if len(seq_motifs) == 0:
-            logging.info(f"No motifs passed significance "\
+            print()
+            logging.info(f"No sequence motifs passed e-value "\
                 f"threshold of {streme_thresh}, setting find_seq_motifs "\
                 f"back to False and moving on to shape motif inference.")
+            # set find_seq_motifs back to False to disable seq stuff later on
             find_seq_motifs = False
- 
-        elif len(seq_motifs) == 1:
 
+    #if find_seq_motifs:
+
+        logging.info("\nFitting regression model to sequence motifs")
+        
+        seq_motifs.get_X(
+            fimo_fname = f"{fimo_direc}/fimo.tsv",
+            rec_db = records,
+        )
+        seq_motifs.supplement_robustness(records, supp_bin, my_env=my_env)
+
+        one_seq_motif = False
+
+        if len(seq_motifs) == 1:
+
+            print()
             logging.info(
                 f"Only one sequence motif present. "\
                 f"Performing model selection using BIC to determine whether "\
@@ -403,12 +371,14 @@ if __name__ == "__main__":
             )
             # toggle one_seq_motif to True for later use in building combined
             # seq and shape motif design matrix
-            one_seq_motif = True
+            ######################################################################
+            one_seq_motif = True # comment for debugging to force seq inclusion
+            #seq_motif_exists = True # uncomment for debugging to force seq inclusion
 
         else:
 
             seq_fit = evm.train_glmnet(
-                seq_X,
+                seq_motifs.X,
                 records.y,
                 folds=10,
                 family=fam,
@@ -419,48 +389,49 @@ if __name__ == "__main__":
 
             print()
             logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
+            logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
 
-            # clobber seq_X and seq_var_lut here
-            seq_motifs,seq_X,seq_var_lut = evm.filter_motifs(
-                seq_motifs,
-                seq_X,
-                seq_coefs,
-                seq_var_lut,
-            )
+            seq_motifs.filter_motifs(seq_coefs)
 
+            print()
             logging.info(
-                f"Number of shape motifs left after LASSO regression: "\
-                f"{len(final_seq_motifs)}"
+                f"Number of sequence motifs left after LASSO regression: "\
+                f"{len(seq_motifs)}"
             )
 
-            if len(final_seq_motifs) == 1:
+            if len(seq_motifs) == 1:
+                print()
                 logging.info(
-                    f"Only one sequence motif left after LASSO regression. "\
+                    f"Only one sequence motif left after LASSO regression.\n"\
                     f"Performing model selection using BIC to determine whether "\
                     f"the remaining motif is informative over intercept alone."
                 )
                 one_seq_motif = True
+
+            # if more than one left after LASSO, seq seq_motif_exists to True
+            else:
+                seq_motif_exists = True
  
+        # supplement motifs object with bic
+        intercept_and_motif_X = np.append(intercept_X, seq_motifs.X, axis=1)
 
-        # if there's only one covariate, create intercept-only and intercept
-        # plus motif design matrices
+        motif_fit = evm.train_sklearn_glm(
+            intercept_and_motif_X,
+            records.y,
+            family = fam,
+            fit_intercept = False, # intercept already in design mat
+        )
+
+        seq_motifs.bic = evm.get_sklearn_bic(
+            intercept_and_motif_X,
+            records.y,
+            motif_fit,
+        )
+
+        # if there's only one covariate, compare bic from intercept+motif
+        # and intercept only
         if one_seq_motif:
-            intercept_and_motif_X = np.append(intercept_X, seq_X, axis=1)
-
-            motif_fit = evm.train_sklearn_glm(
-                intercept_and_motif_X,
-                records.y,
-                family = fam,
-                fit_intercept = False, # intercept already in design mat
-            )
-
-            int_and_motif_bic = evm.get_sklearn_bic(
-                intercept_and_motif_X,
-                records.y,
-                motif_fit,
-            )
-
-            bic_list = [ intercept_bic, int_and_motif_bic ]
+            bic_list = [ intercept_bic, seq_motifs.bic ]
             model_list = [ intercept_fit, motif_fit ]
 
             best_mod_idx = evm.choose_model(
@@ -470,52 +441,42 @@ if __name__ == "__main__":
             )
 
             if best_mod_idx == 0:
+                print()
                 logging.info(
                     f"Intercept-only model had lower BIC than model fit using "\
-                    f"intercept and one sequence motif. Therefore, there is no "\
+                    f"intercept and one sequence motif.\nTherefore, there is no "\
                     f"informative "\
                     f"sequence motif. Not writing a sequence motif to output."
                 )
-            
-    
+            # if our one seq motif is better than intercept, set seq_motif_exits to True
+            else:
+                seq_motif_exists = True
+
     good_motif_out_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_temp_{}_stepsize_{}_alpha_{}_max_count_{}.pkl".format(
-            out_pref,
-            temp,
-            step,
-            alpha,
-            max_count,
-        ),
+        f"{out_pref}_post_opt_cmi_filtered_motifs_temp_{temp}_"\
+        f"stepsize_{step}_alpha_{alpha}_max_count_{max_count}.pkl",
     )
 
     final_motif_plot_fname = os.path.join(
         out_direc,
-        "{}_post_opt_cmi_filtered_motifs_temp_{}_stepsize_{}_alpha_{}_max_count_{}.png".format(
-            out_pref,
-            temp,
-            step,
-            alpha,
-            max_count,
-        ),
+        f"{out_pref}_post_opt_cmi_filtered_motifs_temp_{temp}_"\
+        f"stepsize_{step}_alpha_{alpha}_max_count_{max_count}.png",
     )
 
     logit_reg_fname = os.path.join(
         out_direc,
-        "{}_logistic_regression_result.pkl".format(out_pref),
+        f"{out_pref}_logistic_regression_result.pkl",
     )
 
     coef_per_class_fname = os.path.join(
         out_direc,
-        "{}_logistic_regression_coefs_per_class.txt".format(out_pref),
+        f"{out_pref}_logistic_regression_coefs_per_class.txt",
     )
 
-    RUST = "{} {}".format(
-        rust_bin,
-        config_fname,
-    )
+    FIND_CMD = f"{find_bin} {config_fname}"
 
-    args_dict = {
+    find_args_dict = {
         'out_fname': rust_out_fname,
         'shape_fname': shape_fname,
         'yvals_fname': yval_fname,
@@ -542,92 +503,95 @@ if __name__ == "__main__":
     }
 
     if args.continuous is not None:
-        args_dict['y_cat_num'] = args.continuous
+        find_args_dict['y_cat_num'] = args.continuous
 
     # supplement args info with shape center and spread from database
-    args_dict['names'] = []
-    args_dict['indices'] = []
-    args_dict['centers'] = []
-    args_dict['spreads'] = []
+    find_args_dict['names'] = []
+    find_args_dict['indices'] = []
+    find_args_dict['centers'] = []
+    find_args_dict['spreads'] = []
 
     for name,shape_idx in records.shape_name_lut.items():
         this_center = records.shape_centers[shape_idx]
         this_spread = records.shape_spreads[shape_idx]
-        args_dict['names'].append(name)
-        args_dict['indices'].append(shape_idx)
-        args_dict['centers'].append(this_center)
-        args_dict['spreads'].append(this_spread)
+        find_args_dict['names'].append(name)
+        find_args_dict['indices'].append(shape_idx)
+        find_args_dict['centers'].append(this_center)
+        find_args_dict['spreads'].append(this_spread)
     
-    # write shapes to npy file. Permute axes 1 and 2.
-    with open(shape_fname, 'wb') as shape_f:
-        np.save(shape_fname, records.X.transpose((0,2,1,3)))
-    # write y-vals to npy file.
-    with open(yval_fname, 'wb') as f:
-        np.save(f, records.y.astype(np.int64))
-    # write cfg to file
-    with open(config_fname, 'w') as f:
-        json.dump(args_dict, f, indent=1)
+    if not no_shape_motifs:
+        # write shapes to npy file. Permute axes 1 and 2.
+        with open(shape_fname, 'wb') as shape_f:
+            np.save(shape_fname, records.X.transpose((0,2,1,3)))
+        # write y-vals to npy file.
+        with open(yval_fname, 'wb') as f:
+            np.save(f, records.y.astype(np.int64))
+        # write cfg to file
+        with open(config_fname, 'w') as f:
+            json.dump(find_args_dict, f, indent=1)
 
-    logging.info("Running motif selection and optimization.")
-    retcode = subprocess.call(RUST, shell=True, env=my_env)
-    if retcode != 0:
-        raise inout.RustBinaryException(Exception)
+        print()
+        if args.shape_rust_file is None:
+            logging.info("Running shape motif selection and optimization.")
+            retcode = subprocess.call(FIND_CMD, shell=True, env=my_env)
+            if retcode != 0:
+                raise inout.RustBinaryException(Exception)
+        else:
+            logging.info(f"Reading prior shape motifs from {args.shape_rust_file}.")
+            rust_out_fname = args.shape_rust_file
 
-    if not os.path.isfile(rust_out_fname):
-        info.warning(
-            f"No output json file containing motifs from rust binary. "\
-            f"This usually means no motifs were identified, but you should "\
-            f"carfully check your log and error messages to make sure that's "\
-            f"really the case."
+        if not os.path.isfile(rust_out_fname):
+            print()
+            logging.warning(
+                f"No output json file containing motifs from rust binary. "\
+                f"This usually means no motifs were identified, but you should "\
+                f"carfully check your log and error messages to make sure that's "\
+                f"really the case."
+            )
+            sys.exit()
+
+        shape_motifs = inout.Motifs(
+            rust_out_fname,
+            motif_type="shape",
+            shape_lut = records.shape_name_lut,
+            max_count = args.max_count,
         )
-        sys.exit()
+        # places design matrix and variable lookup table into shape_motifs
+        shape_motifs.get_X(max_count = args.max_count)
 
-    good_motifs = inout.read_motifs_from_rust(rust_out_fname)
+        shape_fit = evm.train_glmnet(
+            shape_motifs.X,
+            records.y,
+            folds = 10,
+            family=fam,
+            alpha=1,
+        )
 
-    shape_X,shape_var_lut = evm.get_X_from_motifs(
-        rust_out_fname,
-        args.max_count,
-    )
+        with open(shape_fit_fname, "wb") as f:
+            pickle.dump(shape_fit, f)
 
-    shape_fit = evm.train_glmnet(
-        shape_X,
-        records.y,
-        folds = 10,
-        family=fam,
-        alpha=1,
-    )
+        coefs = evm.fetch_coefficients(fam, shape_fit, args.continuous)
 
-    with open(shape_fit_fname, "wb") as f:
-        pickle.dump(shape_fit, f)
+        print()
+        logging.info(f"Shape motif coefficients:\n{coefs}")
+        logging.info(f"Shape coefficient lookup table:\n{shape_motifs.var_lut}")
 
-    coefs = evm.fetch_coefficients(fam, shape_fit, args.continuous)
-    print()
-    logging.info(f"Shape motif coefficients:\n{coefs}")
+        # go through coefficients and weed out motifs for which all
+        #   hits' coefficients are zero.
+        shape_motifs.filter_motifs(coefs)
 
-    # go through coefficients and weed out motifs for which all
-    #   hits' coefficients are zero.
-    final_motifs,final_X,final_var_lut = evm.filter_motifs(
-        good_motifs,
-        shape_X,
-        coefs,
-        shape_var_lut,
-    )
-
-    logging.info(
-        f"Number of shape motifs left after LASSO regression: "\
-        f"{len(final_motifs)}"
-    )
-   
-    # check whether there's only one informative coefficient
-    if final_X.shape[1] == 1:
+        print()
         logging.info(
-            f"Only one covariate for shape motifs was found to be "\
-            f"informative using LASSO regression. Calculating the BIC "\
-            f"for a model with only an intercept and this covariate to "\
-            f"compare to a model fit using only an intercept."
+            f"Number of shape motifs left after LASSO regression: "\
+            f"{len(shape_motifs)}"
+        )
+        logging.info(
+            f"Shape coefficient lookup table after filter:\n"\
+            f"{shape_motifs.var_lut}"
         )
 
-        intercept_and_shape_X = np.append(intercept_X, final_X, axis=1)
+        # supplement the shape motifs object with the bic from a model
+        intercept_and_shape_X = np.append(intercept_X, shape_motifs.X, axis=1)
 
         motif_fit = evm.train_sklearn_glm(
             intercept_and_shape_X,
@@ -636,232 +600,197 @@ if __name__ == "__main__":
             fit_intercept = False, # intercept already in design mat
         )
 
-        int_and_motif_bic = evm.get_sklearn_bic(
+        shape_motifs.bic = evm.get_sklearn_bic(
             intercept_and_shape_X,
             records.y,
             motif_fit,
         )
-
-        bic_list = [ intercept_bic, int_and_motif_bic ]
-        model_list = [ intercept_fit, motif_fit ]
-
-        best_mod_idx = evm.choose_model(
-            bic_list,
-            model_list,
-            return_index = True,
-        )
-
-        if best_mod_idx == 0:
+  
+        # check whether there's only one informative covariate
+        if shape_motifs.X.shape[1] == 1:
+            print()
             logging.info(
-                f"Intercept-only model had lower BIC than model fit using "\
-                f"intercept and one shape covariate. Therefore, there is no "\
-                f"informative shape motif. Not writing a shape motif to output. "\
+                f"Only one covariate for shape motifs was found to be "\
+                f"informative using LASSO regression. Calculating the BIC "\
+                f"for a model with only an intercept and this covariate to "\
+                f"compare to a model fit using only an intercept."
+            )
+
+            bic_list = [ intercept_bic, shape_motifs.bic ]
+            model_list = [ intercept_fit, motif_fit ]
+
+            best_mod_idx = evm.choose_model(
+                bic_list,
+                model_list,
+                return_index = True,
+            )
+
+            print()
+            logging.info(
+                f"Intercept-only BIC: {intercept_bic}\n"\
+                f"Intercept and one shape covariate BIC: {shape_motifs.bic}"
+            )
+
+            if best_mod_idx == 0:
+                print()
+                logging.info(
+                    f"Intercept-only model had lower BIC than model fit using "\
+                    f"intercept and one shape covariate. Therefore, there is no "\
+                    f"informative shape motif. Not writing a shape motif to output. "\
+                    f"Exiting now."
+                )
+                sys.exit()
+            # if the shape performs better than intercept, set shape_motif_exists to True
+            else:
+                shape_motif_exists = True
+
+        elif len(shape_motifs) == 0:
+            print()
+            logging.warning(
+                f"There were no shape motifs left after LASSO regression. "\
                 f"Exiting now."
             )
             sys.exit()
 
-    if len(final_motifs) == 0:
-        info.warning(
-            f"There were no shape motifs left after LASSO regression. "\
-            f"Exiting now."
-        )
-        sys.exit()
+        # if more than one covariate left after LASSO, set shape_motif_exists to True
+        else:
+            shape_motif_exists = True
 
-    smv.plot_optim_shapes_and_weights(
-        final_motifs,
-        final_motif_plot_fname,
-        records,
-    )
-
-    if find_seq_motifs:
-        # if there was only one seq motif, grab it from seq_X
-        if one_seq_motif:
-            seq_X = seq_X[:,0]
-        shape_and_seq_X = np.append(shape_X, seq_X, axis=1)
-        shape_and_seq_var_lut = shape_var_lut
-        for seq_motif_key,seq_motif_info in seq_var_lut.items():
-            new_key = seq_motif_key + shape_X.shape[1]
-            seq_motif_info['motif_idx'] = new_key
-            shape_and_seq_var_lut[new_key] = seq_motif_info
-
-        shape_and_seq_fit = evm.train_glmnet(
-            shape_and_seq_X,
-            records.y,
-            folds=10,
-            family=fam,
-            alpha=1,
-        )
-        with open(shape_and_seq_fit_fname, "wb") as f:
-            pickle.dump(shape_and_seq_fit, f)
-
-        shape_and_seq_motifs = good_motifs.copy()
-        shape_and_seq_motifs.extend(seq_motifs.copy())
-
-        shape_and_seq_coefs = evm.fetch_coefficients(
-            fam,
-            shape_and_seq_fit,
-            args.continuous,
+        smv.plot_optim_shapes_and_weights(
+            shape_motifs,
+            final_motif_plot_fname,
+            records,
         )
 
-        print()
-        logging.info(f"Shape and sequence motif coefficients:\n{shape_and_seq_coefs}")
+        # if there were both shape and seq motifs, combine into one model
+        if shape_motif_exists and seq_motif_exists:
 
-        (
-            final_shape_and_seq_motifs,
-            final_shape_and_seq_X,
-            final_shape_and_seq_lut,
-        ) = evm.filter_motifs(
-            shape_and_seq_motifs,
-            shape_and_seq_X,
-            shape_and_seq_coefs,
-            shape_and_seq_var_lut,
-        )
-        logging.info(f"Number of final motifs: {len(final_shape_and_seq_motifs)}")
+            shape_and_seq_motifs = shape_motifs.new_with_motifs(seq_motifs)
+            shape_and_seq_motifs.motif_type = "shape_and_seq"
+
+            print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
+            print(f"seq_var_lut: {seq_motifs.var_lut}")
+            print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
+
+            shape_and_seq_fit = evm.train_glmnet(
+                shape_and_seq_motifs.X,
+                records.y,
+                folds=10,
+                family=fam,
+                alpha=1,
+            )
+            with open(shape_and_seq_fit_fname, "wb") as f:
+                pickle.dump(shape_and_seq_fit, f)
+
+            #shape_and_seq_motifs = shape_motifs.copy()
+            #shape_and_seq_motifs.extend(seq_motifs.copy())
+
+            shape_and_seq_coefs = evm.fetch_coefficients(
+                fam,
+                shape_and_seq_fit,
+                args.continuous,
+            )
+
+            print()
+            logging.info(
+                f"Shape and sequence motif coefficients:\n"\
+                f"{shape_and_seq_coefs}"
+            )
+            logging.info(
+                f"Shape and sequence coefficient lookup table:\n"\
+                f"{shape_and_seq_motifs.var_lut}"
+            )
+
+            shape_and_seq_motifs.filter_motifs(shape_and_seq_coefs)
+
+            print()
+            logging.info(f"Number of final motifs: {len(shape_and_seq_motifs)}")
+
+            # supplement motifs object with bic
+            intercept_and_motif_X = np.append(
+                intercept_X,
+                shape_and_seq_motifs.X,
+                axis=1,
+            )
+
+            int_and_motif_fit = evm.train_sklearn_glm(
+                intercept_and_motif_X,
+                records.y,
+                family = fam,
+                fit_intercept = False, # intercept already in design mat
+            )
+
+            shape_and_seq_motifs.bic = evm.get_sklearn_bic(
+                intercept_and_motif_X,
+                records.y,
+                int_and_motif_fit,
+            )
+
+            if len(shape_and_seq_motifs) == 1:
+                print()
+                logging.info(
+                    f"Only one motif left after LASSO regression. "\
+                    f"Performing model selection using BIC to determine whether "\
+                    f"the remaining motif is informative over intercept alone."
+                )
  
+                bic_list = [ intercept_bic, shape_and_seq_motifs.bic ]
+                model_list = [ intercept_fit, int_and_motif_fit ]
 
-    #good_motif_index = cvlogistic.choose_features(clf_f, tol=0)
-    #if len(good_motif_index) < 1:
-    #    logging.info("No motifs found")
-    #    sys.exit()
+                best_mod_idx = evm.choose_model(
+                    bic_list,
+                    model_list,
+                    return_index = True,
+                )
 
-    #cvlogistic.write_coef_per_class(clf_f, coef_per_class_fname)
-    #final_good_motifs = [good_motifs[index] for index in good_motif_index]
-    #logging.info("{} motifs survived".format(len(final_good_motifs)))
+                print()
+                logging.info(
+                    f"Intercept-only BIC: {intercept_bic}\n"\
+                    f"Intercept and one covariate BIC: {shape_and_seq_motifs.bic}"
+                )
+                if best_mod_idx == 0:
+                    print()
+                    logging.info(
+                        f"Intercept-only model had lower BIC than model fit using "\
+                        f"intercept and one motif covariate.\nTherefore, there is no "\
+                        f"informative motif. Not writing a motif to output. "\
+                        f"Exiting now."
+                    )
+                    sys.exit()
 
-    #for motif in final_good_motifs:
-    #    add_motif_metadata(this_records, motif) 
-    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-    #    logging.info("MI: {}".format(motif['mi']))
-    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
-    #    for key in sorted(motif['enrichment'].keys()):
-    #        logging.info("Two way table for cat {} is {}".format(
-    #            key,
-    #            motif['enrichment'][key]
-    #        ))
-    #        logging.info("Enrichment for Cat {} is {}".format(
-    #            key,
-    #            two_way_to_log_odds(motif['enrichment'][key])
-    #        ))
-    #logging.info("Generating initial heatmap for passing motifs")
-    #if len(final_good_motifs) > 25:
-    #    logging.info("Only plotting first 25 motifs")
-    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs[:25])
-    #else:
-    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs)
+    motifs_objects = []
+    if shape_motif_exists:
+        motifs_objects.append(shape_motifs)
+    if seq_motif_exists:
+        motifs_objects.append(seq_motifs)
+    if shape_motif_exists and seq_motif_exists:
+        motifs_objects.append(shape_and_seq_motifs)
 
-    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
-    #if not args.txt_only:
-    #    enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
-    #    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
-    #if args.optimize:
-    #    logging.info("Optimizing motifs using {} processors".format(args.p))
-    #    final_motifs = mp_optimize_motifs(
-    #        final_good_motifs,
-    #        other_records,
-    #        args.optimize_perc,
-    #        p=args.p,
-    #    )
-    #    if args.optimize_perc != 1:
-    #        logging.info("Testing final optimized motifs on full database")
-    #        for i,this_entry in enumerate(final_motifs):
-    #            logging.info("Computing MI for motif {}".format(i))
-    #            this_discrete = generate_peak_vector(
-    #                other_records,
-    #                this_entry['motif'],
-    #                this_entry['threshold'],
-    #                args.rc,
-    #            )
-    #            this_entry['mi'] = other_records.mutual_information(this_discrete)
-    #            this_entry['motif_entropy'] = inout.entropy(this_discrete)
-    #            this_entry['category_entropy'] = other_records.shannon_entropy()
-    #            this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
-    #            this_entry['discrete'] = this_discrete
-    #else:
-    #    if args.motif_perc != 1:
-    #        logging.info("Testing final optimized motifs on held out database")
-    #        for i,this_entry in enumerate(final_good_motifs):
-    #            logging.info("Computing MI for motif {}".format(i))
-    #            this_discrete = generate_peak_vector(
-    #                other_records,
-    #                this_entry['motif'],
-    #                this_entry['threshold'],
-    #                args.rc,
-    #            )
-    #            this_entry['mi'] = other_records.mutual_information(this_discrete)
-    #            this_entry['motif_entropy'] = inout.entropy(this_discrete)
-    #            this_entry['category_entropy'] = other_records.shannon_entropy()
-    #            this_entry['enrichment'] = other_records.calculate_enrichment(this_discrete)
-    #            this_entry['discrete'] = this_discrete
-    #    final_motifs = final_good_motifs
+    # if there was more than one inout.Motifs object generated, choose best model here
+    if len(motifs_objects) > 1:
 
-    #logging.info(
-    #    "Filtering motifs by Conditional MI using {} as a cutoff".format(args.mi_perc)
-    #)
-    #novel_motifs = filter_motifs(
-    #    final_motifs,
-    #    other_records,
-    #    args.mi_perc,
-    #)
+        motif_bics = [x.bic for x in motifs_objects]
 
-    #if args.debug:
-    #    print_top_motifs(novel_motifs)
-    #    print_top_motifs(novel_motifs, reverse=False)
-    #logging.info("{} motifs survived".format(len(novel_motifs)))
-    #for i, motif in enumerate(novel_motifs):
-    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-    #    logging.info("MI: {}".format(motif['mi']))
-    #    if args.infoz > 0:
-    #        logging.info("Calculating Z-score for motif {}".format(i))
-    #        # calculate zscore
-    #        zscore, passed = info_zscore(
-    #            motif['discrete'],
-    #            other_records.get_values(),
-    #            args.infoz,
-    #        )
-    #        motif['zscore'] = zscore
-    #        logging.info("Z-score: {}".format(motif['zscore']))
-    #    if args.infoz > 0 and args.inforobust > 0:
-    #        logging.info("Calculating Robustness for motif {}".format(i))
-    #        num_passed = info_robustness(
-    #            motif['discrete'],
-    #            other_records.get_values(), 
-    #            args.infoz,
-    #            args.inforobust,
-    #            args.fracjack,
-    #        )
-    #        motif['robustness'] = "{}/{}".format(num_passed,args.inforobust)
-    #        logging.info("Robustness: {}".format(motif['robustness']))
-    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
-    #    for key in sorted(motif['enrichment'].keys()):
-    #        logging.info("Two way table for cat {} is {}".format(
-    #            key,
-    #            motif['enrichment'][key]
-    #        ))
-    #        logging.info("Enrichment for Cat {} is {}".format(
-    #            key,
-    #            two_way_to_log_odds(motif['enrichment'][key])
-    #        ))
-    #    if args.optimize:
-    #        logging.info("Optimize Success?: {}".format(motif['opt_success']))
-    #        logging.info("Optimize Message: {}".format(motif['opt_message']))
-    #        logging.info("Optimize Iterations: {}".format(motif['opt_iter']))
-    #logging.info("Generating final heatmap for motifs")
-    #enrich_hm = smv.EnrichmentHeatmap(novel_motifs)
-    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
+        best_motifs = evm.choose_model(
+            motif_bics,
+            motifs_objects,
+            return_index=False,
+        )
+        print()
+        logging.info(f"Best model, based on BIC, was {best_motifs.motif_type}.")
 
-    #if not args.txt_only:
-    #    enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
-    #    enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
-    #    if args.optimize:
-    #        logging.info("Plotting optimization for final motifs")
-    #        enrich_hm.plot_optimization(outpre+"_optimization.pdf")
+    # if only on, set the extant one to "best_motifs"
+    else:
+        best_motifs = motifs_objects[0]
 
-    #logging.info("Writing final motifs")
-    #outmotifs = inout.ShapeMotifFile()
-    #outmotifs.add_motifs(novel_motifs)
-    #outmotifs.write_file(outpre+"_called_motifs.dsp", records)
-    #final = opt.minimize(lambda x: -optimize_mi(x, data=records, sample_perc=args.optimize_perc), motif_to_optimize, method="nelder-mead", options={'disp':True})
-    #final = opt.basinhopping(lambda x: -optimize_mi(x, data=records), motif_to_optimize)
-    #logging.info(final)
+    #######################################################################
+    #best_motifs = motifs_objects[-1] # uncomment for forcing a specific model for debug
+        
+    # place enrichment as key in each motif's dictionary
+    best_motifs.get_enrichments(records)
+    # write motifs to meme-like file
+    best_motifs.write_file(out_motif_fname, records)
+    logging.info(f"Writing motif enrichment heatmap to {out_heatmap_fname}")
+    smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
+    logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
+
