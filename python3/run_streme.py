@@ -9,6 +9,7 @@ import inout
 import subprocess
 import tempfile
 import sys
+import os
 
 def run_streme(seq_fname, yvals_fname, threshold, out_direc):
     '''Runs streme to find motifs present in `seq_fname` enriched
@@ -53,19 +54,26 @@ def run_streme(seq_fname, yvals_fname, threshold, out_direc):
             else:
                 raise inout.StremeClassException(yval, line_num)
 
-    with tempfile.NamedTemporaryFile(mode="w") as pos_f:
-        tmp_pos = pos_f.name
-        pos_fa_file.write(pos_f)
-        with tempfile.NamedTemporaryFile(mode="w") as neg_f:
-            tmp_neg = neg_f.name
-            neg_fa_file.write(neg_f)
-            STREME = f"streme --thresh {threshold} "\
-                f" --p {tmp_pos} --n {tmp_neg} --dna "\
-                f"--oc {out_direc}"
-            print()
-            print("Running streme command:")
-            print(STREME)
-            result = subprocess.run(STREME, shell=True, check=True)
+    tmp_dir = tempfile.TemporaryDirectory()
+    tmp_direc = tmp_dir.name
+    tmp_pos = os.path.join(tmp_direc,"pos.fa")
+    pos_f = open(tmp_pos, "w")
+    pos_fa_file.write(pos_f)
+    pos_f.close()
+
+    tmp_neg = os.path.join(tmp_direc,"neg.fa")
+    neg_f = open(tmp_neg, "w")
+    neg_fa_file.write(neg_f)
+    neg_f.close()
+    
+    STREME = f"streme --thresh {threshold} "\
+        f" --p {tmp_pos} --n {tmp_neg} --dna "\
+        f"--oc {out_direc}"
+    print()
+    print("Running streme command:")
+    print(STREME)
+    result = subprocess.run(STREME, shell=True, check=True)
+
     return result
 
 

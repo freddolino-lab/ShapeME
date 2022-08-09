@@ -199,12 +199,11 @@ if __name__ == "__main__":
             capture_output=True,
         )
         if streme_result.returncode != 0:
-            print(
-                f"run_streme.py returned non-zero exit status. "\
-                f"Error: {streme_result.stderr}",
-                file=sys.stderr
-            )
-            sys.exit()
+            raise(Exception(
+                f"run_streme.py returned non-zero exit status.\n"\
+                f"Stderr: {streme_result.stderr.decode()}\n"\
+                f"Stdout: {streme_result.stdout.decode()}"
+            ))
 
         streme_log_fname = f"{streme_direc}/streme_run.log"
         streme_err_fname = f"{streme_direc}/streme_run.err"
@@ -349,7 +348,7 @@ if __name__ == "__main__":
             # set find_seq_motifs back to False to disable seq stuff later on
             find_seq_motifs = False
 
-    #if find_seq_motifs:
+    if find_seq_motifs:
 
         logging.info("\nFitting regression model to sequence motifs")
         

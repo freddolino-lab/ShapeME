@@ -25,6 +25,7 @@ from math import log
 from scipy.stats import contingency
 from statsmodels.stats import rates
 import tempfile
+import os
 
 from matplotlib import pyplot as plt
 
@@ -1061,34 +1062,40 @@ class Motifs:
         robustness_pat = re.compile(r'(?<=robustness\: )\((\d+), (\d+)')
         zscore_pat = re.compile(r'(?<=zscore\: )\d+\.\d+')
 
-        with tempfile.NamedTemporaryFile() as yval_file:
-            y_name = yval_file.name
-            np.save(yval_file, rec_db.y.astype(np.int64))
-            print(rec_db.y.shape)
+        tmp_dir = tempfile.TemporaryDirectory()
+        tmp_direc = tmp_dir.name
+        y_name = os.path.join(tmp_direc, "tmp_y.npy")
+        np.save(y_name, rec_db.y.astype(np.int64))
+        #print(rec_db.y.shape)
 
-            binary += f" {y_name}"
+        binary += f" {y_name}"
 
-            for motif in self.motifs:
-                with tempfile.NamedTemporaryFile() as hits_file:
-                    hits_name = hits_file.name
-                    print(motif.hits.shape)
-                    np.save(hits_file, motif.hits.flatten().astype(np.int64))
+        for motif in self.motifs:
 
-                    cmd = binary + f" {hits_name}"
+            hits_name = os.path.join(tmp_direc, "tmp_hits.npy")
+            #print(motif.hits.shape)
+            np.save(hits_name, motif.hits.flatten().astype(np.int64))
 
-                    result = subprocess.run(
-                        cmd,
-                        shell=True,
-                        capture_output=True,
-                        check=True,
-                        env=my_env,
-                    )
-                    output = result.stdout.decode()
-                    motif.mi = float(ami_pat.search(output).group())
-                    passes = int(robustness_pat.search(output).group(1))
-                    attempts = int(robustness_pat.search(output).group(2))
-                    motif.robustness = (passes, attempts)
-                    motif.zscore = float(zscore_pat.search(output).group())
+            cmd = binary + f" {hits_name}"
+
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                env=my_env,
+            )
+            if result.returncode != 0:
+                raise(Exception(
+                    f"Supplementing sequence motifs with robustness failed:\n"\
+                    f"STDOUT: {result.stdout.decode()}\n"
+                    f"ERROR: {result.stderr.decode()}\n"\
+                ))
+            output = result.stdout.decode()
+            motif.mi = float(ami_pat.search(output).group())
+            passes = int(robustness_pat.search(output).group(1))
+            attempts = int(robustness_pat.search(output).group(2))
+            motif.robustness = (passes, attempts)
+            motif.zscore = float(zscore_pat.search(output).group())
 
     #def to_tidy(self, outfile):
     #    """ Method to write file in a tidy format for data analysis
