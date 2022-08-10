@@ -66,7 +66,7 @@ def run_streme(seq_fname, yvals_fname, threshold, out_direc):
     neg_fa_file.write(neg_f)
     neg_f.close()
     
-    STREME = f"streme --thresh {threshold} "\
+    STREME = f"streme --evalue --thresh {threshold} "\
         f" --p {tmp_pos} --n {tmp_neg} --dna "\
         f"--oc {out_direc}"
     print()
@@ -86,7 +86,7 @@ def main():
         help=f"tsv file of paired sequence names (column 1) "\
             f"and binary y-values (column 2)")
     parser.add_argument('--threshold', action='store', type=str, default=0.05,
-        help=f"p-value threshold for streme to continue searching for motifs. "\
+        help=f"e-value threshold for streme to continue searching for motifs. "\
             f"Default: %(default)s. See streme documentation for details")
     parser.add_argument('--out_direc', action='store', type=str, required=True,
         help=f"Absolute path to the directory to be created, or clobbered if it "\

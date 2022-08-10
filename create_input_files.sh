@@ -17,6 +17,7 @@ python ${SCRIPTDIR}/convert_narrowpeak_to_fire.py \
     ${PEAKFILE} \
     ${GENOME} \
     ${PREFIX} \
+    --wsize ${WSIZE} \
     --kfold ${FOLDS} \
     --center_metric ${CENTER}
 

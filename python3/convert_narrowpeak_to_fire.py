@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument('fasta', type=str, help="input fasta file")
     parser.add_argument('outpre', type=str, help="output file prefix")
     parser.add_argument('--wsize', type=int, default=30, 
-                        help="half the window size around peak center")
+                        help="total window size around peak center")
     parser.add_argument('--kfold', type=int, default=None, 
                         help="create k fold datasets for CV")
     parser.add_argument('--nrand', type=int, default=3, 
@@ -153,8 +153,8 @@ if __name__ == "__main__":
         #print("This peak chrom name: {}".format(peak.chrm))
         this_chrm = genome.pull_entry(peak.chrm)
         this_seq = this_chrm.pull_seq(
-            max(peak_center - args.wsize,0), 
-            min(peak_center + args.wsize, len(this_chrm)),
+            max(peak_center - args.wsize // 2,0), 
+            min(peak_center + args.wsize // 2, len(this_chrm)),
         )
         if not set(list(this_seq)).issubset(BASES):
             print("WARNING: skipping peak_{} because it contains at least one character not in {}".format(i,BASES))
@@ -170,10 +170,10 @@ if __name__ == "__main__":
 
         for j in range(args.nrand):
             this_rand = fa.FastaEntry()
-            this_seq = "N"*(args.wsize*2 + 1)
-            while this_seq.count("N") > args.wsize:
-                this_loc = np.random.randint(0+args.wsize, len(this_chrm)-args.wsize)
-                this_seq = this_chrm.pull_seq(this_loc-args.wsize, this_loc+args.wsize)
+            this_seq = "N"*(args.wsize + 1)
+            while this_seq.count("N") > args.wsize // 2:
+                this_loc = np.random.randint(0+args.wsize // 2 , len(this_chrm)-args.wsize//2)
+                this_seq = this_chrm.pull_seq(this_loc-args.wsize//2, this_loc+args.wsize//2)
             this_rand.set_seq(this_seq)
             this_rand.set_header(">"+"peak_%i_%i"%(i,j))
             outfasta.add_entry(this_rand)

@@ -134,12 +134,12 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
 
     alphabet_len_pat = re.compile(r'(?<=alength\= )\d+')
     motif_width_pat = re.compile(r'(?<=w\= )\d+')
-    eval_pat = re.compile(r'(?<=E\= )\S+')
+    eval_pat = re.compile(r'(?<=[ES]\= )\S+')
     nsites_pat = re.compile(r'(?<=nsites\= )\d+')
     threshold_pat = re.compile(r'(?<=threshold\= )\S+')
-    ami_pat = re.compile(r'(?<=adj_mi\= )\S+')
+    ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
     robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
-    zscore_pat = re.compile(r'(?<=z-score\= )\S+')
+    zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
 
     # start not in_motif
     in_motif = False
@@ -193,8 +193,9 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
                 alen = int(alphabet_len_pat.search(description_line).group())
                 mwidth = int(motif_width_pat.search(description_line).group())
                 pos_left = mwidth
-                eval_match = eval_pat.search(description_line).group()
-                evalue = float(eval_match)
+                print(description_line)
+                eval_match = eval_pat.search(description_line)
+                evalue = float(eval_match.group())
                 nsites = int(nsites_pat.search(description_line).group())
                 data_arr = np.zeros((alen, mwidth))
 
@@ -870,8 +871,8 @@ class Motifs:
         eval_pat = re.compile(r'(?<=E\= )\S+')
         nsites_pat = re.compile(r'(?<=nsites\= )\d+')
         threshold_pat = re.compile(r'(?<=threshold\= )\S+')
-        ami_pat = re.compile(r'(?<=adj_mi\= )\S+')
-        zscore_pat = re.compile(r'(?<=z-score\= )\S+')
+        ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
+        zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
 
         # start not in_motif
@@ -1058,9 +1059,9 @@ class Motifs:
 
     def supplement_robustness(self, rec_db, binary, my_env=None):
 
-        ami_pat = re.compile(r'(?<=ami\: )\d+\.\d+')
+        ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\: )\((\d+), (\d+)')
-        zscore_pat = re.compile(r'(?<=zscore\: )\d+\.\d+')
+        zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
 
         tmp_dir = tempfile.TemporaryDirectory()
         tmp_direc = tmp_dir.name
@@ -1091,11 +1092,19 @@ class Motifs:
                     f"ERROR: {result.stderr.decode()}\n"\
                 ))
             output = result.stdout.decode()
-            motif.mi = float(ami_pat.search(output).group())
-            passes = int(robustness_pat.search(output).group(1))
-            attempts = int(robustness_pat.search(output).group(2))
-            motif.robustness = (passes, attempts)
-            motif.zscore = float(zscore_pat.search(output).group())
+            try:
+                motif.mi = float(ami_pat.search(output).group())
+                passes = int(robustness_pat.search(output).group(1))
+                attempts = int(robustness_pat.search(output).group(2))
+                motif.robustness = (passes, attempts)
+                motif.zscore = float(zscore_pat.search(output).group())
+            except:
+                raise(Exception(
+                    f"Something went wrong in supplementing robustness:\n\n"\
+                    f"Looked for {ami_pat} in:\n"\
+                    f"STDOUT: {result.stdout.decode()}\n\n"\
+                    f"ERROR: {result.stderr.decode()}\n\n"\
+                ))
 
     #def to_tidy(self, outfile):
     #    """ Method to write file in a tidy format for data analysis
@@ -1935,8 +1944,14 @@ class RecordDatabase(object):
         shape_idx = 0
         shape_count = len(shape_dict)
 
+        hitit=False
         for i,rec_name in enumerate(self.record_name_list):
+            if rec_name == "CP020102.1:4086783-4086843":
+                print("It's HERE!")
+                hitit=True
             self.record_name_lut[rec_name] = i
+        if not hitit:
+            print("We really never did see CP020102.1:4086783-4086843")
 
         for shape_name,shape_infname in shape_dict.items():
 
@@ -1958,6 +1973,7 @@ class RecordDatabase(object):
                 self.X = np.zeros((record_count,record_length,shape_count,2))
 
             for rec_name,rec_data in this_shape_dict.items():
+                print(rec_name)
                 r_idx = self.record_name_lut[rec_name]
 
                 if shape_name in shift_params:

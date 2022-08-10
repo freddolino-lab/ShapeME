@@ -547,7 +547,9 @@ if __name__ == "__main__":
                 f"carfully check your log and error messages to make sure that's "\
                 f"really the case."
             )
-            sys.exit()
+            no_shape_motifs = True
+
+    if not no_shape_motifs:
 
         shape_motifs = inout.Motifs(
             rust_out_fname,
@@ -649,11 +651,13 @@ if __name__ == "__main__":
                 f"There were no shape motifs left after LASSO regression. "\
                 f"Exiting now."
             )
-            sys.exit()
+            no_shape_motifs = True
 
         # if more than one covariate left after LASSO, set shape_motif_exists to True
         else:
             shape_motif_exists = True
+
+    if not no_shape_motifs:
 
         smv.plot_optim_shapes_and_weights(
             shape_motifs,
@@ -764,6 +768,10 @@ if __name__ == "__main__":
         motifs_objects.append(seq_motifs)
     if shape_motif_exists and seq_motif_exists:
         motifs_objects.append(shape_and_seq_motifs)
+
+    if not np.any([seq_motif_exists, shape_motif_exists]):
+        print("No shape or sequence motifs found. Exiting now.")
+        sys.exit()
 
     # if there was more than one inout.Motifs object generated, choose best model here
     if len(motifs_objects) > 1:
