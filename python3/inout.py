@@ -1944,14 +1944,8 @@ class RecordDatabase(object):
         shape_idx = 0
         shape_count = len(shape_dict)
 
-        hitit=False
         for i,rec_name in enumerate(self.record_name_list):
-            if rec_name == "CP020102.1:4086783-4086843":
-                print("It's HERE!")
-                hitit=True
             self.record_name_lut[rec_name] = i
-        if not hitit:
-            print("We really never did see CP020102.1:4086783-4086843")
 
         for shape_name,shape_infname in shape_dict.items():
 
@@ -1973,7 +1967,6 @@ class RecordDatabase(object):
                 self.X = np.zeros((record_count,record_length,shape_count,2))
 
             for rec_name,rec_data in this_shape_dict.items():
-                print(rec_name)
                 r_idx = self.record_name_lut[rec_name]
 
                 if shape_name in shift_params:
