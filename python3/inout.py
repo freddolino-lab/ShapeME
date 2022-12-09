@@ -1286,9 +1286,21 @@ class Motifs:
         ids_in_self = self.get_distinct_ids()
         retained_hits = fimo_file.filter_by_id(ids_in_self)
 
-        self.X,self.var_lut = retained_hits.get_design_matrix(rec_db)
-        for i,motif in enumerate(self.motifs):
-            motif.hits = self.X[:,i][:,None]
+        self.X,self.var_lut = retained_hits.get_design_matrix(
+            rec_db,
+            motif_list = self.motifs,
+        )
+        try:
+            for i,motif in enumerate(self.motifs):
+                motif.hits = self.X[:,i][:,None]
+        except:
+            sys.exit(
+                f"Problem creating X array for sequence motif logistic regression.\n"\
+                f"X array shape: {self.X.shape}\n"\
+                f"motif ids: {ids_in_self}\n"\
+                f"motif lut: {self.var_lut}\n"\
+            )
+
 
     def filter_motifs(self, coefs):
         '''Determines which coeficients were shrunk to zero during LASSO regression
@@ -1345,9 +1357,7 @@ class Motifs:
                     )
                     this_col_idx = retained_X.shape[1] - 1
                     new_lut[this_col_idx] = {
-                        # don't add one to len(retain) here, since we need the index
-                        # in the filtered list corresponding to this motif
-                        'motif_idx': len(retain),
+                        'motif_idx': len([_ for _ in retain if _]),
                         'hits': self.var_lut[coef_idx-1]['hits'],
                     }
                 motif_any_nonzero.append(has_non_zero)

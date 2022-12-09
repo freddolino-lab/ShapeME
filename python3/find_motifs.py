@@ -137,6 +137,10 @@ if __name__ == "__main__":
         help=f"Add this flag to turn off shape motif inference. "\
             f"This is useful if you basically want to use this script "\
             f"as a wrapper for streme to just find sequence motifs.")
+    parser.add_argument("--write_all_files", action="store_true",
+        help=f"Add this flag to write all motif meme files, regardless of whether "\
+            f"the model with shape motifs, sequence motifs, or both types of "\
+            f"motifs was most performant.")
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
@@ -159,7 +163,8 @@ if __name__ == "__main__":
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
     in_fname = os.path.join(in_direc, args.infile)
-    out_motif_fname = os.path.join(out_direc, "final_motifs.dsm")
+    out_motif_basename = os.path.join(out_direc, "final_motifs")
+    out_motif_fname = out_motif_basename + ".dsm"
     out_heatmap_fname = os.path.join(out_direc, "final_heatmap.png")
     find_seq_motifs = args.find_seq_motifs
     seq_fasta = args.seq_fasta
@@ -347,6 +352,8 @@ if __name__ == "__main__":
                 f"back to False and moving on to shape motif inference.")
             # set find_seq_motifs back to False to disable seq stuff later on
             find_seq_motifs = False
+        else:
+            find_seq_motifs = True
 
     if find_seq_motifs:
 
@@ -764,10 +771,19 @@ if __name__ == "__main__":
     motifs_objects = []
     if shape_motif_exists:
         motifs_objects.append(shape_motifs)
+        if args.write_all_files:
+            out_fname = out_motif_basename + "_shape_motifs.dsm"
+            shape_motifs.write_file(out_fname, records)
     if seq_motif_exists:
         motifs_objects.append(seq_motifs)
+        if args.write_all_files:
+            out_fname = out_motif_basename + "_sequence_motifs.dsm"
+            shape_motifs.write_file(out_fname, records)
     if shape_motif_exists and seq_motif_exists:
         motifs_objects.append(shape_and_seq_motifs)
+        if args.write_all_files:
+            out_fname = out_motif_basename + "_shape_and_sequence_motifs.dsm"
+            shape_motifs.write_file(out_fname, records)
 
     if not np.any([seq_motif_exists, shape_motif_exists]):
         print("No shape or sequence motifs found. Exiting now.")

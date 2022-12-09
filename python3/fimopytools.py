@@ -88,7 +88,7 @@ class FimoFile(object):
         self.names= []
 
     def parse(self, fname):
-        with open(fname) as inf:
+        with open(fname, "r") as inf:
             # skip first line
             inf.readline()
             for i,line in enumerate(inf):
@@ -115,25 +115,24 @@ class FimoFile(object):
     def filter_by_id(self, identifier_list):
         newfimo = FimoFile()
         for name in self.names:
-            hit = self.pull_entry(name).data[0]
-            if hit.patname in identifier_list:
-                newfimo.insert_entry(hit)
+            for hit in self.pull_entry(name).data:
+                if hit.patname in identifier_list:
+                    newfimo.insert_entry(hit)
         return newfimo
  
     def gather_hits_dict(self, pval_thresh=1.0):
         hits = {}
         for seqname,hit_info in self.data.items():
             #print(dir(hit_info.data[0]))
-            if hit_info.data[0].pvalue is not None:
-                if np.all(
-                    np.asarray([this.pvalue for this in hit_info.data]) > pval_thresh
-                ):
-                    continue
-            motif_name = hit_info.data[0].tfname
-            if motif_name in hits:
-                hits[motif_name].append(seqname)
-            else:
-                hits[motif_name] = [seqname]
+            for hit in hit_info.data:
+                if hit.pvalue is not None:
+                    if hit.pvalue > pval_thresh:
+                        continue
+                motif_name = hit.tfname
+                if motif_name in hits:
+                    hits[motif_name].append(seqname)
+                else:
+                    hits[motif_name] = [seqname]
         return hits
 
     def get_list(self):
@@ -144,12 +143,14 @@ class FimoFile(object):
         motif_set = set(motif_list)
         return list(motif_set)
 
-    def get_design_matrix(self, rec_db, pval_thresh=1.0):
+    def get_design_matrix(self, rec_db, pval_thresh=1.0, motif_list=None):
         var_lut = {}
         # set up array of zeros with n_records rows and n_motifs columns
         motif_hits = self.gather_hits_dict(pval_thresh)
         X = np.zeros((len(rec_db), len(motif_hits)))
-        for (i,(motif_name,rec_name_list)) in enumerate(motif_hits.items()):
+        for (i,motif) in enumerate(motif_list):
+            motif_name = motif.alt_name
+            rec_name_list = motif_hits[motif_name]
             for rec_name,rec_idx in rec_db.record_name_lut.items():
                 # if this record's name is in the fimo hits, set its index in X to 1
                 if rec_name in rec_name_list:
@@ -257,14 +258,15 @@ class StremeFile(object):
         hits = {}
         for seqname,hit_info in self.data.items():
             #print(dir(hit_info.data[0]))
-            if hit_info.data[0].pvalue is not None:
-                if np.all(np.asarray([this.pvalue for this in hit_info.data]) > pval_thresh):
-                    continue
-            motif_name = hit_info.data[0].tfname
-            if motif_name in hits:
-                hits[motif_name].append(seqname)
-            else:
-                hits[motif_name] = [seqname]
+            for hit in hit_info.data:
+                if hit.pvalue is not None:
+                    if hit.pvalue > pval_thresh:
+                        continue
+                motif_name = hit.tfname
+                if motif_name in hits:
+                    hits[motif_name].append(seqname)
+                else:
+                    hits[motif_name] = [seqname]
         return hits
 
     def get_list(self):
@@ -275,12 +277,14 @@ class StremeFile(object):
         motif_set = set(motif_list)
         return list(motif_set)
 
-    def get_design_matrix(self, rec_db, pval_thresh=1.0):
+    def get_design_matrix(self, rec_db, pval_thresh=1.0, motif_list=None):
         var_lut = {}
         # set up array of zeros with n_records rows and n_motifs columns
         motif_hits = self.gather_hits_dict(pval_thresh)
         X = np.zeros((len(rec_db), len(motif_hits)))
-        for (i,(motif_name,rec_name_list)) in enumerate(motif_hits.items()):
+        for (i,motif) in enumerate(motif_list):
+            motif_name = motif.alt_name
+            rec_name_list = motif_hits[motif_name]
             for rec_name,rec_idx in rec_db.record_name_lut.items():
                 # if this record's name is in the streme hits, set its index in X to 1
                 if rec_name in rec_name_list:
