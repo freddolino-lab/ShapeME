@@ -883,6 +883,8 @@ pub struct Config {
     pub motif_fname: String,
     #[serde(default = "default_fname")]
     pub logit_reg_fname: String,
+    #[serde(default = "default_fname")]
+    pub eval_rust_fname: String,
 }
 
 fn default_fname() -> String { String::from("default") }
@@ -1559,10 +1561,10 @@ pub struct MotifReader {
     params: ShapeReader,
     weights: WeightsReader,
     threshold: f64,
-    hits: ArrayDeser<i64>,
-    mi: f64,
-    dists: ArrayDeser<f64>,
-    positions: Vec<HashMap<String, Vec<usize>>>,
+    hits: Option<ArrayDeser<i64>>,
+    mi: Option<f64>,
+    dists: Option<ArrayDeser<f64>>,
+    positions: Option<Vec<HashMap<String, Vec<usize>>>>,
     zscore: Option<f64>,
     robustness: Option<(u8,u8)>,
 }
@@ -1610,10 +1612,35 @@ impl Motifs {
                 &motif_reader.weights.weights_norm.to_array(),
             );
             let threshold = motif_reader.threshold;
-            let hits = motif_reader.hits.to_array();
-            let mi = motif_reader.mi;
-            let dists = motif_reader.dists.to_array();
-            let positions = motif_reader.positions.to_vec();
+            let hits = 
+                if let Some(hits) = &motif_reader.hits {
+                    hits.to_array()
+                } else {
+                // default hits is zero
+                    Array2::zeros((dim.0,2))
+                };
+            let mi = 
+                if let Some(mi) = motif_reader.mi {
+                    mi
+                } else {
+                // default value for mi is 0.0
+                    0.0_f64
+                };
+            let dists = 
+                if let Some(dists) = &motif_reader.dists {
+                    dists.to_array()
+                // default value for dist is max for f64
+                } else {
+                    Array::from_elem((dim.0,2), f64::INFINITY)
+                };
+            let positions = 
+                if let Some(positions) = &motif_reader.positions {
+                    positions.to_vec()
+                } else {
+                    vec![HashMap::from([
+                        (String::from("placeholder"), vec![usize::MAX])
+                    ])]
+                };
             let zscore = motif_reader.zscore;
             let robustness = motif_reader.robustness;
             let motif = Motif {

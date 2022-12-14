@@ -1,4 +1,6 @@
 import inout
+import copy
+import glob
 import fimopytools as fimo
 import logging
 import argparse
@@ -45,28 +47,86 @@ rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs
 
 #EPSILON = sys.float_info.epsilon
 
+def shape_run(
+        shape_motifs,
+        rust_motifs_fname,
+        shape_fname,
+        yval_fname,
+        args_dict,
+        config_fname,
+        rust_bin,
+        out_direc,
+        recs,
+):
+
+    shape_motifs.write_shape_motifs_as_rust_output(rust_motifs_fname)
+
+    new_motfs = copy.deepcopy(shape_motifs)
+
+    # get motif evaluations on test data
+    args_dict['eval_shape_fname'] = shape_fname
+    args_dict['eval_yvals_fname'] = yval_fname
+    args_dict['eval_rust_fname'] = rust_motifs_fname
+
+    with open(config_fname, 'w') as f:
+        json.dump(args_dict, f, indent=1)
+
+    RUST = f"{rust_bin} {config_fname}"
+
+    my_env = os.environ.copy()
+    my_env['RUST_BACKTRACE'] = "1"
+    retcode = subprocess.call(RUST, shell=True, env=my_env)
+
+    if retcode != 0:
+        sys.exit("Rust binary returned non-zero exit status")
+
+    new_motifs = inout.Motifs(
+        os.path.join(out_direc, "evaluated_motifs.json"),
+        motif_type="shape",
+        shape_lut = recs.shape_name_lut,
+        max_count = args_dict["max_count"],
+    )
+    new_motifs.get_X(max_count = args_dict["max_count"])
+
+    return new_motifs
 
 
-#def get_log_enrichments(motif_list):
-#    for motif in motif_list:
-#        motif["fitted_log_enrichment"] = get_log_enrichment(
-#            motif["contingency_fit"],
-#            motif["null_fit"],
-#        )
-#
-#
-#def get_log_enrichment(contingency_fit, null_fit):
-#
-#    contingency_sample_fitted = stats.fitted(contingency_fit, summary=False)
-#    null_sample_fitted = stats.fitted(null_fit, summary=False)
-#    rel_enrichment = contingency_sample_fitted / null_sample_fitted
-#    return np.log2(rel_enrichment)
-#
-#
-#def get_evid_ratio(arr, oper, compare_val=0):
-#    num_pass = len(np.where(oper(arr, compare_val)[0]))
-#    num_fail = len(arr) - num_pass
-#    pass
+def fimo_run(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs):
+
+    seq_motifs.write_file(seq_meme_fname, recs)
+
+    fimo_exec = os.path.join(this_path, "run_fimo.py")
+    FIMO = f"python {fimo_exec} "\
+        f"--seq_fname {seq_fasta} "\
+        f"--meme_file {seq_meme_fname} "\
+        f"--out_direc {fimo_direc}"
+
+    fimo_result = subprocess.run(
+        FIMO,
+        shell=True,
+        check=True,
+        capture_output=True,
+    )
+    fimo_log_fname = f"{fimo_direc}/fimo_run.log"
+    fimo_err_fname = f"{fimo_direc}/fimo_run.err"
+    print()
+    logging.info(
+        f"Ran fimo: for details, see "\
+        f"{fimo_log_fname} and {fimo_err_fname}"
+    )
+    with open(fimo_log_fname, "w") as fimo_out:
+        fimo_out.write(fimo_result.stdout.decode())
+    with open(fimo_err_fname, "w") as fimo_err:
+        fimo_err.write(fimo_result.stderr.decode())
+
+    new_seq_motifs = copy.deepcopy(seq_motifs)
+
+    new_seq_motifs.get_X(
+        fimo_fname = f"{fimo_direc}/fimo.tsv",
+        rec_db = recs,
+    )
+
+    return new_seq_motifs
 
 
 def fetch_coefficients(family, fit, continuous):
@@ -392,7 +452,15 @@ def evaluate_fit(fit, test_X, test_y, family,
     return output
 
 
-def read_records(args_dict, in_direc, infile, param_names, param_files, continuous=None, dset_type="training"):
+def read_records(
+        args_dict,
+        in_direc,
+        infile,
+        param_names,
+        param_files,
+        continuous=None,
+        dset_type="training"
+):
 
     print("Infile: {}".format(infile))
     logging.info("Reading in files")
@@ -543,10 +611,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
-    parser.add_argument('--test_fimo_file', type=str, default=None,
-            help="full path to tsv file containing fimo output for a sequence motif matched on held-out test data")
-    parser.add_argument('--train_fimo_file', type=str, default=None,
-            help="full path to tsv file containing fimo output for a sequence motif matched on training data")
+    parser.add_argument('--test_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
+    parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
     parser.add_argument('--test_params', nargs="+", type=str,
                          help='inputfiles with test shape scores')
     parser.add_argument('--train_params', nargs="+", type=str,
@@ -564,9 +630,6 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
     logging.getLogger('matplotlib.font_manager').disabled = True
 
-    my_env = os.environ.copy()
-    my_env['RUST_BACKTRACE'] = "1"
-
     args = parser.parse_args()
 
     logging.info("Arguments")
@@ -577,18 +640,19 @@ if __name__ == "__main__":
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
 
-    shape_fname = os.path.join(out_direc, 'test_shapes.npy')
-    yval_fname = os.path.join(out_direc, 'test_y_vals.npy')
+    fimo_direc = f"{out_direc}/fimo_out"
+    motif_fname = os.path.join(out_direc, 'final_motifs.dsm')
+    test_shape_fname = os.path.join(out_direc, 'test_shapes.npy')
+    train_shape_fname = os.path.join(out_direc, 'train_shapes.npy')
+    test_yval_fname = os.path.join(out_direc, 'test_y_vals.npy')
+    train_yval_fname = os.path.join(out_direc, 'train_y_vals.npy')
     config_fname = os.path.join(out_direc, 'config.json')
-    rust_motifs_fname = os.path.join(out_direc, 'rust_results.json')
-    lasso_fit_fname = os.path.join(out_direc, 'lasso_fit.pkl')
-    eval_out_fname = os.path.join(out_direc, 'shape_precision_recall.json')
-    seq_eval_out_fname = os.path.join(out_direc, 'seq_precision_recall.json')
-    seq_and_shape_eval_out_fname = os.path.join(out_direc, 'seq_and_shape_precision_recall.json')
-    prc_prefix = os.path.join(out_direc, 'shape_precision_recall_curve')
-    seq_prc_prefix = os.path.join(out_direc, 'seq_precision_recall_curve')
-    seq_and_shape_prc_prefix = os.path.join(out_direc, 'seq_and_shape_precision_recall_curve')
-    combined_plot_prefix = os.path.join(out_direc, 'combined_precision_recall_curve')
+    seq_meme_fname = os.path.join(out_direc, 'seq_motifs.meme')
+    rust_motifs_fname = os.path.join(out_direc, 'eval_rust_results.json')
+    fit_search = os.path.join(out_direc, '*lasso_fit.pkl')
+    lasso_fit_fname = glob.glob(fit_search)[0]
+    eval_out_fname = os.path.join(out_direc, 'precision_recall.json')
+    prc_prefix = os.path.join(out_direc, 'precision_recall_curve')
     eval_dist_plot_prefix = os.path.join(out_direc, 'class_yhat_distribution')
     out_pref = args.o
     
@@ -605,19 +669,21 @@ if __name__ == "__main__":
         dset_type="training",
     )
 
-    logit_reg_str = "{}_{}_logistic_regression_result.pkl"
-    shape_logit_reg_fname = os.path.join(
+    # write shapes to npy file. Permute axes 1 and 2.
+    with open(train_shape_fname, 'wb') as shape_f:
+        np.save(shape_f, train_records.X.transpose((0,2,1,3)))
+    # write y-vals to npy file.
+    with open(train_yval_fname, 'wb') as f:
+        np.save(f, train_records.y.astype(np.int64))
+
+    logit_reg_str = "eval_logistic_regression_result.pkl"
+    logit_reg_fname = os.path.join(
         out_direc,
-        logit_reg_str.format(out_pref.replace('test','train'), "shape"),
+        logit_reg_str,
     )
 
     # update cores so rust gets the right number for this job
     args_dict['cores'] = args.p
-    args_dict['eval_shape_fname'] = shape_fname
-    args_dict['eval_yvals_fname'] = yval_fname
-
-    with open(config_fname, 'w') as f:
-        json.dump(args_dict, f, indent=1)
 
     test_records,test_bins,test_orig_y = read_records(
         args_dict,
@@ -631,10 +697,10 @@ if __name__ == "__main__":
     )
 
     # write shapes to npy file. Permute axes 1 and 2.
-    with open(shape_fname, 'wb') as shape_f:
-        np.save(shape_fname, test_records.X.transpose((0,2,1,3)))
+    with open(test_shape_fname, 'wb') as shape_f:
+        np.save(shape_f, test_records.X.transpose((0,2,1,3)))
     # write y-vals to npy file.
-    with open(yval_fname, 'wb') as f:
+    with open(test_yval_fname, 'wb') as f:
         np.save(f, test_records.y.astype(np.int64))
 
     logging.info("Distribution of testing set sequences per class:")
@@ -642,30 +708,77 @@ if __name__ == "__main__":
 
     logging.info("Getting distance between motifs and each record")
 
-    fam = set_family(train_records.y)
+    train_y = train_records.y
+    test_y = test_records.y
+    fam = set_family(train_y)
 
-    if os.path.isfile(rust_motifs_fname):
-        RUST = "{} {}".format(
-            rust_bin,
-            config_fname,
-        )
+    if os.path.isfile(motif_fname):
 
-        retcode = subprocess.call(RUST, shell=True, env=my_env)
+        motifs = inout.Motifs()
+        motifs.read_file( motif_fname )
+        seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
 
-        if retcode != 0:
-            sys.exit("Rust binary returned non-zero exit status")
+        if len(shape_motifs) > 0:
 
-        test_y = test_records.y
-        test_X,var_lut = get_X_from_motifs(
-            os.path.join(out_direc, "evaluated_motifs.json"),
-            args_dict['max_count'],
-        )
+            test_shape_motifs = shape_run(
+                shape_motifs,
+                rust_motifs_fname,
+                test_shape_fname,
+                test_yval_fname,
+                args_dict,
+                config_fname,
+                rust_bin,
+                out_direc,
+                test_records,
+            )
+            train_shape_motifs = shape_run(
+                shape_motifs,
+                rust_motifs_fname,
+                train_shape_fname,
+                train_yval_fname,
+                args_dict,
+                config_fname,
+                rust_bin,
+                out_direc,
+                train_records,
+            )
 
-        train_y = train_records.y
-        train_X = get_X_from_lut(
-            os.path.join(out_direc, "rust_results.json"),
-            var_lut,
-        )
+            all_train_motifs = train_shape_motifs
+            all_test_motifs = test_shape_motifs
+
+        if len(seq_motifs) > 0:
+
+            if args.test_seq_fasta is None:
+                raise inout.NoSeqFaException()
+            if args.train_seq_fasta is None:
+                raise inout.NoSeqFaException()
+
+            test_seq_fasta = os.path.join(in_direc, args.test_seq_fasta)
+            train_seq_fasta = os.path.join(in_direc, args.train_seq_fasta)
+
+            train_seq_motifs = fimo_run(
+                seq_motifs,
+                train_seq_fasta,
+                seq_meme_fname,
+                fimo_direc,
+                this_path,
+                train_records,
+            )
+            test_seq_motifs = fimo_run(
+                seq_motifs,
+                test_seq_fasta,
+                seq_meme_fname,
+                fimo_direc,
+                this_path,
+                test_records,
+            )
+
+            if len(shape_motifs) > 0:
+                all_test_motifs = test_shape_motifs.new_with_motifs(test_seq_motifs)
+                all_train_motifs = train_shape_motifs.new_with_motifs(train_seq_motifs)
+            else:
+                all_test_motifs = test_seq_motifs
+                all_train_motifs = train_seq_motifs
 
         # categories need to start with 0, so subtract one from
         #  each value until at least one of the y-val vectors has 0 as
@@ -674,47 +787,43 @@ if __name__ == "__main__":
             train_y -= 1
             test_y -= 1
 
-        #shape_fit = train_glmnet(
-        #    train_X,
-        #    train_y,
-        #    folds=10,
-        #    family=fam,
-        #    alpha=1,
-        #)
-        with open(lasso_fit_fname, 'rb') as f:
-            shape_fit = pickle.load(f)
+        fit = train_glmnet(
+            all_train_motifs.X,
+            train_y,
+            folds = 10,
+            family=fam,
+            alpha=1,
+        )
 
-        coefs = fetch_coefficients(fam, shape_fit, args.continuous)
+        coefs = fetch_coefficients(fam, fit, args.continuous)
 
-        # NOTE: TODO: go through coefficients and weed out motifs for which all
-        #   coefficients are zero.
         # predict on test data
-        shape_output = evaluate_fit(
-            shape_fit,
-            test_X,
+        fit_eval = evaluate_fit(
+            fit,
+            all_test_motifs.X,
             test_y,
             fam,
             lambda_cut="lambda.1se",
-            prefix=eval_dist_plot_prefix + "_shape_only",
+            prefix=eval_dist_plot_prefix,
             plot=True,
         )
 
         with open(eval_out_fname, 'w') as f:
-            json.dump(shape_output, f, indent=1)
+            json.dump(fit_eval, f, indent=1)
 
-        with open(shape_logit_reg_fname, 'wb') as f:
-            pickle.dump(shape_fit, f)
+        with open(logit_reg_fname, 'wb') as f:
+            pickle.dump(fit, f)
 
         save_prc_plot(
-            shape_output,
+            fit_eval,
             prc_prefix,
-            "Shape motifs",
+            "Motifs",
         )
 
-        logging.info("Done evaluating shape motifs on test data.")
+        logging.info("Done evaluating motifs on test data.")
         logging.info("==========================================")
 
-        for class_name,class_info in shape_output.items():
+        for class_name,class_info in fit_eval.items():
             logging.info("Area under precision-recall curve for class {}: {}".format(class_name, class_info['auc']))
             logging.info(
                 "Expected area under precision-recall curve for random performance on class {}: {}".format(class_name, class_info['random_auc'])
@@ -727,210 +836,4 @@ if __name__ == "__main__":
                 prc_prefix+".pdf",
             )
         )
-
-    if args.test_fimo_file is not None:
-
-        train_seq_matches = fimo.FimoFile()
-        train_seq_matches.parse(args.train_fimo_file)
-        train_seq_X = train_seq_matches.get_design_matrix(train_records)
-
-        seq_fit = train_glmnet(
-            train_seq_X,
-            train_y,
-            folds=10,
-            family=fam,
-            alpha=1,
-        )
-
-        test_seq_matches = fimo.FimoFile()
-        test_seq_matches.parse(args.test_fimo_file)
-        test_seq_X = test_seq_matches.get_design_matrix(test_records)
-
-        seq_output = evaluate_fit(
-            seq_fit,
-            test_seq_X,
-            test_y,
-            fam,
-            lambda_cut="lambda.1se",
-            prefix=eval_dist_plot_prefix + "_seq_only",
-            plot=True,
-        )
-        seq_logit_reg_fname = os.path.join(
-            out_direc,
-            logit_reg_str.format(out_pref.replace('test','train'), "sequence"),
-        )
-
-        save_prc_plot(
-            seq_output,
-            seq_prc_prefix,
-            "Sequence motif",
-        )
-
-        with open(seq_eval_out_fname, 'w') as f:
-            json.dump(seq_output, f, indent=1)
-
-        logging.info("Done evaluating sequence motifs on test data.")
-        logging.info("==========================================")
-
-        for class_name,class_info in seq_output.items():
-            logging.info("Area under precision-recall curve for class {}: {}".format(class_name, class_info['auc']))
-            logging.info(
-                "Expected area under precision-recall curve for random performance on class {}: {}".format(class_name, class_info['random_auc'])
-            )
-
-        logging.info("Results of evaluation are in {}".format(seq_eval_out_fname))
-        logging.info(
-            "Precision recall curve plotted. Saved as {} and {}".format(
-                seq_prc_prefix+".png",
-                seq_prc_prefix+".pdf",
-            )
-        )
-
-        if os.path.isfile(rust_motifs_fname):
-            train_seq_and_shape_X = np.append(train_X, train_seq_X, axis=1)
-            test_seq_and_shape_X = np.append(test_X, test_seq_X, axis=1)
-
-            seq_and_shape_fit = train_glmnet(
-                train_seq_and_shape_X,
-                train_y,
-                folds=10,
-                family=fam,
-                alpha=1,
-            )
-            seq_and_shape_output = evaluate_fit(
-                seq_and_shape_fit,
-                test_seq_and_shape_X,
-                test_y,
-                fam,
-                prefix=eval_dist_plot_prefix + "_seq_and_shape",
-                plot=True,
-                lambda_cut="lambda.1se",
-            )
-            seq_shape_logit_reg_fname = os.path.join(
-                out_direc,
-                logit_reg_str.format(out_pref.replace('test','train'), "sequence_and_shape"),
-            )
-
-            save_prc_plot(
-                seq_and_shape_output,
-                seq_and_shape_prc_prefix,
-                "Sequence and shape motifs",
-            )
-
-            combined_results = {
-                'Shape':shape_output,
-                'Sequence':seq_output,
-                'Shape and sequence':seq_and_shape_output,
-            }
-
-            save_combined_prc_plot(
-                combined_results,
-                combined_plot_prefix,
-            )
-
-            with open(seq_and_shape_eval_out_fname, 'w') as f:
-                json.dump(seq_and_shape_output, f, indent=1)
-
-            logging.info("Done evaluating sequence and shape motifs together on test data.")
-            logging.info("==========================================")
-
-            for class_name,class_info in seq_and_shape_output.items():
-                logging.info("Area under precision-recall curve for class {}: {}".format(class_name, class_info['auc']))
-                logging.info(
-                    "Expected area under precision-recall curve for random performance on class {}: {}".format(class_name, class_info['random_auc'])
-                )
-
-            logging.info("Results of evaluation are in {}".format(seq_and_shape_eval_out_fname))
-            logging.info(
-                "Precision recall curve plotted. Saved as {} and {}".format(
-                    seq_and_shape_prc_prefix+".png",
-                    seq_and_shape_prc_prefix+".pdf",
-                )
-            )
-
-    #cvlogistic.write_coef_per_class(clf_f, coef_per_class_fname)
-    #final_good_motifs = [good_motifs[index] for index in good_motif_index]
-    #logging.info("{} motifs survived".format(len(final_good_motifs)))
-
-    #for motif in final_good_motifs:
-    #    add_motif_metadata(this_records, motif) 
-    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-    #    logging.info("MI: {}".format(motif['mi']))
-    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
-    #    for key in sorted(motif['enrichment'].keys()):
-    #        logging.info("Two way table for cat {} is {}".format(
-    #            key,
-    #            motif['enrichment'][key]
-    #        ))
-    #        logging.info("Enrichment for Cat {} is {}".format(
-    #            key,
-    #            two_way_to_log_odds(motif['enrichment'][key])
-    #        ))
-    #logging.info("Generating initial heatmap for passing motifs")
-    #if len(final_good_motifs) > 25:
-    #    logging.info("Only plotting first 25 motifs")
-    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs[:25])
-    #else:
-    #    enrich_hm = smv.EnrichmentHeatmap(final_good_motifs)
-
-    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_before_hm.txt")
-    #if not args.txt_only:
-    #    enrich_hm.display_enrichment(outpre+"_enrichment_before_hm.pdf")
-    #    enrich_hm.display_motifs(outpre+"motif_before_hm.pdf")
-
-    #for i, motif in enumerate(novel_motifs):
-    #    logging.info("motif: {}".format(motif['motif'].as_vector(cache=True)))
-    #    logging.info("MI: {}".format(motif['mi']))
-    #    if args.infoz > 0:
-    #        logging.info("Calculating Z-score for motif {}".format(i))
-    #        # calculate zscore
-    #        zscore, passed = info_zscore(
-    #            motif['discrete'],
-    #            other_records.get_values(),
-    #            args.infoz,
-    #        )
-    #        motif['zscore'] = zscore
-    #        logging.info("Z-score: {}".format(motif['zscore']))
-    #    if args.infoz > 0 and args.inforobust > 0:
-    #        logging.info("Calculating Robustness for motif {}".format(i))
-    #        num_passed = info_robustness(
-    #            motif['discrete'],
-    #            other_records.get_values(), 
-    #            args.infoz,
-    #            args.inforobust,
-    #            args.fracjack,
-    #        )
-    #        motif['robustness'] = "{}/{}".format(num_passed,args.inforobust)
-    #        logging.info("Robustness: {}".format(motif['robustness']))
-    #    logging.info("Motif Entropy: {}".format(motif['motif_entropy']))
-    #    logging.info("Category Entropy: {}".format(motif['category_entropy']))
-    #    for key in sorted(motif['enrichment'].keys()):
-    #        logging.info("Two way table for cat {} is {}".format(
-    #            key,
-    #            motif['enrichment'][key]
-    #        ))
-    #        logging.info("Enrichment for Cat {} is {}".format(
-    #            key,
-    #            two_way_to_log_odds(motif['enrichment'][key])
-    #        ))
-    #    if args.optimize:
-    #        logging.info("Optimize Success?: {}".format(motif['opt_success']))
-    #        logging.info("Optimize Message: {}".format(motif['opt_message']))
-    #        logging.info("Optimize Iterations: {}".format(motif['opt_iter']))
-    #logging.info("Generating final heatmap for motifs")
-    #enrich_hm = smv.EnrichmentHeatmap(novel_motifs)
-    #enrich_hm.enrichment_heatmap_txt(outpre+"_enrichment_after_hm.txt")
-
-    #if not args.txt_only:
-    #    enrich_hm.display_enrichment(outpre+"_enrichment_after_hm.pdf")
-    #    enrich_hm.display_motifs(outpre+"_motif_after_hm.pdf")
-    #    if args.optimize:
-    #        logging.info("Plotting optimization for final motifs")
-    #        enrich_hm.plot_optimization(outpre+"_optimization.pdf")
-
-    #logging.info("Writing final motifs")
-    #outmotifs = inout.ShapeMotifFile()
-    #outmotifs.add_motifs(novel_motifs)
-    #outmotifs.write_file(outpre+"_called_motifs.dsp", records)
 

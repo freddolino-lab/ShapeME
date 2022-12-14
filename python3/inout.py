@@ -730,7 +730,10 @@ class Motif:
             string += f"letter-probability matrix:"
         string += f" alength= {self.motif.shape[0]} w= {self.motif.shape[1]}"
         if self.motif_type == "sequence":
-            string += f" nsites= {int(np.sum(self.hits))}"
+            if self.hits is None:
+                string += ""
+            else:
+                string += f" nsites= {int(np.sum(self.hits))}"
         if self.threshold is not None:
             string += f" threshold= {self.threshold:.3f}"
         if self.mi is not None:
@@ -788,6 +791,32 @@ class Motif:
             string += "\n"
         return string
 
+    def get_rust_dict(self):
+        motif_dict = {
+            "params": {
+                "params": {
+                    "v": 1,
+                    "dim": list(self.motif.shape),
+                    "data": list(self.motif.flatten()),
+                }
+            },
+            "weights": {
+                "weights": {
+                    "v": 1,
+                    "dim": list(self.weights.shape),
+                    "data": list(self.weights.flatten()),
+                },
+                "weights_norm": {
+                    "v": 1,
+                    "dim": list(self.weights.shape),
+                    "data": list(self.weights.flatten()),
+                }
+            },
+            "threshold": self.threshold,
+        }
+
+        return motif_dict
+
 
 class Motifs:
 
@@ -829,6 +858,22 @@ class Motifs:
     def __len__(self):
         return len(self.motifs)
 
+    def split_seq_and_shape_motifs(self):
+        seq_motifs = Motifs()
+        seq_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "sequence"]
+        seq_motifs.motif_type = "sequence"
+        shape_motifs = Motifs()
+        shape_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "shape"]
+        shape_motifs.motif_type = "shape"
+        return(seq_motifs, shape_motifs)
+
+    def write_shape_motifs_as_rust_output(self, out_fname):
+        rust_dicts = []
+        for motif in self:
+            rust_dicts.append(motif.get_rust_dict())
+        with open(out_fname, "w") as f:
+            json.dump(rust_dicts, f)
+
     def set_transforms_from_meme_line(self, line):
         """Method to place shape centers and spreads
         into self.transform
@@ -838,6 +883,8 @@ class Motifs:
         line : str
             Line after "Shape transformations"
         """
+        pass
+
     def set_transforms_from_db(self, rec_db):
         """Method to place shape centers and spreads
         into self.transform
@@ -963,6 +1010,7 @@ class Motifs:
                                         zscore = zscore,
                                         robustness = robustness,
                                         nsites = nsites,
+                                        threshold = threshold,
                                     )
                                 )
                         
@@ -1006,7 +1054,7 @@ class Motifs:
 
                     mo = robustness_pat.search(description_line)
                     if mo is not None:
-                        robustness = (int(_) for _ in mo.group(1,2))
+                        robustness = [int(val) for val in mo.group(1,2)]
                     else:
                         robustness = None
 
@@ -1017,7 +1065,6 @@ class Motifs:
                         weights_arr = None
 
         self.motifs = motif_list
-
 
     def plot_shapes_and_weights(self):
         pass
@@ -1042,6 +1089,7 @@ class Motifs:
         shapes_str = ' '.join(sorted_shape_names)
         with open(fname, mode="w") as f:
 
+            f.write("MEME version 4\n\n")
             f.write("ALPHABET= ACGT\n\n")
             f.write(f"SHAPES= {shapes_str}\n\n")
             f.write("strands: + -\n\n")

@@ -391,6 +391,9 @@ if __name__ == "__main__":
                 alpha=1,
             )
 
+            with open(seq_fit_fname, "wb") as f:
+                pickle.dump(seq_fit, f)
+
             seq_coefs = evm.fetch_coefficients(fam, seq_fit, args.continuous)
 
             print()
@@ -525,6 +528,10 @@ if __name__ == "__main__":
         find_args_dict['centers'].append(this_center)
         find_args_dict['spreads'].append(this_spread)
     
+    # write cfg to file
+    with open(config_fname, 'w') as f:
+        json.dump(find_args_dict, f, indent=1)
+
     if not no_shape_motifs:
         # write shapes to npy file. Permute axes 1 and 2.
         with open(shape_fname, 'wb') as shape_f:
@@ -532,9 +539,6 @@ if __name__ == "__main__":
         # write y-vals to npy file.
         with open(yval_fname, 'wb') as f:
             np.save(f, records.y.astype(np.int64))
-        # write cfg to file
-        with open(config_fname, 'w') as f:
-            json.dump(find_args_dict, f, indent=1)
 
         print()
         if args.shape_rust_file is None:

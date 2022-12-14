@@ -18,8 +18,8 @@ fn main() {
     );
 
     // read motifs
-    println!("Reading motifs from {:?}", &cfg.out_fname);
-    let mut motifs = motifer::read_motifs(&cfg.out_fname);
+    println!("Reading motifs from {:?}", &cfg.eval_rust_fname);
+    let mut motifs = motifer::read_motifs(&cfg.eval_rust_fname);
 
     motifs.post_optim_update(&rec_db, &cfg.max_count);
 
