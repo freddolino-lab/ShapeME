@@ -1,13 +1,12 @@
 [package]
-name = "find_motifs"
+name = "get_robustness"
 version = "0.1.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-motifer = { path = "../motifer" }
-optim = { path = "../optim" }
-rayon = "1.5.1"
-approx = "0.5.0"
+ndarray = { version = "0.15.3", features = ["serde"] }
+serde = "1.0"
 ndarray-npy = "0.8.1"
+info_theory = { git = "https://github.com/jwschroeder3/info_theory.git" }

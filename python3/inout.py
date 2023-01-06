@@ -1,6 +1,8 @@
 import numpy as np
 import cvlogistic
 import dnashapeparams as dsp
+#import shapemotifvis as smv
+import fimopytools as fimo
 import logging
 from numba import jit,prange
 import welfords
@@ -11,15 +13,202 @@ import pickle
 import json
 import sys
 import glob
+import re
+import copy
+import subprocess
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.linear_model import LogisticRegression
 from sklearn import cluster 
 from sklearn import metrics
 from math import log
+from scipy.stats import contingency
+from statsmodels.stats import rates
+import tempfile
+import os
 
 from matplotlib import pyplot as plt
 
+EPSILON = np.finfo(float).eps
+
+class ReadMotifException(Exception):
+    def __init__(self):
+        self.message = f"ERROR: passed a filename to Motifs() but did not set "\
+            f"the motif type. Set motif_type to either \"shape\" or \"sequence\"."
+        super().__init__(self.message)
+
+
+class NoSeqFaException(Exception):
+    def __init__(self):
+        self.message = f"ERROR: you requested finding of sequence motifs by "\
+            f"setting the --find_seq_motifs command line option, but you did not "\
+            f"provide the --seq_fasta option."
+        super().__init__(self.message)
+
+
+class RustBinaryException(Exception):
+    def __init__(self):
+        self.message = f"ERROR: find_motifs binary execution exited with "\
+            f"non-zero exit status"
+        super().__init__(self.message)
+
+
+class StremeClassException(Exception):
+    def __init__(self, val, line):
+        self.value = val
+        self.line = line
+        self.message = f"ERROR: using streme to find sequence motifs "\
+            f"only implemented for binary input of value 0 and 1. "\
+            f"Value at {self.line} has value {self.value}."
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f"{self.message}"
+
+
+class SeqMotifOptionException(Exception):
+    """Exception raised for error in sequence motif CLI usage
+
+    Attributes:
+        meme_fname - name of meme file passed at command line
+        message - explanation of the error
+    """
+
+    def __init__(self, fname):
+
+        self.meme_fname = fname
+        self.message = f"ERROR: you specified a known motifs file, "\
+                f"{self.meme_fname}, AND to search for new motifs by including "\
+                f"--find_seq_motifs at the command line. You must choose one or the "\
+                f"other if you want to work with sequence motifs. If you want "\
+                f"only to deal with shape motifs, include neither command line option."
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f'{self.message}'
+
+
+def evaluate_match_object(mo):
+    if mo is not None:
+        result = float(mo.group())
+    else:
+        result = None
+    return result
+
+
+def read_shape_motifs(fname, shape_lut, alt_name_base=None):
+    """Reads json file (fname) containing Motifs from rust, wrangles
+    data into appropriate shapes for next steps of find_motifs.py
+    """
+
+    with open(fname, 'r') as f:
+        rust_mi_results = json.load(f)
+
+    motif_results = []
+    for i,motif in enumerate(rust_mi_results):
+        motif_id = f"SHAPE-{i+1}"
+        if alt_name_base is not None:
+            alt_name = f"{alt_name_base}-{i+1}"
+        else: alt_name = "None"
+        this_motif = wrangle_rust_motif(motif, shape_lut, motif_id, alt_name)
+        motif_results.append(this_motif)
+
+    return motif_results
+
+
+def read_fimo_file(fname):
+    """Reads json file (fname) containing Motifs from rust, wrangles
+    data into appropriate shapes for next steps of find_motifs.py
+    """
+
+    motif_results = []
+    for motif in seq_motifs:
+        motif_results.append(wrangle_seq_motif(motif))
+
+    return motif_results
+
+
+def parse_meme_file(fname, evalue_thresh=np.Inf):
+
+    motif_list = []
+
+    alphabet_len_pat = re.compile(r'(?<=alength\= )\d+')
+    motif_width_pat = re.compile(r'(?<=w\= )\d+')
+    eval_pat = re.compile(r'(?<=[ES]\= )\S+')
+    nsites_pat = re.compile(r'(?<=nsites\= )\d+')
+    threshold_pat = re.compile(r'(?<=threshold\= )\S+')
+    ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
+    robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
+    zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
+
+    # start not in_motif
+    in_motif = False
+    with open(fname, 'r') as f:
+
+        for line in f:
+
+            if line.startswith("ALPHABET= "):
+                row_lut = {i:v for i,v in enumerate(line.strip("ALPHABET=").strip())}
+
+            if not line.startswith("MOTIF"):
+                # if the line doesn't start with MOTIF and
+                # if we're not currently parsing a motif, move on
+                if not in_motif:
+                    continue
+                # if the line doesn't start with MOTIF and
+                # if we ARE currently parsing a motif, do the following
+                else:
+                    # determine which column of data_arr we need to update
+                    col_idx = mwidth - pos_left
+                    # decrement mwidth so that we can know when to set
+                    # in_motif back to False
+                    pos_left -= 1
+
+                    # update data_arr with this position's motif data
+                    data_arr[:,col_idx] = [float(num) for num in line.strip().split()]
+
+                    # if this is the final position in the motif, set the motif
+                    # into motif_list
+                    if pos_left == 0:
+                        in_motif = False
+                        motif_list.append(
+                            Motif(
+                                identifier = motif_id,
+                                alt_name = motif_name,
+                                row_lut = row_lut,
+                                motif = data_arr,
+                                evalue = evalue,
+                                motif_type = "sequence",
+                            )
+                        )
+                    
+            else:
+                if not in_motif:
+                    in_motif = True
+                # parse motif name line
+                _,motif_id,motif_name = line.strip().split(' ')
+                # next line is matrix description
+                description_line = f.readline()
+                # gather info from the description line
+                alen = int(alphabet_len_pat.search(description_line).group())
+                mwidth = int(motif_width_pat.search(description_line).group())
+                pos_left = mwidth
+                print(description_line)
+                eval_match = eval_pat.search(description_line)
+                evalue = float(eval_match.group())
+                nsites = int(nsites_pat.search(description_line).group())
+                data_arr = np.zeros((alen, mwidth))
+
+    passing_motifs = [motif for motif in motif_list if motif.evalue <= evalue_thresh]
+    print(
+        f"Done parsing {fname}.\n"\
+        f"Of the {len(motif_list)} motifs found, {len(passing_motifs)} passed "\
+        f"the e-value threshold of {evalue_thresh}."
+    )
+                
+    return passing_motifs
+
+ 
 def seqs_per_bin(records):
     """ Function to determine how many sequences are in each category
 
@@ -34,6 +223,7 @@ def seqs_per_bin(records):
             value, np.sum(records.y ==  value)
         )
     return string
+
 
 def get_precision_recall(yhat, y, plot_prefix=None):
     ## NOTE: needs expanded for multiclass predictions
@@ -50,6 +240,7 @@ def get_precision_recall(yhat, y, plot_prefix=None):
 
     return (prec, recall, auc, no_skill)
 
+
 def lasso_regression(x, y, c, multi_class="multinomial", penalty="l1", solver="saga",
             max_iter=10000, fit_intercept=True):
 
@@ -62,6 +253,7 @@ def lasso_regression(x, y, c, multi_class="multinomial", penalty="l1", solver="s
         fit_intercept=fit_intercept,
     ).fit(x,y)
     return clf_f
+
 
 def choose_l1_penalty(x, y, Cs=100, cv=5,
                       multi_class="multinomial", solver="saga",
@@ -80,48 +272,8 @@ def choose_l1_penalty(x, y, Cs=100, cv=5,
     best_c = cvlogistic.find_best_c(clf)
     return best_c
 
-def prep_logit_reg_data(motif_list, max_count):
-    """Converts motif hit categories to X matrix of
-    dummy variables for logistic regression.
-    """
 
-    n = max_count + 1
-    max_cat = int(n*n - n*(n-1)/2) - 1 # minus one to get rid of [0,0] category
-    possible_cats = [_ for _ in range(max_cat)]
-    rec_num = motif_list[0]['hits'].shape[0]
-
-    X = np.zeros((rec_num, max_cat*len(motif_list)))
-
-    var_lut = {}
-    col_idx = 0
-
-    for i in range(n):
-        for j in range(n):
-            # skip [0,0] case since that will be in intercept
-            if (i == 0) and (j == 0):
-                continue
-            # don't do lower triangle
-            if j < i:
-                continue
-            
-            hit = [i,j]
-            # get the appropriate motif
-            motif_idx = col_idx // max_cat
-            motif = motif_list[motif_idx]
-
-            rows = np.where(np.all(motif['hits'] == hit, axis=1))[0]
-            X[rows,col_idx] = 1
-
-            var_lut[col_idx] = {
-                'motif_idx': motif_idx,
-                'hits': hit,
-            }
-
-            col_idx += 1
-
-    return (X,var_lut)
-
-def wrangle_rust_motif(motif):
+def wrangle_rust_motif(motif, shape_lut, identifier, alt_name=None):
     """Take information in motif dictionary and reshapes arrays to create
     ndarrays using numpy
     """
@@ -147,35 +299,21 @@ def wrangle_rust_motif(motif):
         positions['fwd'][i] = vals['fwd']
         positions['rev'][i] = vals['rev']
 
-    threshold = motif['threshold']
-    mi = motif['mi']
-
-    return {'motif': shapes, 'mi': mi, 'hits': hits, 'dists': dists, 'weights': weights, 'threshold': threshold, 'positions': positions}
-
-def read_motifs_from_rust(fname):
-    """Reads pickle file (fname) containing Motifs from rust, wrangles
-    data into appropriate shapes for next steps of find_motifs.py
-    """
-
-    with open(fname, 'r') as f:
-        rust_mi_results = json.load(f)
-
-    motif_results = []
-    for motif in rust_mi_results:
-        motif_results.append(wrangle_rust_motif(motif))
-
-    return motif_results
-
-
-
-def consolidate_optim_batches(fname_list):
-
-    opt_results = []
-    for fname in fname_list:
-        with open(fname, 'rb') as f:
-            opt_results.extend(pickle.load(f))
-
-    return opt_results
+    return Motif(
+        alt_name = alt_name,
+        identifier = identifier,
+        row_lut = {v:k for k,v in shape_lut.items()},
+        motif = shapes,
+        mi =  motif['mi'],
+        hits = hits,
+        dists = dists,
+        weights = weights,
+        threshold = motif['threshold'],
+        positions = positions,
+        zscore = motif['zscore'],
+        robustness = motif['robustness'],
+        motif_type = "shape",
+    )
 
 
 def consolidate_optim_batches(fname_list):
@@ -510,6 +648,827 @@ def complement(sequence):
     sequence = ''.join(sequence)
     return sequence
 
+
+class Motif:
+
+    def __init__(
+            self, identifier, row_lut, motif,
+            alt_name=None, mi=None, hits=None, dists=None,
+            weights=None, threshold=None, positions=None,
+            zscore=None, robustness=None, evalue=None,
+            motif_type=None, enrichments=None, nsites=None,
+    ):
+        self.identifier = identifier
+        self.alt_name = alt_name
+        self.row_lut = row_lut
+        self.motif = motif
+        self.mi = mi
+        self.hits = hits
+        self.dists = dists
+        self.weights = weights
+        self.threshold = threshold
+        self.positions = positions
+        self.zscore = zscore
+        self.robustness = robustness
+        self.evalue = evalue
+        self.motif_type = motif_type
+        self.enrichments = enrichments
+        self.nsites = nsites
+
+    def get_enrichments(self, categories, cat_inds):
+        '''Calculates and stores motif enrichments in each
+        category in rec_db. Modifies self.enrichments
+        '''
+        self.enrichments = {}
+        enr = self.enrichments
+
+        hit_cats,hit_inds = np.unique(
+            self.hits,
+            return_inverse=True,
+            axis=0,
+        )
+
+        (hit_vals,cat_vals),contingency_tab = contingency.crosstab(
+            hit_inds,
+            cat_inds,
+        )
+        null_tab = np.round(
+            contingency.expected_freq(contingency_tab)
+        ).astype('int')
+
+        enr["row_hit_vals"] = hit_cats[hit_vals]
+        enr["col_cat_vals"] = cat_vals
+        enr["ratio"] = np.zeros_like(null_tab, dtype=np.float64)
+        enr["pvals"] = np.zeros_like(null_tab, dtype=np.float64)
+        enr["test_stats"] = np.zeros_like(null_tab, dtype=np.float64)
+        for i in range(null_tab.shape[0]):
+            for j in range(null_tab.shape[1]):
+                result = rates.test_poisson_2indep(
+                    contingency_tab[i,j],
+                    np.sum(contingency_tab),
+                    null_tab[i,j],
+                    np.sum(null_tab),
+                )
+                enr["ratio"][i,j] = result.ratio
+                (enr["test_stats"][i,j], enr["pvals"][i,j]) = result.tuple
+
+        enr["log2_ratio"] = np.log2(
+            np.clip(enr["ratio"], EPSILON, np.Inf)
+        )
+
+    def create_data_header_line(self):
+        """ Method to create a motif header line from a motif
+
+        Returns:
+        --------
+        string of line to be written
+        """
+        string = f"MOTIF {self.identifier} {self.alt_name}\n"
+        if self.motif_type == "shape":
+            string += f"shape-value matrix:"
+        else:
+            string += f"letter-probability matrix:"
+        string += f" alength= {self.motif.shape[0]} w= {self.motif.shape[1]}"
+        if self.motif_type == "sequence":
+            if self.hits is None:
+                string += ""
+            else:
+                string += f" nsites= {int(np.sum(self.hits))}"
+        if self.threshold is not None:
+            string += f" threshold= {self.threshold:.3f}"
+        if self.mi is not None:
+            string += f" adj_mi= {self.mi:.3f}"
+        if self.zscore is not None:
+            string += f" z-score= {self.zscore:.2f}"
+        if self.robustness is not None:
+            robustness = f"{self.robustness[0]}/{self.robustness[1]}"
+            string += f" robustness= {robustness}"
+        if self.evalue is not None:
+            string += f" E= {self.evalue}"
+
+        string += "\n"
+        return string
+
+    def create_data_lines(self):
+        """ Method to create data lines from a motif 
+
+        Returns:
+        --------
+        string of lines to be written
+        """
+        string = ""
+        for col_idx in range(self.motif.shape[1]):
+            string += " "
+            string += " ".join(
+                [f"{val:.6f}" for val in self.motif[:,col_idx]]
+            )
+            string += "\n"
+        return string
+
+    def create_weights_header_line(self):
+        """ Method to create a weights header line from a motif
+
+        Returns:
+        --------
+        string of line to be written
+        """
+        string = "weights matrix:\n" 
+        return string
+
+    def create_weights_lines(self):
+        """ Method to create data lines from a motif 
+
+        Returns:
+        --------
+        string of lines to be written
+        """
+        string = ""
+        for col_idx in range(self.weights.shape[1]):
+            string += " "
+            string += " ".join(
+                [f"{val:.5f}" for val in self.weights[:,col_idx]]
+            )
+            string += "\n"
+        return string
+
+    def get_rust_dict(self):
+        motif_dict = {
+            "params": {
+                "params": {
+                    "v": 1,
+                    "dim": list(self.motif.shape),
+                    "data": list(self.motif.flatten()),
+                }
+            },
+            "weights": {
+                "weights": {
+                    "v": 1,
+                    "dim": list(self.weights.shape),
+                    "data": list(self.weights.flatten()),
+                },
+                "weights_norm": {
+                    "v": 1,
+                    "dim": list(self.weights.shape),
+                    "data": list(self.weights.flatten()),
+                }
+            },
+            "threshold": self.threshold,
+        }
+
+        return motif_dict
+
+
+class Motifs:
+
+    def __init__(
+            self, fname=None, motif_type=None, shape_lut=None,
+            max_count=None, alt_name_base=None, evalue_thresh=np.Inf,
+    ):
+
+        self.X = None
+        self.motif_type = motif_type
+        self.var_lut = None
+        self.max_count = max_count
+        self.bic = None
+        self.motifs = []
+        self.transform = {}
+
+        if fname is not None:
+            if motif_type == "shape":
+                if shape_lut is None:
+                    raise Exception(
+                        f"You must pass a shape lookup table to read "\
+                        f"a json file of motifs."
+                    )
+                self.motifs = read_shape_motifs(fname, shape_lut, alt_name_base)
+                self.motif_type = motif_type
+            elif motif_type == "sequence":
+                self.motifs = parse_meme_file(fname, evalue_thresh=evalue_thresh)
+                self.motif_type = motif_type
+            else:
+                raise ReadMotifException()
+
+    def __getitem__(self, index):
+        return self.motifs[index]
+
+    def __iter__(self):
+        for motif in self.motifs:
+            yield motif
+
+    def __len__(self):
+        return len(self.motifs)
+
+    def split_seq_and_shape_motifs(self):
+        seq_motifs = Motifs()
+        seq_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "sequence"]
+        seq_motifs.motif_type = "sequence"
+        shape_motifs = Motifs()
+        shape_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "shape"]
+        shape_motifs.motif_type = "shape"
+        return(seq_motifs, shape_motifs)
+
+    def write_shape_motifs_as_rust_output(self, out_fname):
+        rust_dicts = []
+        for motif in self:
+            rust_dicts.append(motif.get_rust_dict())
+        with open(out_fname, "w") as f:
+            json.dump(rust_dicts, f)
+
+    def set_transforms_from_meme_line(self, line):
+        """Method to place shape centers and spreads
+        into self.transform
+
+        Args:
+        -----
+        line : str
+            Line after "Shape transformations"
+        """
+        pass
+
+    def set_transforms_from_db(self, rec_db):
+        """Method to place shape centers and spreads
+        into self.transform
+
+        Args:
+        -----
+        rec_db : RecordDatabase
+            the record database used
+        """
+        shape_tuples = list(rec_db.shape_name_lut.items())
+        sorted_shapes = sorted(shape_tuples, key = lambda x:x[1])
+        for name,idx in sorted_shapes:
+            center = rec_db.shape_centers[idx]
+            spread = rec_db.shape_spreads[idx]
+            self.transform[name] = (center,spread)
+
+    def read_file(self, fname):
+        """Reads a MEME-like file, potentially with mixed
+        sequence and shape motifs.
+
+        Args:
+        -----
+        fname : str
+            Name of meme-like file containing motifs
+        """
+
+        motif_list = []
+
+        alphabet_len_pat = re.compile(r'(?<=alength\= )\d+')
+        motif_width_pat = re.compile(r'(?<=w\= )\d+')
+        eval_pat = re.compile(r'(?<=E\= )\S+')
+        nsites_pat = re.compile(r'(?<=nsites\= )\d+')
+        threshold_pat = re.compile(r'(?<=threshold\= )\S+')
+        ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
+        zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
+        robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
+
+        # start not in_motif
+        in_motif = False
+        with open(fname, 'r') as f:
+
+            for line in f:
+
+                if line.startswith("ALPHABET= "):
+                    seq_row_lut = {
+                        i:v for i,v in enumerate(line.strip("ALPHABET=").strip())
+                    }
+
+                if line.startswith("SHAPES= "):
+                    shape_row_lut = {
+                        i:v for i,v
+                        in enumerate(line.strip("SHAPES=").strip().split(" "))
+                    }
+
+                if line.startswith("Shape transformations"):
+                    # go to next line
+                    line = f.readline()
+                    transforms = {}
+                    elements = line.strip().split(" ")
+                    for e in elements:
+                        shape_info = e.split(":")
+                        center,spread = shape_info[1].split(",")
+                        transforms[shape_info[0]] = (float(center), float(spread))
+                    self.transform = transforms
+
+                ##################################################################
+                ##################################################################
+                ## needs updated to read meme files with both seq AND shape ######
+                ##################################################################
+                ##################################################################
+                if not line.startswith("MOTIF"):
+                    # if the line doesn't start with MOTIF and
+                    # if we're not currently parsing a motif, move on
+                    if not in_motif:
+                        continue
+                    # if the line doesn't start with MOTIF and
+                    # if we ARE currently parsing a motif, do the following
+                    else:
+                        # determine which column of data_arr we need to update
+                        col_idx = mwidth - pos_left
+                        # subtract from mwidth so that we can know when to set
+                        # in_motif back to False
+                        pos_left -= 1
+
+                        if in_data:
+                            # update data_arr with this position's motif data
+                            data_arr[:,col_idx] = [
+                                float(num) for num in line.strip().split()
+                            ]
+                        elif in_weights:
+                            # update weights_arr with this position's motif data
+                            weights_arr[:,col_idx] = [
+                                float(num) for num in line.strip().split()
+                            ]
+
+                        # if this is the final position in the motif,
+                        # check whether we're entering weights, or whether
+                        # we've left the motif
+                        if pos_left == 0:
+                            # we're definitely not in_data
+                            in_data = False
+                            # check next line to see whether we're entering weights
+                            line = f.readline()
+                            # if we're in_weights, set to True and re-set pos_left
+                            if line.startswith("weights matrix"):
+                                in_weights = True
+                                pos_left = mwidth
+                            # if we've exited the motif entirely, set in_motif and
+                            # in_weights to False and put info into Motif
+                            else:
+                                in_motif = False
+                                in_weights = False
+                                motif_list.append(
+                                    Motif(
+                                        identifier = motif_id,
+                                        alt_name = motif_name,
+                                        row_lut = row_lut,
+                                        motif = data_arr,
+                                        evalue = evalue,
+                                        motif_type = motif_type,
+                                        mi = ami,
+                                        weights = weights_arr,
+                                        zscore = zscore,
+                                        robustness = robustness,
+                                        nsites = nsites,
+                                        threshold = threshold,
+                                    )
+                                )
+                        
+                else:
+                    if not in_motif:
+                        in_motif = True
+                        in_data = True
+                    # parse motif name line
+                    _,motif_id,motif_name = line.strip().split(' ')
+                    # next line is matrix description
+                    description_line = f.readline()
+                    # gather info from the description line
+                    if description_line.startswith("shape-value"):
+                        motif_type = "shape"
+                        row_lut = shape_row_lut
+                    elif description_line.startswith("letter-probability"):
+                        motif_type = "sequence"
+                        row_lut = seq_row_lut
+
+                    mo = alphabet_len_pat.search(description_line)
+                    alen = int(evaluate_match_object(mo))
+
+                    mo = motif_width_pat.search(description_line)
+                    mwidth = int(evaluate_match_object(mo))
+                    pos_left = mwidth
+
+                    eval_match = eval_pat.search(description_line)
+                    evalue = evaluate_match_object(eval_match)
+
+                    mo = nsites_pat.search(description_line)
+                    nsites = evaluate_match_object(mo)
+
+                    mo = threshold_pat.search(description_line)
+                    threshold = evaluate_match_object(mo)
+
+                    mo = ami_pat.search(description_line)
+                    ami = evaluate_match_object(mo)
+
+                    mo = zscore_pat.search(description_line)
+                    zscore = evaluate_match_object(mo)
+
+                    mo = robustness_pat.search(description_line)
+                    if mo is not None:
+                        robustness = [int(val) for val in mo.group(1,2)]
+                    else:
+                        robustness = None
+
+                    data_arr = np.zeros((alen, mwidth))
+                    if motif_type == "shape":
+                        weights_arr = np.zeros((alen, mwidth))
+                    else:
+                        weights_arr = None
+
+        self.motifs = motif_list
+
+    def plot_shapes_and_weights(self):
+        pass
+
+    def write_enrichment_heatmap(self):
+        pass
+
+    def write_file(self, fname, rec_db):
+        """ Method to write a file from Motifs object
+
+        Args:
+        -----
+        fname : str
+            name of outputfile
+        rec_db : RecordDatabase
+            whole database used
+        """
+        shape_tuples = list(rec_db.shape_name_lut.items())
+        sorted_shape_names = [
+            y[0] for y in sorted(shape_tuples, key = lambda x:x[1])
+        ]
+        shapes_str = ' '.join(sorted_shape_names)
+        with open(fname, mode="w") as f:
+
+            f.write("MEME version 4\n\n")
+            f.write("ALPHABET= ACGT\n\n")
+            f.write(f"SHAPES= {shapes_str}\n\n")
+            f.write("strands: + -\n\n")
+            f.write("Background letter frequencies\n")
+            f.write("A 0.25 C 0.25 G 0.25 T 0.25 \n\n")
+            f.write(rec_db.create_transform_lines())
+
+            for i, motif in enumerate(self.motifs):
+                f.write(motif.create_data_header_line())
+                f.write(motif.create_data_lines())
+                if motif.motif_type == "shape":
+                    f.write(motif.create_weights_header_line())
+                    f.write(motif.create_weights_lines())
+                f.write("\n")
+
+    def supplement_robustness(self, rec_db, binary, my_env=None):
+
+        ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
+        robustness_pat = re.compile(r'(?<=robustness\: )\((\d+), (\d+)')
+        zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
+
+        tmp_dir = tempfile.TemporaryDirectory()
+        tmp_direc = tmp_dir.name
+        y_name = os.path.join(tmp_direc, "tmp_y.npy")
+        np.save(y_name, rec_db.y.astype(np.int64))
+        #print(rec_db.y.shape)
+
+        binary += f" {y_name}"
+
+        for motif in self.motifs:
+
+            hits_name = os.path.join(tmp_direc, "tmp_hits.npy")
+            #print(motif.hits.shape)
+            np.save(hits_name, motif.hits.flatten().astype(np.int64))
+
+            cmd = binary + f" {hits_name}"
+
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                env=my_env,
+            )
+            if result.returncode != 0:
+                raise(Exception(
+                    f"Supplementing sequence motifs with robustness failed:\n"\
+                    f"STDOUT: {result.stdout.decode()}\n"
+                    f"ERROR: {result.stderr.decode()}\n"\
+                ))
+            output = result.stdout.decode()
+            try:
+                motif.mi = float(ami_pat.search(output).group())
+                passes = int(robustness_pat.search(output).group(1))
+                attempts = int(robustness_pat.search(output).group(2))
+                motif.robustness = (passes, attempts)
+                motif.zscore = float(zscore_pat.search(output).group())
+            except:
+                raise(Exception(
+                    f"Something went wrong in supplementing robustness:\n\n"\
+                    f"Looked for {ami_pat} in:\n"\
+                    f"STDOUT: {result.stdout.decode()}\n\n"\
+                    f"ERROR: {result.stderr.decode()}\n\n"\
+                ))
+
+    #def to_tidy(self, outfile):
+    #    """ Method to write file in a tidy format for data analysis
+
+    #    Args
+    #        outfile(str) - name of outputfile
+    #    """
+    #    with open(outfile, mode = "w") as f:
+    #        header = ",".join(self.motifs[0]['seed'].names)
+    #        header += ",bp,name\n"
+    #        f.write(header)
+    #        for i, motif in enumerate(self.motifs):
+    #            if not "name" in motif:
+    #                motif["name"] = "motif_%i"%(i)
+    #        for i, col in enumerate(motif['seed'].matrix().transpose()):
+    #            string = ""
+    #            string += ",".join(["%f"%val for val in col])
+    #            string += ",%d,%s\n"%(i,motif["name"])
+    #            f.write(string)
+ 
+    def get_enrichments(self, rec_db):
+        '''
+        Args:
+        -----
+        rec_db: RecordDatabase
+
+        Modifies self inplace
+        '''
+
+        for motif in self.motifs:
+
+            categories,cat_inds = np.unique(
+                rec_db.y,
+                return_inverse=True,
+            )
+            motif.get_enrichments(categories, cat_inds)
+
+            #hit_cat_list = np.unique(motif["hits"], axis=0)
+            #hit_names = [f"hit_{hit_idx}" for hit_idx,hit in enumerate(hit_cat_list)]
+            #form_hit_names = [f"hit_{hit_idx}" for hit_idx,hit in enumerate(hit_cat_list) if hit_idx > 0]
+            #motif["cat_vars"] = form_cat_names
+            #motif["hit_vars"] = form_hit_names
+
+            #covar_names = hit_names + cat_names
+            ##col_names = ["count"] + covar_names
+            #n = len(hit_cat_list)*len(categories)
+
+            #counts = np.zeros((n,1))#, dtype=np.uint64)
+
+            #cat_X = np.zeros((n, len(categories)))#, dtype=np.uint8)
+            #hit_X = np.zeros((n, len(hit_cat_list)))#, dtype=np.uint8)
+
+            #y_idx = 0
+            #for cat_idx,category in enumerate(categories):
+            #    is_this_cat = records.y == category
+            #    for hit_idx,hits in enumerate(hit_cat_list):
+            #        is_this_hit = np.all(motif["hits"] == hits, axis=1)
+            #        is_this = np.bitwise_and(is_this_cat, is_this_hit)
+            #        this_count = np.sum(is_this)
+
+            #        counts[y_idx, 0] = this_count
+            #        cat_X[y_idx, cat_idx] = 1
+            #        hit_X[y_idx, hit_idx] = 1
+            #        y_idx += 1
+
+            #covars = np.append(hit_X, cat_X, axis=1)
+            ##data = np.append(counts, covars, axis=1)
+            ##tmp_df = pd.DataFrame(data=data, columns=col_names)
+            #tmp_df = pd.DataFrame(data=covars, columns=covar_names)
+            #interaction_terms = []
+            #for form_cat_name in form_cat_names:
+            #    for form_hit_name in form_hit_names:
+            #        term = f"{form_hit_name}:{form_cat_name}"
+            #        tmp_df[term] = (
+            #            tmp_df["form_hit_name"]
+            #            * tmp_df["form_cat_name"]
+            #        )
+            #        interaction_terms.append(term)
+            #motif["count_df"] = tmp_df.drop(["hit_0", "cat_0"], axis=1)
+####    ##############################################################
+            #model = linear_model.LogisticRegression(
+            #    penalty = "none",
+            #    multi_class = "multinomial",
+            #    fit_intercept = True,
+            #)
+            #        
+            #contingency_fit = model.fit(
+            #    motif["count_df"].loc[[]]
+            #    motif["count_df"].count.values,
+            #)
+
+            #with localconverter(ro.default_converter + pandas2ri.converter):
+            #    r_count_df = ro.conversion.py2rpy(motif["count_df"])
+
+            #formula = "count ~ "
+            ## place +-separated category names as covars
+            #formula += " + ".join(form_cat_names)
+            #formula += " + "
+            ## place +-separated hit names as covars
+            #formula += " + ".join(form_hit_names)
+            #row_col_formula = formula
+            ## place interaction terms as covars
+            #for cat_name in cat_names:
+            #    if cat_name == "cat_0":
+            #        continue
+            #    for hit_name in hit_names:
+            #        if hit_name == "hit_0":
+            #            continue
+            #        covar_name = f" + {cat_name}:{hit_name}"
+            #        formula += covar_name
+
+            #print(f"Fitting category counts to the formula: {formula}")
+            #motif["contingency_fit"] = brms.brm(
+            #    stats.as_formula(formula),
+            #    data = r_count_df,
+            #    family = "poisson",
+            #    #prior = base.c(
+            #    #    brms.set_prior("normal(-50,20)", cl="b", coef="cat_1.0"),
+            #    #    brms.set_prior("normal(20,3)", cl="b", coef="hit_0"),
+            #    #)
+            #)
+            #print(f"Fitting category counts to the formula: {row_col_formula}")
+            #motif["null_fit"] = brms.brm(
+            #    stats.as_formula(row_col_formula),
+            #    data = r_count_df,
+            #    family = "poisson",
+            #    #prior = base.c(
+            #    #    brms.set_prior("normal(-50,20)", cl="b", coef="cat_1.0"),
+            #    #    brms.set_prior("normal(20,3)", cl="b", coef="hit_0"),
+            #    #)
+            #)
+
+            #c_df = base.as_data_frame(motif["contingency_fit"])
+            #i_df = base.as_data_frame(motif["null_fit"])
+            #with localconverter(ro.default_converter + pandas2ri.converter):
+            #    motif["contingency_fit_samples"] = ro.conversion.rpy2py(c_df)
+            #    motif["null_fit_samples"] = ro.conversion.rpy2py(i_df)
+
+
+    def merge_with_motifs(self, other):
+
+        orig_covar_num = self.X.shape[1]
+        new_motif_idx = len(self)
+
+        self.X = np.append(self.X, other.X, axis=1)
+        self.var_lut = self.var_lut.copy()
+        self.motifs.extend(other.motifs)
+
+        for other_motif_key,other_motif_info in other.var_lut.items():
+            new_key = other_motif_key + orig_covar_num
+            other_motif_info['motif_idx'] = new_motif_idx
+            self.var_lut[new_key] = other_motif_info
+            new_motif_idx += 1
+        
+    def new_with_motifs(self, other):
+        '''copies self and merges with other Motifs object.
+        Returns a new Motifs object
+        '''
+        print("Merging two Motifs objects into a single, new Motifs object")
+        new_motifs = copy.deepcopy(self)
+        other_motifs = copy.deepcopy(other)
+        new_motifs.merge_with_motifs(other_motifs)
+        
+        return new_motifs
+
+    def get_distinct_ids(self):
+        return set([motif.identifier for motif in self])
+
+    def get_X(self, max_count=None, fimo_fname=None, rec_db=None):
+        if self.motif_type == "shape":
+            self.prep_shape_logit_reg_data(max_count)
+        elif self.motif_type == "sequence":
+            self.prep_sequence_logit_reg_data(fimo_fname, rec_db)
+
+    def prep_sequence_logit_reg_data(self, fimo_fname, rec_db):
+
+        fimo_file = fimo.FimoFile()
+        fimo_file.parse(fimo_fname)
+        ids_in_self = self.get_distinct_ids()
+        retained_hits = fimo_file.filter_by_id(ids_in_self)
+
+        self.X,self.var_lut = retained_hits.get_design_matrix(
+            rec_db,
+            motif_list = self.motifs,
+        )
+        try:
+            for i,motif in enumerate(self.motifs):
+                motif.hits = self.X[:,i][:,None]
+        except:
+            sys.exit(
+                f"Problem creating X array for sequence motif logistic regression.\n"\
+                f"X array shape: {self.X.shape}\n"\
+                f"motif ids: {ids_in_self}\n"\
+                f"motif lut: {self.var_lut}\n"\
+            )
+
+
+    def filter_motifs(self, coefs):
+        '''Determines which coeficients were shrunk to zero during LASSO regression
+        and removes motifs for which all covariates in X were zero. Returns
+        a filtered set of motifs, a new array of X values (motif hits covariates),
+        and a new var_lut to map columns of the new X array to motif information.
+        '''
+
+        # keys are X arr indices, vals are dict
+        # of {'motif_idx': motif index in list of motifs,
+        #     'hits': the class of hit this covariate represents, i.e., [0,1], [1,1], etc.}
+        new_lut = {}
+        # construct lookup table where motif index is key, and value is list
+        #  of column indices for that motif in coefs
+        motif_lut = {}
+        
+        #print("------------------------------")
+        #print(var_lut)
+        #print("------------------------------")
+        for k,coef in self.var_lut.items():
+            # if this motif index isn't yet in the lut, place it in and give it a list
+            if not coef['motif_idx'] in motif_lut:
+                # k+1 here, since coefs will have the intercept at index 0
+                # and k is the index in the covariates array
+                motif_lut[coef['motif_idx']] = [k+1]
+            # if this motif idx is already present, append col to list
+            else:
+                motif_lut[coef['motif_idx']].append(k+1)
+
+        retain = []
+        # make nrow-by-zero array to start appending covariates from coeficiens with 
+        # predictive value
+        retained_X = np.zeros((self.X.shape[0],0))
+        #print(retained_X.shape)
+        # now go through coefs columns to see whether any motif has all zeros
+        #print("------------------------------")
+        #print(motif_lut)
+        #print("------------------------------")
+        for motif_idx,motif_coef_inds in motif_lut.items():
+            # instantiate a list to carry bools
+            motif_any_nonzero = []
+            for coef_idx in motif_coef_inds:
+                # are any of these values non-zero?
+                #print(f"motif_idx: {motif_idx}")
+                #print(f"coef_idx: {coef_idx}")
+                #print(f"coefs: {coefs[:,coef_idx]}")
+                has_non_zero = np.any(coefs[:,coef_idx] != 0)
+                #print(f"has_non_zero: {has_non_zero}")
+                if has_non_zero:
+                    retained_X = np.append(
+                        retained_X,
+                        self.X[:,coef_idx-1][:,None],
+                        axis=1,
+                    )
+                    this_col_idx = retained_X.shape[1] - 1
+                    new_lut[this_col_idx] = {
+                        'motif_idx': len([_ for _ in retain if _]),
+                        'hits': self.var_lut[coef_idx-1]['hits'],
+                    }
+                motif_any_nonzero.append(has_non_zero)
+            
+            # if any column for this motif contained any non-zero values, retain it
+            #print(f"motif_any_nonzero: {motif_any_nonzero}")
+            if np.any(motif_any_nonzero):
+                retain.append(True)
+            else:
+                retain.append(False)
+                print(
+                    f"WARNING: all regression coefficients for motif at "\
+                    f"index {motif_idx} were shrunken to 0 during LASSO regression. "\
+                    f"The motif has been removed from further consideration."
+                )
+            
+        #print(f"retain: {retain}")
+        # keep motifs for which at least one coefficient was non-zero
+        retained_motifs = [self[i] for i,_ in enumerate(retain) if _]
+        self.motifs = retained_motifs
+        self.X = retained_X
+        self.var_lut = new_lut
+
+
+    def prep_shape_logit_reg_data(self, max_count):
+        """Converts motif hit categories to X matrix of
+        variables for logistic regression.
+        """
+
+        n = max_count + 1
+        max_cat = int(n*n - n*(n-1)/2) - 1 # minus one to get rid of [0,0] category
+        possible_cats = [_ for _ in range(max_cat)]
+        rec_num = self[0].hits.shape[0]
+
+        self.X = np.zeros((rec_num, max_cat*len(self)),dtype="uint8")
+
+        self.var_lut = {}
+        col_idx = 0
+
+        for motif_idx,motif in enumerate(self):
+            for i in range(n):
+                for j in range(n):
+                    # skip [0,0] case since that will be in intercept
+                    if (i == 0) and (j == 0):
+                        continue
+                    # don't do lower triangle
+                    if j < i:
+                        continue
+                    
+                    hit = [i,j]
+                    # get the appropriate motif
+
+                    rows = np.all(motif.hits == hit, axis=1)
+                    self.X[rows,col_idx] = 1
+
+                    self.var_lut[col_idx] = {
+                        'motif_idx': motif_idx,
+                        'hits': hit,
+                    }
+
+                    col_idx += 1
+
+
 class FastaEntry(object):
     """ 
     Stores all the information for a single fasta entry. 
@@ -553,7 +1512,6 @@ class FastaEntry(object):
     def __iter__(self):
         for base in self.seq:
             yield base
-
 
     def set_header(self, header):
         self.header = header
@@ -890,6 +1848,26 @@ class RecordDatabase(object):
 
         return len(self.y)
 
+    def create_transform_lines(self):
+        """ Method to create a transform line
+
+        Returns:
+        --------
+        string of line to be written
+        """
+
+        shape_tuples = list(self.shape_name_lut.items())
+        sorted_shapes = sorted(shape_tuples, key = lambda x:x[1])
+        string = f"Shape transformations\n"
+        transformations = []
+        for name,idx in sorted_shapes:
+            center = self.shape_centers[idx]
+            spread = self.shape_spreads[idx]
+            transformations.append(f"{name}:{center},{spread}")
+        string += " ".join(transformations)
+        string += "\n\n"
+        return string
+
     def records_per_bin(self):
         """Prints the number of records in each category of self.y
         """
@@ -959,6 +1937,7 @@ class RecordDatabase(object):
             bins.append(np.percentile(values, quant))
         logging.warning("Quantizing on bins: {}".format(bins))
         self.y = np.digitize(values, bins)
+        return bins
 
     def discretize_quant(self, nbins=10):
         """Discretize data into nbins bins according to K-means clustering
@@ -998,7 +1977,7 @@ class RecordDatabase(object):
                 #        continue
                 linearr = line.rstrip().split("\t")
                 self.record_name_list.append(linearr[0])
-                scores.append(linearr[1])
+                scores.append(float(linearr[1]))
             self.y = np.asarray(
                 scores,
                 dtype=float,
@@ -1018,7 +1997,6 @@ class RecordDatabase(object):
         shape_name_lut
         X
         """
-
 
         self.normalized = False
         shape_idx = 0
@@ -1088,27 +2066,43 @@ class RecordDatabase(object):
                 try:
                     raise Exception()
                 except Exception as e:
-                    logging.error("ERROR: after clipping the first, and final two base pairs from all records in the input data, NaN values remained! Exiting the script now. Thoroughly examine your input data for non-canonical bases and other potential causes of this issue.")
+                    logging.error(
+                        f"ERROR: after clipping the first, and final two base "\
+                        f"pairs from all records in the input data, NaN values "\
+                        f"remained! Exiting the script now. Thoroughly examine "\
+                        f"your input data for non-canonical bases and other "\
+                        f"potential causes of this issue."
+                    )
                     sys.exit()
             self.complete_records = complete_records
 
-    #def set_center_spread(self, center_spread):
-    #    """Method to set the center spread for the database for each
-    #    parameter
+    #def set_center_spread(self, centers, spreads):
+    #    """Sets the centers and spreads for the shape parameters.
 
-    #    TODO check to make sure keys match all parameter names
+    #    Args:
+    #    -----
+    #    centers : dict
+    #        keys are shape names, values are center for each shape
+    #    spreads : dict
+    #        keys are shape names, values are spread for each shape
     #    """
-    #    self.center_spread = center_spread
+    #    self.shape_name_lut.items()
+    #    shape_count = self.X.shape[2]
+    #    for s in range(shape_count):
+    #        yield self.X[:,:,s]
+
 
     def determine_center_spread(self, method=robust_z_csp):
-        """Method to get the center spread for each shape based on
+        """Method to get the center and spread for each shape based on
         all records in the database.
 
         This will ignore any Nans in any shape sequence scores. First
         calculates center (median of all scores) and spread (MAD of all scores)
 
         Modifies:
-            self.center_spread - populates center spread with calculated values
+        ---------
+        self.shape_centers - populates center with calculated values
+        self.shape_spreads - populates spread with calculated values
         """
 
         shape_cent_spreads = []
@@ -1852,28 +2846,12 @@ class ShapeMotifFile(object):
         for i, motif in enumerate(self):
             motif['seed'].normalize_values(self.cent_spreads[i])
 
-
     def add_motifs(self, motifs):
         """ Method to add additional motifs
 
         Currently extends to current list
         """
         self.motifs.extend(motifs)
-
-    def create_transform_line(self, motif, cats):
-        """ Method to create a transform line from a motif and category
-
-        Args
-            motif(dict) - motif dict
-            cats(SeqDatabase) - final sequence database
-        Returns
-            string of line to be written
-        """
-        string = "Transform"
-        for name in motif['seed'].names:
-            string += "\t%s:(%f,%f)"%(name, cats.center_spread[name][0], cats.center_spread[name][1])
-        string +="\n"
-        return string
 
     def read_transform_line(self,linearr):
         """ Method to read a transform line from an input file
@@ -1967,79 +2945,6 @@ class ShapeMotifFile(object):
                     else:
                         lines.append(line)
 
-    def create_motif_line(self,motif):
-        """ Method to create a motif line from a motif dict
-
-        Args
-            motif(dict) - motif dict
-        Returns
-            string of line to be written
-        """
-        string = "Motif"
-        string += "\tname:%s"%(motif["name"])
-        string += "\tthreshold:%f"%(motif["threshold"])
-        string += "\tlength:%i"%(len(motif["seed"]))
-        if "mi" in motif:
-            string +="\tmi:%f"%(motif['mi'])
-        if "motif_entropy" in motif:
-            string +="\tmotif_entropy:%f"%(motif['motif_entropy'])
-        if "category_entropy" in motif:
-            string +="\tcategory_entropy:%f"%(motif['category_entropy'])
-        if "zscore" in motif:
-            string +="\tZ-score:%f"%(motif['zscore'])
-        if "robustness" in motif:
-            string +="\trobustness:%s"%(motif['robustness'])
-
-        string += "\n"
-        return string
-
-    def create_data_lines(self,motif):
-        """ Method to create data lines from a motif 
-
-        Args
-            motif(dict) - motif dict
-        Returns
-            string of lines to be written
-        """
-        string = ""
-        for col in motif['seed'].matrix().transpose():
-            string+= ",".join(["%f"%val for val in col])
-            string += "\n"
-        return string
-
-    def write_file(self, outfile, cats):
-        """ Method to write a file form object
-
-        Args
-            outfile(str) - name of outputfile
-            cats (SeqDatabase) - whole database used
-        """
-        with open(outfile, mode="w") as f:
-            for i, motif in enumerate(self.motifs):
-                if not "name" in motif:
-                    motif["name"] = "motif_%i"%(i)
-                f.write(self.create_transform_line(motif, cats))
-                f.write(self.create_motif_line(motif))
-                f.write(self.create_data_lines(motif))
-                f.write("\n")
-    def to_tidy(self, outfile):
-        """ Method to write file in a tidy format for data analysis
-
-        Args
-            outfile(str) - name of outputfile
-        """
-        with open(outfile, mode = "w") as f:
-            header = ",".join(self.motifs[0]['seed'].names)
-            header += ",bp,name\n"
-            f.write(header)
-            for i, motif in enumerate(self.motifs):
-                if not "name" in motif:
-                    motif["name"] = "motif_%i"%(i)
-            for i, col in enumerate(motif['seed'].matrix().transpose()):
-                string = ""
-                string += ",".join(["%f"%val for val in col])
-                string += ",%d,%s\n"%(i,motif["name"])
-                f.write(string)
 
 @jit(nopython=True)
 def entropy_ln(array):

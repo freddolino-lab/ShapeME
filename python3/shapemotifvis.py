@@ -2,6 +2,7 @@ import matplotlib as mpl
 #mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import gridspec as gs
+from scipy.stats import contingency
 import find_motifs as fm
 import numpy as np
 import inout
@@ -36,7 +37,7 @@ def plot_shapes(rec_db, rec_idx, file_name, take_complement=False):
 
 def set_up(motif_list, top_n):
 
-    motif_list = sorted(motif_list, key=lambda x: x['mi'], reverse=True)
+    motif_list = sorted(motif_list, key=lambda x: x.mi, reverse=True)
     motif_num = len(motif_list)
     if top_n is None:
         top_n = len(motif_list)
@@ -60,9 +61,200 @@ def plot_optim_trajectory(motif_list, file_name, top_n=20, opacity=1):
     plt.close()
 
 
-def plot_optim_shapes_and_weights(motif_list, file_name, records, top_n = 30, opacity=1, legend_loc="upper left"):
+def heatmap(data, row_labels, col_labels, ax=None,
+            cbar_kw={}, cbarlabel="", **kwargs):
+    """
+    Create a heatmap from a numpy array and two lists of labels.
+    Copied and pasted from https://matplotlib.org/3.5.0/gallery/images_contours_and_fields/image_annotated_heatmap.html.
+
+    Parameters
+    ----------
+    data
+        A 2D numpy array of shape (M, N).
+    row_labels
+        A list or array of length M with the labels for the rows.
+    col_labels
+        A list or array of length N with the labels for the columns.
+    ax
+        A `matplotlib.axes.Axes` instance to which the heatmap is plotted.  If
+        not provided, use current axes or create a new one.  Optional.
+    cbar_kw
+        A dictionary with arguments to `matplotlib.Figure.colorbar`.  Optional.
+    cbarlabel
+        The label for the colorbar.  Optional.
+    **kwargs
+        All other arguments are forwarded to `imshow`.
+    """
+
+    if not ax:
+        ax = plt.gca()
+
+    # Plot the heatmap
+    im = ax.imshow(data, **kwargs)
+
+    # Create colorbar
+    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
+    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+
+    # Show all ticks and label them with the respective list entries.
+    ax.set_xticks(np.arange(data.shape[1]), labels=col_labels)
+    ax.set_yticks(np.arange(data.shape[0]), labels=row_labels)
+
+    # Let the horizontal axes labeling appear on top.
+    ax.tick_params(top=True, bottom=False,
+                   labeltop=True, labelbottom=False)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=-30, ha="right",
+             rotation_mode="anchor")
+
+    # Turn spines off and create white grid.
+    ax.spines[:].set_visible(False)
+
+    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
+    ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
+    ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    return im, cbar
+
+
+def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
+                     textcolors=("black", "white"),
+                     threshold=None, **textkw):
+    """
+    A function to annotate a heatmap.
+    Copied and pasted from https://matplotlib.org/3.5.0/gallery/images_contours_and_fields/image_annotated_heatmap.html.
+
+    Parameters
+    ----------
+    im
+        The AxesImage to be labeled.
+    data
+        Data used to annotate.  If None, the image's data is used.  Optional.
+    valfmt
+        The format of the annotations inside the heatmap.  This should either
+        use the string format method, e.g. "$ {x:.2f}", or be a
+        `matplotlib.ticker.Formatter`.  Optional.
+    textcolors
+        A pair of colors.  The first is used for values below a threshold,
+        the second for those above.  Optional.
+    threshold
+        Value in data units according to which the colors from textcolors are
+        applied.  If None (the default) uses the middle of the colormap as
+        separation.  Optional.
+    **kwargs
+        All other arguments are forwarded to each call to `text` used to create
+        the text labels.
+    """
+
+    if not isinstance(data, (list, np.ndarray)):
+        data = im.get_array()
+
+    # Normalize the threshold to the images color range.
+    if threshold is not None:
+        threshold = im.norm(threshold)
+    else:
+        threshold = im.norm(data.max())/2.
+
+    # Set default alignment to center, but allow it to be
+    # overwritten by textkw.
+    kw = dict(horizontalalignment="center",
+              verticalalignment="center")
+    kw.update(textkw)
+
+    # Get the formatter in case a string is supplied
+    if isinstance(valfmt, str):
+        valfmt = mpl.ticker.StrMethodFormatter(valfmt)
+
+    # Loop over the data and create a `Text` for each "pixel".
+    # Change the text's color depending on the data.
+    texts = []
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            kw.update(color=textcolors[int(im.norm(data[i, j]) > threshold)])
+            text = im.axes.text(j, i, valfmt(data[i, j], None), **kw)
+            texts.append(text)
+
+    return texts
+
+
+def plot_motif_enrichment(
+        motifs,
+        file_name,
+        records,
+        top_n = 30,
+):
+    '''Plot a heatmap of enrichments for each motif within each category.
+
+    Args:
+    -----
+    motifs : inout.Motifs
+    file_name : str
+        Name of output file containing the heatmap
+    records : inout.RecrodsDatabase
+    max_count : int
+        Maximum number of hits per strand
+    top_n : int
+        Limits number of motifs reported in heatmap to top_n
+    '''
+
+    distinct_cats = np.unique(records.y)
+    cat_num = len(distinct_cats)
+
+    var_lut = motifs.var_lut
+    motif_covar_num = len(var_lut)
+    
+    hm_data = np.zeros((motif_covar_num,cat_num))
+    hm_pvals = np.zeros((motif_covar_num,cat_num))
+    hm_teststats = np.zeros((motif_covar_num,cat_num))
+    row_labs = []
+    for i,(covar_idx,covar_info) in enumerate(var_lut.items()):
+        hits = covar_info["hits"]
+        motif = motifs[covar_info["motif_idx"]]
+        enrich = motif.enrichments
+        for table_row_idx,row in enumerate(enrich["row_hit_vals"]):
+            if np.all(row == hits):
+                break
+        row_labs.append(f"Motif: {motif.identifier}, Hit: {hits}")
+
+        for j,category in enumerate(distinct_cats):
+            table_col_idx = np.where(enrich["col_cat_vals"] == category)[0][0]
+            # I need to map contingency table values back to heatmap row/col
+            # I have already mapped hits and categories to the index of the
+            # contingency table. Now I need to map them to indices of the heatmap.
+            hm_data[i,j] = enrich["log2_ratio"][table_row_idx,table_col_idx]
+            hm_pvals[i,j] = enrich["pvals"][table_row_idx,table_col_idx]
+            hm_teststats[i,j] = enrich["test_stats"][table_row_idx,table_col_idx]
+    col_labs = [f"Category: {int(category):d}" for category in distinct_cats]
+
+    fig, ax = plt.subplots()
+    im,cbar = heatmap(
+        hm_data,
+        row_labs,
+        col_labs,
+        ax=ax,
+        cmap="viridis",
+        cbarlabel="log2-fold-enrichment",
+    )
+    texts = annotate_heatmap(im, valfmt="{x:.2f}", textcolors=("white","black"))
+
+    fig.tight_layout()
+    plt.savefig(file_name)
+    plt.close()
+
+
+def plot_optim_shapes_and_weights(
+        motifs,
+        file_name,
+        records,
+        top_n = 30,
+        opacity=1,
+        legend_loc="upper left",
+):
     
     shape_lut = {v:k for k,v in records.shape_name_lut.items()}
+    motif_list = motifs.motifs
     
     motif_list,top_n = set_up(motif_list, top_n)
     
@@ -72,9 +264,9 @@ def plot_optim_shapes_and_weights(motif_list, file_name, records, top_n = 30, op
 
     for i,res in enumerate(motif_list[:top_n]):
 
-        mi = round(res['mi'], 2)
-        opt_y = res['motif']
-        weights = res['weights']
+        mi = round(res.mi, 2)
+        opt_y = res.motif
+        weights = res.weights
         
         x_vals = [i+1 for i in range(opt_y.shape[1])]
         
@@ -92,8 +284,8 @@ def plot_optim_shapes_and_weights(motif_list, file_name, records, top_n = 30, op
                 alpha = opacity,
                 label = shape_lut[j],
             )
-        ax[i,0].text(1, 3, "MI: {}".format(mi))
-        ax[i,0].set_ylabel("Index: {}".format(i))
+        ax[i,0].text(1, 3, f"MI: {mi}")
+        ax[i,0].set_ylabel(f"Index: {i}")
         if i == 0:
             ax[i,0].set_title("Optimized shapes")
             ax[i,1].set_title("Optimized weights")
@@ -105,6 +297,7 @@ def plot_optim_shapes_and_weights(motif_list, file_name, records, top_n = 30, op
     fig.tight_layout()
     plt.savefig(file_name)
     plt.close()
+
 
 def plot_shapes_and_weights(motif_list, file_name, records, alpha, top_n = 30, opacity=1, legend_loc="upper left"):
     

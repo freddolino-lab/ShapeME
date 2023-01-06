@@ -11,7 +11,7 @@ PEAKFILE=$2
 INPUTDIR="${TFNAME}_input/"
 KFOLD=5
 CENTER="height"
-WINSIZE=30
+WINSIZE=60
 
 # if the directory doesn't exist, make it
 if [[ ! -d $INPUTDIR ]]; then

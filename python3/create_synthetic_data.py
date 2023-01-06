@@ -12,7 +12,7 @@ from sklearn.model_selection import KFold
 this_path = Path(__file__).parent.absolute()
 
 """
-Creates a reference genome and its associated y-values file.
+Creates a sequence database and its associated y-values file.
 """
 
 def random_sequence_generator(length=60):
@@ -244,11 +244,11 @@ def main():
                 ncats += 1
             # approximately even number of records per category
             y_vals = make_categorical_y_vals(rec_num, n_cats=ncats)
-            motif_cats = np.unique(y_vals)
+            distinct_cats = np.unique(y_vals)
             if args.pivot_category:
-                motif_cats = distinct_cats[:-1]
+                distinct_cats = distinct_cats[:-1]
 
-            for motif,cat in zip(motifs, motif_cats):
+            for motif,cat in zip(motifs, distinct_cats):
                 # fa_seqs modified in-place here to include the motif at a 
                 #  randomly chosen site in each record where y_val is cat
                 substitute_motif_into_records(

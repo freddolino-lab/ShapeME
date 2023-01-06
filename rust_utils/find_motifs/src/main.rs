@@ -50,6 +50,7 @@ fn main() {
             println!("Initial threshold is {}", &threshold);
         }
 
+        println!("Doing MI calculation for batch {}.", i+1);
         let now = time::Instant::now();
         seeds.compute_mi_values(
             &rec_db,

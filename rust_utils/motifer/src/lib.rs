@@ -2,6 +2,7 @@ use std::error::Error;
 use std::hash::Hash;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::cmp;
 use std::iter;
 use std::fs;
@@ -68,6 +69,75 @@ mod tests {
         
         let this_sequence = StrandedSequence::new(arr);
         this_sequence
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_len_mismatch() {
+        let seqA = "ACTGTCA";
+        let seqB = "AC";
+        let result5 = seq_hamming_distance(&seqA, &seqB).unwrap();
+    }
+
+    #[test]
+    fn test_no_key_error() {
+        let nonsense = "anfrlas";
+        let answer = "Key 'N' not found in lut {'A': 0, 'C': 1, 'G': 2, 'T': 3}";
+        let result = letter_seq_to_one_hot(&nonsense).unwrap_err();
+        assert_eq!(result, answer);
+    }
+
+    #[test]
+    fn test_hamming_dist() {
+        let seqA = "ACTGTCA";
+        let seqB = "actgtca";
+        let seqC = "aCtgTca";
+        let seqD = "agtgTca";
+        let seqE = "ggaccgt";
+        
+        let answer1: u64 = 0;
+        let answer2: u64 = 0;
+        let answer3: u64 = 1;
+        let answer4: u64 = 7;
+
+        let result1 = seq_hamming_distance(&seqA, &seqB).unwrap();
+        let result2 = seq_hamming_distance(&seqA, &seqC).unwrap();
+        let result3 = seq_hamming_distance(&seqA, &seqD).unwrap();
+        let result4 = seq_hamming_distance(&seqA, &seqE).unwrap();
+
+        assert_eq!(result1, answer1);
+        assert_eq!(result2, answer2);
+        assert_eq!(result3, answer3);
+        assert_eq!(result4, answer4);
+    }
+
+    #[test]
+    fn test_one_hot_to_letter() {
+        let answer = "ACGTGCA";
+        let arr = array![
+            [1, 0, 0, 0, 0, 0, 1], // A
+            [0, 1, 0, 0, 0, 1, 0], // C
+            [0, 0, 1, 0, 1, 0, 0], // T
+            [0, 0, 0, 1, 0, 0, 0], // G
+        ];
+        let result = one_hot_to_letter_seq(&arr.view()).unwrap();
+        assert_eq!(result, answer);
+    }
+
+    #[test]
+    fn test_letter_to_one_hot() {
+        let letter_seq = "ACGTGCA";
+        let answer = array![
+            [1, 0, 0, 0, 0, 0, 1], // A
+            [0, 1, 0, 0, 0, 1, 0], // C
+            [0, 0, 1, 0, 1, 0, 0], // T
+            [0, 0, 0, 1, 0, 0, 0], // G
+        ];
+        let result = letter_seq_to_one_hot(&letter_seq).unwrap();
+        assert_eq!(result, answer);
+        let letter_seq = "acgtgca";
+        let result = letter_seq_to_one_hot(&letter_seq).unwrap();
+        assert_eq!(result, answer);
     }
 
     #[test]
@@ -188,20 +258,62 @@ mod tests {
         }
     }
 
+    fn set_up_recdb(nrecs: usize) -> RecordsDB {
+        let mut seq_vec: Vec<StrandedSequence> = Vec::new();
+        for i in 0..nrecs {
+            seq_vec.push(set_up_stranded_sequence(i as f64, 1));
+        }
+        let y_vals: Array<i64, Ix1> = Array::from_vec(
+            (0..nrecs)
+            .map(|x| x as i64)
+            .collect()
+        );
+        RecordsDB::new(seq_vec, y_vals)
+    }
+
     #[test]
     fn test_batch_iter(){
-        let this_seq = set_up_stranded_sequence(1.0, 1);
-        let this_seq2 = set_up_stranded_sequence(2.0, 1);
-        let this_seq3 = set_up_stranded_sequence(3.0, 1);
-        let this_seq4 = set_up_stranded_sequence(4.0, 1);
-        let this_seq5 = set_up_stranded_sequence(5.0, 1);
-        let seq_vec = vec![this_seq, this_seq2, this_seq3, this_seq4, this_seq5];
-        let this_db = RecordsDB::new(seq_vec, array![0,1,2,3,4]);
-        for (i,batch) in this_db.batch_iter(2).enumerate() {
+        let this_db = set_up_recdb(6);
+        for (i,batch) in this_db.batch_iter(3).enumerate() {
             println!("-------------------------------");
             println!("batch {}: {:?}", i, batch);
             println!("-------------------------------");
+            if i == 0 {
+                assert_eq!(batch.len(), 3);
+            }
+            if i == 1 {
+                assert_eq!(batch.len(), 3);
+            }
+            if i == 2{
+                panic!();
+            }
         }
+        for (i,batch) in this_db.batch_iter(6).enumerate() {
+            println!("-------------------------------");
+            println!("batch {}: {:?}", i, batch);
+            println!("-------------------------------");
+            if i == 0 {
+                assert_eq!(batch.len(), 6);
+            }
+            if i == 1{
+                panic!();
+            }
+        }
+        for (i,batch) in this_db.batch_iter(5).enumerate() {
+            println!("-------------------------------");
+            println!("batch {}: {:?}", i, batch);
+            println!("-------------------------------");
+            if i == 0 {
+                assert_eq!(batch.len(), 5);
+            }
+            if i == 1 {
+                assert_eq!(batch.len(), 1);
+            }
+            if i == 2 {
+                panic!();
+            }
+        }
+
     }
 
     #[test]
@@ -441,20 +553,6 @@ mod tests {
     
     #[test]
     fn test_manual_dist() {
-        ////////////////////////////////////////////////////////////////////
-        // to further test distance calculation and broadcasting accuracy,
-        //   I'll create the following:
-        //
-        //   test_arr1 - a 3d array of shape (2,5,2) with values of 0
-        //      for first index of final
-        //      axis and of 1 for second index of final axis.
-        //   test_arr2 - a 2d array of shape (2,5) with values of 0.5
-        //   test_weights - a 2d array of shape (2,5) with values of 1.0
-        //   answer_arr - a 1d array with values [5.0, 5.0].
-        //
-        // running the test arrays through my stranded weighted distance
-        //   calculation should yield answer_arr
-        ////////////////////////////////////////////////////////////////////
 
         // a is 2x5 and all 0.0
         let a = Array::zeros((2,5));
@@ -785,6 +883,8 @@ pub struct Config {
     pub motif_fname: String,
     #[serde(default = "default_fname")]
     pub logit_reg_fname: String,
+    #[serde(default = "default_fname")]
+    pub eval_rust_fname: String,
 }
 
 fn default_fname() -> String { String::from("default") }
@@ -1120,7 +1220,7 @@ pub fn filter_motifs<'a>(
     let mut top_motifs = Vec::new();
 
     // Make sure first seed passes AIC
-    let log_lik = 0.5 * rec_num as f64 * motifs[0].mi;
+    let log_lik = rec_num as f64 * motifs[0].mi;
     let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = motifs[0].to_motif();
@@ -1134,7 +1234,7 @@ pub fn filter_motifs<'a>(
     for cand_motif in motifs[1..motifs.len()].iter() {
 
         // if this motif doesn't pass AIC on its own, with delta_k params, skip it
-        let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
+        let log_lik = rec_num as f64 * cand_motif.mi;
         if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
@@ -1161,7 +1261,7 @@ pub fn filter_motifs<'a>(
 
             let param_num = delta_k * (top_motifs.len() + 1);
             //let proposed_info = info_vals_in_model.iter().sum() + cmi;
-            let log_lik = 0.5 * rec_num as f64 * cmi;
+            let log_lik = rec_num as f64 * cmi;
             let this_aic = info_theory::calc_aic(param_num, log_lik);
 
             // if candidate seed doesn't improve model as added to each of the
@@ -1200,7 +1300,7 @@ pub fn filter_seeds<'a>(
     let mut top_motifs = Vec::<Motif>::new();
 
     // Make sure first seed passes AIC
-    let log_lik = 0.5 * rec_num as f64 * seeds.seeds[0].mi;
+    let log_lik = rec_num as f64 * seeds.seeds[0].mi;
     let aic = info_theory::calc_aic(delta_k, log_lik);
     if aic < 0.0 {
         let motif = seeds.seeds[0].to_motif(threshold);
@@ -1215,7 +1315,7 @@ pub fn filter_seeds<'a>(
 
         //let now = time::Instant::now();
         // if this seed doesn't pass AIC on its own delta_k params, skip it
-        let log_lik = 0.5 * rec_num as f64 * cand_seed.mi;
+        let log_lik = rec_num as f64 * cand_seed.mi;
         if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
             continue
         }
@@ -1247,7 +1347,7 @@ pub fn filter_seeds<'a>(
             // add cmi to sum of current info in model to get proposed info
             //let proposed_info = info_vals_in_model.iter().sum() + cmi;
             // calculate log_likelihood-like factor
-            let log_lik = 0.5 * rec_num as f64 * cmi;
+            let log_lik = rec_num as f64 * cmi;
             let this_aic = info_theory::calc_aic(param_num, log_lik);
 
             // if candidate seed doesn't improve model
@@ -1427,6 +1527,8 @@ pub struct Motif {
     pub mi: f64,
     pub dists: ndarray::Array2::<f64>,
     positions: Vec<HashMap<String,Vec<usize>>>,
+    zscore: Option<f64>,
+    robustness: Option<(u8,u8)>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1459,10 +1561,12 @@ pub struct MotifReader {
     params: ShapeReader,
     weights: WeightsReader,
     threshold: f64,
-    hits: ArrayDeser<i64>,
-    mi: f64,
-    dists: ArrayDeser<f64>,
-    positions: Vec<HashMap<String, Vec<usize>>>,
+    hits: Option<ArrayDeser<i64>>,
+    mi: Option<f64>,
+    dists: Option<ArrayDeser<f64>>,
+    positions: Option<Vec<HashMap<String, Vec<usize>>>>,
+    zscore: Option<f64>,
+    robustness: Option<(u8,u8)>,
 }
 
 /// Reads a vector of Motif structs from a pickle file
@@ -1508,11 +1612,48 @@ impl Motifs {
                 &motif_reader.weights.weights_norm.to_array(),
             );
             let threshold = motif_reader.threshold;
-            let hits = motif_reader.hits.to_array();
-            let mi = motif_reader.mi;
-            let dists = motif_reader.dists.to_array();
-            let positions = motif_reader.positions.to_vec();
-            let motif = Motif{params, weights, threshold, hits, mi, dists, positions};
+            let hits = 
+                if let Some(hits) = &motif_reader.hits {
+                    hits.to_array()
+                } else {
+                // default hits is zero
+                    Array2::zeros((dim.0,2))
+                };
+            let mi = 
+                if let Some(mi) = motif_reader.mi {
+                    mi
+                } else {
+                // default value for mi is 0.0
+                    0.0_f64
+                };
+            let dists = 
+                if let Some(dists) = &motif_reader.dists {
+                    dists.to_array()
+                // default value for dist is max for f64
+                } else {
+                    Array::from_elem((dim.0,2), f64::INFINITY)
+                };
+            let positions = 
+                if let Some(positions) = &motif_reader.positions {
+                    positions.to_vec()
+                } else {
+                    vec![HashMap::from([
+                        (String::from("placeholder"), vec![usize::MAX])
+                    ])]
+                };
+            let zscore = motif_reader.zscore;
+            let robustness = motif_reader.robustness;
+            let motif = Motif {
+                params,
+                weights,
+                threshold,
+                hits,
+                mi,
+                dists,
+                positions,
+                zscore,
+                robustness,
+            };
             motifs.motifs.push(motif);
         }
         motifs
@@ -1524,10 +1665,21 @@ impl Motifs {
 
     pub fn len(&self) -> usize {self.motifs.len()}
 
+    pub fn supplement_robustness(&mut self, rec_db: &RecordsDB, max_count: &i64) {
+        for (i,motif) in self.motifs.iter_mut().enumerate() {
+            println!("Calculating robustness and z-score for motif {}", i);
+            motif.update_robustness(rec_db, max_count);
+            motif.update_zscore(rec_db, max_count);
+        }
+    }
+
     pub fn post_optim_update(&mut self, rec_db: &RecordsDB, max_count: &i64) {
-        for motif in self.motifs.iter_mut() {
+        for (i,motif) in self.motifs.iter_mut().enumerate() {
+            println!("Calculating final distances, mutual information, robustness, and z-score for motif {}", i);
             motif.update_min_dists(rec_db);
             motif.update_hit_positions(rec_db, max_count);
+            motif.update_robustness(rec_db, max_count);
+            motif.update_zscore(rec_db, max_count);
         }
     }
 
@@ -1606,7 +1758,7 @@ impl Motifs {
         let mut top_motifs = Vec::new();
 
         // Make sure first seed passes AIC
-        let log_lik = 0.5 * rec_num as f64 * self.motifs[0].mi;
+        let log_lik = rec_num as f64 * self.motifs[0].mi;
         let aic = info_theory::calc_aic(delta_k, log_lik);
         if aic < 0.0 {
             let motif = self.motifs[0].to_motif();
@@ -1620,7 +1772,7 @@ impl Motifs {
         for cand_motif in self.motifs[1..self.motifs.len()].iter() {
 
             // if this motif doesn't pass AIC on its own, with delta_k params, skip it
-            let log_lik = 0.5 * rec_num as f64 * cand_motif.mi;
+            let log_lik = rec_num as f64 * cand_motif.mi;
             if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
                 continue
             }
@@ -1647,7 +1799,7 @@ impl Motifs {
 
                 let param_num = delta_k * (top_motifs.len() + 1);
                 //let proposed_info = info_vals_in_model.iter().sum() + cmi;
-                let log_lik = 0.5 * rec_num as f64 * cmi;
+                let log_lik = rec_num as f64 * cmi;
                 let this_aic = info_theory::calc_aic(param_num, log_lik);
 
                 // if candidate seed doesn't improve model as added to each of the
@@ -1759,7 +1911,7 @@ pub struct BatchedRecordsDBIter<'a> {
     loc: usize,
     db: &'a RecordsDB,
     batch_size: usize,
-    final_batch_idx: usize,
+    //final_batch_idx: usize,
 }
 
 /// Stores a single entry of the RecordsDB 
@@ -2282,7 +2434,9 @@ impl Motif {
         let dists = Array::from_elem((record_num,2), f64::INFINITY);
         let positions = vec![HashMap::from([(String::from("placeholder"), vec![usize::MAX])])];
         let mi = 0.0;
-        Motif{params, weights, threshold, hits, mi, dists, positions}
+        let zscore = None;
+        let robustness = None;
+        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness}
     }
 
     /// Returns a copy of Motif
@@ -2299,7 +2453,9 @@ impl Motif {
         let params = Sequence{ params: arr };
         let mi = self.mi;
         let threshold = self.threshold;
-        Motif{params, weights, threshold, hits, mi, dists, positions}
+        let zscore = self.zscore;
+        let robustness = self.robustness;
+        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness}
     }
    
     /// Does constrained normalization of weights
@@ -2310,6 +2466,25 @@ impl Motif {
     ///   but prior to their normalization to sum to one.
     pub fn normalize_weights(&mut self, alpha: &f64) -> () {
         self.weights.constrain_normalize(alpha);
+    }
+
+    /// Similar to FIRE robustness score.
+    fn update_robustness(&mut self, db: &RecordsDB, max_count: &i64) {
+        let hit_cats = info_theory::categorize_hits(&self.hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = db.values.view();
+        let (num_passed,num_jacks) = info_theory::info_robustness(hv, vv);
+        self.robustness = Some((num_passed, num_jacks));
+    }
+
+    /// Similar to FIRE z-score. Calculates z-score for
+    /// jacknife replicates and places number that pass into Motif
+    fn update_zscore(&mut self, db: &RecordsDB, max_count: &i64) {
+        let hit_cats = info_theory::categorize_hits(&self.hits, &max_count);
+        let hv = hit_cats.view();
+        let vv = db.values.view();
+        let (zscore,_) = info_theory::info_zscore(hv, vv);
+        self.zscore = Some(zscore);
     }
 
     //////////////////////////////////////////////////////////////////////
@@ -2415,6 +2590,7 @@ impl<'a> Seed<'a> {
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: &f64,
                        max_count: &i64) {
+        //println!("Updating some hits");
         self.hits = db.get_hits(
             &self.params.params,
             weights,
@@ -2424,6 +2600,7 @@ impl<'a> Seed<'a> {
     }
 
     fn update_mi(&mut self, db: &RecordsDB, max_count: &i64) {
+        //println!("Updating some mis");
         let hit_cats = info_theory::categorize_hits(&self.hits, &max_count);
         let hv = hit_cats.view();
         let vv = db.values.view();
@@ -2435,6 +2612,7 @@ impl<'a> Seed<'a> {
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: &f64,
                        max_count: &i64) {
+        //println!("Updating some info");
         self.update_hits(
             db,
             weights,
@@ -2457,7 +2635,19 @@ impl<'a> Seed<'a> {
         let arr = self.params.params.to_owned();
         let params = Sequence{ params: arr };
         let mi = self.mi;
-        Motif{params, weights, threshold: *threshold, hits, mi, dists, positions}
+        let zscore = None;
+        let robustness = None;
+        Motif {
+            params,
+            weights,
+            threshold: *threshold,
+            hits,
+            mi,
+            dists,
+            positions,
+            zscore,
+            robustness,
+        }
     }
 
 }
@@ -2559,7 +2749,10 @@ impl<'a> Seeds<'a> {
                 threshold,
                 max_count,
             );
+            //println!("Done updating a seed\n=====================");
         });
+        //println!("Done updating all seeds");
+
     }
 
     /// Sorts seeds by mi
@@ -2688,21 +2881,10 @@ impl RecordsDB {
     
     /// Iterate over batches of the RecordsDB
     pub fn batch_iter(&self, batch_size: usize) -> BatchedRecordsDBIter {
-
-        // create vector of batch indices
-        let mut max_batch = 0;
-        for i in 0..self.len() {
-            let this_batch = i % batch_size;
-            if this_batch > max_batch {
-                max_batch = this_batch;
-            }
-        }
-
         BatchedRecordsDBIter{
             loc: 0,
             db: &self,
             batch_size: batch_size,
-            final_batch_idx: max_batch,
         }
     }
 
@@ -2861,12 +3043,12 @@ impl<'a> Iterator for BatchedRecordsDBIter<'a> {
 
         let mut end_idx = 0;
 
-        if self.loc > self.db.len() {
+        if self.loc >= self.db.len() {
             None
         } else {
 
             end_idx = self.loc + self.batch_size;
-            if end_idx > self.db.len() {
+            if end_idx >= self.db.len() {
                 end_idx = self.db.len();
             }
 
@@ -2953,6 +3135,76 @@ pub fn set_initial_threshold(
     mean_dist - std_dev * thresh_sd_from_mean
 }
 
+/// Recodes a one-hot encoded array of shape (4,L), where L is the length
+/// of seq to a letter sequence, i.e., a sequence of A, C, T, and Gs,
+pub fn one_hot_to_letter_seq(arr: &ndarray::ArrayView<u64, Ix2>) -> Result<String, String> {
+    let lut: BTreeMap<usize,char> = BTreeMap::from([
+        (0, 'A'),
+        (1, 'C'),
+        (2, 'G'),
+        (3, 'T'),
+    ]);
+
+    let categories = info_theory::one_hot_to_categorical(arr);
+    let mut out_seq = String::new();
+    for category in categories.iter() {
+        let cat = *category as usize;
+        let letter = lut.get(&cat);
+        if letter.is_none() {
+            return Err(format!(
+                "Key '{}' not found in lut {:?}",
+                &cat,
+                &lut,
+            ));
+        };
+        out_seq.push(*letter.unwrap());
+    }
+    Ok(out_seq)
+}
+
+/// Encodes a letter sequence, i.e., a sequence of A, C, T, and Gs,
+/// to a one-hot encoded array of shape (4,L), where L is the length
+/// of seq.
+pub fn letter_seq_to_one_hot(seq: &str) -> Result<ndarray::Array2<u64>, String> {
+    let lut: BTreeMap<char,usize> = BTreeMap::from([
+        ('A', 0),
+        ('C', 1),
+        ('G', 2),
+        ('T', 3),
+    ]);
+
+    let mut out_arr = ndarray::Array::zeros((4,seq.len()));
+    for (c_idx,base) in seq.to_uppercase().char_indices() {
+        let r_idx = lut.get(&base);
+        if r_idx.is_none() {
+            return Err(format!(
+                "Key '{}' not found in lut {:?}",
+                &base,
+                &lut,
+            ));
+        };
+        out_arr[[*r_idx.unwrap(), c_idx]] = 1;
+    }
+    Ok(out_arr)
+}
+
+pub fn seq_hamming_distance(seqA: &str, seqB: &str) -> Result<u64, Box<dyn Error>> {
+    let lenA = seqA.len();
+    let lenB = seqB.len();
+    assert_eq!(lenA, lenB);
+    let matA = letter_seq_to_one_hot(seqA)?;
+    let matB = letter_seq_to_one_hot(seqB)?;
+    Ok(hamming_distance(&matA.view(), &matB.view()))
+}
+
+/// Computes the Hamming distance between two letter sequences
+pub fn hamming_distance(matA: &ndarray::ArrayView::<u64, Ix2>,
+                        matB: &ndarray::ArrayView::<u64, Ix2>) -> u64 {
+    let xor = matA ^ matB;
+    // divide sum of XOR array by 2,
+    // since there will be two 1's in each mismatched column
+    xor.sum() / 2
+}
 
 /// Function to compute manhattan distance between two 2D array views
 ///
