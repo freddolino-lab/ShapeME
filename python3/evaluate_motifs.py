@@ -1,4 +1,5 @@
 import inout
+import shelve
 import copy
 import glob
 import fimopytools as fimo
@@ -269,7 +270,7 @@ def choose_model(bic_list, model_list, return_index):
     bic_list : list
         bic for each model in model_list
     model_list : list
-        List sklearn logistic regression fits
+        List of 2-tuples of (motifs_object, list_of_coefficients)
     return_index : bool
         If true, only return the index of the model
         with the lowest BIC. If false, return the best model.
@@ -345,6 +346,11 @@ def calc_prec_recall(yhat_background, yhat_foreground):
 
 
 def prec_recall(yhat, target_y, family='binomial', prefix=None, plot=False):
+    ######################################################################
+    ######################################################################
+    ## modify this to just use a more general fxn that will look a lot like the multinomial here. Since I'm returning a binary yhat array of shape (n_rec, n_cat, n_thresh) anyway
+    ######################################################################
+    ######################################################################
     if family == 'multinomial':
         return multinomial_prec_recall(yhat, target_y, plot, prefix)
     elif family == 'binomial':
@@ -364,7 +370,7 @@ def multinomial_prec_recall(yhat, target_y, plot=False, prefix=None):
         
         # plotting the distribution of yhat vals and, more importantly, using the
         # PPROC pr.curve function, requires a bit of difference between values
-        # in the yhat vector. I there's only one distinct value, add a tiny bit
+        # in the yhat vector. If there's only one distinct value, add a tiny bit
         # of noise to this class' yhat values just to make the funcitons work.
         if len(np.unique(this_class_yhat)) == 1:
             this_class_yhat += np.random.normal(0.0, 0.001, len(this_class_yhat))
@@ -411,6 +417,49 @@ def convert_to_r_mat(mat):
         ncol=mat.shape[1],
     )
     return mat_r
+
+def softmax(x):
+    return(x/x.sum())
+
+def inv_logit(x):
+    return(np.exp(x) / (1+np.exp(x)))
+
+def evaluate_fit2(coefs, test_X, test_y, family, prefix=None, plot=False, thresh_num=100):
+
+    # X is shape (num_seqs, num_hit_cats*motif_num)
+    num_seqs = test_X.shape[0]
+    X = np.concatenate(
+        (np.ones((num_seqs,1)), test_X),
+        axis = 1,
+    )
+
+    num_cats = coefs.shape[0]
+    preds = np.zeros((num_seqs, num_cats))
+    # get the logit-scale preditions for each category
+    for col_i in range(num_cats):
+        preds[:,col_i] = np.dot(X, coefs[col_i,:])
+
+    # check!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    if num_cats > 1:
+        for row_i in range(num_seqs):
+            preds[row_i,:] = softmax(preds[row_i,:])
+
+    else:
+        preds = inv_logit(preds)
+        
+
+    thresh_y = np.zeros((num_seqs, num_cats, thresh_num))
+    for (i,threshold) in enumerate(np.linspace(
+        start = 0.0,
+        stop = 1.0,
+        num = thresh_num,
+    )):
+        for j in range(num_cats):
+            thresh_y[:, j, i] = preds[:,j] > threshold
+        
+    return(thresh_y)
+    
+
 
 
 def evaluate_fit(fit, test_X, test_y, family,
@@ -647,10 +696,18 @@ if __name__ == "__main__":
     test_yval_fname = os.path.join(out_direc, 'test_y_vals.npy')
     train_yval_fname = os.path.join(out_direc, 'train_y_vals.npy')
     config_fname = os.path.join(out_direc, 'config.json')
+    # temp file just for running fimo
     seq_meme_fname = os.path.join(out_direc, 'seq_motifs.meme')
     rust_motifs_fname = os.path.join(out_direc, 'eval_rust_results.json')
-    fit_search = os.path.join(out_direc, '*lasso_fit.pkl')
-    lasso_fit_fname = glob.glob(fit_search)[0]
+    #fit_search = os.path.join(out_direc, '*lasso_fit.pkl')
+
+    out_motif_basename = os.path.join(out_direc, "final_motifs")
+    out_coefs_fname = out_motif_basename + "_coefficients.npy"
+
+    with open(out_coefs_fname, "r") as f:
+        motif_coefs = np.load(f)
+
+    #lasso_fit_fname = glob.glob(fit_search)[0]
     eval_out_fname = os.path.join(out_direc, 'precision_recall.json')
     prc_prefix = os.path.join(out_direc, 'precision_recall_curve')
     eval_dist_plot_prefix = os.path.join(out_direc, 'class_yhat_distribution')
@@ -787,15 +844,32 @@ if __name__ == "__main__":
             train_y -= 1
             test_y -= 1
 
-        fit = train_glmnet(
-            all_train_motifs.X,
-            train_y,
-            folds = 10,
-            family=fam,
-            alpha=1,
-        )
+##############################################################################
+##############################################################################
+##############################################################################
+## check this as source of issue with seq and shape motif performance evaluation
+##############################################################################
+##############################################################################
+##############################################################################
 
-        coefs = fetch_coefficients(fam, fit, args.continuous)
+
+        #fit = train_glmnet(
+        #    all_train_motifs.X,
+        #    train_y,
+        #    folds = 10,
+        #    family=fam,
+        #    alpha=1,
+        #)
+
+        my_shelf = shelve.open("/anvil/projects/x-mcb140220/schroedj/motif_data/POU5F1/POU5F1_input/seq_fold_0_output/eval_state.out")
+        for key in my_shelf:
+            try:
+                globals()[key]=my_shelf[key]
+            except:
+                print(f"Error unshelfing {key}")
+        my_shelf.close()
+
+        #coefs = fetch_coefficients(fam, fit, args.continuous)
 
         # predict on test data
         fit_eval = evaluate_fit(
@@ -811,8 +885,8 @@ if __name__ == "__main__":
         with open(eval_out_fname, 'w') as f:
             json.dump(fit_eval, f, indent=1)
 
-        with open(logit_reg_fname, 'wb') as f:
-            pickle.dump(fit, f)
+        #with open(logit_reg_fname, 'wb') as f:
+        #    pickle.dump(fit, f)
 
         save_prc_plot(
             fit_eval,
@@ -836,4 +910,5 @@ if __name__ == "__main__":
                 prc_prefix+".pdf",
             )
         )
+        os.remove(seq_meme_fname)
 

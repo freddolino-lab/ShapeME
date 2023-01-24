@@ -1355,12 +1355,23 @@ class Motifs:
         and removes motifs for which all covariates in X were zero. Returns
         a filtered set of motifs, a new array of X values (motif hits covariates),
         and a new var_lut to map columns of the new X array to motif information.
+
+        Returns:
+        --------
+        Returns the filtered array of coefficients corresponding to each
+        coefficient for each motif in the updates motifs in self.
+
+        Modifies:
+        ---------
+        Modifies self in place
         '''
 
         # keys are X arr indices, vals are dict
         # of {'motif_idx': motif index in list of motifs,
         #     'hits': the class of hit this covariate represents, i.e., [0,1], [1,1], etc.}
         new_lut = {}
+        # place intercept for each class into list of filtered coefficients
+        new_coefs = [coefs[:,0]]
         # construct lookup table where motif index is key, and value is list
         #  of column indices for that motif in coefs
         motif_lut = {}
@@ -1408,6 +1419,7 @@ class Motifs:
                         'motif_idx': len([_ for _ in retain if _]),
                         'hits': self.var_lut[coef_idx-1]['hits'],
                     }
+                    new_coefs.append(coefs[:,coef_idx])
                 motif_any_nonzero.append(has_non_zero)
             
             # if any column for this motif contained any non-zero values, retain it
@@ -1428,6 +1440,8 @@ class Motifs:
         self.motifs = retained_motifs
         self.X = retained_X
         self.var_lut = new_lut
+
+        return(np.stack(new_coefs, axis=1))
 
 
     def prep_shape_logit_reg_data(self, max_count):

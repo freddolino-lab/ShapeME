@@ -165,6 +165,7 @@ if __name__ == "__main__":
     in_fname = os.path.join(in_direc, args.infile)
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
+    out_coefs_fname = out_motif_basename + "_coefficients.npy"
     out_heatmap_fname = os.path.join(out_direc, "final_heatmap.png")
     find_seq_motifs = args.find_seq_motifs
     seq_fasta = args.seq_fasta
@@ -400,7 +401,7 @@ if __name__ == "__main__":
             logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
             logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
 
-            seq_motifs.filter_motifs(seq_coefs)
+            filtered_seq_coefs = seq_motifs.filter_motifs(seq_coefs)
 
             print()
             logging.info(
@@ -590,7 +591,7 @@ if __name__ == "__main__":
 
         # go through coefficients and weed out motifs for which all
         #   hits' coefficients are zero.
-        shape_motifs.filter_motifs(coefs)
+        filtered_shape_coefs = shape_motifs.filter_motifs(coefs)
 
         print()
         logging.info(
@@ -715,7 +716,9 @@ if __name__ == "__main__":
                 f"{shape_and_seq_motifs.var_lut}"
             )
 
-            shape_and_seq_motifs.filter_motifs(shape_and_seq_coefs)
+            filtered_shape_and_seq_coefs = shape_and_seq_motifs.filter_motifs(
+                shape_and_seq_coefs
+            )
 
             print()
             logging.info(f"Number of final motifs: {len(shape_and_seq_motifs)}")
@@ -772,51 +775,57 @@ if __name__ == "__main__":
                     )
                     sys.exit()
 
-    motifs_objects = []
+    motifs_info = []
     if shape_motif_exists:
-        motifs_objects.append(shape_motifs)
+        motifs_info.append((shape_motifs, filtered_shape_coefs))
         if args.write_all_files:
             out_fname = out_motif_basename + "_shape_motifs.dsm"
             shape_motifs.write_file(out_fname, records)
     if seq_motif_exists:
-        motifs_objects.append(seq_motifs)
+        motifs_info.append((seq_motifs, filtered_seq_coefs))
         if args.write_all_files:
             out_fname = out_motif_basename + "_sequence_motifs.dsm"
-            shape_motifs.write_file(out_fname, records)
+            seq_motifs.write_file(out_fname, records)
     if shape_motif_exists and seq_motif_exists:
-        motifs_objects.append(shape_and_seq_motifs)
+        motifs_info.append((shape_and_seq_motifs, filtered_shape_and_seq_coefs))
         if args.write_all_files:
             out_fname = out_motif_basename + "_shape_and_sequence_motifs.dsm"
-            shape_motifs.write_file(out_fname, records)
+            shape_and_seq_motifs.write_file(out_fname, records)
 
     if not np.any([seq_motif_exists, shape_motif_exists]):
         print("No shape or sequence motifs found. Exiting now.")
         sys.exit()
 
     # if there was more than one inout.Motifs object generated, choose best model here
-    if len(motifs_objects) > 1:
+    if len(motifs_info) > 1:
 
-        motif_bics = [x.bic for x in motifs_objects]
+        motif_bics = [x[0].bic for x in motifs_info]
 
-        best_motifs = evm.choose_model(
+        best_motifs,best_motif_coefs = evm.choose_model(
             motif_bics,
-            motifs_objects,
+            motifs_info,
             return_index=False,
         )
         print()
         logging.info(f"Best model, based on BIC, was {best_motifs.motif_type}.")
 
-    # if only on, set the extant one to "best_motifs"
+    # if only one, set the extant one to "best_motifs"
     else:
-        best_motifs = motifs_objects[0]
+        best_motifs,best_motif_coefs = motifs_info[0]
 
     #######################################################################
-    #best_motifs = motifs_objects[-1] # uncomment for forcing a specific model for debug
+    #best_motifs = motifs_info[-1] # uncomment for forcing a specific model for debug
+
+    print(f"all motifs_info:\n{motifs_info}")
+    print(f"Best motif coefficients:\n{best_motif_coefs}")
+    print(f"Best motif info:\n{best_motifs}")
         
     # place enrichment as key in each motif's dictionary
     best_motifs.get_enrichments(records)
     # write motifs to meme-like file
     best_motifs.write_file(out_motif_fname, records)
+    with open(out_coefs_fname, "wb") as out_coef_f:
+        np.save(out_coef_f, best_motif_coefs)
     logging.info(f"Writing motif enrichment heatmap to {out_heatmap_fname}")
     smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
