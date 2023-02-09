@@ -7,6 +7,7 @@ use std::env;
 use std::time;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
+use rayon::current_num_threads;
 
 // Run target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
 
@@ -18,6 +19,7 @@ fn main() {
         .num_threads(cfg.cores)
         .build_global()
         .unwrap();
+    println!("\nfind_motifs binary using {} cores via rayon\n", current_num_threads());
 
     let rec_db = motifer::RecordsDB::new_from_files(
         &cfg.shape_fname,
@@ -68,7 +70,11 @@ fn main() {
             &threshold,
             &cfg.max_count,
         );
-        println!("{} seeds in batch {} after CMI-based filtering.", these_motifs.len(), i+1);
+        println!(
+            "{} seeds in batch {} after CMI-based filtering.",
+            these_motifs.len(),
+            i+1,
+        );
         motifs.append(these_motifs);
     }
 

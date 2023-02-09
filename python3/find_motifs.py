@@ -278,7 +278,7 @@ if __name__ == "__main__":
     if args.continuous is not None:
         records.quantize_quant(args.continuous)
 
-    fam = evm.set_family(records.y)
+    fam,num_cats = evm.set_family(records.y)
 
     logging.info("Distribution of sequences per class:")
     logging.info(inout.seqs_per_bin(records))
@@ -314,8 +314,8 @@ if __name__ == "__main__":
     seq_fit_fname = os.path.join(out_direc, 'seq_lasso_fit.pkl')
     shape_and_seq_fit_fname = os.path.join(out_direc, 'shape_and_seq_lasso_fit.pkl')
 
-    # get the BIC for an intercept-only model, which will ultimately be compared
-    # to the BIC we get from any other fit to choose whether there is a motif or not.
+    # get the F-score for an intercept-only model, which will ultimately be compared
+    # to the F-score we get from any other fit to choose whether there is a motif or not.
     intercept_X = np.ones((len(records), 1))
     intercept_fit = evm.train_sklearn_glm(
         intercept_X,
@@ -324,11 +324,20 @@ if __name__ == "__main__":
         fit_intercept = False,
     )
 
-    intercept_bic = evm.get_sklearn_bic(
+    intercept_metric = evm.CV_F1(
         intercept_X,
         records.y,
-        intercept_fit,
+        folds = 5,
+        family = fam,
+        fit_intercept = False, # intercept already in design mat
+        cores = args.p,
     )
+
+    #intercept_bic = evm.get_sklearn_bic(
+    #    intercept_X,
+    #    records.y,
+    #    intercept_fit,
+    #)
 
     seq_motif_exists = False
     shape_motif_exists = False
@@ -395,7 +404,7 @@ if __name__ == "__main__":
             with open(seq_fit_fname, "wb") as f:
                 pickle.dump(seq_fit, f)
 
-            seq_coefs = evm.fetch_coefficients(fam, seq_fit, args.continuous)
+            seq_coefs = evm.fetch_coefficients(fam, seq_fit, num_cats)
 
             print()
             logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
@@ -432,20 +441,30 @@ if __name__ == "__main__":
             fit_intercept = False, # intercept already in design mat
         )
 
-        seq_motifs.bic = evm.get_sklearn_bic(
+        seq_motifs.metric = evm.CV_F1(
             intercept_and_motif_X,
             records.y,
-            motif_fit,
+            folds = 5,
+            family = fam,
+            fit_intercept = False, # intercept already in design mat
+            cores = args.p,
         )
+
+        #seq_motifs.bic = evm.get_sklearn_bic(
+        #    intercept_and_motif_X,
+        #    records.y,
+        #    motif_fit,
+        #)
 
         # if there's only one covariate, compare bic from intercept+motif
         # and intercept only
         if one_seq_motif:
-            bic_list = [ intercept_bic, seq_motifs.bic ]
+            #bic_list = [ intercept_bic, seq_motifs.bic ]
+            metric_list = [ intercept_metric, seq_motifs.metric ]
             model_list = [ intercept_fit, motif_fit ]
 
             best_mod_idx = evm.choose_model(
-                bic_list,
+                metric_list,
                 model_list,
                 return_index = True,
             )
@@ -453,7 +472,7 @@ if __name__ == "__main__":
             if best_mod_idx == 0:
                 print()
                 logging.info(
-                    f"Intercept-only model had lower BIC than model fit using "\
+                    f"Intercept-only model had better score than model fit using "\
                     f"intercept and one sequence motif.\nTherefore, there is no "\
                     f"informative "\
                     f"sequence motif. Not writing a sequence motif to output."
@@ -513,7 +532,7 @@ if __name__ == "__main__":
     }
 
     if args.continuous is not None:
-        find_args_dict['y_cat_num'] = args.continuous
+        find_args_dist['y_cat_num'] = num_cats
 
     # supplement args info with shape center and spread from database
     find_args_dict['names'] = []
@@ -583,7 +602,7 @@ if __name__ == "__main__":
         with open(shape_fit_fname, "wb") as f:
             pickle.dump(shape_fit, f)
 
-        coefs = evm.fetch_coefficients(fam, shape_fit, args.continuous)
+        coefs = evm.fetch_coefficients(fam, shape_fit, num_cats)
 
         print()
         logging.info(f"Shape motif coefficients:\n{coefs}")
@@ -613,23 +632,33 @@ if __name__ == "__main__":
             fit_intercept = False, # intercept already in design mat
         )
 
-        shape_motifs.bic = evm.get_sklearn_bic(
+        shape_motifs.metric = evm.CV_F1(
             intercept_and_shape_X,
             records.y,
-            motif_fit,
+            folds = 5,
+            family = fam,
+            fit_intercept = False, # intercept already in design mat
+            cores = args.p,
         )
+
+        #shape_motifs.bic = evm.get_sklearn_bic(
+        #    intercept_and_shape_X,
+        #    records.y,
+        #    motif_fit,
+        #)
   
         # check whether there's only one informative covariate
         if shape_motifs.X.shape[1] == 1:
             print()
             logging.info(
                 f"Only one covariate for shape motifs was found to be "\
-                f"informative using LASSO regression. Calculating the BIC "\
+                f"informative using LASSO regression. Calculating the scoring metric "\
                 f"for a model with only an intercept and this covariate to "\
                 f"compare to a model fit using only an intercept."
             )
 
-            bic_list = [ intercept_bic, shape_motifs.bic ]
+            #bic_list = [ intercept_bic, shape_motifs.bic ]
+            metric_list = [ intercept_metric, shape_motifs.metric ]
             model_list = [ intercept_fit, motif_fit ]
 
             best_mod_idx = evm.choose_model(
@@ -640,14 +669,14 @@ if __name__ == "__main__":
 
             print()
             logging.info(
-                f"Intercept-only BIC: {intercept_bic}\n"\
-                f"Intercept and one shape covariate BIC: {shape_motifs.bic}"
+                f"Intercept-only metric: {intercept_metric}\n"\
+                f"Intercept and one shape covariate metric: {shape_motifs.metric}"
             )
 
             if best_mod_idx == 0:
                 print()
                 logging.info(
-                    f"Intercept-only model had lower BIC than model fit using "\
+                    f"Intercept-only model had better score than model fit using "\
                     f"intercept and one shape covariate. Therefore, there is no "\
                     f"informative shape motif. Not writing a shape motif to output. "\
                     f"Exiting now."
@@ -703,7 +732,7 @@ if __name__ == "__main__":
             shape_and_seq_coefs = evm.fetch_coefficients(
                 fam,
                 shape_and_seq_fit,
-                args.continuous,
+                num_cats,
             )
 
             print()
@@ -724,51 +753,61 @@ if __name__ == "__main__":
             logging.info(f"Number of final motifs: {len(shape_and_seq_motifs)}")
 
             # supplement motifs object with bic
-            intercept_and_motif_X = np.append(
+            intercept_and_shape_and_seq_X = np.append(
                 intercept_X,
                 shape_and_seq_motifs.X,
                 axis=1,
             )
 
-            int_and_motif_fit = evm.train_sklearn_glm(
-                intercept_and_motif_X,
+            int_and_shape_and_seq_fit = evm.train_sklearn_glm(
+                intercept_and_shape_and_seq_X,
                 records.y,
                 family = fam,
                 fit_intercept = False, # intercept already in design mat
             )
 
-            shape_and_seq_motifs.bic = evm.get_sklearn_bic(
-                intercept_and_motif_X,
+            shape_and_seq_motifs.metric = evm.CV_F1(
+                intercept_and_shape_and_seq_X,
                 records.y,
-                int_and_motif_fit,
+                folds = 5,
+                family = fam,
+                fit_intercept = False, # intercept already in design mat
+                cores = args.p,
             )
+
+            #shape_and_seq_motifs.bic = evm.get_sklearn_bic(
+            #    intercept_and_shape_and_seq_X,
+            #    records.y,
+            #    int_and_shape_and_seq_fit,
+            #)
 
             if len(shape_and_seq_motifs) == 1:
                 print()
                 logging.info(
                     f"Only one motif left after LASSO regression. "\
-                    f"Performing model selection using BIC to determine whether "\
+                    f"Performing model selection using F1 to determine whether "\
                     f"the remaining motif is informative over intercept alone."
                 )
  
-                bic_list = [ intercept_bic, shape_and_seq_motifs.bic ]
-                model_list = [ intercept_fit, int_and_motif_fit ]
+                #bic_list = [ intercept_bic, shape_and_seq_motifs.bic ]
+                metric_list = [ intercept_metric, shape_and_seq_motifs.metric ]
+                model_list = [ intercept_fit, int_and_shape_and_seq_fit ]
 
                 best_mod_idx = evm.choose_model(
-                    bic_list,
+                    metric_list,
                     model_list,
                     return_index = True,
                 )
 
                 print()
                 logging.info(
-                    f"Intercept-only BIC: {intercept_bic}\n"\
-                    f"Intercept and one covariate BIC: {shape_and_seq_motifs.bic}"
+                    f"Intercept-only F-score: {intercept_metric}\n"\
+                    f"Intercept and one covariate F-score: {shape_and_seq_motifs.metric}"
                 )
                 if best_mod_idx == 0:
                     print()
                     logging.info(
-                        f"Intercept-only model had lower BIC than model fit using "\
+                        f"Intercept-only model had better score than model fit using "\
                         f"intercept and one motif covariate.\nTherefore, there is no "\
                         f"informative motif. Not writing a motif to output. "\
                         f"Exiting now."
@@ -799,15 +838,15 @@ if __name__ == "__main__":
     # if there was more than one inout.Motifs object generated, choose best model here
     if len(motifs_info) > 1:
 
-        motif_bics = [x[0].bic for x in motifs_info]
+        motif_metrics = [x[0].metric for x in motifs_info]
 
         best_motifs,best_motif_coefs = evm.choose_model(
-            motif_bics,
+            motif_metrics,
             motifs_info,
             return_index=False,
         )
         print()
-        logging.info(f"Best model, based on BIC, was {best_motifs.motif_type}.")
+        logging.info(f"Best model, based on F-score, was {best_motifs.motif_type}.")
 
     # if only one, set the extant one to "best_motifs"
     else:
