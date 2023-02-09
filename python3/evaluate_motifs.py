@@ -15,6 +15,7 @@ import operator
 from pprint import pprint
 from matplotlib import pyplot as plt
 from sklearn import metrics
+from sklearn.model_selection import KFold,cross_val_score
 from sklearn import linear_model
 from statsmodels.stats import rates
 from scipy.stats import contingency
@@ -236,10 +237,40 @@ def calculate_bic(n, loglik, num_params):
     return num_params * np.log(n) - 2 * loglik
 
 
+def calculate_F1():
+    pass
+
+def CV_F1(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
+
+    mc = "multinomial"
+    if family == "binomial":
+        mc = "ovr"
+
+    estimator = linear_model.LogisticRegression(
+        penalty = None,
+        multi_class = mc,
+        fit_intercept = fit_intercept,
+    )
+
+    F_scores = cross_val_score(
+        estimator,
+        X,
+        y,
+        scoring = "f1",
+        cv = folds,
+        n_jobs = cores,
+    )
+
+    return F_scores.mean()
+
+
+def get_glmnet_bic(X,y,fit,n_params):
+    pass
+
+
 def get_sklearn_bic(X,y,model):
     n = X.shape[0]
     n_params = X.shape[1]
-    class_probs = model.predict_proba(X)
     pred_probs = model.predict_proba(X)
     loglik = log_likelihood(y, pred_probs)
     bic = calculate_bic(n, loglik, n_params)
@@ -262,13 +293,13 @@ def get_glmnet_bic(X,y,fit,n_params):
     return calculate_bic(n, mse, n_params)
 
 
-def choose_model(bic_list, model_list, return_index):
+def choose_model(metric_list, model_list, return_index):
     '''Returns model with lowest BIC.
 
     Args:
     -----
-    bic_list : list
-        bic for each model in model_list
+    metric_list : list
+        metric for each model in model_list
     model_list : list
         List of 2-tuples of (motifs_object, list_of_coefficients)
     return_index : bool
@@ -277,23 +308,22 @@ def choose_model(bic_list, model_list, return_index):
     '''
     # initialize array of infinities to store BIC values
     if return_index:
-        return np.argmin(bic_list)
+        return np.argmax(metric_list)
     else:
-        best_model = model_list[np.argmin(bic_list)]
+        best_model = model_list[np.argmax(metric_list)]
         return best_model
-
 
 def train_sklearn_glm(X,y,fit_intercept=False,family='binomial'):
 
     if family == "multinomial":
         model = linear_model.LogisticRegression(
-            penalty = "none",
+            penalty = None,
             multi_class = "multinomial",
             fit_intercept = fit_intercept,
         )
     else:
         model = linear_model.LogisticRegression(
-            penalty="none",
+            penalty=None,
             multi_class = "ovr",
             fit_intercept = fit_intercept,
         )
@@ -345,29 +375,34 @@ def calc_prec_recall(yhat_background, yhat_foreground):
     return output
 
 
-def prec_recall(yhat, target_y, family='binomial', prefix=None, plot=False):
-    ######################################################################
-    ######################################################################
-    ## modify this to just use a more general fxn that will look a lot like the multinomial here. Since I'm returning a binary yhat array of shape (n_rec, n_cat, n_thresh) anyway
-    ######################################################################
-    ######################################################################
-    if family == 'multinomial':
-        return multinomial_prec_recall(yhat, target_y, plot, prefix)
-    elif family == 'binomial':
-        return binomial_prec_recall(yhat, target_y)
+#def prec_recall(yhat, target_y, family='binomial', prefix=None, plot=False):
+#    ######################################################################
+#    ######################################################################
+#    ## modify this to just use a more general fxn that will look a lot like the multinomial here. Since I'm returning a binary yhat array of shape (n_rec, n_cat, n_thresh) anyway
+#    ######################################################################
+#    ######################################################################
+#    if family == 'multinomial':
+#        return multinomial_prec_recall(yhat, target_y, plot, prefix)
+#    elif family == 'binomial':
+#        return binomial_prec_recall(yhat, target_y)
 
 
-def multinomial_prec_recall(yhat, target_y, plot=False, prefix=None):
+def prec_recall(yhat, target_y, plot=False, prefix=None):
 
     n_classes = yhat.shape[1]
     pr_rec_dict = {}
 
     for this_class in range(n_classes):
 
+        # slice the correct index from yhat array
+        this_class_yhat = yhat[:,this_class].copy()
+        
+        # if doing binary classification (logit regression) switch this_class to 1
+        if n_classes == 1:
+            this_class = 1
+
         no_skill = len(target_y[target_y==this_class]) / len(target_y)
 
-        this_class_yhat = yhat[:,this_class,0].copy()
-        
         # plotting the distribution of yhat vals and, more importantly, using the
         # PPROC pr.curve function, requires a bit of difference between values
         # in the yhat vector. If there's only one distinct value, add a tiny bit
@@ -385,6 +420,9 @@ def multinomial_prec_recall(yhat, target_y, plot=False, prefix=None):
             df = pd.DataFrame(
                 {'yhat': this_class_yhat, 'inclass': target_y == this_class}
             )
+            print("***************")
+            print(f"df shape: {df.shape}")
+            print("***************")
             sns.displot(df, x='yhat', hue='inclass', kde=True)
             plt.savefig('{}_class_{}'.format(prefix, this_class))
             plt.close()
@@ -419,12 +457,20 @@ def convert_to_r_mat(mat):
     return mat_r
 
 def softmax(x):
-    return(x/x.sum())
+    e_x = np.exp(x)
+    return(e_x/e_x.sum())
 
 def inv_logit(x):
-    return(np.exp(x) / (1+np.exp(x)))
+    e_x = np.exp(x)
+    return(e_x / (1+e_x))
 
-def evaluate_fit2(coefs, test_X, test_y, family, prefix=None, plot=False, thresh_num=100):
+def evaluate_fit2(
+        coefs,
+        test_X,
+        test_y,
+        prefix=None,
+        plot=False,
+    ):
 
     # X is shape (num_seqs, num_hit_cats*motif_num)
     num_seqs = test_X.shape[0]
@@ -434,32 +480,39 @@ def evaluate_fit2(coefs, test_X, test_y, family, prefix=None, plot=False, thresh
     )
 
     num_cats = coefs.shape[0]
-    preds = np.zeros((num_seqs, num_cats))
+    #print("---------------------------------------------")
+    #print(f"coefs shape: {coefs.shape}")
+    #print("---------------------------------------------")
+    yhat = np.zeros((num_seqs, num_cats))
     # get the logit-scale preditions for each category
     for col_i in range(num_cats):
-        preds[:,col_i] = np.dot(X, coefs[col_i,:])
+        yhat[:,col_i] = np.dot(X, coefs[col_i,:])
 
     # check!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if num_cats > 1:
         for row_i in range(num_seqs):
-            preds[row_i,:] = softmax(preds[row_i,:])
+            yhat[row_i,:] = softmax(yhat[row_i,:])
 
     else:
-        preds = inv_logit(preds)
+        yhat = inv_logit(yhat)
         
+    print("************************************")
+    print(f"yhat shape: {yhat.shape}")
+    print(f"yhat: {yhat}")
+    print("************************************")
 
-    thresh_y = np.zeros((num_seqs, num_cats, thresh_num))
-    for (i,threshold) in enumerate(np.linspace(
-        start = 0.0,
-        stop = 1.0,
-        num = thresh_num,
-    )):
-        for j in range(num_cats):
-            thresh_y[:, j, i] = preds[:,j] > threshold
+    #classes = np.zeros((num_seqs, num_cats, thresh_num))
+    #for (i,threshold) in enumerate(np.linspace(
+    #    start = 0.0,
+    #    stop = 1.0,
+    #    num = thresh_num,
+    #)):
+    #    for j in range(num_cats):
+    #        classes[:, j, i] = y_hat[:,j] > threshold
         
-    return(thresh_y)
-    
+    output = prec_recall(yhat, test_y, plot, prefix)
 
+    return(output)
 
 
 def evaluate_fit(fit, test_X, test_y, family,
@@ -569,11 +622,12 @@ def fetch_coefficients_multinomial(fit, n_classes):
 
 def set_family(yvals):
     distinct_cats = np.unique(yvals)
-    if len(distinct_cats) == 2:
+    num_cats = len(distinct_cats)
+    if num_cats == 2:
         fam = 'binomial'
     else:
         fam = 'multinomial'
-    return fam
+    return (fam,num_cats)
 
 
 #def filter_motifs(motif_list, motif_X, coefs, var_lut):
@@ -704,7 +758,7 @@ if __name__ == "__main__":
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
 
-    with open(out_coefs_fname, "r") as f:
+    with open(out_coefs_fname, "rb") as f:
         motif_coefs = np.load(f)
 
     #lasso_fit_fname = glob.glob(fit_search)[0]
@@ -852,7 +906,6 @@ if __name__ == "__main__":
 ##############################################################################
 ##############################################################################
 
-
         #fit = train_glmnet(
         #    all_train_motifs.X,
         #    train_y,
@@ -861,26 +914,25 @@ if __name__ == "__main__":
         #    alpha=1,
         #)
 
-        my_shelf = shelve.open("/anvil/projects/x-mcb140220/schroedj/motif_data/POU5F1/POU5F1_input/seq_fold_0_output/eval_state.out")
-        for key in my_shelf:
-            try:
-                globals()[key]=my_shelf[key]
-            except:
-                print(f"Error unshelfing {key}")
-        my_shelf.close()
-
         #coefs = fetch_coefficients(fam, fit, args.continuous)
-
-        # predict on test data
-        fit_eval = evaluate_fit(
-            fit,
+        fit_eval = evaluate_fit2(
+            motif_coefs,
             all_test_motifs.X,
             test_y,
-            fam,
-            lambda_cut="lambda.1se",
             prefix=eval_dist_plot_prefix,
-            plot=True,
+            plot=False,
         )
+
+        # predict on test data
+        #fit_eval = evaluate_fit(
+        #    fit,
+        #    all_test_motifs.X,
+        #    test_y,
+        #    fam,
+        #    lambda_cut="lambda.1se",
+        #    prefix=eval_dist_plot_prefix,
+        #    plot=True,
+        #)
 
         with open(eval_out_fname, 'w') as f:
             json.dump(fit_eval, f, indent=1)
@@ -910,5 +962,5 @@ if __name__ == "__main__":
                 prc_prefix+".pdf",
             )
         )
-        os.remove(seq_meme_fname)
+        #os.remove(seq_meme_fname)
 
