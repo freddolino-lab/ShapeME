@@ -19,7 +19,7 @@ fn main() {
         .num_threads(cfg.cores)
         .build_global()
         .unwrap();
-    println!("\nfind_motifs binary using {} cores via rayon\n", current_num_threads());
+    println!("\nfind_motifs binary using {} cores via rayon", current_num_threads());
 
     let rec_db = motifer::RecordsDB::new_from_files(
         &cfg.shape_fname,
@@ -33,6 +33,7 @@ fn main() {
     let mut threshold = 1000.0;
     let mut counter = 0;
     let mut prior_len = 0;
+    println!("Max number of batches allowed prior to terminating initial seed evaluation: {}\n", cfg.max_batch_no_new);
     //let threshold = &cfg.threshold;
 
     for (i,batch) in rec_db.batch_iter(cfg.batch_size).enumerate() {
@@ -77,7 +78,6 @@ fn main() {
             these_motifs.len(),
             i+1,
         );
-        println!();
         motifs.append(these_motifs);
 
         // don't waste time doing another cmi filter if we have the max batch num set
@@ -89,23 +89,26 @@ fn main() {
                 &cfg.max_count,
             );
 
-            // if we already have a motif candidate, check if we're finding the same
-            // candidates over an over
-            if prior_len > 0 {
-                // if we added motifs, re-set number of batches without addition counter
-                let motifs_len = motifs.len();
-                if motifs_len > prior_len {
-                    prior_len = motifs_len;
-                    counter = 0;
+            // if we added motifs, re-set number of batches without addition counter
+            let motifs_len = motifs.len();
+            if motifs_len > prior_len {
+                prior_len = motifs_len;
+                counter = 0;
+                println!("At least one motif from batch {} was added to list. Current number of motifs is {}", i+1, prior_len);
+            } else {
+                counter += 1;
+                if counter == 1 {
+                    println!("No new motifs added to list for {} batch.", counter);
                 } else {
-                    counter += 1;
-                }
-                if counter == cfg.max_batch_no_new {
-                    println!("Limit on the number of batches of seeds evaulated with no new motif additions reached. Breaking loop of initial seed evaluation.");
-                    break
+                    println!("No new motifs added to list for {} batches.", counter);
                 }
             }
+            if counter == cfg.max_batch_no_new {
+                println!("Limit on the number of batches of seeds evaulated with no new motif additions reached. Breaking loop of initial seed evaluation.");
+                break
+            }
         }
+        println!();
     }
 
     if motifs.len() == 0 {
