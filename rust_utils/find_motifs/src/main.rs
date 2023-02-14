@@ -77,6 +77,7 @@ fn main() {
             these_motifs.len(),
             i+1,
         );
+        println!();
         motifs.append(these_motifs);
 
         // don't waste time doing another cmi filter if we have the max batch num set

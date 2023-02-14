@@ -1832,13 +1832,14 @@ class RecordDatabase(object):
     """
 
     def __init__(self, infile=None, shape_dict=None, y=None, X=None,
-                 shape_names=None, record_names=None, weights=None, windows=None,
+                 shape_names=None, record_names=None, weights=None,
                  shift_params=["HelT", "Roll"],
                  exclude_na=True):
 
         self.record_name_list = []
         self.record_name_lut = {}
         self.shape_name_lut = {}
+        self.normalized = False
         if X is None:
             self.X = None
         else:
@@ -1853,8 +1854,6 @@ class RecordDatabase(object):
             #self.record_name_lut = {name:i for i,name in enumerate(record_names)}
         if weights is not None:
             self.weights = weights
-        if windows is not None:
-            self.windows = windows
         if infile is not None:
             self.read_infile(infile)
         if shape_dict is not None:
@@ -2214,9 +2213,8 @@ class RecordDatabase(object):
 
     def permute_records(self):
 
-        rand_order = np.random.permutation(self.windows.shape[0])
+        rand_order = np.random.permutation(self.X.shape[0])
 
-        permuted_windows = self.windows[rand_order,...]
         permuted_shapes = self.X[rand_order,...]
         permuted_vals = self.y[rand_order,...]
 
@@ -2227,7 +2225,6 @@ class RecordDatabase(object):
             y = permuted_vals,
             X = permuted_shapes,
             shape_names = [rev_lut[idx] for idx in range(shape_count)],
-            windows = permuted_windows,
         )
         return(permuted_records)
 
