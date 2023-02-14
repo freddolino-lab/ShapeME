@@ -141,6 +141,15 @@ if __name__ == "__main__":
         help=f"Add this flag to write all motif meme files, regardless of whether "\
             f"the model with shape motifs, sequence motifs, or both types of "\
             f"motifs was most performant.")
+    parser.add_argument("--exhaustive", action="store_true", default=False,
+        help=f"Add this flag to perform and exhaustive initial search for seeds. "\
+            f"This can take a very long time for datasets with more than a few-thousand "\
+            f"binding sites. Setting this option will ignore the --max-rounds-no-new-seed "\
+            f"option.")
+    parser.add_argument("--max-batch-no-new-seed", type=int, default=10,
+        help=f"Sets the number of batches of seed evaluation with no new motifs "\
+            f"added to the set of motifs to be optimized prior to truncating the "\
+            f"initial search for motifs.")
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
@@ -271,6 +280,7 @@ if __name__ == "__main__":
         shape_fname_dict,
         shift_params = ["Roll", "HelT"],
     )
+    records = records.permute_records()
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
            
     # read in the values associated with each sequence and store them
@@ -505,6 +515,10 @@ if __name__ == "__main__":
 
     FIND_CMD = f"{find_bin} {config_fname}"
 
+    max_batch = args.max_batch_no_new_seed
+    if args.exhaustive:
+        max_batch = 1_000_000_000
+
     find_args_dict = {
         'out_fname': rust_out_fname,
         'shape_fname': shape_fname,
@@ -528,6 +542,7 @@ if __name__ == "__main__":
         'n_opt_iter': args.opt_niter,
         't_adjust': args.t_adj,
         'batch_size': args.batch_size,
+        'max_batch_no_new': max_batch,
         'good_motif_out_fname': good_motif_out_fname, 
     }
 

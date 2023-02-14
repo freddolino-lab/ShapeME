@@ -31,6 +31,8 @@ fn main() {
     // then use that threshold for all chunks
     let mut motifs = motifer::Motifs::empty();
     let mut threshold = 1000.0;
+    let mut counter = 0;
+    let mut prior_len = 0;
     //let threshold = &cfg.threshold;
 
     for (i,batch) in rec_db.batch_iter(cfg.batch_size).enumerate() {
@@ -76,6 +78,33 @@ fn main() {
             i+1,
         );
         motifs.append(these_motifs);
+
+        // don't waste time doing another cmi filter if we have the max batch num set
+        // super high.
+        if cfg.max_batch_no_new < 1000000000 {
+            motifs = motifs.filter_motifs(
+                &rec_db,
+                &threshold,
+                &cfg.max_count,
+            );
+
+            // if we already have a motif candidate, check if we're finding the same
+            // candidates over an over
+            if prior_len > 0 {
+                // if we added motifs, re-set number of batches without addition counter
+                let motifs_len = motifs.len();
+                if motifs_len > prior_len {
+                    prior_len = motifs_len;
+                    counter = 0;
+                } else {
+                    counter += 1;
+                }
+                if counter == cfg.max_batch_no_new {
+                    println!("Limit on the number of batches of seeds evaulated with no new motif additions reached. Breaking loop of initial seed evaluation.");
+                    break
+                }
+            }
+        }
     }
 
     if motifs.len() == 0 {

@@ -1234,7 +1234,7 @@ class Motifs:
             #motif["count_df"] = tmp_df.drop(["hit_0", "cat_0"], axis=1)
 ####    ##############################################################
             #model = linear_model.LogisticRegression(
-            #    penalty = "none",
+            #    penalty = None,
             #    multi_class = "multinomial",
             #    fit_intercept = True,
             #)
@@ -1370,12 +1370,10 @@ class Motifs:
         # of {'motif_idx': motif index in list of motifs,
         #     'hits': the class of hit this covariate represents, i.e., [0,1], [1,1], etc.}
         new_lut = {}
-        # place intercept for each class into list of filtered coefficients
-        new_coefs = [coefs[:,0]]
         # construct lookup table where motif index is key, and value is list
         #  of column indices for that motif in coefs
         motif_lut = {}
-        
+
         #print("------------------------------")
         #print(var_lut)
         #print("------------------------------")
@@ -1390,6 +1388,8 @@ class Motifs:
                 motif_lut[coef['motif_idx']].append(k+1)
 
         retain = []
+        # keep the first column (intercept)
+        retain_coefs = [0]
         # make nrow-by-zero array to start appending covariates from coeficiens with 
         # predictive value
         retained_X = np.zeros((self.X.shape[0],0))
@@ -1401,6 +1401,7 @@ class Motifs:
         for motif_idx,motif_coef_inds in motif_lut.items():
             # instantiate a list to carry bools
             motif_any_nonzero = []
+            this_motif_coef_inds = []
             for coef_idx in motif_coef_inds:
                 # are any of these values non-zero?
                 #print(f"motif_idx: {motif_idx}")
@@ -1419,13 +1420,16 @@ class Motifs:
                         'motif_idx': len([_ for _ in retain if _]),
                         'hits': self.var_lut[coef_idx-1]['hits'],
                     }
-                    new_coefs.append(coefs[:,coef_idx])
                 motif_any_nonzero.append(has_non_zero)
+                this_motif_coef_inds.append(coef_idx)
             
             # if any column for this motif contained any non-zero values, retain it
+            # and all its coefficients
             #print(f"motif_any_nonzero: {motif_any_nonzero}")
             if np.any(motif_any_nonzero):
                 retain.append(True)
+                for mo_idx in this_motif_coef_inds:
+                    retain_coefs.append(mo_idx)
             else:
                 retain.append(False)
                 print(
@@ -1437,11 +1441,16 @@ class Motifs:
         #print(f"retain: {retain}")
         # keep motifs for which at least one coefficient was non-zero
         retained_motifs = [self[i] for i,_ in enumerate(retain) if _]
+
+        retained_coefs = np.zeros((coefs.shape[0], len(retain_coefs)))
+        for (new_i,filt_i) in enumerate(retain_coefs):
+            retained_coefs[:,new_i] = coefs[:,filt_i]
+
         self.motifs = retained_motifs
         self.X = retained_X
         self.var_lut = new_lut
 
-        return(np.stack(new_coefs, axis=1))
+        return(retained_coefs)
 
 
     def prep_shape_logit_reg_data(self, max_count):

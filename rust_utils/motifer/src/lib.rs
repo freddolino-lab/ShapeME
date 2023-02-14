@@ -885,6 +885,8 @@ pub struct Config {
     pub logit_reg_fname: String,
     #[serde(default = "default_fname")]
     pub eval_rust_fname: String,
+    #[serde(default = "default_max_batches")]
+    pub max_batch_no_new: usize,
 }
 
 fn default_fname() -> String { String::from("default") }
@@ -915,6 +917,7 @@ fn default_shape_ub() -> f64 { 4.0 }
 fn default_shape_lb() -> f64 { -4.0 }
 fn default_thresh_ub() -> f64 { 4.0 }
 fn default_thresh_lb() -> f64 { 0.0 }
+fn default_max_batches() -> usize { 10 }
 
 impl Config {
     /// Returns a Config struct containing options contained in
