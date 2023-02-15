@@ -280,7 +280,16 @@ if __name__ == "__main__":
         shape_fname_dict,
         shift_params = ["Roll", "HelT"],
     )
-    records = records.permute_records()
+
+    #with open("/home/jwschroeder/data/orig_records.pkl", "wb") as f:
+    #    pickle.dump(records, f)
+
+    # randomly shuffle record order
+    records.permute_records()
+
+    #with open("/home/jwschroeder/data/rand_records.pkl", "wb") as f:
+    #    pickle.dump(records, f)
+
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
            
     # read in the values associated with each sequence and store them

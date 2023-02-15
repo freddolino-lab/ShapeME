@@ -37,7 +37,7 @@ fn main() {
     //let threshold = &cfg.threshold;
 
     for (i,batch) in rec_db.batch_iter(cfg.batch_size).enumerate() {
-        println!("Making Seeds from batch {} of RecordsDB", i+1);
+        println!("Making Seeds from batch {} of RecordsDB.", i+1);
         let mut seeds = batch.make_seed_vec(cfg.kmer, cfg.alpha);
 
         if i == 0 {
@@ -94,7 +94,7 @@ fn main() {
             if motifs_len > prior_len {
                 prior_len = motifs_len;
                 counter = 0;
-                println!("At least one motif from batch {} was added to list. Current number of motifs is {}", i+1, prior_len);
+                println!("At least one motif from batch {} was added to list. Current number of motifs is {}.", i+1, prior_len);
             } else {
                 counter += 1;
                 if counter == 1 {
@@ -104,7 +104,7 @@ fn main() {
                 }
             }
             if counter == cfg.max_batch_no_new {
-                println!("Limit on the number of batches of seeds evaulated with no new motif additions reached. Breaking loop of initial seed evaluation.");
+                println!("\nLimit on the number of batches of seeds evaulated with no new motif additions reached. Breaking loop of initial seed evaluation.\n");
                 break
             }
         }
@@ -231,7 +231,7 @@ fn main() {
         *motif = optimized_motif;
     });
 
-    println!("Filtering optimized motifs based on conditional mutual information.");
+    println!("\nFiltering optimized motifs based on conditional mutual information.");
     let mut motifs = motifs.filter_motifs(
         &rec_db,
         &threshold,

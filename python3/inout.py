@@ -2218,15 +2218,9 @@ class RecordDatabase(object):
         permuted_shapes = self.X[rand_order,...]
         permuted_vals = self.y[rand_order,...]
 
-        shape_count = self.X.shape[-1]
-        rev_lut = {val:k for k,val in self.shape_name_lut.items()}
+        self.X = permuted_shapes
+        self.y = permuted_vals
 
-        permuted_records = RecordDatabase(
-            y = permuted_vals,
-            X = permuted_shapes,
-            shape_names = [rev_lut[idx] for idx in range(shape_count)],
-        )
-        return(permuted_records)
 
     def set_initial_threshold(self, dist, weights, alpha=0.1,
                               threshold_sd_from_mean=2.0,
