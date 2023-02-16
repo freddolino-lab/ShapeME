@@ -2217,6 +2217,11 @@ class RecordDatabase(object):
 
         permuted_shapes = self.X[rand_order,...]
         permuted_vals = self.y[rand_order,...]
+        permuted_record_names = [ self.record_name_list[idx] for idx in rand_order ]
+        self.record_name_list = permuted_record_names
+        
+        for i,rec_name in enumerate(permuted_record_names):
+            self.record_name_lut[rec_name] = i
 
         self.X = permuted_shapes
         self.y = permuted_vals

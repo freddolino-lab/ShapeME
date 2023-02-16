@@ -281,14 +281,8 @@ if __name__ == "__main__":
         shift_params = ["Roll", "HelT"],
     )
 
-    #with open("/home/jwschroeder/data/orig_records.pkl", "wb") as f:
-    #    pickle.dump(records, f)
-
     # randomly shuffle record order
     records.permute_records()
-
-    #with open("/home/jwschroeder/data/rand_records.pkl", "wb") as f:
-    #    pickle.dump(records, f)
 
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
            
@@ -352,12 +346,6 @@ if __name__ == "__main__":
         cores = args.p,
     )
 
-    #intercept_bic = evm.get_sklearn_bic(
-    #    intercept_X,
-    #    records.y,
-    #    intercept_fit,
-    #)
-
     seq_motif_exists = False
     shape_motif_exists = False
 
@@ -401,7 +389,7 @@ if __name__ == "__main__":
             print()
             logging.info(
                 f"Only one sequence motif present. "\
-                f"Performing model selection using BIC to determine whether "\
+                f"Performing model selection using CV-F1 to determine whether "\
                 f"the motif is informative over intercept alone."
             )
             # toggle one_seq_motif to True for later use in building combined
@@ -437,11 +425,19 @@ if __name__ == "__main__":
                 f"{len(seq_motifs)}"
             )
 
-            if len(seq_motifs) == 1:
+            if len(seq_motifs) == 0:
+                print()
+                logging.info(
+                    f"Only intercept term left after LASSO regression.\n"\
+                    f"Therefore, no informatife sequence motif exists."
+                )
+                seq_motif_exists = False
+
+            elif len(seq_motifs) == 1:
                 print()
                 logging.info(
                     f"Only one sequence motif left after LASSO regression.\n"\
-                    f"Performing model selection using BIC to determine whether "\
+                    f"Performing model selection using CV-F1 to determine whether "\
                     f"the remaining motif is informative over intercept alone."
                 )
                 one_seq_motif = True
@@ -450,7 +446,7 @@ if __name__ == "__main__":
             else:
                 seq_motif_exists = True
  
-        # supplement motifs object with bic
+        # supplement motifs object with CV-F1 score
         intercept_and_motif_X = np.append(intercept_X, seq_motifs.X, axis=1)
 
         motif_fit = evm.train_sklearn_glm(
@@ -469,16 +465,9 @@ if __name__ == "__main__":
             cores = args.p,
         )
 
-        #seq_motifs.bic = evm.get_sklearn_bic(
-        #    intercept_and_motif_X,
-        #    records.y,
-        #    motif_fit,
-        #)
-
-        # if there's only one covariate, compare bic from intercept+motif
+        # if there's only one covariate, compare CV-F1 from intercept+motif
         # and intercept only
         if one_seq_motif:
-            #bic_list = [ intercept_bic, seq_motifs.bic ]
             metric_list = [ intercept_metric, seq_motifs.metric ]
             model_list = [ intercept_fit, motif_fit ]
 
@@ -646,7 +635,7 @@ if __name__ == "__main__":
             f"{shape_motifs.var_lut}"
         )
 
-        # supplement the shape motifs object with the bic from a model
+        # supplement the shape motifs object with the CV-F1 from a model
         intercept_and_shape_X = np.append(intercept_X, shape_motifs.X, axis=1)
 
         motif_fit = evm.train_sklearn_glm(
@@ -665,12 +654,6 @@ if __name__ == "__main__":
             cores = args.p,
         )
 
-        #shape_motifs.bic = evm.get_sklearn_bic(
-        #    intercept_and_shape_X,
-        #    records.y,
-        #    motif_fit,
-        #)
-  
         # check whether there's only one informative covariate
         if shape_motifs.X.shape[1] == 1:
             print()
@@ -681,12 +664,11 @@ if __name__ == "__main__":
                 f"compare to a model fit using only an intercept."
             )
 
-            #bic_list = [ intercept_bic, shape_motifs.bic ]
             metric_list = [ intercept_metric, shape_motifs.metric ]
             model_list = [ intercept_fit, motif_fit ]
 
             best_mod_idx = evm.choose_model(
-                bic_list,
+                metric_list,
                 model_list,
                 return_index = True,
             )
@@ -776,7 +758,7 @@ if __name__ == "__main__":
             print()
             logging.info(f"Number of final motifs: {len(shape_and_seq_motifs)}")
 
-            # supplement motifs object with bic
+            # supplement motifs object with CV-F1
             intercept_and_shape_and_seq_X = np.append(
                 intercept_X,
                 shape_and_seq_motifs.X,
@@ -799,13 +781,16 @@ if __name__ == "__main__":
                 cores = args.p,
             )
 
-            #shape_and_seq_motifs.bic = evm.get_sklearn_bic(
-            #    intercept_and_shape_and_seq_X,
-            #    records.y,
-            #    int_and_shape_and_seq_fit,
-            #)
+            if len(shape_and_seq_motifs) == 0:
+                print()
+                logging.info(
+                    f"Only intercept term left after LASSO regression.\n"\
+                    f"Therefore, no informative sequence or shape motif exists."\
+                    f"Not writing a motif to output. Exiting now."
+                )
+                sys.exit()
 
-            if len(shape_and_seq_motifs) == 1:
+            elif len(shape_and_seq_motifs) == 1:
                 print()
                 logging.info(
                     f"Only one motif left after LASSO regression. "\
@@ -813,7 +798,6 @@ if __name__ == "__main__":
                     f"the remaining motif is informative over intercept alone."
                 )
  
-                #bic_list = [ intercept_bic, shape_and_seq_motifs.bic ]
                 metric_list = [ intercept_metric, shape_and_seq_motifs.metric ]
                 model_list = [ intercept_fit, int_and_shape_and_seq_fit ]
 
