@@ -90,7 +90,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
         ax = plt.gca()
 
     # Plot the heatmap
-    im = ax.imshow(data, cmap="bwr", **kwargs)
+    im = ax.imshow(data, **kwargs)
 
     # Create colorbar
     cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
@@ -234,7 +234,7 @@ def plot_motif_enrichment(
         row_labs,
         col_labs,
         ax=ax,
-        cmap="viridis",
+        cmap="bwr",
         cbarlabel="log2-fold-enrichment",
     )
     texts = annotate_heatmap(im, valfmt="{x:.2f}", textcolors=("white","black"))
