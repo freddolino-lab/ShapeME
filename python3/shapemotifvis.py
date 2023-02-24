@@ -228,6 +228,10 @@ def plot_motif_enrichment(
             hm_teststats[i,j] = enrich["test_stats"][table_row_idx,table_col_idx]
     col_labs = [f"Category: {int(category):d}" for category in distinct_cats]
 
+    hm_max = hm_data.max()
+    hm_min = hm_data.min()
+    abs_max = np.abs([hm_min, hm_max]).max()
+
     fig, ax = plt.subplots()
     im,cbar = heatmap(
         hm_data,
@@ -236,6 +240,8 @@ def plot_motif_enrichment(
         ax=ax,
         cmap="bwr",
         cbarlabel="log2-fold-enrichment",
+        vmin = -abs_max,
+        vmax = abs_max,
     )
     texts = annotate_heatmap(im, valfmt="{x:.2f}", textcolors=("white","black"))
 
