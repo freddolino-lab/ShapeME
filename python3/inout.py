@@ -1958,7 +1958,8 @@ class RecordDatabase(object):
         for quant in quants:
             bins.append(np.percentile(values, quant))
         logging.warning("Quantizing on bins: {}".format(bins))
-        self.y = np.digitize(values, bins)
+        # subtract 1 to ensure categories start with 0
+        self.y = np.digitize(values, bins) - 1
         return bins
 
     def discretize_quant(self, nbins=10):

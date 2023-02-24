@@ -61,7 +61,7 @@ def plot_optim_trajectory(motif_list, file_name, top_n=20, opacity=1):
     plt.close()
 
 
-def heatmap(data, row_labels, col_labels, ax=None,
+def heatmap(data, pvals, row_labels, col_labels, ax=None,
             cbar_kw={}, cbarlabel="", **kwargs):
     """
     Create a heatmap from a numpy array and two lists of labels.
@@ -70,6 +70,8 @@ def heatmap(data, row_labels, col_labels, ax=None,
     Parameters
     ----------
     data
+        A 2D numpy array of shape (M, N).
+    pvals
         A 2D numpy array of shape (M, N).
     row_labels
         A list or array of length M with the labels for the rows.
@@ -89,8 +91,12 @@ def heatmap(data, row_labels, col_labels, ax=None,
     if not ax:
         ax = plt.gca()
 
+    min_p = 1e-4
+    clipped_pvals = np.clip(pvals, min_p, 1.0)
+    alpha = (-np.log10(clipped_pvals) + 1) / (-np.log10(min_p) + 1)
+
     # Plot the heatmap
-    im = ax.imshow(data, **kwargs)
+    im = ax.imshow(X=data, alpha=alpha, **kwargs)
 
     # Create colorbar
     cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
@@ -228,20 +234,21 @@ def plot_motif_enrichment(
             hm_teststats[i,j] = enrich["test_stats"][table_row_idx,table_col_idx]
     col_labs = [f"Category: {int(category):d}" for category in distinct_cats]
 
-    hm_max = hm_data.max()
-    hm_min = hm_data.min()
-    abs_max = np.abs([hm_min, hm_max]).max()
+    abs_max = np.abs(hm_data.max())
+    abs_min = np.abs(hm_data.min())
+    lim = np.array([abs_min, abs_max]).max()
 
     fig, ax = plt.subplots()
     im,cbar = heatmap(
         hm_data,
+        hm_pvals,
         row_labs,
         col_labs,
         ax=ax,
         cmap="bwr",
         cbarlabel="log2-fold-enrichment",
-        vmin = -abs_max,
-        vmax = abs_max,
+        vmin = -lim,
+        vmax = lim,
     )
     texts = annotate_heatmap(im, valfmt="{x:.2f}", textcolors=("white","black"))
 
