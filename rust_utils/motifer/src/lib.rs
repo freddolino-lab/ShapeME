@@ -1746,6 +1746,9 @@ impl Motifs {
             max_count: &'a i64,
     ) -> Motifs {
 
+        if self.len() == 0 {
+            return Motifs::empty();
+        }
         // get number of parameters in model (shape number * seed length * 2)
         //  we multiply by two because we'll be optimizing shape AND weight values
         //  then add one for the threshold
@@ -1869,7 +1872,8 @@ pub struct Seeds<'a> {
 #[derive(Debug)]
 pub struct RecordsDB {
     seqs: Vec<StrandedSequence>,
-    pub values: ndarray::Array1::<i64>
+    pub values: ndarray::Array1::<i64>,
+    inds: Vec<usize>
 }
 
 /// Allows for iteration over a records database
@@ -1940,6 +1944,11 @@ impl StrandedSequence {
     /// in the initial parameters
     pub fn new(array: ndarray::Array3<f64>) -> StrandedSequence {
         StrandedSequence{ params: array }
+    }
+
+    fn empty() -> StrandedSequence {
+        let params = ndarray::Array3::zeros((1,1,1));
+        StrandedSequence{ params }
     }
 
     /// Creates a read-only windowed iterator over the sequence. Automatically
@@ -2788,7 +2797,42 @@ impl RecordsDB {
     /// * `seqs` - a vector of [Sequence]
     /// * `values` - a vector of values for each sequence
     pub fn new(seqs: Vec<StrandedSequence>, values: ndarray::Array1::<i64>) -> RecordsDB {
-        RecordsDB{seqs, values}
+        let inds = (0..seqs.len()).collect();
+        RecordsDB{seqs, values, inds}
+    }
+
+    /// randomly shuffles records in self, returns the permuted order so that
+    /// the random permutation can be un-done later
+    pub fn permute_records(&mut self) {
+        // get the vec of random indices
+        let rand_inds: Vec<usize> = self.random_inds();
+        let mut permuted_seqs: Vec<StrandedSequence> = Vec::with_capacity(self.len());
+        let mut permuted_vals: ndarray::Array1::<i64> = Array1::zeros(self.len());
+        for (i,rand_ind) in rand_inds.iter().enumerate() {
+            let owned_params = self.seqs[*rand_ind].params.to_owned();
+            permuted_seqs.push(StrandedSequence{ params: owned_params });
+            permuted_vals[i] = self.values[*rand_ind];
+        }
+        self.seqs = permuted_seqs;
+        self.values = permuted_vals;
+        self.inds = rand_inds;
+    }
+
+    pub fn undo_record_permutation(&mut self) {
+        let mut orig_seqs: Vec<StrandedSequence> = Vec::with_capacity(self.len());
+        for _ in 0..self.len() {
+            orig_seqs.push(StrandedSequence::empty());
+        }
+        let mut orig_vals: ndarray::Array1::<i64> = Array1::zeros(self.len());
+        let mut used_indices: Vec<usize> = Vec::with_capacity(self.len());
+        for (i, ind) in self.inds.iter().enumerate() {
+            let params = self.seqs[i].params.to_owned();
+            orig_seqs[*ind] = StrandedSequence::new(params);
+            orig_vals[*ind] = self.values[i];
+        }
+        self.seqs = orig_seqs;
+        self.values = orig_vals;
+        self.inds = (0..self.len()).collect();
     }
 
     /// Reads in input files to return a RecordsDB
@@ -2863,12 +2907,18 @@ impl RecordsDB {
         RecordsDBIter{loc: 0, db: &self, size: self.seqs.len()}
     }
 
-    /// Permute the indices of the database, then iterate over the permuted indices
-    pub fn random_iter(&self, sample_size: usize) -> PermutedRecordsDBIter {
+    fn random_inds(&self) -> Vec<usize> {
         // create vector of indices
         let mut inds: Vec<usize> = (0..self.seqs.len()).collect();
         // randomly shuffle the indices
         inds.shuffle(&mut thread_rng());
+        inds
+    }
+
+    /// Permute the indices of the database, then iterate over the permuted indices
+    pub fn random_iter(&self, sample_size: usize) -> PermutedRecordsDBIter {
+        // create vector of indices
+        let inds = self.random_inds();
         // return the struct for iterating
         let mut size = sample_size;
         if sample_size >= self.seqs.len() {

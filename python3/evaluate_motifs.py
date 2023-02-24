@@ -243,20 +243,23 @@ def calculate_F1():
 def CV_F1(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
 
     mc = "multinomial"
+    scoring = "f1_micro"
     if family == "binomial":
         mc = "ovr"
+        scoring = "f1"
 
     estimator = linear_model.LogisticRegression(
         penalty = None,
         multi_class = mc,
         fit_intercept = fit_intercept,
+        max_iter = 200,
     )
 
     F_scores = cross_val_score(
         estimator,
         X,
         y,
-        scoring = "f1",
+        scoring = scoring,
         cv = folds,
         n_jobs = cores,
     )
@@ -320,12 +323,14 @@ def train_sklearn_glm(X,y,fit_intercept=False,family='binomial'):
             penalty = None,
             multi_class = "multinomial",
             fit_intercept = fit_intercept,
+            max_iter = 200,
         )
     else:
         model = linear_model.LogisticRegression(
             penalty=None,
             multi_class = "ovr",
             fit_intercept = fit_intercept,
+            max_iter = 200,
         )
 
     model.fit(X,y)
@@ -614,6 +619,9 @@ def fetch_coefficients_multinomial(fit, n_classes):
     ncoefs = fit.rx2["glmnet.fit"].rx2["dim"][0] + 1
     coefs = glmnet.coef_cv_glmnet(fit, s="lambda.1se")
     coefs_arr = np.zeros((n_classes, ncoefs))
+    with open("debug.pkl", "wb") as f:
+        info = {'fit': fit, 'nclass': n_classes}
+        pickle.dump(info, f)
     for i in range(n_classes):
         coefs_arr[i,:] = base.as_matrix(coefs.rx2[str(i)])[:,0]
         

@@ -281,9 +281,6 @@ if __name__ == "__main__":
         shift_params = ["Roll", "HelT"],
     )
 
-    # randomly shuffle record order
-    records.permute_records()
-
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
            
     # read in the values associated with each sequence and store them
@@ -440,6 +437,7 @@ if __name__ == "__main__":
                     f"Performing model selection using CV-F1 to determine whether "\
                     f"the remaining motif is informative over intercept alone."
                 )
+
                 one_seq_motif = True
 
             # if more than one left after LASSO, seq seq_motif_exists to True
@@ -485,8 +483,21 @@ if __name__ == "__main__":
                     f"informative "\
                     f"sequence motif. Not writing a sequence motif to output."
                 )
+                seq_motif_exists = False
             # if our one seq motif is better than intercept, set seq_motif_exits to True
             else:
+                print()
+                logging.info(
+                    f"Sequence-motif-containing model performed better "\
+                    f"than intercept-only model. Therefore, at least one "\
+                    f"informative sequence motif exists."
+                )
+
+                filtered_seq_coefs = motif_fit.coef_
+                seq_coefs = motif_fit.coef_
+                print()
+                logging.info(f"Sequence motif coefficients:\n{filtered_seq_coefs}")
+                logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
                 seq_motif_exists = True
 
     good_motif_out_fname = os.path.join(
@@ -545,7 +556,7 @@ if __name__ == "__main__":
     }
 
     if args.continuous is not None:
-        find_args_dist['y_cat_num'] = num_cats
+        find_args_dict['y_cat_num'] = num_cats
 
     # supplement args info with shape center and spread from database
     find_args_dict['names'] = []
@@ -684,7 +695,7 @@ if __name__ == "__main__":
                 logging.info(
                     f"Intercept-only model had better score than model fit using "\
                     f"intercept and one shape covariate. Therefore, there is no "\
-                    f"informative shape motif. Not writing a shape motif to output. "\
+                    f"informative shape motif. Not writing a shape motif to output."\
                     f"Exiting now."
                 )
                 sys.exit()

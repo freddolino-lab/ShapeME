@@ -5,6 +5,7 @@ import numpy as np
 import logging
 import random
 import pathlib
+import pickle
 
 this_path = pathlib.Path(__file__).parent.absolute()
 utils_path = os.path.join(this_path, 'utils')
@@ -133,6 +134,8 @@ if __name__ == "__main__":
     with open(args.fasta) as inf:
         genome.read_whole_file(inf)
     #print("Genome fasta chrom names: {}".format(genome.names))
+    #with open("debug.pkl", "wb") as f:
+    #    pickle.dump(genome, f)
 
     peaks = pk.PeakList()
     logging.warning("reading in narrowPeaks")

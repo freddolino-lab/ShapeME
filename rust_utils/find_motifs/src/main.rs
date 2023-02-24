@@ -21,10 +21,14 @@ fn main() {
         .unwrap();
     println!("\nfind_motifs binary using {} cores via rayon", current_num_threads());
 
-    let rec_db = motifer::RecordsDB::new_from_files(
+    let mut rec_db = motifer::RecordsDB::new_from_files(
         &cfg.shape_fname,
         &cfg.yvals_fname,
     );
+
+    // randomize order of records prior to the next steps.
+    // This randomization will be undone later after motif optimization.
+    rec_db.permute_records();
 
     // Starting here, I need to loop over chunks of rec_db.
     // I'll have to get the first chunk and calculate initial threshold,
@@ -33,8 +37,10 @@ fn main() {
     let mut threshold = 1000.0;
     let mut counter = 0;
     let mut prior_len = 0;
-    println!("Max number of batches allowed prior to terminating initial seed evaluation: {}\n", cfg.max_batch_no_new);
-    //let threshold = &cfg.threshold;
+    println!(
+        "Max number of batches allowed prior to terminating initial seed evaluation: {}\n",
+        cfg.max_batch_no_new,
+    );
 
     for (i,batch) in rec_db.batch_iter(cfg.batch_size).enumerate() {
         println!("Making Seeds from batch {} of RecordsDB.", i+1);
@@ -238,6 +244,9 @@ fn main() {
         &cfg.max_count,
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
+
+    // undo record permutation now, prior to final udate of hits/mi/etc.
+    rec_db.undo_record_permutation();
 
     motifs.post_optim_update(&rec_db, &cfg.max_count);
     motifs.json_motifs(&cfg.out_fname);
