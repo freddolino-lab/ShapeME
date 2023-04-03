@@ -814,6 +814,7 @@ if __name__ == "__main__":
         #quantize_bins = bins,
         dset_type = "test",
     )
+    test_records.set_category_lut()
 
     # write shapes to npy file. Permute axes 1 and 2.
     with open(test_shape_fname, 'wb') as shape_f:
@@ -823,7 +824,7 @@ if __name__ == "__main__":
         np.save(f, test_records.y.astype(np.int64))
 
     logging.info("Distribution of testing set sequences per class:")
-    logging.info(inout.seqs_per_bin(test_records))
+    logging.info(test_records.seqs_per_bin())
 
     logging.info("Getting distance between motifs and each record")
 

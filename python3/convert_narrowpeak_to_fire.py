@@ -120,8 +120,8 @@ if __name__ == "__main__":
             help="random seed for reproducibility")
     parser.add_argument('--rmchr', action="store_true", default=False, 
             help="rm chr string from peak chromosomes")
-    parser.add_argument('--discretize', type=int, default=None, 
-            help="discretize by value field?")
+    parser.add_argument('--continuous', default=False, action="store_true",
+            help="Include at command line to keep value field continuous")
     parser.add_argument('--center_metric', type=str, 
             help="geom or height, geom gives geometric center of the peak (default). \
                     height gives narrowpeak defined peak summit.")
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         this_entry.set_seq(this_seq)
         this_entry.set_header(">"+"peak_%i"%(i))
         outfasta.add_entry(this_entry)
-        if args.discretize:
+        if args.continuous:
             realfire.add_entry(this_entry.chrm_name(), peak.signalval)
         else:
             realfire.add_entry(this_entry.chrm_name(), 1)
@@ -181,8 +181,6 @@ if __name__ == "__main__":
             this_rand.set_header(">"+"peak_%i_%i"%(i,j))
             outfasta.add_entry(this_rand)
             fakefire.add_entry(this_rand.chrm_name(),0)
-    if args.discretize:
-        realfire.discretize_quant(args.discretize)
     finalfire = realfire + fakefire
     finalfire.shuffle()
     if args.kfold:

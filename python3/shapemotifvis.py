@@ -232,7 +232,7 @@ def plot_motif_enrichment(
             hm_data[i,j] = enrich["log2_ratio"][table_row_idx,table_col_idx]
             hm_pvals[i,j] = enrich["pvals"][table_row_idx,table_col_idx]
             hm_teststats[i,j] = enrich["test_stats"][table_row_idx,table_col_idx]
-    col_labs = [f"Category: {int(category):d}" for category in distinct_cats]
+    col_labs = [f"Category: {int(records.category_lut[category]):d}" for category in distinct_cats]
 
     abs_max = np.abs(hm_data.max())
     abs_min = np.abs(hm_data.min())

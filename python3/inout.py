@@ -209,22 +209,6 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
     return passing_motifs
 
  
-def seqs_per_bin(records):
-    """ Function to determine how many sequences are in each category
-
-    Args:
-        records (SeqDatabase) - database to calculate over
-    Returns:
-        outstring - a string enumerating the number of seqs in each category
-    """
-    string = ""
-    for value in np.unique(records.y):
-        string += "\nCat {}: {}".format(
-            value, np.sum(records.y ==  value)
-        )
-    return string
-
-
 def get_precision_recall(yhat, y, plot_prefix=None):
     ## NOTE: needs expanded for multiclass predictions
     pos_probs = yhat[:, 1]
@@ -1870,6 +1854,22 @@ class RecordDatabase(object):
 
         return len(self.y)
 
+
+    def seqs_per_bin(self):
+        """ Method to determine how many sequences are in each category
+
+        Returns:
+            outstring - a string enumerating the number of seqs in each category
+        """
+        string = ""
+        for value in np.unique(self.y):
+            user_cat = self.category_lut[value]
+            string += "\nCat {}: {}".format(
+                user_cat, np.sum(self.y ==  value)
+            )
+        return string
+
+
     def create_transform_lines(self):
         """ Method to create a transform line
 
@@ -2006,6 +2006,17 @@ class RecordDatabase(object):
                 dtype=float,
             )
 
+    def set_category_lut(self):
+        y_copy = self.y.copy()
+        distinct_cats = np.sort(np.unique(self.y))
+        self.category_lut = {}
+        for (i,category) in enumerate(distinct_cats):
+            self.category_lut[i] = category
+            y_copy[self.y == category] = i
+
+        print(f"Category lookup table\n{self.category_lut}")
+        self.y = y_copy
+
     def read_shapes(self, shape_dict, shift_params=["HelT","Roll"], exclude_na=True):
         """Parses info in shapefiles and inserts into database
 
@@ -2030,6 +2041,9 @@ class RecordDatabase(object):
 
         for shape_name,shape_infname in shape_dict.items():
 
+            #print(shape_infname)
+            #print(shape_name)
+
             if not shape_name in self.shape_name_lut:
                 self.shape_name_lut[shape_name] = shape_idx
                 s_idx = shape_idx
@@ -2048,6 +2062,7 @@ class RecordDatabase(object):
                 self.X = np.zeros((record_count,record_length,shape_count,2))
 
             for rec_name,rec_data in this_shape_dict.items():
+                #print(rec_name)
                 r_idx = self.record_name_lut[rec_name]
 
                 if shape_name in shift_params:

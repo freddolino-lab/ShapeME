@@ -289,9 +289,10 @@ if __name__ == "__main__":
         records.quantize_quant(args.continuous)
 
     fam,num_cats = evm.set_family(records.y)
+    records.set_category_lut()
 
     logging.info("Distribution of sequences per class:")
-    logging.info(inout.seqs_per_bin(records))
+    logging.info(records.seqs_per_bin())
 
     logging.info("Normalizing parameters")
     if args.nonormalize:
