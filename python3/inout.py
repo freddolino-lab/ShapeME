@@ -137,9 +137,9 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
     eval_pat = re.compile(r'(?<=[ES]\= )\S+')
     nsites_pat = re.compile(r'(?<=nsites\= )\d+')
     threshold_pat = re.compile(r'(?<=threshold\= )\S+')
-    ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
+    ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
     robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
-    zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
+    zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
 
     # start not in_motif
     in_motif = False
@@ -659,6 +659,15 @@ class Motif:
         self.enrichments = enrichments
         self.nsites = nsites
 
+    def __str__(self):
+        outstr = self.create_data_header_line()
+        outstr += self.create_data_lines()
+        if self.motif_type == "shape":
+            outstr += self.create_weights_header_line()
+            outstr += self.create_weights_lines()
+        outstr += "\n"
+        return outstr
+
     def get_enrichments(self, categories, cat_inds):
         '''Calculates and stores motif enrichments in each
         category in rec_db. Modifies self.enrichments
@@ -816,6 +825,8 @@ class Motifs:
         self.bic = None
         self.motifs = []
         self.transform = {}
+        self.shape_row_lut = {}
+        self.seq_row_lut = {}
 
         if fname is not None:
             if motif_type == "shape":
@@ -842,13 +853,32 @@ class Motifs:
     def __len__(self):
         return len(self.motifs)
 
+    def __str__(self):
+        shapes_str = self.get_shape_str()
+        outstr = "ALPHABET= ACGT\n"
+        outstr += f"SHAPES= {shapes_str}\n"
+        for motif in self.motifs:
+            outstr += motif.create_data_header_line()
+            outstr += "\n"
+        return outstr
+
+    def get_shape_str(self):
+        shape_tuples = list([ (v,k) for k,v in self.shape_row_lut.items() ])
+        sorted_shape_names = [
+            y[0] for y in sorted(shape_tuples, key = lambda x:x[1])
+        ]
+        shapes_str = ' '.join(sorted_shape_names)
+        return shapes_str
+
     def split_seq_and_shape_motifs(self):
         seq_motifs = Motifs()
         seq_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "sequence"]
         seq_motifs.motif_type = "sequence"
+        seq_motifs.seq_row_lut = self.seq_row_lut
         shape_motifs = Motifs()
         shape_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "shape"]
         shape_motifs.motif_type = "shape"
+        shape_motifs.shape_row_lut = self.shape_row_lut
         return(seq_motifs, shape_motifs)
 
     def write_shape_motifs_as_rust_output(self, out_fname):
@@ -902,8 +932,8 @@ class Motifs:
         eval_pat = re.compile(r'(?<=E\= )\S+')
         nsites_pat = re.compile(r'(?<=nsites\= )\d+')
         threshold_pat = re.compile(r'(?<=threshold\= )\S+')
-        ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
-        zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
+        ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
 
         # start not in_motif
@@ -913,12 +943,12 @@ class Motifs:
             for line in f:
 
                 if line.startswith("ALPHABET= "):
-                    seq_row_lut = {
+                    self.seq_row_lut = {
                         i:v for i,v in enumerate(line.strip("ALPHABET=").strip())
                     }
 
                 if line.startswith("SHAPES= "):
-                    shape_row_lut = {
+                    self.shape_row_lut = {
                         i:v for i,v
                         in enumerate(line.strip("SHAPES=").strip().split(" "))
                     }
@@ -1009,10 +1039,10 @@ class Motifs:
                     # gather info from the description line
                     if description_line.startswith("shape-value"):
                         motif_type = "shape"
-                        row_lut = shape_row_lut
+                        row_lut = self.shape_row_lut
                     elif description_line.startswith("letter-probability"):
                         motif_type = "sequence"
-                        row_lut = seq_row_lut
+                        row_lut = self.seq_row_lut
 
                     mo = alphabet_len_pat.search(description_line)
                     alen = int(evaluate_match_object(mo))
@@ -1066,11 +1096,7 @@ class Motifs:
         rec_db : RecordDatabase
             whole database used
         """
-        shape_tuples = list(rec_db.shape_name_lut.items())
-        sorted_shape_names = [
-            y[0] for y in sorted(shape_tuples, key = lambda x:x[1])
-        ]
-        shapes_str = ' '.join(sorted_shape_names)
+        shapes_str = self.get_shape_str()
         with open(fname, mode="w") as f:
 
             f.write("MEME version 4\n\n")
@@ -1091,9 +1117,9 @@ class Motifs:
 
     def supplement_robustness(self, rec_db, binary, my_env=None):
 
-        ami_pat = re.compile(r'(?<=ami\: )\S+\.\d+')
-        robustness_pat = re.compile(r'(?<=robustness\: )\((\d+), (\d+)')
-        zscore_pat = re.compile(r'(?<=zscore\: )\S+\.\d+')
+        ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+        robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
+        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
 
         tmp_dir = tempfile.TemporaryDirectory()
         tmp_direc = tmp_dir.name

@@ -1,14 +1,99 @@
 import matplotlib as mpl
+import os
 #mpl.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from matplotlib import gridspec as gs
-from scipy.stats import contingency
+from scipy.ndimage import affine_transform
 import find_motifs as fm
 import numpy as np
 import inout
 import sys
+from pathlib import Path
+#from svgpathtools import svg2paths
+#from svgpath2mpl import parse_path
+
+this_path = Path(__file__).parent.absolute()
 
 #plt.rc('figure', titlesize=10)
+
+#def get_marker(path):
+#    p,a = svg2paths(path)
+#    m = parse_path(a[0]["d"])
+#    m.vertices -= m.vertices.mean(axis=0)
+#    m = m.transformed(mpl.transforms.Affine2D().rotate_deg(180))
+#    m = m.transformed(mpl.transforms.Affine2D().scale(-1,1))
+#    return m
+
+
+def get_image(path, height_scale=1):
+    img_arr = plt.imread(path, format="png")
+    return img_arr
+
+
+def scale_image(img, height_scale=1):
+    #scaled = affine_transform(img, np.array([[2,0,0],[0,2,0],[0,0,1]]))
+    scaled = affine_transform(img, np.array([[1/height_scale,0,0],[0,1,0],[0,0,1]]))
+    img = OffsetImage(scaled, zoom=0.05)
+    return img
+
+
+def plot_logo(
+        motifs,
+        file_name,
+        shape_lut,
+        top_n = 30,
+        opacity=1,
+        legend_loc="upper left",
+):
+    
+    motif_list = motifs.motifs
+    motif_list,top_n = set_up(motif_list, top_n)
+    
+    fig,ax = plt.subplots(ncols=1,nrows=top_n,figsize=(9,top_n*2),sharex=True)
+
+    for i,res in enumerate(motif_list[:top_n]):
+
+        if top_n == 1:
+            this_ax = ax
+        else:
+            this_ax = ax[i]
+
+        mi = round(res.mi, 2)
+        opt_y = res.motif
+        weights = res.weights
+        weights = weights / weights.max()
+        
+        x_vals = [i+1 for i in range(opt_y.shape[1])]
+        
+        for j in range(opt_y.shape[0]):
+
+            shape_name = shape_lut[j]
+
+            mark_fname = os.path.join(this_path,"img",shape_name+".png")
+            img_arr = get_image(mark_fname)
+
+            for k in range(opt_y.shape[1]):
+                img = scale_image( img_arr, height_scale=weights[j,k] )
+                ab = AnnotationBbox(img, (x_vals[k],opt_y[j,k]), frameon=False)
+                this_ax.add_artist( ab )
+
+        this_ax.set_ylim(bottom=opt_y.min(), top=opt_y.max())
+        this_ax.text(1, 3, f"MI: {mi}")
+        this_ax.set_ylabel(f"Index: {i}")
+        if i == 0:
+            this_ax.set_title("Shape logo")
+            this_ax.set_xticks(x_vals)
+    
+    if top_n == 1:
+        handles, labels = ax.get_legend_handles_labels()
+    else:
+        handles, labels = ax[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc=legend_loc)
+    fig.tight_layout()
+    plt.savefig(file_name)
+    plt.close()
+
 
 def plot_shapes(rec_db, rec_idx, file_name, take_complement=False):
 

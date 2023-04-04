@@ -25,6 +25,3 @@ dependencies:
     - rpy2
     - seaborn
     - meme
-    - svgpath2mpl
-    - svgpathtools
-    
