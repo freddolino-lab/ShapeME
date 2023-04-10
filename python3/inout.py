@@ -1641,6 +1641,8 @@ class FastaFile(object):
             yield self.pull_entry(name)
 
     def __getitem__(self, sliced):
+        if isinstance(sliced, int):
+            sliced = tuple([sliced])
         subset = FastaFile()
         seq_names = [self.names[idx] for idx in sliced]
         seq_data = { seq_name:self.data[seq_name] for seq_name in seq_names }

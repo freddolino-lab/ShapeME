@@ -121,6 +121,15 @@ if __name__ == "__main__":
     parser.add_argument('--find_seq_motifs', action="store_true",
         help=f"Add this flag to call sequence motifs using streme in addition "\
             f"to calling shape motifs.")
+    parser.add_argument('--seq_motif_positive_cats', required=False, default="1",
+        action="store", type=str,
+        help=f"Denotes which categories in `--infile` (or after quantization "\
+            f"for a continous signal in the number of bins denoted by the "\
+            f"`--continuous` argument) to use as the positive "\
+            f"set for sequence motif calling using streme. Example: "\
+            f"\"4\" would use category 4 as the positive set, whereas "\
+            f"\"3,4\" would use categories 3 and 4 as "\
+            f"the positive set.")
     parser.add_argument('--streme_thresh', default = 0.05,
         help="Threshold for including motifs identified by streme. Default: %(default)f")
     parser.add_argument("--seq_fasta", type=str, default=None,
@@ -191,6 +200,50 @@ if __name__ == "__main__":
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
 
+    print()
+    logging.info("Reading in shape files")
+    # read in shapes
+    shape_fname_dict = {
+        n:os.path.join(in_direc,fname) for n,fname
+        in zip(args.param_names, args.params)
+    }
+    logging.info("Reading input data and shape info.")
+    records = inout.RecordDatabase(
+        in_fname,
+        shape_fname_dict,
+        shift_params = ["Roll", "HelT"],
+    )
+
+    assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
+           
+    # read in the values associated with each sequence and store them
+    # in the sequence database
+    if args.continuous is not None:
+        records.quantize_quant(args.continuous)
+
+    fam,num_cats = evm.set_family(records.y)
+    records.set_category_lut()
+
+    logging.info("Distribution of sequences per class:")
+    logging.info(records.seqs_per_bin())
+
+    logging.info("Normalizing parameters")
+    if args.nonormalize:
+        records.determine_center_spread(method=inout.identity_csp)
+    else:
+        records.determine_center_spread()
+        records.normalize_shape_values()
+
+    for name,shape_idx in records.shape_name_lut.items():
+        this_center = records.shape_centers[shape_idx]
+        this_spread = records.shape_spreads[shape_idx]
+        logging.info(f"{name}: center={this_center:.2f}, spread={this_spread:.2f}")
+
+    yval_fname = os.path.join(out_direc, 'y_vals.npy')
+    # write y-vals to npy file.
+    with open(yval_fname, 'wb') as f:
+        np.save(f, records.y.astype(np.int64))
+
     if find_seq_motifs:
         # if asked for seq motifs but didn't pass seq fa file, exception
         if seq_fasta is None:
@@ -202,9 +255,11 @@ if __name__ == "__main__":
         seq_meme_file = f"{streme_direc}/streme.txt"
         streme_exec = os.path.join(this_path, "run_streme.py")
 
+
         STREME = f"python {streme_exec} "\
             f"--seq_fname {seq_fasta} "\
-            f"--yvals_fname {in_fname} "\
+            f"--yvals_fname {yval_fname} "\
+            f"--pos_cats {args.seq_motif_positive_cats} "\
             f"--threshold {streme_thresh} "\
             f"--out_direc {streme_direc}"
 
@@ -227,6 +282,7 @@ if __name__ == "__main__":
             f"Ran streme: for details, see "\
             f"{streme_log_fname} and {streme_err_fname}"
         )
+
         with open(streme_log_fname, "w") as streme_out:
             # streme log gets captured as stderr, so write stderr to file
             streme_out.write(streme_result.stdout.decode())
@@ -267,45 +323,6 @@ if __name__ == "__main__":
         with open(fimo_err_fname, "w") as fimo_err:
             fimo_err.write(fimo_result.stderr.decode())
 
-    print()
-    logging.info("Reading in shape files")
-    # read in shapes
-    shape_fname_dict = {
-        n:os.path.join(in_direc,fname) for n,fname
-        in zip(args.param_names, args.params)
-    }
-    logging.info("Reading input data and shape info.")
-    records = inout.RecordDatabase(
-        in_fname,
-        shape_fname_dict,
-        shift_params = ["Roll", "HelT"],
-    )
-
-    assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
-           
-    # read in the values associated with each sequence and store them
-    # in the sequence database
-    if args.continuous is not None:
-        records.quantize_quant(args.continuous)
-
-    fam,num_cats = evm.set_family(records.y)
-    records.set_category_lut()
-
-    logging.info("Distribution of sequences per class:")
-    logging.info(records.seqs_per_bin())
-
-    logging.info("Normalizing parameters")
-    if args.nonormalize:
-        records.determine_center_spread(method=inout.identity_csp)
-    else:
-        records.determine_center_spread()
-        records.normalize_shape_values()
-
-    for name,shape_idx in records.shape_name_lut.items():
-        this_center = records.shape_centers[shape_idx]
-        this_spread = records.shape_spreads[shape_idx]
-        logging.info(f"{name}: center={this_center:.2f}, spread={this_spread:.2f}")
-
     alpha = args.alpha
     max_count = args.max_count
 
@@ -318,7 +335,6 @@ if __name__ == "__main__":
     )
 
     shape_fname = os.path.join(out_direc, 'shapes.npy')
-    yval_fname = os.path.join(out_direc, 'y_vals.npy')
     config_fname = os.path.join(out_direc, 'config.json')
     rust_out_fname = os.path.join(out_direc, 'rust_results.json')
     shape_fit_fname = os.path.join(out_direc, 'shape_lasso_fit.pkl')
@@ -398,18 +414,24 @@ if __name__ == "__main__":
 
         else:
 
+            # make sure yvalues are binary for this initial seq motif fit
+            fit_y = np.zeros_like(records.y)
+            pos_cats = [ int(_) for _ in args.seq_motif_positive_cats ]
+            for (i,yval) in enumerate(records.y):
+                if yval in pos_cats:
+                    fit_y[i] = 1
             seq_fit = evm.train_glmnet(
                 seq_motifs.X,
-                records.y,
+                fit_y,
                 folds=10,
-                family=fam,
+                family="binomial",
                 alpha=1,
             )
 
             with open(seq_fit_fname, "wb") as f:
                 pickle.dump(seq_fit, f)
 
-            seq_coefs = evm.fetch_coefficients(fam, seq_fit, num_cats)
+            seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
 
             print()
             logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
@@ -581,9 +603,6 @@ if __name__ == "__main__":
         # write shapes to npy file. Permute axes 1 and 2.
         with open(shape_fname, 'wb') as shape_f:
             np.save(shape_fname, records.X.transpose((0,2,1,3)))
-        # write y-vals to npy file.
-        with open(yval_fname, 'wb') as f:
-            np.save(f, records.y.astype(np.int64))
 
         print()
         if args.shape_rust_file is None:
@@ -727,6 +746,15 @@ if __name__ == "__main__":
         # if there were both shape and seq motifs, combine into one model
         if shape_motif_exists and seq_motif_exists:
 
+            #if num_cats != 2:
+            #    print(
+            #        f"Combining shape and sequence motifs only supported "\
+            #        f"for binary inputs. Skipping merged sequence and shape model "\
+            #        f"steps."
+            #    )
+
+            #else:
+
             shape_and_seq_motifs = shape_motifs.new_with_motifs(seq_motifs)
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
@@ -809,7 +837,7 @@ if __name__ == "__main__":
                     f"Performing model selection using F1 to determine whether "\
                     f"the remaining motif is informative over intercept alone."
                 )
- 
+     
                 metric_list = [ intercept_metric, shape_and_seq_motifs.metric ]
                 model_list = [ intercept_fit, int_and_shape_and_seq_fit ]
 
@@ -846,6 +874,7 @@ if __name__ == "__main__":
             out_fname = out_motif_basename + "_sequence_motifs.dsm"
             seq_motifs.write_file(out_fname, records)
     if shape_motif_exists and seq_motif_exists:
+        #if num_cats != 2:
         motifs_info.append((shape_and_seq_motifs, filtered_shape_and_seq_coefs))
         if args.write_all_files:
             out_fname = out_motif_basename + "_shape_and_sequence_motifs.dsm"

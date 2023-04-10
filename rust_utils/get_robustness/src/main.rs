@@ -30,6 +30,6 @@ fn main() {
     let robustness = info_theory::info_robustness(yvals.view(), hits.view());
     let zscore = info_theory::info_zscore(yvals.view(), hits.view());
 
-    println!("ami: {}, robustness: {:?}, zscore: {}", ami, robustness, zscore.0);
+    println!("adj_mi= {}, robustness= {:?}, zscore= {}", ami, robustness, zscore.0);
 }
 
