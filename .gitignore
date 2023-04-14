@@ -3,3 +3,8 @@ utils/__pycache__
 rust_utils/target
 */Cargo.lock
 python3/build
+singularity/archive
+singularity/current
+singularity/def
+singularity/*.sif
+*.sif
