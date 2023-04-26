@@ -9,6 +9,7 @@ import json
 import pickle
 import time
 import subprocess
+import multiprocessing
 from pathlib import Path
 
 import evaluate_motifs as evm
@@ -159,19 +160,27 @@ if __name__ == "__main__":
         help=f"Sets the number of batches of seed evaluation with no new motifs "\
             f"added to the set of motifs to be optimized prior to truncating the "\
             f"initial search for motifs.")
+    parser.add_argument("--log", type=str, default="INFO",
+        help=f"Sets log level for logging module. Valid values are DEBUG, "\
+                f"INFO, WARNING, ERROR, CRITICAL.")
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
 
-    level = logging.INFO
+    loglevel = args.log
+    numeric_level = getattr(logging, loglevel.upper(), None)
+
     logging.basicConfig(
         format='%(asctime)s %(message)s',
-        level=level,
+        level=numeric_level,
         stream=sys.stdout,
     )
     logging.getLogger('matplotlib.font_manager').disabled = True
 
     args = parser.parse_args()
+
+    logging.debug(f"Number of cores set by the -p argument: {args.p}")
+    logging.debug(f"Number of cores available: {multiprocessing.cpu_count}")
 
     logging.info("Arguments:")
     print(str(args))

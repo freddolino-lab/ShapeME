@@ -9,8 +9,6 @@ use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 use rayon::current_num_threads;
 
-// Run target/release/find_motifs ../test_data/shapes.npy ../test_data/y_vals.npy ../test_data/config.pkl ../test_data/test_output.pkl
-
 fn main() {
     let args: Vec<String> = env::args().collect();
     let cfg = motifer::parse_config(&args).unwrap();

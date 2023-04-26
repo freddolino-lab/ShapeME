@@ -5,7 +5,7 @@ use rayon::ThreadPoolBuilder;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let cfg = motifer::parse_config(&args);
+    let cfg = motifer::parse_config(&args).unwrap();
 
     ThreadPoolBuilder::new()
         .num_threads(cfg.cores)

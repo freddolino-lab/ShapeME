@@ -1080,8 +1080,8 @@ pub fn optim_objective(
 }
 
 /// Parses arguments passed at the command line and places them into a [Config]
-pub fn parse_config(args: &[String]) -> Config {
-    Config::new(args)
+pub fn parse_config(args: &[String]) -> Result<Config, Box<dyn Error>> {
+    Ok(Config::new(args)?)
 }
 
 /// Randomly chooses pairs of seeds and returns the CMI for each pair
