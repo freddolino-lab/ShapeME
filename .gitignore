@@ -3,6 +3,7 @@ src/__pycache__
 src/utils/__pycache__
 src/rust_utils/target
 src/*/Cargo.lock
+src/*/*/Cargo.lock
 src/python3/build
 singularity/archive
 singularity/current
