@@ -1,8 +1,9 @@
 __pycache__
-utils/__pycache__
-rust_utils/target
-*/Cargo.lock
-python3/build
+src/__pycache__
+src/utils/__pycache__
+src/rust_utils/target
+src/*/Cargo.lock
+src/python3/build
 singularity/archive
 singularity/current
 singularity/def
