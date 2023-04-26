@@ -47,9 +47,10 @@ class NoSeqFaException(Exception):
 
 
 class RustBinaryException(Exception):
-    def __init__(self):
+    def __init__(self, cmd):
         self.message = f"ERROR: find_motifs binary execution exited with "\
-            f"non-zero exit status"
+            f"non-zero exit status.\n"\
+            f"The attempted command was as follows:\n{cmd}"
         super().__init__(self.message)
 
 

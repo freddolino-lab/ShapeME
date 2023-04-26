@@ -609,7 +609,7 @@ if __name__ == "__main__":
             logging.info("Running shape motif selection and optimization.")
             retcode = subprocess.call(FIND_CMD, shell=True, env=my_env)
             if retcode != 0:
-                raise inout.RustBinaryException(Exception)
+                raise inout.RustBinaryException(FIND_CMD)
         else:
             logging.info(f"Reading prior shape motifs from {args.shape_rust_file}.")
             rust_out_fname = args.shape_rust_file
