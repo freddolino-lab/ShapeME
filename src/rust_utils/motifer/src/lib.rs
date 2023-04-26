@@ -928,15 +928,15 @@ impl Config {
     /// * `args` - an array of [String] structs. Comes from env::args in main.rs
     ///
     /// STILL NEEDS GOOD ERROR HANDLING, IMO
-    pub fn new(args: &[String]) -> Config {
+    pub fn new(args: &[String]) -> Result<Config, Box<dyn Error>> {
         let opts_fname = args[1].clone();
 
         // read in options we'll need
-        let file = fs::File::open(opts_fname).unwrap();
+        let file = fs::File::open(opts_fname)?;
         // open a buffered reader to open the binary json file
         let buf_reader = BufReader::new(file);
-        let cfg: Config = serde_json::from_reader(buf_reader).unwrap();
-        cfg
+        let cfg: Config = serde_json::from_reader(buf_reader)?;
+        Ok(cfg)
     }
 }
 
