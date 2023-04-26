@@ -106,11 +106,11 @@ def make_kfold_datasets(k, fastafile, firefile, outpre):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-            description="Take a narrowPeak file and pull seqs for FIRE format")
+        description="Take a narrowPeak file and pull seqs for FIRE format")
     parser.add_argument('npfile', type=str, help="input narrowPeak file")
     parser.add_argument('fasta', type=str, help="input fasta file")
     parser.add_argument('outpre', type=str, help="output file prefix")
-    parser.add_argument('--wsize', type=int, default=30, 
+    parser.add_argument('--wsize', type=int, default=60,
                         help="total window size around peak center")
     parser.add_argument('--kfold', type=int, default=None, 
                         help="create k fold datasets for CV")

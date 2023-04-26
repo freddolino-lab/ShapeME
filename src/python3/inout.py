@@ -2310,9 +2310,8 @@ class RecordDatabase(object):
                 break
 
         logging.info(
-            "Using {} random seeds to determine threshold from pairwise distances".format(
-                len(total_seeds)
-            )
+            f"Using {len(total_seeds)} random seeds to determine "\
+            f"threshold from pairwise distances"
         )
         distances = []
         for i,seed_i in enumerate(total_seeds):
@@ -2330,9 +2329,12 @@ class RecordDatabase(object):
         mean = online_mean.final_mean()
         stdev = online_mean.final_stdev()
 
-        logging.info("Threshold mean: {} and stdev {}".format(mean,stdev))
+        logging.info(f"Threshold mean: {mean} and stdev {stdev}")
         thresh = max(mean - threshold_sd_from_mean * stdev, 0)
-        logging.info("Setting initial threshold for each seed to {}".format(thresh))
+        logging.info(
+            f"Setting initial threshold for each seed "\
+            f"to {thresh}"
+        )
 
         return thresh
 
