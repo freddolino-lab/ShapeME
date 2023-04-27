@@ -46,16 +46,45 @@ def two_way_to_log_odds(two_way):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--infile', action='store', type=str, required=True,
+    parser.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
-    parser.add_argument('--test_infile', action='store', type=str, default=None,
-        help='input text file with sequence names and scores for held-out testing data.')
-    parser.add_argument('--params', nargs="+", type=str, required=True,
+    parser.add_argument('--shape_files', nargs="+", type=str, required=True,
         help='input files with shape scores')
-    parser.add_argument('--test_params', nargs="+", type=str, default=None,
-        help='input files with shape scores for held-out testing data.')
-    parser.add_argument('--param_names', nargs="+", type=str,
-        help='parameter names (MUST BE IN SAME ORDER AS CORRESPONDING PARAMETER FILES)')
+    parser.add_argument('--shape_names', nargs="+", type=str, required=True,
+        help='shape names (MUST BE IN SAME ORDER AS CORRESPONDING SHAPE FILES)')
+    parser.add_argument('--out_prefix', type=str, required=True,
+        help="Prefix to apply to output files.")
+    parser.add_argument('--data_dir', type=str, required=True,
+        help="Directory from which input files will be read.")
+    parser.add_argument('--out_dir', type=str, required=True,
+        help="Directory (within 'data_dir') into which output files will be written.")
+    parser.add_argument('--kmer', type=int,
+        help='kmer size to search for shape motifs. Default=%(default)d', default=15)
+    parser.add_argument('--max_count', type=int, default=1,
+        help=f"Maximum number of times a motif can match "\
+            f"each of the forward and reverse strands in a reference. "\
+            f"Default: %(default)d")
+    parser.add_argument('--continuous', type=int, default=None,
+        help="number of bins to discretize continuous input data with")
+    parser.add_argument('--threshold_sd', type=float, default=2.0, 
+        help=f"std deviations below mean for seed finding. "\
+            f"Only matters for greedy search. Default=%(default)f")
+    parser.add_argument('--init_threshold_seed_num', type=int, default=500, 
+        help=f"Number of randomly selected seeds to compare to records "\
+            f"in the database during initial threshold setting. Default=%(default)d")
+    parser.add_argument('--init_threshold_recs_per_seed', type=int, default=20, 
+        help=f"Number of randomly selected records to compare to each seed "\
+            f"during initial threshold setting. Default=%(default)d")
+    parser.add_argument('--init_threshold_windows_per_record', type=int, default=2, 
+        help=f"Number of randomly selected windows within a given record "\
+            f"to compare to each seed during initial threshold setting. "\
+            f"Default=%(default)d")
+    parser.add_argument("--max_batch_no_new_seed", type=int, default=10,
+        help=f"Sets the number of batches of seed evaluation with no new motifs "\
+            f"added to the set of motifs to be optimized prior to truncating the "\
+            f"initial search for motifs.")
+    parser.add_argument('-nprocs', type=int, default=1,
+        help="number of processors. Default: %(default)d")
     parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
         help=f"Sets the upper and lower limits on the match "\
             f"threshold during optimization. Defaults to 0 for the "\
@@ -75,53 +104,34 @@ if __name__ == "__main__":
         help=f"Fraction by which temperature decreases each iteration of "\
             f"simulated annealing. Default: %(default)f")
     parser.add_argument('--stepsize', type=float, default=0.25,
-        help=f"Sets the stepsize argument for scipy.optimize.basinhopping. "\
-            f"Default: %(default)f")
-    parser.add_argument('--opt_niter', type=int, default=100,
+        help=f"Sets the stepsize argument simulated annealing. This "\
+            f"defines how far a given value can be modified for iteration i "\
+            f"from its value at iteration i-1. A higher value will "\
+            f"allow farther hops. Default: %(default)f")
+    parser.add_argument('--opt_niter', type=int, default=10000,
         help=f"Sets the number of simulated annealing iterations to "\
             f"undergo during optimization. Default: %(default)d.")
-    parser.add_argument('--kmer', type=int,
-        help='kmer size to search for. Default=%(default)d', default=15)
-    parser.add_argument('--nonormalize', action="store_true",
-        help='don\'t normalize the input data by robustZ')
-    parser.add_argument('--threshold_sd', type=float, default=2.0, 
-        help=f"std deviations below mean for seed finding. "\
-            f"Only matters for greedy search. Default=%(default)f")
-    parser.add_argument('--init_threshold_seed_num', type=int, default=500, 
-        help=f"Number of randomly selected seeds to compare to records "\
-            f"in the database during initial threshold setting. Default=%(default)d")
-    parser.add_argument('--init_threshold_recs_per_seed', type=int, default=20, 
-        help=f"Number of randomly selected records to compare to each seed "\
-            f"during initial threshold setting. Default=%(default)d")
-    parser.add_argument('--init_threshold_windows_per_record', type=int, default=2, 
-        help=f"Number of randomly selected windows within a given record "\
-            f"to compare to each seed during initial threshold setting. "\
-            f"Default=%(default)d")
-    parser.add_argument('--motif_perc', type=float, default=1,
-        help="fraction of data to EVALUATE motifs on. Default=%(default)f")
-    parser.add_argument('--continuous', type=int, default=None,
-        help="number of bins to discretize continuous input data with")
+    #parser.add_argument('--nonormalize', action="store_true",
+    #    help='don\'t normalize the input data by robustZ')
+    #parser.add_argument('--motif_perc', type=float, default=1,
+    #    help="fraction of data to EVALUATE motifs on. Default=%(default)f")
     parser.add_argument('--alpha', type=float, default=0.0,
         help=f"Lower limit on transformed weight values prior to "\
             f"normalization to sum to 1. Default: %(default)f")
-    parser.add_argument('--max_count', type=int, default=1,
-        help=f"Maximum number of times a motif can match "\
-            f"each of the forward and reverse strands in a reference. "\
-            f"Default: %(default)d")
-    parser.add_argument('-o', type=str, required=True,
-        help="Prefix to apply to output files.")
-    parser.add_argument('--data_dir', type=str, required=True,
-        help="Directory from which input files will be read.")
-    parser.add_argument('--out_dir', type=str, required=True,
-        help="Directory (within 'data_dir') into which output files will be written.")
-    parser.add_argument('-p', type=int, default=5,
-        help="number of processors. Default: %(default)d")
     parser.add_argument('--batch_size', type=int, default=2000,
         help=f"Number of records to process seeds from at a time. Set lower "\
             f"to avoid out-of-memory errors. Default: %(default)d")
     parser.add_argument('--find_seq_motifs', action="store_true",
         help=f"Add this flag to call sequence motifs using streme in addition "\
             f"to calling shape motifs.")
+    parser.add_argument("--no_shape_motifs", action="store_true",
+        help=f"Add this flag to turn off shape motif inference. "\
+            f"This is useful if you basically want to use this script "\
+            f"as a wrapper for streme to just find sequence motifs.")
+    parser.add_argument("--seq_fasta", type=str, default=None,
+        help=f"Name of fasta file (located within in_direc, do not include the "\
+            f"directory, just the file name) containing sequences in which to "\
+            f"search for motifs")
     parser.add_argument('--seq_motif_positive_cats', required=False, default="1",
         action="store", type=str,
         help=f"Denotes which categories in `--infile` (or after quantization "\
@@ -133,20 +143,12 @@ if __name__ == "__main__":
             f"the positive set.")
     parser.add_argument('--streme_thresh', default = 0.05,
         help="Threshold for including motifs identified by streme. Default: %(default)f")
-    parser.add_argument("--seq_fasta", type=str, default=None,
-        help=f"Name of fasta file (located within in_direc, do not include the "\
-            f"directory, just the file name) containing sequences in which to "\
-            f"search for motifs")
     parser.add_argument("--seq_meme_file", type=str, default=None,
         help=f"Name of meme-formatted file (file must be located in data_dir) "\
             f"to be used for searching for known sequence motifs of interest in "\
             f"seq_fasta")
     parser.add_argument("--shape_rust_file", type=str, default=None,
         help=f"Name of json file containing output from rust binary")
-    parser.add_argument("--no_shape_motifs", action="store_true",
-        help=f"Add this flag to turn off shape motif inference. "\
-            f"This is useful if you basically want to use this script "\
-            f"as a wrapper for streme to just find sequence motifs.")
     parser.add_argument("--write_all_files", action="store_true",
         help=f"Add this flag to write all motif meme files, regardless of whether "\
             f"the model with shape motifs, sequence motifs, or both types of "\
@@ -154,23 +156,23 @@ if __name__ == "__main__":
     parser.add_argument("--exhaustive", action="store_true", default=False,
         help=f"Add this flag to perform and exhaustive initial search for seeds. "\
             f"This can take a very long time for datasets with more than a few-thousand "\
-            f"binding sites. Setting this option will ignore the --max-rounds-no-new-seed "\
-            f"option.")
-    parser.add_argument("--max-batch-no-new-seed", type=int, default=10,
-        help=f"Sets the number of batches of seed evaluation with no new motifs "\
-            f"added to the set of motifs to be optimized prior to truncating the "\
-            f"initial search for motifs.")
-    parser.add_argument("--log", type=str, default="INFO",
+            f"binding sites. Setting this option will override the "\
+            f"--max_rounds_no_new_seed option.")
+    parser.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
 
+<<<<<<< HEAD
     args = parser.parse_args()
 
     loglevel = args.log
     numeric_level = getattr(logging, loglevel.upper(), None)
+=======
+    numeric_level = getattr(logging, args.log_level.upper(), None)
+>>>>>>> aa477ea893dc134255d0aa61b612d09d2b4617d8
 
     logging.basicConfig(
         format='%(asctime)s %(message)s',
@@ -179,19 +181,26 @@ if __name__ == "__main__":
     )
     logging.getLogger('matplotlib.font_manager').disabled = True
 
+<<<<<<< HEAD
     logging.debug(f"Number of cores set by the -p argument: {args.p}")
     logging.debug(
         f"Number of cores available: {multiprocessing.cpu_count()}"
     )
+=======
+    args = parser.parse_args()
+
+    logging.debug(f"Number of cores set by the -p argument: {args.nprocs}")
+    logging.debug(f"Number of cores available: {multiprocessing.cpu_count}")
+>>>>>>> aa477ea893dc134255d0aa61b612d09d2b4617d8
 
     logging.info("Arguments:")
     print(str(args))
 
-    out_pref = args.o
+    out_pref = args.out_prefix
     in_direc = args.data_dir
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
-    in_fname = os.path.join(in_direc, args.infile)
+    in_fname = os.path.join(in_direc, args.score_file)
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
@@ -216,7 +225,7 @@ if __name__ == "__main__":
     # read in shapes
     shape_fname_dict = {
         n:os.path.join(in_direc,fname) for n,fname
-        in zip(args.param_names, args.params)
+        in zip(args.shape_names, args.shape_files)
     }
     logging.info("Reading input data and shape info.")
     records = inout.RecordDatabase(
@@ -239,11 +248,11 @@ if __name__ == "__main__":
     logging.info(records.seqs_per_bin())
 
     logging.info("Normalizing parameters")
-    if args.nonormalize:
-        records.determine_center_spread(method=inout.identity_csp)
-    else:
-        records.determine_center_spread()
-        records.normalize_shape_values()
+    #if args.nonormalize:
+    #    records.determine_center_spread(method=inout.identity_csp)
+    #else:
+    records.determine_center_spread()
+    records.normalize_shape_values()
 
     for name,shape_idx in records.shape_name_lut.items():
         this_center = records.shape_centers[shape_idx]
@@ -368,7 +377,7 @@ if __name__ == "__main__":
         folds = 5,
         family = fam,
         fit_intercept = False, # intercept already in design mat
-        cores = args.p,
+        cores = args.nprocs,
     )
 
     seq_motif_exists = False
@@ -494,7 +503,7 @@ if __name__ == "__main__":
             folds = 5,
             family = fam,
             fit_intercept = False, # intercept already in design mat
-            cores = args.p,
+            cores = args.nprocs,
         )
 
         # if there's only one covariate, compare CV-F1 from intercept+motif
@@ -569,7 +578,7 @@ if __name__ == "__main__":
         'alpha': args.alpha,
         'max_count': args.max_count,
         'kmer': args.kmer,
-        'cores': args.p,
+        'cores': args.nprocs,
         'seed_sample_size': args.init_threshold_seed_num,
         'records_per_seed': args.init_threshold_recs_per_seed,
         'windows_per_record': args.init_threshold_windows_per_record,
@@ -693,7 +702,7 @@ if __name__ == "__main__":
             folds = 5,
             family = fam,
             fit_intercept = False, # intercept already in design mat
-            cores = args.p,
+            cores = args.nprocs,
         )
 
         # check whether there's only one informative covariate
@@ -829,7 +838,7 @@ if __name__ == "__main__":
                 folds = 5,
                 family = fam,
                 fit_intercept = False, # intercept already in design mat
-                cores = args.p,
+                cores = args.nprocs,
             )
 
             if len(shape_and_seq_motifs) == 0:
