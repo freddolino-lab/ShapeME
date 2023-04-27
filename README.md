@@ -1,3 +1,7 @@
+TODO:
+1. add input file format specs
+2. add docs for every argument
+
 # SCHEME
 
 SCHEME is a tool for identifying local structural motifs that inform
@@ -5,9 +9,36 @@ protein/DNA interaction.
 
 # Preparing input data
 
+The input files required by SCHEME are:
+
+1. scores file
+    + A tab-delimited file with one header line and two columns
+    + Column 1: "name" - the name of each sequence (in order) found in 
+        the fasta files.
+    + Column 2: "score" - the score associated with each sequence in
+        the fasta files. For identification of motifs that inform peaks vs
+        non-peaks, the score column should contain 0 or 1, where 0 would indicate
+        a non-peak sequence, and 1 would indicate a peak seqeunce. The scores
+        can also be categorical or continuous. If using continuous data,
+        we recommend the user convert their scores to robust z-scores using
+        a tool such as [`bgtools`](https://github.com/jwschroeder3/bgtools.git).
+2. shape fasta files - shapes we typically use are below.
+    + electrostatic potential (EP)
+    + helical twist (HelT)
+    + minor groove width (MGW)
+    + propeller twist (ProT)
+    + roll (Roll)
+3. Only if running sequence motif finding - sequence fasta file
+
+As noted above, the sequence names in the fasta files and in the score
+file must be in the same order.
+
+We provide utilities which should help to prepare, in most use cases,
+the score file and the shape fasta files.
+
 ## Generating input sequences and category assignments
 
-### Making categorical (or binary) inputs
+### Making/using categorical (or binary) inputs
 
 #### Starting with narrowpeak file defining "positive" regions
 
@@ -42,12 +73,13 @@ be prepared, along with their corresponding input text files
 denoting whether each sequence arose from the "positive" set or
 the "negative" set.
 
-TODO: add section for making categorical inputs from continuous data
+### Using continuous inputs
 
-### Making continuous inputs
+Continuous inputs will be quantized into categories by the `find_motifs.py` script.
 
-Note that these continuous inputs will be quantized into categories
-by the `find_motifs.py` script.
+The user must simply create the score file with the continuous scores of interest,
+keeping in mind that the file must have two, tab-separated columns and
+must have a header with column names "name" and "score".
 
 ## Calculating local shapes from sequences
 
@@ -72,6 +104,16 @@ The above code will create five shape files for each fasta file you have.
 3. \*.fa.MGW - minor groove width
 4. \*.fa.ProT - propeller twist
 5. \*.fa.Roll - roll
+
+### Using continuous scores
+
+We recommend that if the user is using categorical data that they first
+convert their scores to robust z-scores using a tool such as
+[`bgtools`](https://github.com/jwschroeder3/bgtools.git),
+then manually create the required input file with paired sequence names
+and scores.
+
+Then, within `find_motifs.py`, 
 
 # Running SCHEME
 
@@ -131,7 +173,7 @@ singularity exec -B $(pwd):$(pwd) \
         -o <out_prefix> \
         --data_dir $(pwd) \
         --out_dir <out_dir> \
-        --infile <infile> \
+        --score_file <infile> \
         -p <cores> \
         --alpha ${alpha} \
         --max_count ${max_count} \
@@ -165,7 +207,7 @@ singularity exec -B $(pwd):$(pwd) \
         -o <out_prefix> \
         --data_dir $(pwd) \
         --out_dir <out_dir> \
-        --infile <infile> \
+        --score_file <infile> \
         --seq_motif_positive_cats <comma_sep_cats> \
         --no_shape_motifs \
         > log.log \
@@ -175,7 +217,7 @@ singularity exec -B $(pwd):$(pwd) \
 ## Infer both shape and sequence motifs
 
 See the above explanations for what to substitute for variables
-in `<var_name>` lines below.
+in `<var_name>` notation below.
 
 ```bash
 alpha=0.01
@@ -198,7 +240,7 @@ singularity exec -B $(pwd):$(pwd) \
         -o <out_prefix> \
         --data_dir $(pwd) \
         --out_dir <out_dir> \
-        --infile <infile> \
+        --score_file <infile> \
         -p <cores> \
         --alpha ${alpha} \
         --max_count ${max_count} \

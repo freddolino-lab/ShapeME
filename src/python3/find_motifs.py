@@ -46,14 +46,10 @@ def two_way_to_log_odds(two_way):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--infile', action='store', type=str, required=True,
+    parser.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
-    parser.add_argument('--test_infile', action='store', type=str, default=None,
-        help='input text file with sequence names and scores for held-out testing data.')
     parser.add_argument('--params', nargs="+", type=str, required=True,
         help='input files with shape scores')
-    parser.add_argument('--test_params', nargs="+", type=str, default=None,
-        help='input files with shape scores for held-out testing data.')
     parser.add_argument('--param_names', nargs="+", type=str,
         help='parameter names (MUST BE IN SAME ORDER AS CORRESPONDING PARAMETER FILES)')
     parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
@@ -189,7 +185,7 @@ if __name__ == "__main__":
     in_direc = args.data_dir
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
-    in_fname = os.path.join(in_direc, args.infile)
+    in_fname = os.path.join(in_direc, args.score_file)
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
