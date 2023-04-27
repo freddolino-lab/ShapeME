@@ -97,7 +97,8 @@ singularity exec -B $(pwd):$(pwd) \
     python /src/python3/convert_seqs_to_shapes.py <data_fasta>
 ```
 
-The above code will create five shape files for each fasta file you have.
+The above code will create five shape files for each fasta file you have,
+where \"*\" will be replaced with your file prefix.
 
 1. \*.fa.EP - electrostatic potential
 2. \*.fa.HelT - helical twist
@@ -134,7 +135,9 @@ following substitutions:
     + The files containing each shape value for each fasta record.
     + NOTE: These files MUST be in the same order as your `--shape_names` argument.
         For example, with the order of shape names above, you would use something
-        like the following for your `--shape_files` argument: "pref.fa.EP pref.fa.HelT pref.fa.MGW pref.fa.ProT pref.fa.Roll"
+        like the following for your `--shape_files` argument:
+        `prefix.fa.EP prefix.fa.HelT prefix.fa.MGW prefix.fa.ProT prefix.fa.Roll`,
+        of course, replacing `prefix` with the actual file prefix.
 + \<out\_prefix\>
     + Prefix to be placed at the beginning of output files.
 + \<out\_dir\>
@@ -193,7 +196,7 @@ singularity exec -B $(pwd):$(pwd) \
 
 ## Infer only sequence motifs
 
-NOTE: the below code still needs tested.
+NOTE: the below code still needs tested with singularity exec.
 
 In the below code, substitute `<comma_sep_cats>` with a comma-separated
 list of the categories to be considered as the "positive" set by STREME
@@ -215,6 +218,8 @@ singularity exec -B $(pwd):$(pwd) \
 ```
 
 ## Infer both shape and sequence motifs
+
+NOTE: the below code still needs tested with singularity exec.
 
 See the above explanations for what to substitute for variables
 in `<var_name>` notation below.
