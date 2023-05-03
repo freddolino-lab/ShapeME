@@ -1,6 +1,5 @@
 TODO:
-1. add input file format specs
-2. add docs for every argument
+1. add docs for every argument of `evaluate_motifs.py`
 
 # SCHEME
 
@@ -22,13 +21,19 @@ The input files required by SCHEME are:
         can also be categorical or continuous. If using continuous data,
         we recommend the user convert their scores to robust z-scores using
         a tool such as [`bgtools`](https://github.com/jwschroeder3/bgtools.git).
+    + For example scores files, see the txt files in the `examples/binary_example`,
+        `examples/categorical_example`, and `examples/continuous_example`, directories.
 2. shape fasta files - shapes we typically use are below.
     + electrostatic potential (EP)
     + helical twist (HelT)
     + minor groove width (MGW)
     + propeller twist (ProT)
     + roll (Roll)
+    + For example shape fasta files, see the `*.fa.*` files in the `examples/binary_example`,
+        `examples/categorical_example`, and `examples/continuous_example`, directories.
 3. Only if running sequence motif finding - sequence fasta file
+    + For example sequence fasta files, see the `*.fa` files in the `examples/binary_example`,
+        `examples/categorical_example`, and `examples/continuous_example`, directories.
 
 As noted above, the sequence names in the fasta files and in the score
 file must be in the same order.
@@ -57,7 +62,7 @@ folds you would like. For example, use 5 to do 5-fold cross-validation.
 
 ```bash
 singularity exec -B $(pwd):$(pwd) \
-    scheme_0.0.1.sif \
+    scheme_<version>.sif \
     python /src/python3/convert_narrowpeak_to_fire.py \
         <np_fname> \
         <ref_fasta> \
@@ -93,12 +98,12 @@ for each train/test file for each fold.
 
 ```bash
 singularity exec -B $(pwd):$(pwd) \
-    scheme_0.0.1.sif \
+    scheme_<version>.sif \
     python /src/python3/convert_seqs_to_shapes.py <data_fasta>
 ```
 
 The above code will create five shape files for each fasta file you have,
-where \"*\" will be replaced with your file prefix.
+where "\*" will be replaced with your file prefix.
 
 1. \*.fa.EP - electrostatic potential
 2. \*.fa.HelT - helical twist
@@ -122,7 +127,57 @@ SCHEME can be run to detect only shape motifs, only sequence motifs (in this
 case SCHEME is basically a wrapper for STREME), or to incorporate shape and
 sequence motifs into a single model.
 
+We distribute SCHEME as a singularity container, which can be run on any
+computer with a Linux environment that has singularity installed.
+
+The SCHEME container can be downloaded from our
+[google drive](https://drive.google.com/drive/folders/1e7N4iYO7BHuuZG4q-H7xBk1c6bE9GmOt?usp=share_link)
+location.
+
+In all instructions below, you should substitute the characters `<version>` with
+the actual version number of the continer you're using in every instance of
+`scheme_<version>.sif`.
+
 ## Infer only shape motifs
+
+### Inference on provided example data
+
+#### Binary input values
+
+From within the `examples/binary_example` directory, run the following,
+updating the value of `nprocs` to something that is suitable to the system
+on which you are running SCHEME:
+
+```bash
+nprocs=8
+
+singularity exec -B $(pwd):$(pwd) \
+    scheme_<version>.sif \
+    python /src/python3/find_motifs.py \
+        --score_file test_data_binary_plus_train_0.txt \
+        --shape_names EP HelT MGW ProT Roll \
+        --shape_files test_data_binary_plus_train_0.fa.EP test_data_binary_plus_train_0.fa.HelT test_data_binary_plus_train_0.fa.MGW test_data_binary_plus_train_0.fa.ProT test_data_binary_plus_train_0.fa.Roll \
+        --out_prefix binary_example \
+        --data_dir $(pwd) \
+        --out_dir scheme_shape_output \
+        --kmer 10 \
+        --alpha 0.01 \
+        --max_count 1 \
+        --temperature 0.25 \
+        --t_adj 0.0002 \
+        --opt_niter 20000 \
+        --stepsize 0.25 \
+        --threshold_constraints "0 10" \
+        --shape_constraints "-4 4" \
+        --weights_constraints "-4 4" \
+        --batch_size 200 \
+        --max-batch-no-new-seed 10 \
+        --nprocs ${nprocs} \
+        > log.log \
+        2> log.err
+```
+
+### Using your own data
 
 Enter the directory containing your sequence files, shape files,
 and input score files. Run the code beloe, with the
@@ -165,19 +220,20 @@ shape_bounds="-4 4"
 weight_bounds="-4 4"
 niter=20000
 batch_size=200
+max_count=1
 
 kmer=10
 
 singularity exec -B $(pwd):$(pwd) \
-    scheme_0.0.1.sif \
+    scheme_<version>.sif \
     python /src/python3/find_motifs.py \
-        --param_names <shape_names> \
-        --params <shape_files> \
-        -o <out_prefix> \
+        --score_file <infile> \
+        --shape_names <shape_names> \
+        --shape_files <shape_files> \
+        --out_prefix <out_prefix> \
         --data_dir $(pwd) \
         --out_dir <out_dir> \
-        --score_file <infile> \
-        -p <cores> \
+        --kmer ${kmer} \
         --alpha ${alpha} \
         --max_count ${max_count} \
         --temperature ${temp} \
@@ -189,7 +245,7 @@ singularity exec -B $(pwd):$(pwd) \
         --weights_constraints ${weight_bounds} \
         --batch_size ${batch_size} \
         --max-batch-no-new-seed 10 \
-        --kmer ${kmer}" \
+        --nprocs <cores> \
         > log.log \
         2> log.err
 ```
@@ -204,13 +260,13 @@ during sequence motif finding.
 
 ```bash
 singularity exec -B $(pwd):$(pwd) \
-    scheme_0.0.1.sif \
+    scheme_<version>.sif \
     python /src/python3/find_motifs.py \
+        --score_file <infile> \
         --seq_fasta ${seq_file} \
-        -o <out_prefix> \
+        --out_prefix <out_prefix> \
         --data_dir $(pwd) \
         --out_dir <out_dir> \
-        --score_file <infile> \
         --seq_motif_positive_cats <comma_sep_cats> \
         --no_shape_motifs \
         > log.log \
@@ -234,19 +290,20 @@ shape_bounds="-4 4"
 weight_bounds="-4 4"
 niter=20000
 batch_size=200
+max_count=1
 
 kmer=10
 
 singularity exec -B $(pwd):$(pwd) \
-    scheme_0.0.1.sif \
+    scheme_<version>.sif \
     python /src/python3/find_motifs.py \
-        --param_names <shape_names> \
-        --params <shape_files> \
-        -o <out_prefix> \
+        --score_file <infile> \
+        --shape_names <shape_names> \
+        --shape_files <shape_files> \
+        --out_prefix <out_prefix> \
         --data_dir $(pwd) \
         --out_dir <out_dir> \
-        --score_file <infile> \
-        -p <cores> \
+        --kmer ${kmer} \
         --alpha ${alpha} \
         --max_count ${max_count} \
         --temperature ${temp} \
@@ -258,10 +315,9 @@ singularity exec -B $(pwd):$(pwd) \
         --weights_constraints ${weight_bounds} \
         --batch_size ${batch_size} \
         --max-batch-no-new-seed 10 \
-        --kmer ${kmer}" \
         --seq_motif_positive_cats <comma_sep_cats> \
         --find_seq_motifs \
         --seq_fasta ${seq_file} \
         --write_all_files \
-        --kmer ${kmer}" > $JOBFILE
+        --nprocs <cores>
 ```
