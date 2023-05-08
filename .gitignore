@@ -9,4 +9,5 @@ singularity/archive
 singularity/current
 singularity/def
 singularity/*.sif
+test_data
 *.sif
