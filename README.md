@@ -1,6 +1,11 @@
 TODO:
-1. add input file format specs
-2. add docs for every argument
+1. add input file format specs (will add example\_files directory)
+    [ ] place example files in directory
+2. add instructions for running examples
+3. add docs for every argument for every script
+    [x] find\_motifs.py
+    [ ] evaluate\_motifs.py
+4. consider adding wrapper script for all steps (scheme.py)
 
 # SCHEME
 
@@ -55,6 +60,9 @@ of the chunks of the genome you would like to search for
 motifs within, and `<foldnum>` with the number of cross-validation
 folds you would like. For example, use 5 to do 5-fold cross-validation.
 
+TODO: I think wsize must be less than the minimum narrowpeak region width,
+but I have to check on that and insert a note on it here.
+
 ```bash
 singularity exec -B $(pwd):$(pwd) \
     scheme_0.0.1.sif \
@@ -98,7 +106,7 @@ singularity exec -B $(pwd):$(pwd) \
 ```
 
 The above code will create five shape files for each fasta file you have,
-where \"*\" will be replaced with your file prefix.
+where "\*" will be replaced with your file prefix.
 
 1. \*.fa.EP - electrostatic potential
 2. \*.fa.HelT - helical twist
