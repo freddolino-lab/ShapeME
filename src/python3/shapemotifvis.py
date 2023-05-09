@@ -3,8 +3,6 @@ import os
 #mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-from matplotlib import gridspec as gs
-from scipy.ndimage import affine_transform
 import find_motifs as fm
 import numpy as np
 import inout
@@ -17,26 +15,13 @@ this_path = Path(__file__).parent.absolute()
 
 #plt.rc('figure', titlesize=10)
 
-#def get_marker(path):
-#    p,a = svg2paths(path)
-#    m = parse_path(a[0]["d"])
-#    m.vertices -= m.vertices.mean(axis=0)
-#    m = m.transformed(mpl.transforms.Affine2D().rotate_deg(180))
-#    m = m.transformed(mpl.transforms.Affine2D().scale(-1,1))
-#    return m
-
-
-def get_image(path, height_scale=1):
+def get_image(path):
     img_arr = plt.imread(path, format="png")
     return img_arr
 
-
-def scale_image(img, height_scale=1):
-    #scaled = affine_transform(img, np.array([[2,0,0],[0,2,0],[0,0,1]]))
-    scaled = affine_transform(img, np.array([[1/height_scale,0,0],[0,1,0],[0,0,1]]))
-    img = OffsetImage(scaled, zoom=0.05)
+def scale_image(img_arr, scale=1):
+    img = OffsetImage(img_arr, zoom=scale*0.1)
     return img
-
 
 def plot_logo(
         motifs,
@@ -47,10 +32,29 @@ def plot_logo(
         legend_loc="upper left",
 ):
     
+    ##############################################################
+    ##############################################################
+    ## below some lower size, don't plot #########################
+    ##############################################################
+    ##############################################################
+
     motif_list = motifs.motifs
     motif_list,top_n = set_up(motif_list, top_n)
     
     fig,ax = plt.subplots(ncols=1,nrows=top_n,figsize=(9,top_n*2),sharex=True)
+
+    # pre-load images
+    img_dict = {}
+    offset_dict = {}
+    just_a_motif = motif_list[0].motif
+    shape_param_num = just_a_motif.shape[0]
+    offsets = np.linspace(-0.35, 0.35, shape_param_num)
+    for j in range(shape_param_num):
+        shape_name = shape_lut[j]
+        mark_fname = os.path.join(this_path,"img",shape_name+".png")
+        img_arr = get_image(mark_fname)
+        img_dict[shape_name] = img_arr
+        offset_dict[shape_name] = offsets[j]
 
     for i,res in enumerate(motif_list[:top_n]):
 
@@ -69,28 +73,65 @@ def plot_logo(
         for j in range(opt_y.shape[0]):
 
             shape_name = shape_lut[j]
-
-            mark_fname = os.path.join(this_path,"img",shape_name+".png")
-            img_arr = get_image(mark_fname)
+            img_arr = img_dict[shape_name]
+            j_offset = offset_dict[shape_name]
+            j_opt = opt_y[j,:]
+            j_w = weights[j,:]
 
             for k in range(opt_y.shape[1]):
-                img = scale_image( img_arr, height_scale=weights[j,k] )
-                ab = AnnotationBbox(img, (x_vals[k],opt_y[j,k]), frameon=False)
-                this_ax.add_artist( ab )
 
-        this_ax.set_ylim(bottom=opt_y.min(), top=opt_y.max())
+                x_pos = x_vals[k]
+                weight = j_w[k]
+
+                if weight > 0.2:
+                    img = scale_image( img_arr, scale=weight )
+                    img.image.axes = this_ax
+                    ab = AnnotationBbox(
+                        offsetbox = img,
+                        xy = (x_pos,j_opt[k]),
+                        # xybox and boxcoords together shift relative to xy
+                        xybox = (j_offset*50, 0.0),
+                        xycoords = "data",
+                        boxcoords = "offset points",
+                        frameon=False,
+                    )
+                    #print(f"x: {x_vals[k]}")
+                    #print(f"y: {opt_y[j,k]}")
+                    #print(f"dir-ab: {dir(ab)}")
+                    #print(f"ab xycoords: {ab.xycoords}")
+                    #print(f"dir-ab xycoords: {dir(ab.xycoords)}")
+                    #print(f"ab xycoords.center: {ab.xycoords.center()}")
+                    #print(f"ab boxcoords: {ab.boxcoords}")
+                    this_ax.add_artist( ab )
+                    #wind_ext = ab.get_window_extent()
+                    #tight_box = ab.get_tightbbox()
+                    #print(f"window_ext: {wind_ext}")
+                    #print(f"tight_bbox: {tight_box}")
+                if j == 0:
+                    if k % 2 == 0:
+                        this_ax.axvspan(
+                            x_vals[k]-0.5,
+                            x_vals[k]+0.5,
+                            facecolor = "0.2",
+                            alpha=0.5,
+                        )
+
+        this_ax.set_ylim(bottom=opt_y.min()-1, top=opt_y.max()+1)
         this_ax.text(1, 3, f"MI: {mi}")
-        this_ax.set_ylabel(f"Index: {i}")
+        this_ax.set_ylabel(f"Shape value (z-score)")
         if i == 0:
             this_ax.set_title("Shape logo")
             this_ax.set_xticks(x_vals)
+            this_ax.set_xlim(left=x_vals[0]-1, right=x_vals[-1]+1)
+
     
     if top_n == 1:
         handles, labels = ax.get_legend_handles_labels()
     else:
         handles, labels = ax[0].get_legend_handles_labels()
+    this_ax.set_xlabel(f"Position (bp)")
     fig.legend(handles, labels, loc=legend_loc)
-    fig.tight_layout()
+    #fig.tight_layout()
     plt.savefig(file_name)
     plt.close()
 

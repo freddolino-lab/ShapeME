@@ -165,14 +165,10 @@ if __name__ == "__main__":
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
 
-<<<<<<< HEAD
     args = parser.parse_args()
 
     loglevel = args.log
     numeric_level = getattr(logging, loglevel.upper(), None)
-=======
-    numeric_level = getattr(logging, args.log_level.upper(), None)
->>>>>>> aa477ea893dc134255d0aa61b612d09d2b4617d8
 
     logging.basicConfig(
         format='%(asctime)s %(message)s',
@@ -181,17 +177,10 @@ if __name__ == "__main__":
     )
     logging.getLogger('matplotlib.font_manager').disabled = True
 
-<<<<<<< HEAD
     logging.debug(f"Number of cores set by the -p argument: {args.p}")
     logging.debug(
         f"Number of cores available: {multiprocessing.cpu_count()}"
     )
-=======
-    args = parser.parse_args()
-
-    logging.debug(f"Number of cores set by the -p argument: {args.nprocs}")
-    logging.debug(f"Number of cores available: {multiprocessing.cpu_count}")
->>>>>>> aa477ea893dc134255d0aa61b612d09d2b4617d8
 
     logging.info("Arguments:")
     print(str(args))

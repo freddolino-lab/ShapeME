@@ -4,6 +4,7 @@ import inout
 import argparse
 import shapemotifvis as smv
 
+
 def main():
 
     parser = argparse.ArgumentParser()
