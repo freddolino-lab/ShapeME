@@ -16,6 +16,7 @@ import glob
 import re
 import copy
 import subprocess
+from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.linear_model import LogisticRegression
@@ -1883,6 +1884,88 @@ class RecordDatabase(object):
 
         return len(self.y)
 
+
+    def get_records(self, inds):
+        X = self.X[inds,...]
+        y = self.y[inds,...]
+        weights = self.weights[inds,...]
+
+        shape_names = self.shape_names[inds]
+        rec_names = self.record_names[inds]
+
+        db = RecordDatabase(
+            y = y,
+            X = X,
+            shape_names = shape_names,
+            record_names = rec_names,
+            weights = weights,
+        )
+        return db
+
+
+    def split_kfold(self, k):
+        """Makes this database into a list of 2-tuples. Each 2-tuple is a paired
+        set of training/testing data. The first element of each 2-tuple is a
+        training data for training a model. The second element is the paired
+        test dataset to be used in evaluating the trained model. The number
+        of 2-tuples returned in the resulting list is of length k.
+
+        Args:
+        -----
+        k : int
+            The number of folds into which to split the data.
+        """
+
+        folds = []
+
+        skf = StratifiedKFold(
+            n_splits = k,
+            shuffle = True,
+            # set for reproducibility
+            random_state = 42,
+        )
+
+        skf_inds = skf.split(self.X, self.y)
+
+        folds = []
+
+        for fold,(train_inds,test_inds) in enumerate(skf_inds):
+
+            train = self.get_records(train_inds)
+            test = self.get_records(test_inds)
+            folds.append((train,test))
+
+        return folds
+
+    def sample(self, n):
+        """Useful for down-sampling the records in self.
+
+        Args:
+        -----
+        n : int
+            The final number of (randomly sampled) records to return. Sampling
+            is stratified by the classes found in self.y
+        """
+
+        total = len(self)
+        if total <= n:
+            sys.exit(
+                f"To sample from a database, n must be less than the "\
+                f"number of records in the database. You set n to {n}, but "\
+                f"there are {total} records. Exiting now."
+            )
+        inds = list(range(total))
+        distinct_cats = np.unique(self.y)
+        strat_w = np.zeros_like(self.y)
+        for cat in distinct_cats:
+            mask = self.y == cat
+            n_cat = np.sum(mask)
+            strat_w[mask] = n_cat / total
+
+        samp_inds = np.random.choice(inds, size=n, replace=False, p=strat_w)
+        sampled_db = self.get_records(samp_inds)
+
+        return sampled_db
 
     def seqs_per_bin(self):
         """ Method to determine how many sequences are in each category
