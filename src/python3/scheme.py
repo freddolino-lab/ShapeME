@@ -19,7 +19,7 @@ sys.path.insert(0, this_path)
 from convert_narrowpeak_to_fire import make_kfold_datasets
 import inout
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--crossval_fold', action="store", type=int, required=True,
         help="Number of folds into which to split data for k-fold cross-validation",
@@ -137,13 +137,12 @@ def main():
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
 
-    data_dir = args.data_dir
-    kfold = args.crossval_folds
-    find_seq_motifs = args.find_seq_motifs
-    no_shape_motifs = args.no_shape_motifs
-    in_fname = os.path.join(in_direc, args.score_file)
+    args = parser.parse_args()
+    return args
 
-    # assemble the prefix for output direc name
+def set_outdir_pref(no_shape_motifs, find_seq_motifs):
+    """Assemble output directory name prefix
+    """
     outdir_pre = ""
     if not no_shape_motifs:
         outdir_pre += "shape"
@@ -157,16 +156,61 @@ def main():
                 f"You included --no_shape_motifs without including --find_seq_motifs. "\
                 f"No motifs will be found. Exiting now."
             )
+    return outdir_pre
 
-    shape_fname_dict = {
-        n:os.path.join(in_direc,fname) for n,fname
-        in zip(args.shape_names, args.shape_files)
-    }
-    records = inout.RecordDatabase(
+
+def main():
+
+    args = parse_args()
+
+    in_direc = args.in_direc
+    data_dir = args.data_dir
+    shape_names = args.shape_names
+    shape_files = args.shape_files
+    seq_fasta = args.seq_fasta
+    kfold = args.crossval_folds
+    find_seq_motifs = args.find_seq_motifs
+    no_shape_motifs = args.no_shape_motifs
+    in_fname = os.path.join(in_direc, args.score_file)
+    max_n = args.max_n
+
+    # assemble the prefix for output direc name
+    outdir_pre = set_outdir_pref(no_shape_motifs, find_seq_motifs)
+
+    records = inout.construct_records(
+        in_direc,
+        shape_names,
+        shape_files,
         in_fname,
-        shape_fname_dict,
-        shift_params = ["Roll", "HelT"],
     )
+
+    # down-sample number of records if that's what we've chosen to do
+    if max_n < len(records):
+        retained_indices = records.sample(max_n, inplace=True)
+
+        if find_seq_motifs:
+            # if asked for seq motifs but didn't pass seq fa file, exception
+            if seq_fasta is None:
+                raise inout.NoSeqFaException()
+            # if both seq_motifs and meme file were passed, raise exception
+            if seq_meme_file is not None:
+                raise inout.SeqMotifOptionException(seq_meme_file)
+
+            ############################################################
+            ############################################################
+            ############################################################
+            ## NEEDS TESTED   
+            ############################################################
+            ############################################################
+            ############################################################
+
+            # read seq fasta, keep indices        
+            with open(seq_fasta,"r") as seq_f:
+                seqs = inout.FastaFile()
+                seqs.read_whole_file(seq_f)
+            seqs = seqs[retained_indices]
+        else:
+            seqs = None
 
     # make k-fold data
     for fold in range(kfold):
@@ -180,8 +224,13 @@ def main():
                 f"Nothing was done for fold {fold}. Exiting now."
             )
 
-        make_kfold_datasets(kfold, outfasta, finalfire, args.outpre)
+    # get list of (train,test) pairs
+    folds = records.split_kfold( kfold, seqs )
 
+    # write the data to files for each fold, run motif inference and evaluation
+    # on each fold
+    for fold in folds:
+        pass
 
 
 if __name__ == '__main__':

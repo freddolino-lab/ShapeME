@@ -2702,6 +2702,7 @@ impl<'a> MotifWeights {
         self.weights = new_weights.to_owned();
         self.weights_norm = new_weights_norm.to_owned();
     }
+
     /// Updates the weights_norm field in place based on the weights field.
     /// The motif must be mutably borrowed to be able to use this method
     ///

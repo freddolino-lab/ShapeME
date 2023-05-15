@@ -15,6 +15,7 @@ import sys
 import glob
 import re
 import copy
+import time
 import subprocess
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
@@ -38,6 +39,10 @@ class ReadMotifException(Exception):
             f"the motif type. Set motif_type to either \"shape\" or \"sequence\"."
         super().__init__(self.message)
 
+class SetNamesException(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
 
 class NoSeqFaException(Exception):
     def __init__(self):
@@ -96,6 +101,19 @@ def evaluate_match_object(mo):
     else:
         result = None
     return result
+
+
+def construct_records(in_direc, shape_names, shape_files, in_fname):
+    shape_fname_dict = {
+        n:os.path.join(in_direc,fname) for n,fname
+        in zip(shape_names, shape_files)
+    }
+    records = RecordDatabase(
+        os.path.join(in_direc,in_fname),
+        shape_fname_dict,
+        shift_params = ["Roll", "HelT"],
+    )
+    return records
 
 
 def read_shape_motifs(fname, shape_lut, alt_name_base=None):
@@ -1652,6 +1670,9 @@ class FastaFile(object):
         subset.data = seq_data
         return subset
 
+    def __len__(self):
+        return len(self.names)
+
     def read_whole_file(self, fhandle):
         """ 
         Read an entire fasta file into memory and store it in the data attribute
@@ -1858,14 +1879,20 @@ class RecordDatabase(object):
             self.X = None
         else:
             if shape_names is None:
-                raise("X values were given without names for the shapes. Reinitialize, setting the shape_names argument")
+                raise SetNamesException(
+                    f"ERROR: X values were given without names for the shapes. "\
+                    f"Reinitialize, setting the shape_names argument."
+                )
             self.X = X
             self.shape_name_lut = {name:i for i,name in enumerate(shape_names)}
         if y is not None:
-            #if record_names is None:
-            #    raise("y values were given without names for the records. Reinitialize, setting the record_names argument")
+            if record_names is None:
+                raise SetNamesException(
+                    "ERROR: y values were given without names for the records. "\
+                    f"Reinitialize, setting the record_names argument"
+                )
             self.y = y
-            #self.record_name_lut = {name:i for i,name in enumerate(record_names)}
+            self.record_name_lut = {name:i for i,name in enumerate(record_names)}
         if weights is not None:
             self.weights = weights
         if infile is not None:
@@ -1881,17 +1908,64 @@ class RecordDatabase(object):
         """Length method returns the total number of records in the database
         as determined by the length of the records attribute.
         """
-
         return len(self.y)
 
 
-    def get_records(self, inds):
+    def write_to_files(self, out_direc, fname_base):
+        """Writes shapes to fasta files and scores to txt file.
+        """
+
+        score_fname = os.path.join(out_direc, fname_base) + ".txt"
+        print(score_fname)
+        with open(score_fname, "w") as score_f:
+            score_f.write("name\tscore")
+            for rec_name,rec_idx in self.record_name_lut.items():
+                val = self.y[rec_idx]
+                score_f.write(f"\n{rec_name}\t{val}")
+
+        for shape_name,shape_idx in self.shape_name_lut.items():
+            shape_fname = os.path.join(out_direc, fname_base) + f".fa.{shape_name}"
+
+            with open(shape_fname, "w") as shape_f:
+                count = 0
+                for rec_name,rec_idx in self.record_name_lut.items():
+
+                    if count == 0:
+                        record_str = f">{rec_name}\n"
+                    else:
+                        record_str = f"\n>{rec_name}\n"
+
+                    seq = self.X[rec_idx,:,shape_idx,0]
+                    seq_str = ",".join([f"{val:.2f}" for val in seq])
+
+                    record_str += seq_str
+                    shape_f.write(record_str)
+
+
+    def set_records_inplace(self, inds):
+        self.X = self.X[inds,...]
+        self.y = self.y[inds,...]
+        self.weights = self.weights[inds,...]
+
+        rev_rec_lut = {v:k for k,v in self.record_name_lut.items()}
+        rec_names = [ rev_rec_lut[idx] for idx in inds ]
+        self.record_name_lut = { name:i for i,name in enumerate(rec_names) }
+        
+        rev_shape_lut = {v:k for k,v in self.shape_name_lut.items()}
+        shape_names = [ rev_shape_lut[idx] for idx in rev_shape_lut.keys() ] 
+        self.shape_name_lut = { name:i for i,name in enumerate(shape_names) }
+
+
+    def subset_records(self, inds):
         X = self.X[inds,...]
         y = self.y[inds,...]
         weights = self.weights[inds,...]
 
-        shape_names = self.shape_names[inds]
-        rec_names = self.record_names[inds]
+        rev_rec_lut = {v:k for k,v in self.record_name_lut.items()}
+        rec_names = [ rev_rec_lut[idx] for idx in inds ]
+
+        rev_shape_lut = {v:k for k,v in self.shape_name_lut.items()}
+        shape_names = [ rev_shape_lut[idx] for idx in inds ] 
 
         db = RecordDatabase(
             y = y,
@@ -1902,19 +1976,31 @@ class RecordDatabase(object):
         )
         return db
 
-
-    def split_kfold(self, k):
-        """Makes this database into a list of 2-tuples. Each 2-tuple is a paired
-        set of training/testing data. The first element of each 2-tuple is a
-        training data for training a model. The second element is the paired
-        test dataset to be used in evaluating the trained model. The number
-        of 2-tuples returned in the resulting list is of length k.
+    def split_kfold(self, k, seqs=None, rng_seed=None):
+        """Makes this database into a list of 2-tuples. Each 2-tuple is 
+        a paired set of training/testing data. The first element of each 2-tuple
+        is itself a 2-tuple of (training_shapes, training_sequences), and the
+        second element of each 2-tuple is itself a 2-tuple of
+        (test_shapes, test_sequences). The length of the returned list
+        of 2-tuples is equal to k.
 
         Args:
         -----
         k : int
             The number of folds into which to split the data.
+        seqs : FastaFile or None
+            If doing both sequence and shape motif inference, a FastaFile
+            object can be used for this argument so as to do k-fold splitting
+            of the sequences and shapes together.
+
+        Returns:
+        --------
+        folds : list
+            List of length k
         """
+
+        if rng_seed is None:
+            rng_seed = int(time.time())
 
         folds = []
 
@@ -1922,7 +2008,7 @@ class RecordDatabase(object):
             n_splits = k,
             shuffle = True,
             # set for reproducibility
-            random_state = 42,
+            random_state = rng_seed,
         )
 
         skf_inds = skf.split(self.X, self.y)
@@ -1930,22 +2016,36 @@ class RecordDatabase(object):
         folds = []
 
         for fold,(train_inds,test_inds) in enumerate(skf_inds):
+            train_shapes = self.subset_records(train_inds)
+            test_shapes = self.subset_records(test_inds)
 
-            train = self.get_records(train_inds)
-            test = self.get_records(test_inds)
-            folds.append((train,test))
+            if seqs is not None:
+                train_seqs = seqs[train_inds]
+                test_seqs = seqs[test_inds]
+            else:
+                train_seqs = None
+                test_seqs = None
+
+            folds.append(((train_shapes,train_seqs),(test_shapes,test_seqs)))
 
         return folds
 
-    def sample(self, n):
-        """Useful for down-sampling the records in self.
+    def sample(self, n, inplace=False, rng_seed=None):
+        """Useful for down-sampling the records in self. Sampling is stratified
+        by values in self.y, so y must be categorical for this to work as desired.
 
         Args:
         -----
         n : int
             The final number of (randomly sampled) records to return. Sampling
             is stratified by the classes found in self.y
+        inplace : bool
+            Sets whether to modify self in place, or whether to return
+            a copy of the sampled data from self.
         """
+
+        if rng_seed is None:
+            rng_seed = int(time.time())
 
         total = len(self)
         if total <= n:
@@ -1962,10 +2062,18 @@ class RecordDatabase(object):
             n_cat = np.sum(mask)
             strat_w[mask] = n_cat / total
 
-        samp_inds = np.random.choice(inds, size=n, replace=False, p=strat_w)
-        sampled_db = self.get_records(samp_inds)
+        strat_w = strat_w / strat_w.sum()
 
-        return sampled_db
+        # stratified random sample of record indices
+        rng = np.random.default_rng(rng_seed)
+        samp_inds = rng.choice(inds, size=n, replace=False, p=strat_w)
+
+        if inplace:
+            self.set_records_inplace(samp_inds)
+            return samp_inds
+        else:
+            sampled_db = self.subset_records(samp_inds)
+            return (sampled_db,samp_inds)
 
     def seqs_per_bin(self):
         """ Method to determine how many sequences are in each category
@@ -2297,28 +2405,12 @@ class RecordDatabase(object):
             print("X vals are not normalized. Doing nothing.")
 
     def initialize_weights(self):
-        """Provides the weights attribute, with a beta distrubuted
-        weight over the length of the windows. Normalized such
+        """Provides the weights attribute. Normalized such
         that the weights for all shapes/positions in a given
-        record/window sum to one.
+        record sum to one.
         """
+        self.weights = np.ones_like(self.X) / self.X.size
 
-        #L = self.windows.shape[1]
-        #S = self.windows.shape[2]
-        #self.weights = np.full_like(self.windows, 1.0/L/S)
-        weights = np.zeros_like(self.windows[0,:,:,0,0])
-
-        #x_vals = np.linspace(0,1,self.windows.shape[1])
-        #w = stats.beta.pdf(x_vals, 2, 2)
-        #w = w/np.sum(w)/self.windows.shape[2]
-        #w_list = [w for _ in range(self.windows.shape[2])]
-        #w = np.stack(w_list,axis=1)
-        #
-        #self.weights = np.zeros_like(self.windows)
-        #for rec in range(self.weights.shape[0]):
-        #    for win in range(self.weights.shape[-1]):
-        #        self.weights[rec,:,:,win] = w
-        return weights
 
     def compute_windows(self, wsize):
         """Method to precompute all nmers.

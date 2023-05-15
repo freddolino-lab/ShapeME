@@ -20,7 +20,11 @@ def get_image(path):
     return img_arr
 
 def scale_image(img_arr, scale=1):
-    img = OffsetImage(img_arr, zoom=scale*0.1)
+    # scale the alpha layer
+    img_cp = img_arr.copy()
+    img_cp[:,:,3] *= scale
+    #img = OffsetImage(img_arr, zoom=scale*0.1)
+    img = OffsetImage(img_cp, zoom=0.125)
     return img
 
 def plot_logo(
@@ -41,7 +45,7 @@ def plot_logo(
     motif_list = motifs.motifs
     motif_list,top_n = set_up(motif_list, top_n)
     
-    fig,ax = plt.subplots(ncols=1,nrows=top_n,figsize=(9,top_n*2),sharex=True)
+    fig,ax = plt.subplots(ncols=1,nrows=top_n,figsize=(8.5,top_n*2),sharex=True)
 
     # pre-load images
     img_dict = {}
@@ -56,6 +60,18 @@ def plot_logo(
         img_dict[shape_name] = img_arr
         offset_dict[shape_name] = offsets[j]
 
+    max_weights = []
+    uppers = []
+    lowers = []
+    for res in motif_list[:top_n]:
+        max_weights.append(res.weights.max())
+        lowers.append(res.motif.min())
+        uppers.append(res.motif.max())
+    w_max = np.max(max_weights)
+    upper = np.max(uppers) + 0.75
+    lower = np.max(lowers) - 0.75
+    ylims = np.max(np.abs([upper, lower]))
+
     for i,res in enumerate(motif_list[:top_n]):
 
         if top_n == 1:
@@ -63,10 +79,14 @@ def plot_logo(
         else:
             this_ax = ax[i]
 
+        this_ax.axhline(y=0.0, color="black", linestyle="solid")
+        this_ax.axhline(y=2.0, color="gray", linestyle="dashed")
+        this_ax.axhline(y=4.0, color="gray", linestyle="dashed")
+        this_ax.axhline(y=-2.0, color="gray", linestyle="dashed")
+        this_ax.axhline(y=-4.0, color="gray", linestyle="dashed")
         mi = round(res.mi, 2)
         opt_y = res.motif
-        weights = res.weights
-        weights = weights / weights.max()
+        norm_weights = res.weights / w_max
         
         x_vals = [i+1 for i in range(opt_y.shape[1])]
         
@@ -76,37 +96,37 @@ def plot_logo(
             img_arr = img_dict[shape_name]
             j_offset = offset_dict[shape_name]
             j_opt = opt_y[j,:]
-            j_w = weights[j,:]
+            j_w = norm_weights[j,:]
 
             for k in range(opt_y.shape[1]):
 
                 x_pos = x_vals[k]
                 weight = j_w[k]
 
-                if weight > 0.2:
-                    img = scale_image( img_arr, scale=weight )
-                    img.image.axes = this_ax
-                    ab = AnnotationBbox(
-                        offsetbox = img,
-                        xy = (x_pos,j_opt[k]),
-                        # xybox and boxcoords together shift relative to xy
-                        xybox = (j_offset*50, 0.0),
-                        xycoords = "data",
-                        boxcoords = "offset points",
-                        frameon=False,
-                    )
-                    #print(f"x: {x_vals[k]}")
-                    #print(f"y: {opt_y[j,k]}")
-                    #print(f"dir-ab: {dir(ab)}")
-                    #print(f"ab xycoords: {ab.xycoords}")
-                    #print(f"dir-ab xycoords: {dir(ab.xycoords)}")
-                    #print(f"ab xycoords.center: {ab.xycoords.center()}")
-                    #print(f"ab boxcoords: {ab.boxcoords}")
-                    this_ax.add_artist( ab )
-                    #wind_ext = ab.get_window_extent()
-                    #tight_box = ab.get_tightbbox()
-                    #print(f"window_ext: {wind_ext}")
-                    #print(f"tight_bbox: {tight_box}")
+                #if weight > 0.2:
+                img = scale_image( img_arr, scale=weight )
+                img.image.axes = this_ax
+                ab = AnnotationBbox(
+                    offsetbox = img,
+                    xy = (x_pos,j_opt[k]),
+                    # xybox and boxcoords together shift relative to xy
+                    xybox = (j_offset*50, 0.0),
+                    xycoords = "data",
+                    boxcoords = "offset points",
+                    frameon=False,
+                )
+                #print(f"x: {x_vals[k]}")
+                #print(f"y: {opt_y[j,k]}")
+                #print(f"dir-ab: {dir(ab)}")
+                #print(f"ab xycoords: {ab.xycoords}")
+                #print(f"dir-ab xycoords: {dir(ab.xycoords)}")
+                #print(f"ab xycoords.center: {ab.xycoords.center()}")
+                #print(f"ab boxcoords: {ab.boxcoords}")
+                this_ax.add_artist( ab )
+                #wind_ext = ab.get_window_extent()
+                #tight_box = ab.get_tightbbox()
+                #print(f"window_ext: {wind_ext}")
+                #print(f"tight_bbox: {tight_box}")
                 if j == 0:
                     if k % 2 == 0:
                         this_ax.axvspan(
@@ -116,7 +136,7 @@ def plot_logo(
                             alpha=0.5,
                         )
 
-        this_ax.set_ylim(bottom=opt_y.min()-1, top=opt_y.max()+1)
+        this_ax.set_ylim(bottom=-ylims, top=ylims)
         this_ax.text(1, 3, f"MI: {mi}")
         this_ax.set_ylabel(f"Shape value (z-score)")
         if i == 0:
@@ -364,7 +384,9 @@ def plot_motif_enrichment(
     abs_min = np.abs(hm_data.min())
     lim = np.array([abs_min, abs_max]).max()
 
-    fig, ax = plt.subplots()
+    nrow = len(row_labs)
+    ncol = len(col_labs)
+    fig, ax = plt.subplots(figsize=(ncol*1.0, nrow*1.0))
     im,cbar = heatmap(
         hm_data,
         hm_pvals,

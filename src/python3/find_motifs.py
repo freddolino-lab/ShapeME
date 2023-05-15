@@ -189,7 +189,7 @@ if __name__ == "__main__":
     in_direc = args.data_dir
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
-    in_fname = os.path.join(in_direc, args.score_file)
+    in_fname = args.score_file
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
@@ -210,17 +210,13 @@ if __name__ == "__main__":
         os.mkdir(out_direc)
 
     print()
-    logging.info("Reading in shape files")
-    # read in shapes
-    shape_fname_dict = {
-        n:os.path.join(in_direc,fname) for n,fname
-        in zip(args.shape_names, args.shape_files)
-    }
     logging.info("Reading input data and shape info.")
-    records = inout.RecordDatabase(
+    # read in shapes
+    records = inout.construct_records(
+        in_direc,
+        shape_names,
+        shape_files,
         in_fname,
-        shape_fname_dict,
-        shift_params = ["Roll", "HelT"],
     )
 
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"

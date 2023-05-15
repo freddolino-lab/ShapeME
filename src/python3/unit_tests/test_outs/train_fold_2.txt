@@ -1,0 +1,5 @@
+name	score
+peak_00462	0.0
+peak_00262	0.0
+peak_00416	0.0
+peak_00054	0.0

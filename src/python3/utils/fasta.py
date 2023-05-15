@@ -169,6 +169,9 @@ class FastaFile(object):
         subset.data = seq_data
         return subset
 
+    def __len__(self):
+        return len(self.names)
+
     def read_whole_file(self, fhandle):
         """ 
         Read an entire fasta file into memory and store it in the data attribute
