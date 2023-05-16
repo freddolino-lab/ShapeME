@@ -3,7 +3,7 @@ import os
 #mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-import find_motifs as fm
+import infer_motifs as im
 import numpy as np
 import inout
 import sys
@@ -722,7 +722,7 @@ class EnrichmentHeatmap(object):
         for motif in sorted(self.motifs, key= lambda x : x['mi'], reverse=True):
             motif_vals = []
             for val in sorted(motif["enrichment"].keys()):
-                this_logodds = fm.two_way_to_log_odds(motif["enrichment"][val])
+                this_logodds = im.two_way_to_log_odds(motif["enrichment"][val])
                 motif_vals.append(this_logodds)
             all_vals.append(motif_vals)
         return np.array(all_vals)
@@ -744,7 +744,7 @@ class EnrichmentHeatmap(object):
         for i, motif in enumerate(sorted(self.motifs,key=lambda x:x['mi'], reverse=True)):
             motif_vals = ["%.3f"%(motif['mi']), "%.3f"%(motif['motif_entropy'])]
             for val in sorted(motif["enrichment"].keys()):
-                this_logodds = fm.two_way_to_log_odds(motif["enrichment"][val])
+                this_logodds = im.two_way_to_log_odds(motif["enrichment"][val])
                 motif_vals.append("%.4e"%this_logodds)
             all_lines.append(motif_vals)
         with open(outfile, mode="w") as outf:

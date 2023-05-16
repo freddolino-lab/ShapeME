@@ -17,7 +17,7 @@ fn main() {
         .num_threads(cfg.cores)
         .build_global()
         .unwrap();
-    println!("\nfind_motifs binary using {} cores via rayon", current_num_threads());
+    println!("\ninfer_motifs binary using {} cores via rayon", current_num_threads());
 
     let mut rec_db = motifer::RecordsDB::new_from_files(
         &cfg.shape_fname,

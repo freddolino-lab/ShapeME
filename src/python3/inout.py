@@ -54,7 +54,7 @@ class NoSeqFaException(Exception):
 
 class RustBinaryException(Exception):
     def __init__(self, cmd):
-        self.message = f"ERROR: find_motifs binary execution exited with "\
+        self.message = f"ERROR: infer_motifs binary execution exited with "\
             f"non-zero exit status.\n"\
             f"The attempted command was as follows:\n{cmd}"
         super().__init__(self.message)
@@ -118,7 +118,7 @@ def construct_records(in_direc, shape_names, shape_files, in_fname):
 
 def read_shape_motifs(fname, shape_lut, alt_name_base=None):
     """Reads json file (fname) containing Motifs from rust, wrangles
-    data into appropriate shapes for next steps of find_motifs.py
+    data into appropriate shapes for next steps of infer_motifs.py
     """
 
     with open(fname, 'r') as f:
@@ -138,7 +138,7 @@ def read_shape_motifs(fname, shape_lut, alt_name_base=None):
 
 def read_fimo_file(fname):
     """Reads json file (fname) containing Motifs from rust, wrangles
-    data into appropriate shapes for next steps of find_motifs.py
+    data into appropriate shapes for next steps of infer_motifs.py
     """
 
     motif_results = []
@@ -1372,12 +1372,13 @@ class Motifs:
             for i,motif in enumerate(self.motifs):
                 motif.hits = self.X[:,i][:,None]
         except:
-            sys.exit(
+            logging.error(
                 f"Problem creating X array for sequence motif logistic regression.\n"\
                 f"X array shape: {self.X.shape}\n"\
                 f"motif ids: {ids_in_self}\n"\
                 f"motif lut: {self.var_lut}\n"\
             )
+            sys.exit()
 
 
     def filter_motifs(self, coefs):
@@ -1913,18 +1914,24 @@ class RecordDatabase(object):
 
     def write_to_files(self, out_direc, fname_base):
         """Writes shapes to fasta files and scores to txt file.
+
+        Returns:
+        --------
+        A list with the follwing format:
+            [score_fname, [shape_fname1, shape_fname2, ...]]
         """
 
         score_fname = os.path.join(out_direc, fname_base) + ".txt"
-        print(score_fname)
         with open(score_fname, "w") as score_f:
             score_f.write("name\tscore")
             for rec_name,rec_idx in self.record_name_lut.items():
                 val = self.y[rec_idx]
                 score_f.write(f"\n{rec_name}\t{val}")
 
+        shape_fnames = []
         for shape_name,shape_idx in self.shape_name_lut.items():
             shape_fname = os.path.join(out_direc, fname_base) + f".fa.{shape_name}"
+            shape_fnames.append(shape_fname)
 
             with open(shape_fname, "w") as shape_f:
                 count = 0
@@ -1940,6 +1947,7 @@ class RecordDatabase(object):
 
                     record_str += seq_str
                     shape_f.write(record_str)
+        return (score_fname, shape_fnames)
 
 
     def set_records_inplace(self, inds):
@@ -2049,11 +2057,12 @@ class RecordDatabase(object):
 
         total = len(self)
         if total <= n:
-            sys.exit(
+            logging.error(
                 f"To sample from a database, n must be less than the "\
                 f"number of records in the database. You set n to {n}, but "\
                 f"there are {total} records. Exiting now."
             )
+            sys.exit()
         inds = list(range(total))
         distinct_cats = np.unique(self.y)
         strat_w = np.zeros_like(self.y)
@@ -2292,9 +2301,29 @@ class RecordDatabase(object):
                     fwd_data = rec_data[1:]
                     rev_data = rec_data[1:]
                     rev_data = rev_data[::-1]
+                    if (
+                        (len(fwd_data) != record_length)
+                        | (len(rev_data) != record_length)
+                    ):
+                        logging.error(
+                            f"ERROR: the record named {rec_name} is not "\
+                            f"the same length as the other records. "\
+                            f"All records must be "\
+                            f"the same length. Exiting without inferring motifs."
+                        )
+                        sys.exit()
+
                     self.X[r_idx,:,s_idx,0] = fwd_data
                     self.X[r_idx,:,s_idx,1] = rev_data
                 else:
+                    if len(rec_data) != record_length:
+                        logging.error(
+                            f"ERROR: the record named {rec_name} is not "\
+                            f"the same length as the other records. "\
+                            f"All records must be "\
+                            f"the same length. Exiting without inferring motifs."
+                        )
+                        sys.exit()
                     self.X[r_idx,:,s_idx,0] = rec_data
                     self.X[r_idx,:,s_idx,1] = rec_data[::-1]
 

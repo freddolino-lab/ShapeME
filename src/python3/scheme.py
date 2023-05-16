@@ -12,6 +12,7 @@ import os
 import sys
 import numpy as np
 from pathlib import Path
+import logging
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
@@ -30,8 +31,6 @@ def parse_args():
         help='input files with shape scores')
     parser.add_argument('--shape_names', nargs="+", type=str, required=True,
         help='shape names (MUST BE IN SAME ORDER AS CORRESPONDING SHAPE FILES)')
-    parser.add_argument('--out_prefix', type=str, required=True,
-        help="Prefix to apply to output files.")
     parser.add_argument('--data_dir', type=str, required=True,
         help="Directory from which input files will be read.")
     parser.add_argument('--kmer', type=int,
@@ -59,7 +58,7 @@ def parse_args():
         help=f"Sets the number of batches of seed evaluation with no new motifs "\
             f"added to the set of motifs to be optimized prior to truncating the "\
             f"initial search for motifs.")
-    parser.add_argument('-nprocs', type=int, default=1,
+    parser.add_argument('--nprocs', type=int, default=1,
         help="number of processors. Default: %(default)d")
     parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
         help=f"Sets the upper and lower limits on the match "\
@@ -174,6 +173,15 @@ def main():
     in_fname = os.path.join(in_direc, args.score_file)
     max_n = args.max_n
 
+    loglevel = args.log
+    numeric_level = getattr(logging, loglevel.upper(), None)
+
+    logging.basicConfig(
+        format='%(asctime)s %(message)s',
+        level=numeric_level,
+        stream=sys.stdout,
+    )
+
     # assemble the prefix for output direc name
     outdir_pre = set_outdir_pref(no_shape_motifs, find_seq_motifs)
 
@@ -186,6 +194,9 @@ def main():
 
     # down-sample number of records if that's what we've chosen to do
     if max_n < len(records):
+        # records is updated inplace, and we store the retained indices
+        # to later fetch the same records from sequence files if seq motifs
+        # are to be found
         retained_indices = records.sample(max_n, inplace=True)
 
         if find_seq_motifs:
@@ -196,14 +207,6 @@ def main():
             if seq_meme_file is not None:
                 raise inout.SeqMotifOptionException(seq_meme_file)
 
-            ############################################################
-            ############################################################
-            ############################################################
-            ## NEEDS TESTED   
-            ############################################################
-            ############################################################
-            ############################################################
-
             # read seq fasta, keep indices        
             with open(seq_fasta,"r") as seq_f:
                 seqs = inout.FastaFile()
@@ -212,26 +215,122 @@ def main():
         else:
             seqs = None
 
-    # make k-fold data
-    for fold in range(kfold):
-        out_dir = os.path.join(data_dir, f"{outdir_pre}_fold_{fold}_output")
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        else:
-            sys.exit(
-                f"The intended output directory, {out_dir}, already "\
-                f"exists. Either rename the existing directory or remove it. "\
-                f"Nothing was done for fold {fold}. Exiting now."
-            )
-
-    # get list of (train,test) pairs
+    # get list of ((train_shape,train_seq),(test_shape,test_seq)) tuples for each fold
     folds = records.split_kfold( kfold, seqs )
 
     # write the data to files for each fold, run motif inference and evaluation
     # on each fold
-    for fold in folds:
-        pass
+    for k,fold in enumerate(folds):
 
+        out_dir = os.path.join(data_dir, f"{outdir_pre}_fold_{fold}_output")
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        else:
+            logging.error(
+                f"The intended output directory, {out_dir}, already "\
+                f"exists. We try not to clobber existing data. "\
+                f"Either rename the existing directory or remove it. "\
+                f"Nothing was done for fold {fold}. Exiting now."
+            )
+            sys.exit()
+
+        train_base = f"fold_{k}_train"
+        test_base = f"fold_{k}_test"
+        train_shapes = fold[0][0]
+        train_seqs = fold[0][1]
+        test_shapes = fold[1][0]
+        test_seqs = fold[1][1]
+
+        train_score_fname,train_shape_fnames = train_shapes.write_to_files(
+            in_direc,
+            train_base,
+        )
+        shape_names = " ".join(
+            [name.split(".")[-1] for name in train_shape_fnames]
+        )
+        test_score_fname,test_shape_fnames = test_shapes.write_to_files(
+            in_direc,
+            test_base,
+        )
+
+        if find_seq_motifs:
+            train_seq_fasta = f"fold_{k}_train.fa"
+            test_seq_fasta = f"fold_{k}_test.fa"
+            with open(train_seq_fasta, "w") as train_seq_f:
+                train_seqs.write(train_seq_f)
+            with open(test_set_fasta, "w") as test_seq_f:
+                test_seqs.write(test_seq_f)
+
+        INFER_EXE = f"{this_path}/infer_motfis.py "\
+            f"--score_file fold_{k}_train.txt "\
+            f"--shape_files {' '.join(train_shape_fnames)} "\
+            f"--shape_names {train_shape_names} "\
+            f"--out_prefix {outdir_pre} "\
+            f"--data_dir {in_direc} "\
+            f"--out_dir {out_dir} "\
+            f"--kmer {args.kmer} " \
+            f"--max_count {args.max_count} "\
+            f"--continuous {args.continuous} "\
+            f"--threshold_sd {args.threshold_sd} "\
+            f"--init_threshold_seed_num {args.init_threshold_seed_num} "\
+            f"--init_threshold_recs_per_seed {args.init_threshold_recs_per_seed} "\
+            f"--init_threshold_windows_per_record {args.init_threshold_windows_per_record} "\
+            f"--max_batch_no_new_seed {args.max_batch_no_new_seed} "\
+            f"--nprocs {args.nprocs} "\
+            f"--threshold_constraints {args.threshold_constraints} " \
+            f"--shape_constraints {args.shape_constraints} " \
+            f"--weights_constraints {args.weights_constraints} " \
+            f"--temperature {args.temperature} " \
+            f"--t_adj {args.t_adj} " \
+            f"--stepsize {args.stepsize} " \
+            f"--opt_niter {args.opt_niter} " \
+            f"--alpha {args.alpha} " \
+            f"--batch_size {args.batch_size} " \
+            f"--find_seq_motifs {args.find_seq_motifs} " \
+            f"--no_shape_motifs {args.no_shape_motifs} " \
+            f"--seq_fasta {args.seq_fasta} " \
+            f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
+            f"--streme_thresh {args.streme_thresh} " \
+            f"--seq_meme_file {args.seq_meme_file} " \
+            f"--shape_rust_file {args.shape_rust_file} " \
+            f"--write_all_files {args.write_all_files} " \
+            f"--exhaustive {args.exhaustive} " \
+            f"--log_level {args.log_level}"
+
+        EVAL_EXE = f"{this_path}/evaluate_motifs.py "\
+            f"--continous {args.continuous} "\
+            f"--test_seq_fasta {test_seq_fasta} "\
+            f"--train_seq_fasta {train_seq_fasta} "\
+            f"--test_shape_files {' '.join(test_shape_fnames)} "\
+            f"--train_shape_files {' '.join(train_shape_fnames)} "\
+            f"--shape_names {shape_names} "\
+            f"--data_dir {in_direc} "\
+            f"--train_score_file {train_score_fname} "\
+            f"--test_score_file {test_score_fname} "\
+            f"--out_dir {out_dir} "\
+            f"--nprocs {args.nprocs} "\
+            f"--out_prefix {outdir_pre}"
+
+        logging.log(f"Inferring motifs for fold {k}...")
+        # workaround for potential security vulnerability of shell=True
+        INFER_CMD = shlex.quote(INFER_EXE)
+        infer_result = subprocess.run(
+            INFER_CMD,
+            shell=True,
+            #capture_output=True,
+            check=True,
+        )
+
+        logging.log(f"Evaluating motifs identified for fold {k}...")
+        # workaround for potential security vulnerability of shell=True
+        EVAL_CMD = shlex.quote(EVAL_EXE)
+        eval_result = subprocess.run(
+            EVAL_CMD,
+            shell=True,
+            #capture_output=True,
+            check=True,
+        )
+    
 
 if __name__ == '__main__':
     main()

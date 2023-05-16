@@ -3,7 +3,7 @@
 members = [
     "motifer",
     "optim",
-    "find_motifs",
+    "infer_motifs",
     "evaluate_motifs",
     "get_robustness",
 ]

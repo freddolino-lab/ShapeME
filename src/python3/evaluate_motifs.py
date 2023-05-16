@@ -724,18 +724,18 @@ if __name__ == "__main__":
             help="number of bins to discretize continuous input data with")
     parser.add_argument('--test_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
     parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
-    parser.add_argument('--test_params', nargs="+", type=str,
+    parser.add_argument('--test_shape_files', nargs="+", type=str,
                          help='inputfiles with test shape scores')
-    parser.add_argument('--train_params', nargs="+", type=str,
+    parser.add_argument('--train_shape_files', nargs="+", type=str,
                          help='inputfiles with training shape scores')
-    parser.add_argument('--param_names', nargs="+", type=str,
+    parser.add_argument('--shape_names', nargs="+", type=str,
                          help='parameter names')
     parser.add_argument('--data_dir', type=str, help="Directory containing data")
-    parser.add_argument('--train_infile', type=str, help="File with peak names and y-vals")
-    parser.add_argument('--test_infile', type=str, help="File with peak names and y-vals")
+    parser.add_argument('--train_score_file', type=str, help="File with peak names and y-vals")
+    parser.add_argument('--test_score_file', type=str, help="File with peak names and y-vals")
     parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
-    parser.add_argument('-p', type=int, help="Number of cores to run in parallel")
-    parser.add_argument('-o', type=str, help="Prefix to prepent to output files.")
+    parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
+    parser.add_argument('--out_pref', type=str, help="Prefix to prepend to output files.")
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 

@@ -83,7 +83,7 @@ if __name__ == "__main__":
         help=f"Sets the number of batches of seed evaluation with no new motifs "\
             f"added to the set of motifs to be optimized prior to truncating the "\
             f"initial search for motifs.")
-    parser.add_argument('-nprocs', type=int, default=1,
+    parser.add_argument('--nprocs', type=int, default=1,
         help="number of processors. Default: %(default)d")
     parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
         help=f"Sets the upper and lower limits on the match "\
