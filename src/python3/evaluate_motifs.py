@@ -80,7 +80,8 @@ def shape_run(
     retcode = subprocess.call(RUST, shell=True, env=my_env)
 
     if retcode != 0:
-        sys.exit("Rust binary returned non-zero exit status")
+        print("Rust binary returned non-zero exit status")
+        sys.exit(1)
 
     new_motifs = inout.Motifs(
         os.path.join(out_direc, "evaluated_motifs.json"),
@@ -735,7 +736,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_score_file', type=str, help="File with peak names and y-vals")
     parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
     parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
-    parser.add_argument('--out_pref', type=str, help="Prefix to prepend to output files.")
+    parser.add_argument('--out_prefix', type=str, help="Prefix to prepend to output files.")
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 

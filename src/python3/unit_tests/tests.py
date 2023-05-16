@@ -92,4 +92,16 @@ class TestRecordsMethods(unittest.TestCase):
 
         self.assertEqual(len(folds), n_samps)
 
+    def test_sample_seqs(self):
+
+        n_samps = 5
+        y = self.records.y
+        retained_indices,samp_recs,samp_y = self.seqs.sample(
+            n_samps,
+            y,
+            rng_seed=self.seed,
+        )
+        print(retained_indices)
+        self.assertEqual(len(samp_y), len(samp_recs))
+
 

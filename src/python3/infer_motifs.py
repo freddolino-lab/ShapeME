@@ -17,7 +17,7 @@ import fimopytools as fimo
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
-find_bin = os.path.join(this_path, '../rust_utils/target/release/find_motifs')
+infer_bin = os.path.join(this_path, '../rust_utils/target/release/infer_motifs')
 supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
 
 from rpy2.robjects.packages import importr
@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    loglevel = args.log
+    loglevel = args.log_level
     numeric_level = getattr(logging, loglevel.upper(), None)
 
     logging.basicConfig(
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     )
     logging.getLogger('matplotlib.font_manager').disabled = True
 
-    logging.debug(f"Number of cores set by the -p argument: {args.p}")
+    logging.debug(f"Number of cores set by the --nprocs argument: {args.nprocs}")
     logging.debug(
         f"Number of cores available: {multiprocessing.cpu_count()}"
     )
@@ -190,6 +190,8 @@ if __name__ == "__main__":
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
     in_fname = args.score_file
+    shape_names = args.shape_names
+    shape_files = args.shape_files
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
@@ -260,9 +262,21 @@ if __name__ == "__main__":
         seq_meme_file = f"{streme_direc}/streme.txt"
         streme_exec = os.path.join(this_path, "run_streme.py")
 
+        # NA-containing records were removed, so use retained_records to get right
+        # sequences if calling sequence motifs
+        seqs = inout.FastaFile()
+        with open(seq_fasta,"r") as seq_f:
+            seqs.read_whole_file(seq_f)
+
+        seqs = seqs[records.complete_records]
+        tmp_dir = tempfile.TemporaryDirectory()
+        tmp_direc = tmp_dir.name
+        tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
+        with open(tmp_seq_fname, "w") as tmp_f:
+            seqs.write(tmp_f)
 
         STREME = f"python {streme_exec} "\
-            f"--seq_fname {seq_fasta} "\
+            f"--seq_fname {tmp_seq_fname} "\
             f"--yvals_fname {yval_fname} "\
             f"--pos_cats {args.seq_motif_positive_cats} "\
             f"--threshold {streme_thresh} "\
@@ -304,9 +318,22 @@ if __name__ == "__main__":
         if seq_fasta is None:
             raise inout.NoSeqFaException()
 
+        # NA-containing records were removed, so use retained_records to get right
+        # sequences if calling sequence motifs
+        seqs = inout.FastaFile()
+        with open(seq_fasta,"r") as seq_f:
+            seqs.read_whole_file(seq_f)
+
+        seqs = seqs[records.complete_records]
+        tmp_dir = tempfile.TemporaryDirectory()
+        tmp_direc = tmp_dir.name
+        tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
+        with open(tmp_seq_fname, "w") as tmp_f:
+            seqs.write(tmp_f)
+
         fimo_exec = os.path.join(this_path, "run_fimo.py")
         FIMO = f"python {fimo_exec} "\
-            f"--seq_fname {seq_fasta} "\
+            f"--seq_fname {tmp_seq_fname} "\
             f"--meme_file {seq_meme_file} "\
             f"--out_direc {fimo_direc}"
 
@@ -550,7 +577,7 @@ if __name__ == "__main__":
         f"{out_pref}_logistic_regression_coefs_per_class.txt",
     )
 
-    FIND_CMD = f"{find_bin} {config_fname}"
+    FIND_CMD = f"{infer_bin} {config_fname}"
 
     max_batch = args.max_batch_no_new_seed
     if args.exhaustive:

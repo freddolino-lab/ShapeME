@@ -51,14 +51,12 @@ class NoSeqFaException(Exception):
             f"provide the --seq_fasta option."
         super().__init__(self.message)
 
-
 class RustBinaryException(Exception):
     def __init__(self, cmd):
         self.message = f"ERROR: infer_motifs binary execution exited with "\
             f"non-zero exit status.\n"\
             f"The attempted command was as follows:\n{cmd}"
         super().__init__(self.message)
-
 
 class StremeClassException(Exception):
     def __init__(self, val, line):
@@ -71,7 +69,6 @@ class StremeClassException(Exception):
 
     def __str__(self):
         return f"{self.message}"
-
 
 class SeqMotifOptionException(Exception):
     """Exception raised for error in sequence motif CLI usage
@@ -103,7 +100,14 @@ def evaluate_match_object(mo):
     return result
 
 
-def construct_records(in_direc, shape_names, shape_files, in_fname):
+def construct_records(
+        in_direc,
+        shape_names,
+        shape_files,
+        in_fname,
+        exclude_na=True,
+        shift_params = ["Roll", "HelT"],
+):
     shape_fname_dict = {
         n:os.path.join(in_direc,fname) for n,fname
         in zip(shape_names, shape_files)
@@ -111,7 +115,8 @@ def construct_records(in_direc, shape_names, shape_files, in_fname):
     records = RecordDatabase(
         os.path.join(in_direc,in_fname),
         shape_fname_dict,
-        shift_params = ["Roll", "HelT"],
+        shift_params = shift_params,
+        exclude_na = exclude_na,
     )
     return records
 
@@ -1378,7 +1383,7 @@ class Motifs:
                 f"motif ids: {ids_in_self}\n"\
                 f"motif lut: {self.var_lut}\n"\
             )
-            sys.exit()
+            sys.exit(1)
 
 
     def filter_motifs(self, coefs):
@@ -1674,6 +1679,95 @@ class FastaFile(object):
     def __len__(self):
         return len(self.names)
 
+    def split_kfold(self, k, yvals, rng_seed=None):
+        """Takes stratified samples of indices of records in self to
+        grease the wheels of doing k-fold crossvalidation.
+
+        Args:
+        -----
+        k : int
+            The number of folds into which to split the data.
+        yvals : 1D np array
+            Categorical y-values for setting up stratifed splitting.
+
+        Returns:
+        --------
+        folds : list
+            List of length k
+        """
+
+        if rng_seed is None:
+            rng_seed = int(time.time())
+
+        folds = []
+
+        skf = StratifiedKFold(
+            n_splits = k,
+            shuffle = True,
+            # set for reproducibility
+            random_state = rng_seed,
+        )
+
+        skf_inds = skf.split(self.names, yvals)
+
+        folds = []
+
+        for fold,(train_inds,test_inds) in enumerate(skf_inds):
+            train_seq = self[train_inds]
+            test_seqs = self[test_inds]
+            train_y = yvals[train_inds]
+            test_y = yvals[test_inds]
+
+            folds.append(((train_seq,train_y),(test_seqs,test_y)))
+
+        return folds
+
+
+    def sample(self, n, yvals, rng_seed=None):
+        """Useful for down-sampling the records in self. Sampling is stratified
+        by values in yvals, so yvals must be categorical for this to work as desired.
+
+        Args:
+        -----
+        n : int
+            The final number of (randomly sampled) records to return. Sampling
+            is stratified by the classes found in yvals
+        yvals : 1D np.array
+            categorical assignments for each record in self.
+        rng_seed : int
+            Sets seed to random number generator for reproducible sampling.
+        """
+
+        if rng_seed is None:
+            rng_seed = int(time.time())
+
+        total = len(self)
+        if total <= n:
+            logging.error(
+                f"To sample from a FastaFile, n must be less than the "\
+                f"number of records in the file. You set n to {n}, but "\
+                f"there are {total} records. Exiting now."
+            )
+            sys.exit(1)
+        inds = list(range(total))
+        distinct_cats = np.unique(yvals)
+        strat_w = np.zeros_like(yvals)
+        for cat in distinct_cats:
+            mask = yvals == cat
+            n_cat = np.sum(mask)
+            strat_w[mask] = n_cat / total
+
+        strat_w = strat_w / strat_w.sum()
+
+        # stratified random sample of record indices
+        rng = np.random.default_rng(rng_seed)
+        samp_inds = rng.choice(inds, size=n, replace=False, p=strat_w)
+
+        sampled_records = self[samp_inds]
+        sampled_yvals = yvals[samp_inds]
+        return samp_inds,sampled_records,sampled_yvals
+
+
     def read_whole_file(self, fhandle):
         """ 
         Read an entire fasta file into memory and store it in the data attribute
@@ -1934,11 +2028,12 @@ class RecordDatabase(object):
             shape_fnames.append(shape_fname)
 
             with open(shape_fname, "w") as shape_f:
-                count = 0
+                firstline = True
                 for rec_name,rec_idx in self.record_name_lut.items():
 
-                    if count == 0:
+                    if firstline:
                         record_str = f">{rec_name}\n"
+                        firstline = False
                     else:
                         record_str = f"\n>{rec_name}\n"
 
@@ -1953,7 +2048,11 @@ class RecordDatabase(object):
     def set_records_inplace(self, inds):
         self.X = self.X[inds,...]
         self.y = self.y[inds,...]
-        self.weights = self.weights[inds,...]
+        try:
+            self.weights = self.weights[inds,...]
+        except AttributeError:
+            weights = np.ones_like(self.X)
+            self.weights = weights / weights.sum()
 
         rev_rec_lut = {v:k for k,v in self.record_name_lut.items()}
         rec_names = [ rev_rec_lut[idx] for idx in inds ]
@@ -1967,13 +2066,17 @@ class RecordDatabase(object):
     def subset_records(self, inds):
         X = self.X[inds,...]
         y = self.y[inds,...]
-        weights = self.weights[inds,...]
+        try:
+            weights = self.weights[inds,...]
+        except AttributeError:
+            weights = np.ones_like(X)
+            weights = weights / weights.sum()
 
         rev_rec_lut = {v:k for k,v in self.record_name_lut.items()}
         rec_names = [ rev_rec_lut[idx] for idx in inds ]
 
         rev_shape_lut = {v:k for k,v in self.shape_name_lut.items()}
-        shape_names = [ rev_shape_lut[idx] for idx in inds ] 
+        shape_names = [ rev_shape_lut[idx] for idx in range(len(rev_shape_lut)) ] 
 
         db = RecordDatabase(
             y = y,
@@ -2062,7 +2165,7 @@ class RecordDatabase(object):
                 f"number of records in the database. You set n to {n}, but "\
                 f"there are {total} records. Exiting now."
             )
-            sys.exit()
+            sys.exit(1)
         inds = list(range(total))
         distinct_cats = np.unique(self.y)
         strat_w = np.zeros_like(self.y)
@@ -2279,6 +2382,7 @@ class RecordDatabase(object):
                 shape_idx += 1
 
             this_shape_dict = parse_shape_fasta(shape_infname)
+            #print(this_shape_dict)
 
             if self.X is None:
 
@@ -2289,6 +2393,7 @@ class RecordDatabase(object):
                     record_length = len(rec_data)
 
                 self.X = np.zeros((record_count,record_length,shape_count,2))
+                #print(self.X.shape)
 
             for rec_name,rec_data in this_shape_dict.items():
                 #print(rec_name)
@@ -2301,29 +2406,35 @@ class RecordDatabase(object):
                     fwd_data = rec_data[1:]
                     rev_data = rec_data[1:]
                     rev_data = rev_data[::-1]
-                    if (
-                        (len(fwd_data) != record_length)
-                        | (len(rev_data) != record_length)
-                    ):
-                        logging.error(
-                            f"ERROR: the record named {rec_name} is not "\
-                            f"the same length as the other records. "\
-                            f"All records must be "\
-                            f"the same length. Exiting without inferring motifs."
-                        )
-                        sys.exit()
+                    #if (
+                    #    (len(fwd_data) != record_length)
+                    #    | (len(rev_data) != record_length)
+                    #):
+                    #    logging.error(
+                    #        f"ERROR: the record named {rec_name} in file "\
+                    #        f"{shape_infname} is not "\
+                    #        f"the same length as the other records. "\
+                    #        f"{rec_name} is {len(fwd_data)}, but record_length "\
+                    #        f"is {record_length}. "\
+                    #        f"All records must be "\
+                    #        f"the same length. Exiting without inferring motifs."
+                    #    )
+                    #    sys.exit(1)
 
                     self.X[r_idx,:,s_idx,0] = fwd_data
                     self.X[r_idx,:,s_idx,1] = rev_data
                 else:
                     if len(rec_data) != record_length:
                         logging.error(
-                            f"ERROR: the record named {rec_name} is not "\
+                            f"ERROR: the record named {rec_name} in file "\
+                            f"{shape_infname} is not "\
                             f"the same length as the other records. "\
+                            f"{rec_name} is {len(rec_data)}, but record_length "\
+                            f"is {record_length}. "\
                             f"All records must be "\
                             f"the same length. Exiting without inferring motifs."
                         )
-                        sys.exit()
+                        sys.exit(1)
                     self.X[r_idx,:,s_idx,0] = rec_data
                     self.X[r_idx,:,s_idx,1] = rec_data[::-1]
 
@@ -2354,13 +2465,13 @@ class RecordDatabase(object):
                     raise Exception()
                 except Exception as e:
                     logging.error(
-                        f"ERROR: after clipping the first, and final two base "\
-                        f"pairs from all records in the input data, NaN values "\
+                        f"ERROR: after clipping the first two, and final two bases "\
+                        f"from all records in the input data, NaN values "\
                         f"remained! Exiting the script now. Thoroughly examine "\
                         f"your input data for non-canonical bases and other "\
                         f"potential causes of this issue."
                     )
-                    sys.exit()
+                    sys.exit(1)
             self.complete_records = complete_records
 
     #def set_center_spread(self, centers, spreads):

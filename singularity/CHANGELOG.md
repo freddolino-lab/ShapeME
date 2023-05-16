@@ -5,5 +5,5 @@ in this file.
 
 ## 0.0.1
 
-Welcome to the world, SCHEME!!
+Shiny and new
 
