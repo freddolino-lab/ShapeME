@@ -13,6 +13,7 @@ import numpy as np
 from pathlib import Path
 import logging
 import shlex
+import shutil
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
@@ -47,6 +48,11 @@ def read_score_file(infile):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--skip_inference', action="store_true", default=False,
+        help=f"Include this flag at the command line to run only evaluation. "\
+            f"This is useful if you've already run inference on all folds.")
+    parser.add_argument('--force', action="store_true", default=False,
+        help=f"Forces each fold to run, clobbering any extant output directories.")
     parser.add_argument('--crossval_folds', action="store", type=int, required=True,
         help="Number of folds into which to split data for k-fold cross-validation",
         default=5)
@@ -231,16 +237,25 @@ def main():
     for k,fold in enumerate(folds):
 
         out_dir = os.path.join(data_dir, f"{outdir_pre}_fold_{k}_output")
+        # if the output directory does not exist, make it
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
+        # if the output directory does exist, exit by default, but allow
+        #  to clobber if user provides --force at CLI
         else:
-            logging.error(
-                f"The intended output directory, {out_dir}, already "\
-                f"exists. We try not to clobber existing data. "\
-                f"Either rename the existing directory or remove it. "\
-                f"Nothing was done for fold {k}. Exiting now."
-            )
-            sys.exit(1)
+            if args.force:
+                # remove the current directory and all its contents
+                shutil.rmtree(out_dir)
+                # create empty directory
+                os.makedirs(out_dir)
+            else:
+                logging.error(
+                    f"The intended output directory, {out_dir}, already "\
+                    f"exists. We try not to clobber existing data. "\
+                    f"Either rename the existing directory or remove it. "\
+                    f"Nothing was done for fold {k}. Exiting now."
+                )
+                sys.exit(1)
 
         train_base = f"fold_{k}_train"
         test_base = f"fold_{k}_test"
@@ -261,101 +276,101 @@ def main():
             train_shape_fnames += f"{train_seq_fasta}.{shape_name} "
             test_shape_fnames += f"{test_seq_fasta}.{shape_name} "
 
-        with open(train_seq_fasta, "w") as train_seq_f:
-            train_seqs.write(train_seq_f)
+        if not args.skip_inference:
+            with open(train_seq_fasta, "w") as train_seq_f:
+                train_seqs.write(train_seq_f)
 
-        with open(train_score_fname, "w") as train_score_f:
-            train_score_f.write("name\tscore")
-            for name,yval in zip(train_seqs.names,train_scores):
-                train_score_f.write(f"\n{name}\t{yval}")
+            with open(train_score_fname, "w") as train_score_f:
+                train_score_f.write("name\tscore")
+                for name,yval in zip(train_seqs.names,train_scores):
+                    train_score_f.write(f"\n{name}\t{yval}")
 
-        with open(test_seq_fasta, "w") as test_seq_f:
-            test_seqs.write(test_seq_f)
+            with open(test_seq_fasta, "w") as test_seq_f:
+                test_seqs.write(test_seq_f)
 
-        with open(test_score_fname, "w") as test_score_f:
-            test_score_f.write("name\tscore")
-            for name,yval in zip(test_seqs.names,test_scores):
-                test_score_f.write(f"\n{name}\t{yval}")
+            with open(test_score_fname, "w") as test_score_f:
+                test_score_f.write("name\tscore")
+                for name,yval in zip(test_seqs.names,test_scores):
+                    test_score_f.write(f"\n{name}\t{yval}")
 
-        convert = f"Rscript {this_path}/utils/calc_shape.R {data_dir}/{train_seq_fasta}"
-        #convert = shlex.quote(convert)
-        convert_result = subprocess.run(
-            convert,
-            shell=True,
-            capture_output=True,
-            #check=True,
-        )
-        if convert_result.returncode != 0:
-            logging.error(
-                f"ERROR: running the following command:\n\n"\
-                f"{convert}\n\n"\
-                f"resulted in the following stderr:\n\n"\
-                f"{convert_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{convert_result.stdout.decode()}"
+            convert = f"Rscript {this_path}/utils/calc_shape.R {data_dir}/{train_seq_fasta}"
+            #convert = shlex.quote(convert)
+            convert_result = subprocess.run(
+                convert,
+                shell=True,
+                capture_output=True,
+                #check=True,
             )
-            sys.exit(1)
+            if convert_result.returncode != 0:
+                logging.error(
+                    f"ERROR: running the following command:\n\n"\
+                    f"{convert}\n\n"\
+                    f"resulted in the following stderr:\n\n"\
+                    f"{convert_result.stderr.decode()}\n\n"
+                    f"and the following stdout:\n\n"\
+                    f"{convert_result.stdout.decode()}"
+                )
+                sys.exit(1)
 
-        convert = f"Rscript {this_path}/utils/calc_shape.R {data_dir}/{test_seq_fasta}"
-        #convert = shlex.quote(convert)
-        convert_result = subprocess.run(
-            convert,
-            shell=True,
-            capture_output=True,
-            #check=True,
-        )
-        if convert_result.returncode != 0:
-            logging.error(
-                f"ERROR: running the following command:\n\n"\
-                f"{convert}\n\n"\
-                f"resulted in the following stderr:\n\n"\
-                f"{convert_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{convert_result.stdout.decode()}"
+            convert = f"Rscript {this_path}/utils/calc_shape.R {data_dir}/{test_seq_fasta}"
+            #convert = shlex.quote(convert)
+            convert_result = subprocess.run(
+                convert,
+                shell=True,
+                capture_output=True,
+                #check=True,
             )
-            sys.exit(1)
+            if convert_result.returncode != 0:
+                logging.error(
+                    f"ERROR: running the following command:\n\n"\
+                    f"{convert}\n\n"\
+                    f"resulted in the following stderr:\n\n"\
+                    f"{convert_result.stderr.decode()}\n\n"
+                    f"and the following stdout:\n\n"\
+                    f"{convert_result.stdout.decode()}"
+                )
+                sys.exit(1)
 
-        INFER_EXE = f"python {this_path}/infer_motifs.py "\
-            f"--score_file fold_{k}_train.txt "\
-            f"--shape_files {train_shape_fnames} "\
-            f"--shape_names {' '.join(shape_names)} "\
-            f"--out_prefix {outdir_pre} "\
-            f"--data_dir {data_dir} "\
-            f"--out_dir {out_dir} "\
-            f"--kmer {args.kmer} " \
-            f"--max_count {args.max_count} "\
-            f"--threshold_sd {args.threshold_sd} "\
-            f"--init_threshold_seed_num {args.init_threshold_seed_num} "\
-            f"--init_threshold_recs_per_seed {args.init_threshold_recs_per_seed} "\
-            f"--init_threshold_windows_per_record {args.init_threshold_windows_per_record} "\
-            f"--max_batch_no_new_seed {args.max_batch_no_new_seed} "\
-            f"--nprocs {args.nprocs} "\
-            f"--threshold_constraints "\
-                f"{args.threshold_constraints[0]} {args.threshold_constraints[1]} " \
-            f"--shape_constraints " \
-                f"{args.shape_constraints[0]} {args.shape_constraints[1]} " \
-            f"--weights_constraints " \
-                f"{args.weights_constraints[0]} {args.weights_constraints[1]} " \
-            f"--temperature {args.temperature} " \
-            f"--t_adj {args.t_adj} " \
-            f"--stepsize {args.stepsize} " \
-            f"--opt_niter {args.opt_niter} " \
-            f"--alpha {args.alpha} " \
-            f"--batch_size {args.batch_size} " \
-            f"--shape_rust_file {args.shape_rust_file} " \
-            f"--log_level {args.log_level}"
+            INFER_EXE = f"python {this_path}/infer_motifs.py "\
+                f"--score_file fold_{k}_train.txt "\
+                f"--shape_files {train_shape_fnames} "\
+                f"--shape_names {' '.join(shape_names)} "\
+                f"--out_prefix {outdir_pre} "\
+                f"--data_dir {data_dir} "\
+                f"--out_dir {out_dir} "\
+                f"--kmer {args.kmer} " \
+                f"--max_count {args.max_count} "\
+                f"--threshold_sd {args.threshold_sd} "\
+                f"--init_threshold_seed_num {args.init_threshold_seed_num} "\
+                f"--init_threshold_recs_per_seed {args.init_threshold_recs_per_seed} "\
+                f"--init_threshold_windows_per_record {args.init_threshold_windows_per_record} "\
+                f"--max_batch_no_new_seed {args.max_batch_no_new_seed} "\
+                f"--nprocs {args.nprocs} "\
+                f"--threshold_constraints "\
+                    f"{args.threshold_constraints[0]} {args.threshold_constraints[1]} " \
+                f"--shape_constraints " \
+                    f"{args.shape_constraints[0]} {args.shape_constraints[1]} " \
+                f"--weights_constraints " \
+                    f"{args.weights_constraints[0]} {args.weights_constraints[1]} " \
+                f"--temperature {args.temperature} " \
+                f"--t_adj {args.t_adj} " \
+                f"--stepsize {args.stepsize} " \
+                f"--opt_niter {args.opt_niter} " \
+                f"--alpha {args.alpha} " \
+                f"--batch_size {args.batch_size} " \
+                f"--log_level {args.log_level}"
 
-        if args.exhaustive:
-            INFER_EXE += f" --exhaustive"
-        if args.write_all_files:
-            INFER_EXE += f" --write_all_files"
-        if args.no_shape_motifs:
-            INFER_EXE += f" --no_shape_motifs"
+            if args.exhaustive:
+                INFER_EXE += f" --exhaustive"
+            if args.write_all_files:
+                INFER_EXE += f" --write_all_files"
+            if args.no_shape_motifs:
+                INFER_EXE += f" --no_shape_motifs"
 
         EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
             f"--test_shape_files {test_shape_fnames} "\
             f"--train_shape_files {train_shape_fnames} "\
-            f"--shape_names {shape_names} "\
+            f"--shape_names {' '.join(shape_names)} "\
             f"--data_dir {data_dir} "\
             f"--train_score_file {train_score_fname} "\
             f"--test_score_file {test_score_fname} "\
@@ -377,26 +392,33 @@ def main():
                 f"--train_seq_fasta {train_seq_fasta} "\
                 f"--find_seq_motifs {args.find_seq_motifs} "
 
-        logging.info(f"Inferring motifs for fold {k}...")
-        # workaround for potential security vulnerability of shell=True
-        INFER_CMD = shlex.quote(INFER_EXE)
-        INFER_CMD = INFER_EXE
-        infer_result = subprocess.run(
-            INFER_CMD,
-            shell=True,
-            capture_output=True,
-            #check=True,
-        )
-        if infer_result.returncode != 0:
-            logging.error(
-                f"ERROR: running the following command:\n\n"\
-                f"{INFER_CMD}\n\n"\
-                f"resulted in the following stderr:\n\n"\
-                f"{infer_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{infer_result.stdout.decode()}"
+        if not args.skip_inference:
+            logging.info(f"Inferring motifs for fold {k}...")
+            # workaround for potential security vulnerability of shell=True
+            INFER_CMD = shlex.quote(INFER_EXE)
+            INFER_CMD = INFER_EXE
+            infer_result = subprocess.run(
+                INFER_CMD,
+                shell=True,
+                capture_output=True,
+                #check=True,
             )
-            sys.exit(1)
+            if infer_result.returncode != 0:
+                logging.error(
+                    f"ERROR: running the following command:\n\n"\
+                    f"{INFER_CMD}\n\n"\
+                    f"resulted in the following stderr:\n\n"\
+                    f"{infer_result.stderr.decode()}\n\n"
+                    f"and the following stdout:\n\n"\
+                    f"{infer_result.stdout.decode()}"
+                )
+                sys.exit(1)
+
+            #print(infer_result.stderr.decode())
+            #print()
+            #print(infer_result.stdout.decode())
+            #sys.exit()
+
 
         logging.info(f"Evaluating motifs identified for fold {k}...")
         # workaround for potential security vulnerability of shell=True
@@ -405,8 +427,8 @@ def main():
         eval_result = subprocess.run(
             EVAL_CMD,
             shell=True,
-            #capture_output=True,
-            check=True,
+            capture_output=True,
+            #check=True,
         )
         if eval_result.returncode != 0:
             logging.error(
@@ -419,6 +441,10 @@ def main():
             )
             sys.exit(1)
 
+        #print(eval_result.stderr.decode())
+        #print()
+        #print(eval_result.stdout.decode())
+        #sys.exit()
 
     
 

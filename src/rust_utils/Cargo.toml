@@ -6,5 +6,6 @@ members = [
     "infer_motifs",
     "evaluate_motifs",
     "get_robustness",
+    "locate_motifs",
 ]
 

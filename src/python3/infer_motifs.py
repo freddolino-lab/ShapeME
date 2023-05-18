@@ -311,6 +311,7 @@ if __name__ == "__main__":
                 streme_err.write(streme_result.stderr.decode())
             except UnicodeDecodeError as e:
                 logging.warning("Problem writing to {streme_err_fname}:\n{e}")
+                sys.exit(1)
 
     # if user has a meme file (could be from streme above, or from input arg), run fimo
     if seq_meme_file is not None:

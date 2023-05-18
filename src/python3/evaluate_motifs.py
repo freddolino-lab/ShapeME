@@ -774,7 +774,7 @@ if __name__ == "__main__":
     eval_out_fname = os.path.join(out_direc, 'precision_recall.json')
     prc_prefix = os.path.join(out_direc, 'precision_recall_curve')
     eval_dist_plot_prefix = os.path.join(out_direc, 'class_yhat_distribution')
-    out_pref = args.o
+    out_pref = args.out_prefix
     
     with open(config_fname, 'r') as f:
         args_dict = json.load(f)
@@ -782,9 +782,9 @@ if __name__ == "__main__":
     train_records,train_bins,train_orig_y = read_records(
         args_dict,
         in_direc,
-        args.train_infile,
-        args.param_names,
-        args.train_params,
+        args.train_score_file,
+        args.shape_names,
+        args.train_shape_files,
         continuous=args.continuous,
         dset_type="training",
     )
@@ -803,14 +803,14 @@ if __name__ == "__main__":
     )
 
     # update cores so rust gets the right number for this job
-    args_dict['cores'] = args.p
+    args_dict['cores'] = args.nprocs
 
     test_records,test_bins,test_orig_y = read_records(
         args_dict,
         in_direc,
-        args.test_infile,
-        args.param_names,
-        args.test_params,
+        args.test_score_file,
+        args.shape_names,
+        args.test_shape_files,
         continuous=args.continuous,
         #quantize_bins = bins,
         dset_type = "test",

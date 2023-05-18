@@ -25,3 +25,4 @@ dependencies:
     - rpy2
     - seaborn
     - meme
+    - flask

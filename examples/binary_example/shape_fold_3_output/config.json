@@ -1,0 +1,57 @@
+{
+ "out_fname": "/home/jeremy/src/DNAshape_motif_finder/examples/binary_example/shape_fold_3_output/rust_results.json",
+ "shape_fname": "/home/jeremy/src/DNAshape_motif_finder/examples/binary_example/shape_fold_3_output/shapes.npy",
+ "yvals_fname": "/home/jeremy/src/DNAshape_motif_finder/examples/binary_example/shape_fold_3_output/y_vals.npy",
+ "alpha": 0.0,
+ "max_count": 1,
+ "kmer": 10,
+ "cores": 6,
+ "seed_sample_size": 500,
+ "records_per_seed": 20,
+ "windows_per_record": 2,
+ "thresh_sd_from_mean": 2.0,
+ "threshold_lb": 0.0,
+ "threshold_ub": 10.0,
+ "shape_lb": -4.0,
+ "shape_ub": 4.0,
+ "weight_lb": -4.0,
+ "weight_ub": 4.0,
+ "temperature": 0.4,
+ "stepsize": 0.25,
+ "n_opt_iter": 10000,
+ "t_adjust": 0.001,
+ "batch_size": 2000,
+ "max_batch_no_new": 10,
+ "good_motif_out_fname": "/home/jeremy/src/DNAshape_motif_finder/examples/binary_example/shape_fold_3_output/shape_post_opt_cmi_filtered_motifs_temp_0.4_stepsize_0.25_alpha_0.0_max_count_1.pkl",
+ "names": [
+  "EP",
+  "HelT",
+  "MGW",
+  "ProT",
+  "Roll"
+ ],
+ "indices": [
+  0,
+  1,
+  2,
+  3,
+  4
+ ],
+ "centers": [
+  -6.55,
+  34.51,
+  5.13,
+  -7.0,
+  -1.87
+ ],
+ "spreads": [
+  1.5270780000000004,
+  1.497425999999997,
+  0.4892580000000001,
+  3.8695860000000004,
+  1.734642
+ ],
+ "eval_shape_fname": "/home/jeremy/src/DNAshape_motif_finder/examples/binary_example/shape_fold_3_output/train_shapes.npy",
+ "eval_yvals_fname": "/home/jeremy/src/DNAshape_motif_finder/examples/binary_example/shape_fold_3_output/train_y_vals.npy",
+ "eval_rust_fname": "/home/jeremy/src/DNAshape_motif_finder/examples/binary_example/shape_fold_3_output/eval_rust_results.json"
+}
