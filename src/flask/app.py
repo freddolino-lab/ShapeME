@@ -23,3 +23,12 @@ def capitalize(word):
 @app.route("/add/<int:n1>/<int:n2>/")
 def add(n1, n2):
     return f"<h1>{n1 + n2}</h1>"
+
+# use an integer called user_id to grab a user
+@app.route("/users/<int:user_id>/")
+def greet_user(user_id):
+    users = ["Bob", "Jane", "Adam"]
+    try:
+        return f"<h2>Hi {users[user_id]}</h2>"
+    except IndexError:
+        abort(404)
