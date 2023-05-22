@@ -1,7 +1,7 @@
 name: motifer
 channels:
-    - conda-forge
     - bioconda
+    - conda-forge
     - defaults
 dependencies:
     - python
@@ -18,7 +18,6 @@ dependencies:
     - r-prroc
     - r-glmnet
     - r-nnet
-    - r-brms
     - r-bh
     - boost
     - jupyter

@@ -5,7 +5,15 @@ src/rust_utils/target
 src/*/Cargo.lock
 src/*/*/Cargo.lock
 src/python3/build
-src/flask/__pycache__
+src/flask/__pycache__/
+src/flask/*.pyc
+src/flask/instance/
+src/flask/.pytest_cache/
+src/flask/.coverage/
+src/flask/htmlcov/
+src/flask/dist/
+src/flask/build/
+src/flask/*.egg-info/
 singularity/archive
 singularity/current
 singularity/def
