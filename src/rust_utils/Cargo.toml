@@ -6,6 +6,7 @@ members = [
     "infer_motifs",
     "evaluate_motifs",
     "get_robustness",
-    "locate_motifs",
+    #"locate_motifs",
+    "ShapeME",
 ]
 

@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
-    <title>Rocket Form Example</title>
+    <title>ShapeME</title>
     <link rel="stylesheet" href="/chota.min.css">
     <style>
       .container {
@@ -17,7 +17,7 @@
   </head>
   <body>
     <div class="container">
-      <h1>Form Example</h1>
+      <h1>ShapeME submission form</h1>
 
       {% if errors | length > 1 %}
           <small class="text-error" style="margin-top: -20px">
@@ -27,14 +27,14 @@
 
       <form action="/" method="post" enctype="multipart/form-data">
         <fieldset>
-          <legend>About You</legend>
+          <legend>User information</legend>
           <div class="row">
             <div class="col">
                 {{ m::input(label="Name", type="text", name="account.name") }}
                 <!-- required -->
             </div>
             <div class="col">
-            {{ m::input(label="Email Address", type="text", name="account.email") }}
+            {{ m::input(label="Email Address (to send you an email when your job has finished)", type="text", name="account.email") }}
               <!-- required pattern=".*@.*"/> -->
             </div>
           </div>
@@ -59,32 +59,24 @@
         </fieldset>
 
         <fieldset>
-          <legend>Metadata</legend>
+          <legend>Job information</legend>
 
           <div class="row">
             <div class="col">
-            {{ m::input(label="Title", type="text", name="submission.title") }}
+            {{ m::input(label="Job name", type="text", name="submission.name") }}
               <!-- required -->
             </div>
           </div>
 
           <div class="row">
             <div class="col">
-            {{ m::input(label="Publish Date", type="date", name="submission.date") }}
-              <!-- <input type="date" name="submission.date" id="date" value="2020&#45;12&#45;26"> -->
-            </div>
-
-            <div class="col">
-            {{
-                m::select(
-                    label="Rights Assignment",
-                    name="submission.rights",
-                    options=["Public", "Reserved", "Exclusive"]
-                )
-            }}
+              <label>Boolean Options (check to set to True, leave unchecked to set to False)</label>
+              <br />
+              {{ m::checkbox(name="cfg.force", label="Force", value="Force") }}
             </div>
           </div>
 
+          {# 
           <div class="row">
             <div class="col">
               <label>Applicable Categories</label>
@@ -98,36 +90,37 @@
               {{ m::checkbox(name="submission.category", label="CS", value="CS") }}
             </div>
           </div>
+          #}
 
         </fieldset>
 
         <fieldset>
-          <legend>Contents</legend>
-
-            {{
-                m::textarea(
-                    label="Abstract",
-                    name="submission.abstract",
-                    placeholder="Your abstract, max 250 characters...",
-                    max=250
-                )
-            }}
+          <legend>Fasta file</legend>
 
           {{
               m::input(
-                  label="File to Upload (PDF, max 1MiB)",
+                  label="Fasta file to upload (fasta, must end with '.fa')",
                   type="file",
-                  name="submission.file"
+                  name="submission.fa_file"
               )
           }}
 
-          <!-- <input type="file" name="submission.file" id="file" required accept=".pdf"> -->
+          <!-- <input type="file" name="submission.fa_file" id="fa_file" required accept=".fa"> -->
 
-          <div class="row">
-            <div class="col">
-                {{ m::checkbox(name="submission.ready", label="Submission is ready for review.") }}
-            </div>
-          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Score file</legend>
+
+          {{
+              m::input(
+                  label="Scores file to upload (must have two columns, one header row, and *.txt suffix)",
+                  type="file",
+                  name="submission.score_file"
+              )
+          }}
+
+          <!-- <input type="file" name="submission.score_file" id="score_file" required accept=".txt"> -->
 
         </fieldset>
 

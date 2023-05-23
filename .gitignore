@@ -5,8 +5,10 @@ src/rust_utils/target
 src/*/Cargo.lock
 src/*/*/Cargo.lock
 src/python3/build
-src/app/Cargo.lock
-src/app/target
+src/*/*/target
+src/rust_utils/ShapeME/data
+src/rust_utils/ShapeME/upload
+src/rust_utils/ShapeME/user_data
 singularity/archive
 singularity/current
 singularity/def

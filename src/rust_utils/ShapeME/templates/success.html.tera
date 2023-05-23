@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
-    <title>Rocket Form Example</title>
+    <title>SHEMA</title>
     <link rel="stylesheet" href="/chota.min.css">
     <style>
       .container {
@@ -15,9 +15,9 @@
   </head>
   <body>
     <div class="container">
-    <h1>Success!</h1>
+    <h1>Successful job submission</h1>
 
-      <h3>Submission Data</h3>
+      <h3>Submission Info</h3>
 
       <ul>
           {% for key, value in values %}
