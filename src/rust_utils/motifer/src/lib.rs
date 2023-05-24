@@ -30,6 +30,7 @@ use rayon::ThreadPoolBuilder;
 // check the source code for OrderedFloat and consider implementing it in lib.rs instead of using the ordered_float crate. If ordered_float stops existing someday, we don't want our code to break.
 use ordered_float::OrderedFloat;
 use std::time;
+
 use info_theory;
 
 #[cfg(test)]

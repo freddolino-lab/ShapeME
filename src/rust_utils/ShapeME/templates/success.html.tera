@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
-    <title>SHEMA</title>
+    <title>ShapeME</title>
     <link rel="stylesheet" href="/chota.min.css">
     <style>
       .container {
@@ -21,6 +21,7 @@
 
       <ul>
           {% for key, value in values %}
+          {% if "password" in key %}{% continue %}{% endif %}
               <li><strong>{{ key }}</strong> - {{ value }}</li>
           {% endfor %}
       </ul>

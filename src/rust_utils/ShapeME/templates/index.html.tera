@@ -68,11 +68,47 @@
             </div>
           </div>
 
+          {{ m::input_row(label="Sequence motif positive categories", type="text", name="cfg.seq_motif_positive_cats") }}
+          {{ m::input_row(label="Number of folds for k-fold CV", type="text", name="cfg.crossval_folds") }}
+          {{ m::input_row(label="kmer size (length of motif to search for)", type="text", name="cfg.kmer") }}
+          {{ m::input_row(label="Max number of motif ocurrances to count on each strand", type="text", name="cfg.max_count") }}
+          {{ m::input_row(label="If input scores are continuous, how many quantiles should they be binned into?", type="text", name="cfg.continuous") }}
+          {{ m::input_row(label="std dev from mean distance for initial threshold", type="text", name="cfg.threshold_sd") }}
+          {{ m::input_row(label="number of seeds to use for setting initial threshold", type="text", name="cfg.init_threshold_seed_num") }}
+          {{ m::input_row(label="number of records to evaluate distances for each initial seed for threshold setting", type="text", name="cfg.init_threshold_recs_per_seed") }}
+          {{ m::input_row(label="number of windows in each record to calculate distance to initial seeds for threshold setting", type="text", name="cfg.init_threshold_windows_per_record") }}
+          {{ m::input_row(label="How many batches of seeds should be searched without a new seed being found prior to moving on the motif optimization?", type="text", name="cfg.max_batch_no_new_seed") }}
+          {{ m::input_row(label="Number of processors to use (the algorithm scales well up to 64 if you have to resources for it)", type="text", name="cfg.nprocs") }}
+          {{ m::input_row(label="Lower limit on optimized value for threshold", type="text", name="cfg.lower_threshold_constraint") }}
+          {{ m::input_row(label="Upper limit on optimized value for threshold", type="text", name="cfg.upper_threshold_constraint") }}
+          {{ m::input_row(label="Lower limit on optimized value for shape values", type="text", name="cfg.lower_shape_constraint") }}
+          {{ m::input_row(label="Upper limit on optimized value for shape values", type="text", name="cfg.upper_shape_constraint") }}
+          {{ m::input_row(label="Lower limit on optimized value for weights", type="text", name="cfg.lower_weights_constraint") }}
+          {{ m::input_row(label="Upper limit on optimized value for weights", type="text", name="cfg.upper_weights_constraint") }}
+          {{ m::input_row(label="Starting temperature for simulated annealing optimization of motifs", type="text", name="cfg.temperature") }}
+          {{ m::input_row(label="Fraction by which temperature should be decreased for each iteration of simulated annealing", type="text", name="cfg.t_adj") }}
+          {{ m::input_row(label="How far can a value be shifted for a given iteration of simulated annealing", type="text", name="cfg.stepsize") }}
+          {{ m::input_row(label="Number of iterations for simulated annealing", type="text", name="cfg.opt_niter") }}
+          {{ m::input_row(label="Clamp on weights values", type="text", name="cfg.alpha") }}
+          {{ m::input_row(label="How many records should be evaluated in each batch of seed searching?", type="text", name="cfg.batch_size") }}
+          {{ m::input_row(label="Maximum number of records to use. If the input data has more, a stratified random sample will be taken.", type="text", name="cfg.max_n") }}
+          {{ m::input_row(label="Logging level", type="text", name="cfg.log_level") }}
+ 
           <div class="row">
             <div class="col">
               <label>Boolean Options (check to set to True, leave unchecked to set to False)</label>
               <br />
               {{ m::checkbox(name="cfg.force", label="Force", value="Force") }}
+              <br />
+              {{ m::checkbox(name="cfg.skip_inference", label="Skip inference (it's rare that you'll check this box)", value="Skip inference") }}
+              <br />
+              {{ m::checkbox(name="cfg.find_seq_motifs", label="Find sequence motifs", value="Find sequence motifs") }}
+              <br />
+              {{ m::checkbox(name="cfg.no_shape_motifs", label="Don't find shape motifs", value="Don't find shape motifs") }}
+              <br />
+              {{ m::checkbox(name="cfg.write_all_files", label="Write all model files", value="Write all model files") }}
+              <br />
+              {{ m::checkbox(name="cfg.exhaustive", label="Do an exhaustive initial search for seeds", value="Do an exhaustive initial search for seeds") }}
             </div>
           </div>
 

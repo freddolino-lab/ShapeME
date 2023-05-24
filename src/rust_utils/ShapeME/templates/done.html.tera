@@ -1,0 +1,62 @@
+{% import "macros" as m %}
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>ShapeME</title>
+    <link rel="stylesheet" href="/chota.min.css">
+    <style>
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>ShapeME results</h1>
+
+      {% if errors | length > 1 %}
+          <small class="text-error" style="margin-top: -20px">
+              {{ errors | length }} field(s) have errors
+          </small>
+      {% endif %}
+
+      <fieldset>
+        <legend>Motifs</legend>
+
+        <div class="row">
+          <div class="col">
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//////////// i need to get each image name using rust, create rocket struct to iterate over folds,
+//////////// posting each image here. May have to set height and width.
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+            <img src="{{ job_id.path }}/shape_fold_0/"
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Performance</legend>
+
+        <div class="row">
+          <div class="col">
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//////////// i need to get each AUPR
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+            <img src="{{ job_id.path }}/shape_fold_0/"
+          </div>
+        </div>
+      </fieldset>
+
+
+    </div>
+  </body>
+</html>

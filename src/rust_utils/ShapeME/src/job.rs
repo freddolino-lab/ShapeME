@@ -39,7 +39,7 @@ impl JobId<'_> {
     pub fn path(&self) -> PathBuf {
         let root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "data");
         let job_path = Path::new(root).join(self.0.as_ref());
-        std::fs::create_dir_all(job_path.clone());
+        let _ = std::fs::create_dir_all(job_path.clone());
         job_path
     }
 }
