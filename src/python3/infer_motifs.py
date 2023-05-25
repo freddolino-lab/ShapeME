@@ -564,8 +564,7 @@ if __name__ == "__main__":
 
     final_motif_plot_fname = os.path.join(
         out_direc,
-        f"{out_pref}_post_opt_cmi_filtered_motifs_temp_{temp}_"\
-        f"stepsize_{step}_alpha_{alpha}_max_count_{max_count}.png",
+        f"final_motifs.png"
     )
 
     logit_reg_fname = os.path.join(

@@ -264,11 +264,11 @@ def main():
         test_seqs = fold[1][0]
         test_scores = fold[0][1]
 
-        train_seq_fasta = f"{train_base}.fa"
-        test_seq_fasta = f"{test_base}.fa"
+        train_seq_fasta = f"{data_dir}/{train_base}.fa"
+        test_seq_fasta = f"{data_dir}/{test_base}.fa"
 
-        train_score_fname = f"{train_base}.txt"
-        test_score_fname = f"{test_base}.txt"
+        train_score_fname = f"{data_dir}/{train_base}.txt"
+        test_score_fname = f"{data_dir}/{test_base}.txt"
 
         train_shape_fnames = ""
         test_shape_fnames = ""
@@ -277,23 +277,29 @@ def main():
             test_shape_fnames += f"{test_seq_fasta}.{shape_name} "
 
         if not args.skip_inference:
+            print("========================================")
+            print(f"Writing fasta sequences for k-fold crossvalidation on fold {k}")
+            print(f"Writing {train_seq_fasta}")
             with open(train_seq_fasta, "w") as train_seq_f:
                 train_seqs.write(train_seq_f)
 
+            print(f"Writing {train_score_fname}")
             with open(train_score_fname, "w") as train_score_f:
                 train_score_f.write("name\tscore")
                 for name,yval in zip(train_seqs.names,train_scores):
                     train_score_f.write(f"\n{name}\t{yval}")
 
+            print(f"Writing {test_seq_fasta}")
             with open(test_seq_fasta, "w") as test_seq_f:
                 test_seqs.write(test_seq_f)
 
+            print(f"Writing {test_score_fname}")
             with open(test_score_fname, "w") as test_score_f:
                 test_score_f.write("name\tscore")
                 for name,yval in zip(test_seqs.names,test_scores):
                     test_score_f.write(f"\n{name}\t{yval}")
 
-            convert = f"Rscript {this_path}/utils/calc_shape.R {data_dir}/{train_seq_fasta}"
+            convert = f"Rscript {this_path}/utils/calc_shape.R {train_seq_fasta}"
             #convert = shlex.quote(convert)
             convert_result = subprocess.run(
                 convert,
@@ -311,8 +317,10 @@ def main():
                     f"{convert_result.stdout.decode()}"
                 )
                 sys.exit(1)
+            else:
+                logging.info("Converting training sequences to shapes ran without error")
 
-            convert = f"Rscript {this_path}/utils/calc_shape.R {data_dir}/{test_seq_fasta}"
+            convert = f"Rscript {this_path}/utils/calc_shape.R {test_seq_fasta}"
             #convert = shlex.quote(convert)
             convert_result = subprocess.run(
                 convert,
@@ -330,6 +338,8 @@ def main():
                     f"{convert_result.stdout.decode()}"
                 )
                 sys.exit(1)
+            else:
+                logging.info("Converting testing sequences to shapes ran without error")
 
             INFER_EXE = f"python {this_path}/infer_motifs.py "\
                 f"--score_file fold_{k}_train.txt "\
@@ -413,6 +423,18 @@ def main():
                     f"{infer_result.stdout.decode()}"
                 )
                 sys.exit(1)
+            else:
+                logging.info(
+                    f"Motif inference was performed by running the following command:\n\n"\
+                    f"{INFER_CMD}\n\n"\
+                    f"resulting in the following stderr:\n\n"\
+                    f"{infer_result.stderr.decode()}\n\n"
+                    f"and the following stdout:\n\n"\
+                    f"{infer_result.stdout.decode()}"
+                )
+                # if no motifs in this fold, move on to next one
+                if "No shape or sequence motifs found" in infer_result.stdout.decode():
+                    continue
 
             #print(infer_result.stderr.decode())
             #print()
@@ -440,13 +462,21 @@ def main():
                 f"{eval_result.stdout.decode()}"
             )
             sys.exit(1)
+        else:
+            logging.info(
+                f"Motif evaluation was performed by running the following command:\n\n"\
+                f"{EVAL_CMD}\n\n"\
+                f"resulting in the following stderr:\n\n"\
+                f"{infer_result.stderr.decode()}\n\n"
+                f"and the following stdout:\n\n"\
+                f"{infer_result.stdout.decode()}"
+            )
 
         #print(eval_result.stderr.decode())
         #print()
         #print(eval_result.stdout.decode())
         #sys.exit()
 
-    
 
 if __name__ == '__main__':
     main()
