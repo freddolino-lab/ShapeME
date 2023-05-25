@@ -6,6 +6,8 @@ src/*/Cargo.lock
 src/*/*/Cargo.lock
 src/python3/build
 src/flask/__pycache__
+src/rust_utils/ShapeMe/data
+src/rust_utils/ShapeMe/target
 singularity/archive
 singularity/current
 singularity/def
