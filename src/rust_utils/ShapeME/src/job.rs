@@ -3,12 +3,14 @@ use tokio::process::{Command, Child};
 use rocket::form::{DataField, FromFormField};
 use rocket::FromForm;
 use rocket::data::ToByteUnit;
-//use rocket::fs::FileName;
 use rocket::{tokio, State};
+use rocket::serde::Serialize;
 
 use std::sync::Arc;
 use std::error::Error;
 use std::path::{Path, PathBuf};
+use std::fmt;
+
 use rand::{self, Rng};
 use dashmap::DashMap;
 
@@ -61,6 +63,37 @@ pub struct Job {
     child: Child,
 }
 
+#[derive(Serialize)]
+pub struct JobContext {
+    id: String,
+    email: String,
+}
+
+impl From<Job> for JobContext {
+    fn from(item: Job) -> Self {
+        let id = item.id.clone();
+        let email = item.email.clone();
+        JobContext{ id, email }
+    }
+}
+
+//impl fmt::Display for Job {
+//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//        let res = self.child.try_wait();
+//        let display_text = match res {
+//            Ok(no_err) => {
+//                if let Some(exit_status) = no_err {
+//                    format!("Job {} has finished!", self.id)
+//                } else {
+//                    format!("Child process for job {} is still running.", self.id)
+//                }
+//            },
+//            Err(error) => format!("Job {} exited with the following error:\n{}", self.id, error),
+//        };
+//        write!(f, "{}", display_text)
+//    }
+//}
+
 impl Job {
     /// Generate a unique ID with `size` characters. For readability,
     /// the characters used are from the sets [0-9], [A-Z], [a-z].
@@ -101,6 +134,20 @@ impl Job {
         Ok(Job { id, email, path, fa_path, score_path, child })
     }
 
+    pub fn check_status(&mut self) -> String {
+        let res = self.child.try_wait();
+        let display_text = match res {
+            Ok(no_err) => {
+                if let Some(exit_status) = no_err {
+                    format!("Job {} has finished!", self.id)
+                } else {
+                    format!("Child process for job {} is still running.", self.id)
+                }
+            },
+            Err(error) => format!("Job {} exited with the following error:\n{}", self.id, error),
+        };
+        display_text
+    }
 }
 
 async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {

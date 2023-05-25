@@ -1,7 +1,7 @@
 #[macro_use] extern crate rocket;
 
 mod job;
-use job::{Submit, Runs, insert_job};
+use job::{Submit, Runs, insert_job, JobContext};
 
 use rocket::http::Status;
 use rocket::form::{Form, Contextual, Context};
@@ -43,6 +43,7 @@ async fn submit(
             // start a job, job is placed into managed state
             let job_id = insert_job(submission, &runs).await.unwrap();
             
+            println!("{:?}", form.context);
             Template::render("success", &form.context)
         }
         None => {
@@ -51,22 +52,33 @@ async fn submit(
         }
     };
 
-    // But what I really need is to just spawn the child
-    //if let Some(mut child_proc) = child {
-    //    let status = child_proc.wait().expect("Failed to wait on child process");
-    //    if status.success() {
-    //        println!("Job {:?} exited successfully!", job_id);
-    //    } else {
-    //        println!("Job {:?} had non-zero exit status", job_id);
-    //    }
-    //}
     (form.context.status(), template)
 }
 
-#[get("/<job_id>")]
-fn done(job_id: String) -> Template {
-    Template::render("done", &Context::default())
+#[get("/jobs/<job_id>")]
+fn get_job(job_id: String, runs: &State<Arc<Runs>>) -> Template {
+    let data = runs.inner();
+    let job_from_pool = data.dash_map.get_mut(&job_id);
+    if let Some(mut job) = job_from_pool {
+        let msg = job.check_status();
+        println!("{}", msg);
+        let job_context = JobContext::from(job);
+        ///////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////
+        // build context out for the job //////////////////////
+        ///////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////
+        Template::render("finished", &job_context)
+    } else {
+        Template::render("job_not_found", &Context::default())
+    }
 }
+
+//#[get("/jobs")]
+//fn see_jobs(runs: &State<Arc<Runs>>) -> Template {
+//    let data = runs.inner();
+//    Template::render("jobs", &data)
+//}
 
 #[launch]
 fn rocket() -> _ {
@@ -75,7 +87,7 @@ fn rocket() -> _ {
             dash_map: DashMap::new(),
         }))
         .manage(SubmitCount {count: AtomicUsize::new(0)})
-        .mount("/", routes![index, submit])
+        .mount("/", routes![index, submit, get_job])
         .attach(Template::fairing())
         .mount("/", FileServer::from(relative!("/static")))
 }
