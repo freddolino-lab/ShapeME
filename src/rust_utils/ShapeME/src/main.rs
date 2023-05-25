@@ -16,6 +16,8 @@ use std::process::{Command, Stdio, ExitStatus, Child};
 use std::io::BufWriter;
 use std::error::Error;
 use std::path::PathBuf;
+use std::sync::Arc;
+use dashmap::DashMap;
 
 const JOB_ID_LENGTH: usize = 10;
 
@@ -28,22 +30,6 @@ struct Password<'v> {
     second: &'v str,
 }
 
-//#[derive(Debug, FromFormField)]
-//enum Rights {
-//    Public,
-//    Reserved,
-//    Exclusive,
-//}
-//
-//#[derive(Debug, FromFormField)]
-//enum Category {
-//    Biology,
-//    Chemistry,
-//    Physics,
-//    #[field(value = "CS")]
-//    ComputerScience,
-//}
-
 #[derive(Debug, FromForm)]
 #[allow(dead_code)]
 struct Submission<'v> {
@@ -55,6 +41,9 @@ struct Submission<'v> {
     score_file: File<'v>,
 }
 
+////////////////////////////////////////////////////
+// I should switch all these fields to custom structs that derive FromFormField
+////////////////////////////////////////////////////
 #[derive(Debug, FromForm, Serialize)]
 #[allow(dead_code)]
 struct Cfg<'v> {
@@ -315,8 +304,10 @@ fn run_job(job: &JobId, conf: &Cfg, fa_path: &PathBuf, score_path: &PathBuf) -> 
 // NOTE: We use `Contextual` here because we want to collect all submitted form
 // fields to re-render forms with submitted values on error. If you have no such
 // need, do not use `Contextual`. Use the equivalent of `Form<Submit<'_>>`.
+// ////////////////////////////////////
+// try tokio::spawn for async; need to figure out how to track running jobs
 #[post("/", data = "<form>")]
-fn submit<'r>(form: Form<Contextual<'r, Submit<'r>>>) -> (Status, Template) {
+async fn submit<'r>(form: Form<Contextual<'r, Submit<'r>>>) -> (Status, Template, Child) {
     let job_id = JobId::new(JOB_ID_LENGTH);
     let (template,child) = match form.value {
         Some(ref submission) => {
@@ -365,7 +356,7 @@ fn submit<'r>(form: Form<Contextual<'r, Submit<'r>>>) -> (Status, Template) {
             println!("Job {:?} had non-zero exit status", job_id);
         }
     }
-    (form.context.status(), template)
+    (form.context.status(), template, child)
 }
 
 #[get("/<job_id>")]
