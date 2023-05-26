@@ -16,6 +16,14 @@ use dashmap::DashMap;
 
 const JOB_ID_LENGTH: usize = 10;
 
+#[derive(Debug, Serialize)]
+pub enum JobStatus {
+    Running,
+    Queued,
+    Finished,
+    Error,
+}
+
 #[derive(Debug, FromForm)]
 struct Password {
     #[field(validate = len(6..))]
@@ -52,49 +60,23 @@ pub struct Submit {
     pub cfg: Cfg,
 }
 
-#[derive(Debug)]
-pub struct Job {
-    id: String,
-    email: String,
-    path: PathBuf,
-    fa_path: PathBuf,
-    score_path: PathBuf,
-    //conf: Cfg,
-    child: Child,
-}
-
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct JobContext {
     id: String,
     email: String,
+    pub path: PathBuf,
+    fa_path: PathBuf,
+    score_path: PathBuf,
+    pub status: JobStatus,
 }
 
-impl From<Job> for JobContext {
-    fn from(item: Job) -> Self {
-        let id = item.id.clone();
-        let email = item.email.clone();
-        JobContext{ id, email }
-    }
+#[derive(Debug)]
+pub struct Job {
+    pub context: JobContext,
+    child: Child,
 }
 
-//impl fmt::Display for Job {
-//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//        let res = self.child.try_wait();
-//        let display_text = match res {
-//            Ok(no_err) => {
-//                if let Some(exit_status) = no_err {
-//                    format!("Job {} has finished!", self.id)
-//                } else {
-//                    format!("Child process for job {} is still running.", self.id)
-//                }
-//            },
-//            Err(error) => format!("Job {} exited with the following error:\n{}", self.id, error),
-//        };
-//        write!(f, "{}", display_text)
-//    }
-//}
-
-impl Job {
+impl JobContext {
     /// Generate a unique ID with `size` characters. For readability,
     /// the characters used are from the sets [0-9], [A-Z], [a-z].
     pub fn make_id(size: usize) -> String {
@@ -108,16 +90,14 @@ impl Job {
         id
     }
 
-    /// creates job data directory with uid, uploads fasta and score files
-    async fn set_up_job(sub: &Submit) -> Result<Job, Box<dyn Error>> {
+    pub async fn set_up(sub: &Submit) -> Result<JobContext, Box<dyn Error>> {
+        let id = JobContext::make_id(JOB_ID_LENGTH);
 
-        let id = Job::make_id(JOB_ID_LENGTH);
-
-        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "data");
-        let job_path = Path::new(root).join(id.clone());
+        let job_path = build_job_path(&id);
         let _ = std::fs::create_dir_all(job_path.clone());
  
-        let path = job_path;
+        let mut path = PathBuf::new();
+        path.push(&job_path);
 
         // we write the fasta and score files using a uid
         let email: String = sub.account.email.clone();
@@ -127,31 +107,92 @@ impl Job {
         // write score file to job's data path
         let score_path = path.join(String::from("scores.txt"));
         let _ = sub.submission.score_file.upload(&score_path).await?;
+        let status = JobStatus::Queued;
+        Ok(JobContext{
+            id,
+            email,
+            path,
+            fa_path,
+            score_path,
+            status,
+        })
+    }
 
-        let mut cmd = sub.cfg.build_cmd(&path, &fa_path, &score_path)?;
+    pub fn check_directory(job_id: &str) -> Result<JobContext, Box<dyn Error>> {
+
+        let job_path = build_job_path(job_id);
+
+        let (status,email) = if job_path.is_dir() {
+            ///////////////////////////////////////////////////////////
+            // needs work
+            ///////////////////////////////////////////////////////////
+            let status = JobStatus::Finished;
+            let email = "no email";
+            (status,email)
+        } else {
+            ///////////////////////////////////////////////////////////
+            // here i should have a 404 catcher
+            ///////////////////////////////////////////////////////////
+            (JobStatus::Error, "no email")
+        };
+
+        let fa_path = job_path.join("seqs.fa");
+        let score_path = job_path.join("scores.txt");
+
+        Ok(JobContext{
+            id: job_id.to_string(),
+            path: job_path.into(),
+            email: email.to_string(),
+            status: status,
+            fa_path: fa_path,
+            score_path: score_path,
+        })
+    }
+}
+
+
+impl Job {
+    /// creates job data directory with uid, uploads fasta and score files
+    async fn set_up_job(sub: &Submit, context: JobContext) -> Result<Job, Box<dyn Error>> {
+
+        let mut cmd = sub.cfg.build_cmd(
+            &context.path,
+            &context.fa_path,
+            &context.score_path,
+        )?;
         let child = spawn_job(&mut cmd).await?;
 
-        Ok(Job { id, email, path, fa_path, score_path, child })
+        Ok(Job { context, child })
     }
 
-    pub fn check_status(&mut self) -> String {
+    pub fn check_status(&mut self) -> JobStatus {
         let res = self.child.try_wait();
-        let display_text = match res {
+        let status = match res {
             Ok(no_err) => {
                 if let Some(exit_status) = no_err {
-                    format!("Job {} has finished!", self.id)
+                    JobStatus::Finished
                 } else {
-                    format!("Child process for job {} is still running.", self.id)
+                    JobStatus::Running
                 }
             },
-            Err(error) => format!("Job {} exited with the following error:\n{}", self.id, error),
+            Err(error) => JobStatus::Error,
         };
-        display_text
+        status
     }
+}
+
+fn build_job_path(id: &str) -> PathBuf {
+    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "data");
+    Path::new(root).join(id.clone())
 }
 
 async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
 
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+// I need to get writing stdout to a file working
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
     //let log_fname = self.path.as_path().join("shapeme.log");
     //let out_log = tokio::fs::File::create(log_fname).await?;
 
@@ -169,19 +210,22 @@ async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
 /// Creates and spawns a job and inserts into Runs
 pub async fn insert_job(
         sub: &Submit,
+        context: JobContext,
         state: &State<Arc<Runs>>,
 ) -> Result<String, Box<dyn Error>> {
     // set paths and upload files
-    let job = Job::set_up_job(sub).await?;
-    let job_id = job.id.clone();
+    //let context = JobContext::set_up(sub).await?;
+    let job = Job::set_up_job(sub, context).await?;
+    let job_id = job.context.id.clone();
+    let job_id_2 = job.context.id.clone();
 
     let state_data = state.inner().clone();
 
     tokio::spawn(async move {
-        state_data.dash_map.insert(job.id.clone(), job);
+        state_data.dash_map.insert(job_id, job);
     });
 
-    Ok(job_id)
+    Ok(job_id_2)
 }
 
 #[derive(Debug)]
@@ -215,7 +259,7 @@ impl<'a> FromFormField<'a> for File {
 }
 
 ////////////////////////////////////////////////////
-// I should switch all these fields to custom structs that derive FromFormField
+// I should probably switch all these fields to custom structs that derive FromFormField
 ////////////////////////////////////////////////////
 #[derive(Debug, FromForm)]
 #[allow(dead_code)]

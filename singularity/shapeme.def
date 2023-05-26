@@ -22,7 +22,7 @@ Stage: build
 
 %post -c /bin/bash
     apt -y update \
-    && apt -y install vim wget build-essential \
+    && apt -y install vim wget build-essential libsqlite3-dev \
     && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh \
     && bash miniconda.sh -b -p conda \
     && source /conda/etc/profile.d/conda.sh \

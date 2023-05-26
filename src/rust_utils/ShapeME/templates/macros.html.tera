@@ -25,14 +25,15 @@
     {{ self::errors_for(name=name) }}
 {% endmacro input %}
 
-{% macro input_row(type, label, name, value="") %}
+{% macro input_row(type, label, name, value="", placeholder="") %}
     <div class="row">
     <div class="col">
     <label for="{{ name }}">{{ label }}</label>
     <input type="{{ type }}"
            name="{{ name }}"
            id="{{ name }}"
-           value='{{ self::value_for(name=name) }}'
+           value="{{ value }}"
+           placeholder="{{ placeholder }}"
            {% if name in errors %} class="error" {% endif %}
     />
 

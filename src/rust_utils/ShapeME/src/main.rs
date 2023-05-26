@@ -1,7 +1,10 @@
 #[macro_use] extern crate rocket;
 
 mod job;
-use job::{Submit, Runs, insert_job, JobContext};
+use job::{Submit, Runs, insert_job, JobContext, Job, JobStatus};
+
+mod results;
+use results::Report;
 
 use rocket::http::Status;
 use rocket::form::{Form, Contextual, Context};
@@ -41,7 +44,8 @@ async fn submit(
             println!("submission.cfg: {:#?}", submission.cfg);
 
             // start a job, job is placed into managed state
-            let job_id = insert_job(submission, &runs).await.unwrap();
+            let job_context = JobContext::set_up(submission).await.unwrap();
+            let job_id = insert_job(submission, job_context, &runs).await.unwrap();
             
             println!("{:?}", form.context);
             Template::render("success", &form.context)
@@ -56,22 +60,34 @@ async fn submit(
 }
 
 #[get("/jobs/<job_id>")]
-fn get_job(job_id: String, runs: &State<Arc<Runs>>) -> Template {
+async fn get_job(job_id: String, runs: &State<Arc<Runs>>) -> Template {
+
     let data = runs.inner();
     let job_from_pool = data.dash_map.get_mut(&job_id);
-    if let Some(mut job) = job_from_pool {
-        let msg = job.check_status();
-        println!("{}", msg);
-        let job_context = JobContext::from(job);
-        ///////////////////////////////////////////////////////
-        ///////////////////////////////////////////////////////
-        // build context out for the job //////////////////////
-        ///////////////////////////////////////////////////////
-        ///////////////////////////////////////////////////////
-        Template::render("finished", &job_context)
-    } else {
-        Template::render("job_not_found", &Context::default())
-    }
+
+    //println!("{:?}", job_from_pool);
+    // If the job is in the current pool it will be Some here.
+    // If the job was run in a prior instance, it will be None, so the else block will
+    //   take effect
+    let template = 
+        if let Some(mut job) = job_from_pool {
+
+            let report = Report::new(&job.context.path).await.expect("Unable to generate report");
+            Template::render("job_finished", &report)
+
+        } else {
+            let job_context = JobContext::check_directory(&job_id).unwrap();
+            match job_context.status {
+                JobStatus::Finished => {
+                    let report = Report::new(&job_context.path).await.expect("Unable to generate report");
+                    Template::render("job_finished", &report)
+                },
+                JobStatus::Running => Template::render("job_running", &job_context),
+                JobStatus::Error => Template::render("job_error", &job_context),
+                JobStatus::Queued => Template::render("job_queued", &job_context),
+            }
+        };
+    template
 }
 
 //#[get("/jobs")]

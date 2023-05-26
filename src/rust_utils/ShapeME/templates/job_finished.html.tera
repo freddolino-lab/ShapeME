@@ -21,11 +21,13 @@
 
       <h2>Showing results for job {{ id }}</h2>
 
+      {#
       {% if errors | length > 1 %}
           <small class="text-error" style="margin-top: -20px">
               {{ errors | length }} field(s) have errors
           </small>
       {% endif %}
+      #}
 
       <fieldset>
         <legend>Motifs</legend>
@@ -33,14 +35,11 @@
         <div class="row">
           <div class="col">
 {#
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//////////// i need to get each image name using rust, create rocket struct to iterate over folds,
-//////////// posting each image here. May have to set height and width.
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-            <img src="{{ job_id.path }}/shape_fold_0/"
+            <img src="{{ path }}/shape_fold_0_output/final_motifs.png", alt="Motif lineplots">
 #}
+            <href="{{ logo_file }}">
+            <img src="final_motifs.png", alt="Motif lineplots">
+            </href>
           </div>
         </div>
       </fieldset>
