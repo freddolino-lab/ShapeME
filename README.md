@@ -5,16 +5,16 @@ TODO:
 3. add docs for every argument for every script
     [x] find\_motifs.py
     [ ] evaluate\_motifs.py
-4. consider adding wrapper script for all steps (scheme.py)
+    [ ] ShapeMe.py
 
-# SCHEME
+# ShapeMe
 
-SCHEME is a tool for identifying local structural motifs that inform
+ShapeMe is a tool for identifying local structural motifs that inform
 protein/DNA interaction.
 
 # Preparing input data
 
-The input files required by SCHEME are:
+The input files required by ShapeMe are:
 
 1. scores file
     + A tab-delimited file with one header line and two columns
@@ -54,7 +54,7 @@ the score file and the shape fasta files.
 #### Starting with narrowpeak file defining "positive" regions
 
 If you are starting from a narrowpeak file, read this section carefully
-for instructions to create input files for SCHEME.
+for instructions to create input files for ShapeME.
 
 Enter the directory containing your narrowpeak file.
 
@@ -71,7 +71,7 @@ but I have to check on that and insert a note on it here.
 
 ```bash
 singularity exec -B $(pwd):$(pwd) \
-    scheme_<version>.sif \
+    shapeme_<version>.sif \
     python /src/python3/convert_narrowpeak_to_fire.py \
         <np_fname> \
         <ref_fasta> \
@@ -107,7 +107,7 @@ for each train/test file for each fold.
 
 ```bash
 singularity exec -B $(pwd):$(pwd) \
-    scheme_<version>.sif \
+    shapeme_<version>.sif \
     python /src/python3/convert_seqs_to_shapes.py <data_fasta>
 ```
 
@@ -130,22 +130,22 @@ and scores.
 
 Then, within `find_motifs.py`, 
 
-# Running SCHEME
+# Running ShapeME
 
-SCHEME can be run to detect only shape motifs, only sequence motifs (in this
-case SCHEME is basically a wrapper for STREME), or to incorporate shape and
+ShapeME can be run to detect only shape motifs, only sequence motifs (in this
+case ShapeME is basically a wrapper for STREME), or to incorporate shape and
 sequence motifs into a single model.
 
-We distribute SCHEME as a singularity container, which can be run on any
+We distribute ShapeME as a singularity container, which can be run on any
 computer with a Linux environment that has singularity installed.
 
-The SCHEME container can be downloaded from our
+The ShapeME container can be downloaded from our
 [google drive](https://drive.google.com/drive/folders/1e7N4iYO7BHuuZG4q-H7xBk1c6bE9GmOt?usp=share_link)
 location.
 
 In all instructions below, you should substitute the characters `<version>` with
 the actual version number of the continer you're using in every instance of
-`scheme_<version>.sif`.
+`shapeme_<version>.sif`.
 
 ## Infer only shape motifs
 
@@ -155,20 +155,20 @@ the actual version number of the continer you're using in every instance of
 
 From within the `examples/binary_example` directory, run the following,
 updating the value of `nprocs` to something that is suitable to the system
-on which you are running SCHEME:
+on which you are running ShapeME:
 
 ```bash
 nprocs=8
 
 singularity exec -B $(pwd):$(pwd) \
-    scheme_<version>.sif \
+    shapeme_<version>.sif \
     python /src/python3/find_motifs.py \
         --score_file test_data_binary_plus_train_0.txt \
         --shape_names EP HelT MGW ProT Roll \
         --shape_files test_data_binary_plus_train_0.fa.EP test_data_binary_plus_train_0.fa.HelT test_data_binary_plus_train_0.fa.MGW test_data_binary_plus_train_0.fa.ProT test_data_binary_plus_train_0.fa.Roll \
         --out_prefix binary_example \
         --data_dir $(pwd) \
-        --out_dir scheme_shape_output \
+        --out_dir shapeme_shape_output \
         --kmer 10 \
         --alpha 0.01 \
         --max_count 1 \
@@ -234,7 +234,7 @@ max_count=1
 kmer=10
 
 singularity exec -B $(pwd):$(pwd) \
-    scheme_<version>.sif \
+    shapeme_<version>.sif \
     python /src/python3/find_motifs.py \
         --score_file <infile> \
         --shape_names <shape_names> \
@@ -269,7 +269,7 @@ during sequence motif finding.
 
 ```bash
 singularity exec -B $(pwd):$(pwd) \
-    scheme_<version>.sif \
+    shapeme_<version>.sif \
     python /src/python3/find_motifs.py \
         --score_file <infile> \
         --seq_fasta ${seq_file} \
@@ -304,7 +304,7 @@ max_count=1
 kmer=10
 
 singularity exec -B $(pwd):$(pwd) \
-    scheme_<version>.sif \
+    shapeme_<version>.sif \
     python /src/python3/find_motifs.py \
         --score_file <infile> \
         --shape_names <shape_names> \

@@ -10,19 +10,19 @@ Stage: build
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment
-    export SCHEME_VER=0.0.1
+    export SHAPEME_VER=0.0.1
     export PATH="/conda/envs/motifer/bin:${PATH}"
 
 %files
     conda_environment.yaml
-    scheme.bashrc /scheme.bashrc
+    shapeme.bashrc /shapeme.bashrc
 
 %runscript
-    /bin/bash -rcfile /scheme.bashrc
+    /bin/bash -rcfile /shapeme.bashrc
 
 %post -c /bin/bash
     apt -y update \
-    && apt -y install vim wget build-essential \
+    && apt -y install vim wget build-essential libsqlite3-dev \
     && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh \
     && bash miniconda.sh -b -p conda \
     && source /conda/etc/profile.d/conda.sh \
@@ -36,7 +36,7 @@ Stage: build
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh
     cat >$CUSTOM_ENV <<EOF
 #!/bin/bash
-PS1="[scheme_0.0.1]\w \$"
+PS1="[shapeme_0.0.1]\w \$"
 EOF
     chmod 755 $CUSTOM_ENV
 

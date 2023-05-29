@@ -1,8 +1,7 @@
 use std::error::Error;
 use std::hash::Hash;
 use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::collections::BTreeMap;
+use std::collections::{HashMap, BTreeMap};
 use std::cmp;
 use std::iter;
 use std::fs;
@@ -31,6 +30,7 @@ use rayon::ThreadPoolBuilder;
 // check the source code for OrderedFloat and consider implementing it in lib.rs instead of using the ordered_float crate. If ordered_float stops existing someday, we don't want our code to break.
 use ordered_float::OrderedFloat;
 use std::time;
+
 use info_theory;
 
 #[cfg(test)]
@@ -937,6 +937,15 @@ impl Config {
         let buf_reader = BufReader::new(file);
         let cfg: Config = serde_json::from_reader(buf_reader)?;
         Ok(cfg)
+    }
+
+    pub fn write(&self, fname: &str) -> Result<(), Box<dyn Error>> {
+        // set up writer
+        let file = fs::File::create(fname).unwrap();
+        // open a buffered writer to open the pickle file
+        let mut buf_writer = BufWriter::new(file);
+        let j = serde_json::to_writer_pretty(buf_writer, &self)?;
+        Ok(())
     }
 }
 
