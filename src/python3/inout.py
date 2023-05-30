@@ -4,7 +4,7 @@ import dnashapeparams as dsp
 #import shapemotifvis as smv
 import fimopytools as fimo
 import logging
-from numba import jit,prange
+#from numba import jit,prange
 import welfords
 from scipy import stats
 from scipy import sparse
@@ -335,11 +335,11 @@ def consolidate_optim_batches(fname_list):
     return opt_results
 
 
-@jit(nopython=True)
-def bin_hits(hits_arr, distinct_hits, binned_hits):
-    for bin_id in range(distinct_hits.shape[0]):
-        rows_y = (hits_arr == distinct_hits[bin_id,:])[:,0]
-        binned_hits[rows_y] = bin_id
+#@jit(nopython=True)
+#def bin_hits(hits_arr, distinct_hits, binned_hits):
+#    for bin_id in range(distinct_hits.shape[0]):
+#        rows_y = (hits_arr == distinct_hits[bin_id,:])[:,0]
+#        binned_hits[rows_y] = bin_id
         
 
 def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
@@ -384,68 +384,68 @@ def run_query_over_ref(y_vals, query_shapes, query_weights, threshold,
 
     return this_mi,hits
 
-@jit(nopython=True, parallel=False)
-def optim_generate_peak_array_series(ref, query, weights, threshold,
-                              results, R, W, dist, max_count, alpha):
-    """Does same thing as generate_peak_vector, but hopefully faster
-    
-    Args:
-    -----
-    ref : np.array
-        The windows attribute of an inout.RecordDatabase object. Will be an
-        array of shape (R,L,S,W,2), where R is the number of records,
-        L is the window size, S is the number of shape parameters, and
-        W is the number of windows for each record.
-    query : np.array
-        A slice of the records and windows axes of the windows attribute of
-        an inout.RecordDatabase object to check for matches in ref.
-        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
-    weights : np.array
-        Weights to be applied to the distance
-        calculation. Should be an array of shape (L,S,1).
-    threshold : float
-        Minimum distance to consider a match.
-    results : 2d np.array
-        Array of shape (R,2), where R is the number of records in ref.
-        This array should be populated with zeros, and will be incremented
-        by 1 when matches are found. The final axis is of length 2 so that
-        we can do the reverse-complement and the forward.
-    R : int
-        Number of records
-    W : int
-        Number of windows for each record
-    dist : function
-        The distance function to use for distance calculation.
-    max_count : int
-        The maximum number of hits to count for each strand.
-    alpha : float
-        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
-        prior to normalizing the sum of weights to one and calculating distance.
-    """
-    
-    for r in range(R):
-        f_maxed = False
-        r_maxed = False
-        for w in range(W):
-            
-            if f_maxed and r_maxed:
-                break
-
-            ref_seq = ref[r,:,:,w,:]
-
-            distances = dist(query, ref_seq, weights, alpha)
-
-            if (not f_maxed) and (distances[0] < threshold):
-                # if a window has a distance low enough,
-                #   add 1 to this result's index
-                results[r,0] += 1
-                if results[r,0] == max_count:
-                    f_maxed = True
-
-            if (not r_maxed) and (distances[1] < threshold):
-                results[r,1] += 1
-                if results[r,1] == max_count:
-                    r_maxed = True
+#@jit(nopython=True, parallel=False)
+#def optim_generate_peak_array_series(ref, query, weights, threshold,
+#                              results, R, W, dist, max_count, alpha):
+#    """Does same thing as generate_peak_vector, but hopefully faster
+#    
+#    Args:
+#    -----
+#    ref : np.array
+#        The windows attribute of an inout.RecordDatabase object. Will be an
+#        array of shape (R,L,S,W,2), where R is the number of records,
+#        L is the window size, S is the number of shape parameters, and
+#        W is the number of windows for each record.
+#    query : np.array
+#        A slice of the records and windows axes of the windows attribute of
+#        an inout.RecordDatabase object to check for matches in ref.
+#        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
+#    weights : np.array
+#        Weights to be applied to the distance
+#        calculation. Should be an array of shape (L,S,1).
+#    threshold : float
+#        Minimum distance to consider a match.
+#    results : 2d np.array
+#        Array of shape (R,2), where R is the number of records in ref.
+#        This array should be populated with zeros, and will be incremented
+#        by 1 when matches are found. The final axis is of length 2 so that
+#        we can do the reverse-complement and the forward.
+#    R : int
+#        Number of records
+#    W : int
+#        Number of windows for each record
+#    dist : function
+#        The distance function to use for distance calculation.
+#    max_count : int
+#        The maximum number of hits to count for each strand.
+#    alpha : float
+#        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+#        prior to normalizing the sum of weights to one and calculating distance.
+#    """
+#    
+#    for r in range(R):
+#        f_maxed = False
+#        r_maxed = False
+#        for w in range(W):
+#            
+#            if f_maxed and r_maxed:
+#                break
+#
+#            ref_seq = ref[r,:,:,w,:]
+#
+#            distances = dist(query, ref_seq, weights, alpha)
+#
+#            if (not f_maxed) and (distances[0] < threshold):
+#                # if a window has a distance low enough,
+#                #   add 1 to this result's index
+#                results[r,0] += 1
+#                if results[r,0] == max_count:
+#                    f_maxed = True
+#
+#            if (not r_maxed) and (distances[1] < threshold):
+#                results[r,1] += 1
+#                if results[r,1] == max_count:
+#                    r_maxed = True
 
 def testing_optim_generate_peak_array(ref, query, weights, threshold,
                               results, R, W, dist, max_count, alpha, dists, lt):
@@ -512,102 +512,102 @@ def testing_optim_generate_peak_array(ref, query, weights, threshold,
                     r_maxed = True
 
 
-@jit(nopython=True, parallel=True)
-def optim_generate_peak_array(ref, query, weights, threshold,
-                              results, R, W, dist, max_count, alpha):
-    """Does same thing as generate_peak_vector, but hopefully faster
-    
-    Args:
-    -----
-    ref : np.array
-        The windows attribute of an inout.RecordDatabase object. Will be an
-        array of shape (R,L,S,W,2), where R is the number of records,
-        L is the window size, S is the number of shape parameters, and
-        W is the number of windows for each record.
-    query : np.array
-        A slice of the records and windows axes of the windows attribute of
-        an inout.RecordDatabase object to check for matches in ref.
-        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
-    weights : np.array
-        Weights to be applied to the distance
-        calculation. Should be an array of shape (L,S,1).
-    threshold : float
-        Minimum distance to consider a match.
-    results : 2d np.array
-        Array of shape (R,2), where R is the number of records in ref.
-        This array should be populated with zeros, and will be incremented
-        by 1 when matches are found. The final axis is of length 2 so that
-        we can do the reverse-complement and the forward.
-    R : int
-        Number of records
-    W : int
-        Number of windows for each record
-    dist : function
-        The distance function to use for distance calculation.
-    max_count : int
-        The maximum number of hits to count for each strand.
-    alpha : float
-        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
-        prior to normalizing the sum of weights to one and calculating distance.
-    """
-    
-    for r in prange(R):
-        f_maxed = False
-        r_maxed = False
-        for w in range(W):
-            
-            if f_maxed and r_maxed:
-                break
-
-            ref_seq = ref[r,:,:,w,:]
-
-            distances = dist(query, ref_seq, weights, alpha)
-
-            if (not f_maxed) and (distances[0] < threshold):
-                # if a window has a distance low enough,
-                #   add 1 to this result's index
-                results[r,0] += 1
-                if results[r,0] == max_count:
-                    f_maxed = True
-
-            if (not r_maxed) and (distances[1] < threshold):
-                results[r,1] += 1
-                if results[r,1] == max_count:
-                    r_maxed = True
-
-
-@jit(nopython=True)
-def euclidean_distance(vec1, vec2):
-    return np.sqrt(np.sum((vec1 - vec2)**2))
-
-@jit(nopython=True)
-def manhattan_distance(vec1, vec2, w=1):
-    return np.sum(np.abs(vec1 - vec2) * w)
-
-@jit(nopython=True)
-def constrained_manhattan_distance(vec1, vec2, w=1):
-    w_exp = np.exp(w)
-    w = w_exp/np.sum(w_exp)
-    return np.sum(np.abs(vec1 - vec2) * w)
-
-@jit(nopython=True)
-def inv_logit(x):
-    return np.exp(x) / (1 + np.exp(x))
-
-@jit(nopython=True)
-def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
-    w_floor_inv_logit = a + (1-a) * inv_logit(w)
-    w_trans = w_floor_inv_logit/np.sum(w_floor_inv_logit)
-    w_abs_diff = (np.abs(vec1 - vec2)) * w_trans
-    #NOTE: this seems crazy, but it's necessary instead of np.sum(arr, axis=(0,1))
-    #  in order to get jit(nopython=True) to work
-    first_sum = np.sum(w_abs_diff, axis=0)
-    second_sum = np.sum(first_sum, axis=0)
-    return second_sum
-
-@jit(nopython=True)
-def hamming_distance(vec1, vec2):
-    return np.sum(vec1 != vec2)
+#@jit(nopython=True, parallel=True)
+#def optim_generate_peak_array(ref, query, weights, threshold,
+#                              results, R, W, dist, max_count, alpha):
+#    """Does same thing as generate_peak_vector, but hopefully faster
+#    
+#    Args:
+#    -----
+#    ref : np.array
+#        The windows attribute of an inout.RecordDatabase object. Will be an
+#        array of shape (R,L,S,W,2), where R is the number of records,
+#        L is the window size, S is the number of shape parameters, and
+#        W is the number of windows for each record.
+#    query : np.array
+#        A slice of the records and windows axes of the windows attribute of
+#        an inout.RecordDatabase object to check for matches in ref.
+#        Should be an array of shape (L,S,2), where 2 is for the 2 strands.
+#    weights : np.array
+#        Weights to be applied to the distance
+#        calculation. Should be an array of shape (L,S,1).
+#    threshold : float
+#        Minimum distance to consider a match.
+#    results : 2d np.array
+#        Array of shape (R,2), where R is the number of records in ref.
+#        This array should be populated with zeros, and will be incremented
+#        by 1 when matches are found. The final axis is of length 2 so that
+#        we can do the reverse-complement and the forward.
+#    R : int
+#        Number of records
+#    W : int
+#        Number of windows for each record
+#    dist : function
+#        The distance function to use for distance calculation.
+#    max_count : int
+#        The maximum number of hits to count for each strand.
+#    alpha : float
+#        Between 0.0 and 1.0, sets the lower limit for the tranformed weights
+#        prior to normalizing the sum of weights to one and calculating distance.
+#    """
+#    
+#    for r in prange(R):
+#        f_maxed = False
+#        r_maxed = False
+#        for w in range(W):
+#            
+#            if f_maxed and r_maxed:
+#                break
+#
+#            ref_seq = ref[r,:,:,w,:]
+#
+#            distances = dist(query, ref_seq, weights, alpha)
+#
+#            if (not f_maxed) and (distances[0] < threshold):
+#                # if a window has a distance low enough,
+#                #   add 1 to this result's index
+#                results[r,0] += 1
+#                if results[r,0] == max_count:
+#                    f_maxed = True
+#
+#            if (not r_maxed) and (distances[1] < threshold):
+#                results[r,1] += 1
+#                if results[r,1] == max_count:
+#                    r_maxed = True
+#
+#
+#@jit(nopython=True)
+#def euclidean_distance(vec1, vec2):
+#    return np.sqrt(np.sum((vec1 - vec2)**2))
+#
+#@jit(nopython=True)
+#def manhattan_distance(vec1, vec2, w=1):
+#    return np.sum(np.abs(vec1 - vec2) * w)
+#
+#@jit(nopython=True)
+#def constrained_manhattan_distance(vec1, vec2, w=1):
+#    w_exp = np.exp(w)
+#    w = w_exp/np.sum(w_exp)
+#    return np.sum(np.abs(vec1 - vec2) * w)
+#
+#@jit(nopython=True)
+#def inv_logit(x):
+#    return np.exp(x) / (1 + np.exp(x))
+#
+#@jit(nopython=True)
+#def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
+#    w_floor_inv_logit = a + (1-a) * inv_logit(w)
+#    w_trans = w_floor_inv_logit/np.sum(w_floor_inv_logit)
+#    w_abs_diff = (np.abs(vec1 - vec2)) * w_trans
+#    #NOTE: this seems crazy, but it's necessary instead of np.sum(arr, axis=(0,1))
+#    #  in order to get jit(nopython=True) to work
+#    first_sum = np.sum(w_abs_diff, axis=0)
+#    second_sum = np.sum(first_sum, axis=0)
+#    return second_sum
+#
+#@jit(nopython=True)
+#def hamming_distance(vec1, vec2):
+#    return np.sum(vec1 != vec2)
 
 def robust_z_csp(array):
     """Method to get the center and spread of an array based on the robustZ
@@ -3327,27 +3327,27 @@ class ShapeMotifFile(object):
                         lines.append(line)
 
 
-@jit(nopython=True)
-def entropy_ln(array):
-    """Method to calculate the entropy of any discrete numpy array
-
-    Args:
-        array (np.array): an array of discrete categories
-        uniquey : unique values in y
-
-    Returns:
-        entropy of array
-    """
-    entropy = 0
-    total = array.shape[0]
-    for val in np.unique(array):
-        num_this_class = np.sum(array == val)
-        p_i = num_this_class/total
-        if p_i == 0:
-            entropy += 0
-        else:
-            entropy += p_i*np.log(p_i)
-    return -entropy
+#@jit(nopython=True)
+#def entropy_ln(array):
+#    """Method to calculate the entropy of any discrete numpy array
+#
+#    Args:
+#        array (np.array): an array of discrete categories
+#        uniquey : unique values in y
+#
+#    Returns:
+#        entropy of array
+#    """
+#    entropy = 0
+#    total = array.shape[0]
+#    for val in np.unique(array):
+#        num_this_class = np.sum(array == val)
+#        p_i = num_this_class/total
+#        if p_i == 0:
+#            entropy += 0
+#        else:
+#            entropy += p_i*np.log(p_i)
+#    return -entropy
 
 
 def entropy(array, logfunc=np.log2):
@@ -3556,104 +3556,104 @@ def conditional_adjusted_mutual_information(y_vals, hits_a, hits_b):
     return CMI
 
 
-@jit(nopython=True)
-def mutual_information(arrayx, arrayy, uniquey):
-    """Method to calculate the mutual information between two discrete
-    numpy arrays I(X;Y)
-        
-    Uses log2 so mutual information is in bits
-
-    Args:
-        arrayx (np.array): an array of discrete categories
-        arrayy (np.array): an array of discrete categories
-        uniquey (np.array): array of distinct values found in arrayy
-    Returns:
-        mutual information between array1 and array2
-    """
-
-    total_x = arrayx.size 
-    total_y = arrayy.size
-    total = total_x
-    MI = 0
-    for x in np.unique(arrayx):
-        # p(x_i)
-        row_is_x = arrayx == x
-        p_x = np.sum(row_is_x)/total
-        for y in uniquey:
-            # p(y_j)
-            row_is_y = (arrayy == y)[:,0]
-            p_y = np.sum(row_is_y)/total
-            # p(x_i,y_j)
-            p_x_y = np.sum(np.logical_and(row_is_x, row_is_y))/total
-            if p_x_y == 0 or p_x == 0 or p_y == 0:
-                MI += 0
-            else:
-                MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
-    return MI
-
-
-@jit(nopython=True)
-def conditional_mutual_information(arrayx, uniquex, arrayy, uniquey, arrayz, uniquez):
-    """Method to calculate the conditional mutual information I(X;Y|Z)
-        
-    Uses log2 so mutual information is in bits. This is O(X*Y*Z) where
-    X Y and Z are the number of unique categories in each array
-
-    Args:
-        arrayx (np.array): an array of discrete categories
-        arrayy (np.array): an array of discrete categories
-        arrayz (np.array): an array of discrete categories
-    Returns:
-        conditional mutual information arrayx;arrayy | arrayz
-    """
-
-    total_x = arrayx.size 
-    total_y = arrayy.size
-    total_z = arrayz.size
-    total = total_x
-    #if total_x != total_y or total_y != total_z:
-    #    raise ValueError(
-    #        "Array sizes must be the same {} {} {}".format(
-    #            total_x,
-    #            total_y,
-    #            total_z
-    #        )
-    #    )
-    #else:
-    #    total = total_x
-    CMI = 0
-    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
-    for z in uniquez:
-        # set the indices we will look at in arr_x and arr_y
-        subset = (arrayz == z)[:,0]
-        # set number of vals == z in arr_z as denominator
-        total_subset = np.sum(subset)
-        p_z = total_subset/total
-        this_MI = 0
-
-        for x in uniquex:
-            for y in uniquey:
-                # calculate the probability that the indices of arr_x and arr_y
-                #  corresponding to those in arr_z == z are equal to x or y.
-                # so essentially, in english, we're saying the following:
-                #  given that arr_z is what it is, what is the MI between
-                #  arr_x and arr_y?
-                row_is_y = (arrayy[subset] == y)[:,0]
-                row_is_x = arrayx[subset] == x
-                p_x = np.sum(row_is_x)/total_subset
-                p_y = np.sum(row_is_y)/total_subset
-                p_x_y = np.sum(
-                    np.logical_and(
-                        arrayx[subset] == x,
-                        row_is_y
-                    )
-                ) / total_subset
-                if p_x_y == 0 or p_x == 0 or p_y == 0:
-                    this_MI += 0
-                else:
-                    this_MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
-
-        CMI += p_z*this_MI
-
-    return CMI
+#@jit(nopython=True)
+#def mutual_information(arrayx, arrayy, uniquey):
+#    """Method to calculate the mutual information between two discrete
+#    numpy arrays I(X;Y)
+#        
+#    Uses log2 so mutual information is in bits
+#
+#    Args:
+#        arrayx (np.array): an array of discrete categories
+#        arrayy (np.array): an array of discrete categories
+#        uniquey (np.array): array of distinct values found in arrayy
+#    Returns:
+#        mutual information between array1 and array2
+#    """
+#
+#    total_x = arrayx.size 
+#    total_y = arrayy.size
+#    total = total_x
+#    MI = 0
+#    for x in np.unique(arrayx):
+#        # p(x_i)
+#        row_is_x = arrayx == x
+#        p_x = np.sum(row_is_x)/total
+#        for y in uniquey:
+#            # p(y_j)
+#            row_is_y = (arrayy == y)[:,0]
+#            p_y = np.sum(row_is_y)/total
+#            # p(x_i,y_j)
+#            p_x_y = np.sum(np.logical_and(row_is_x, row_is_y))/total
+#            if p_x_y == 0 or p_x == 0 or p_y == 0:
+#                MI += 0
+#            else:
+#                MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
+#    return MI
+#
+#
+#@jit(nopython=True)
+#def conditional_mutual_information(arrayx, uniquex, arrayy, uniquey, arrayz, uniquez):
+#    """Method to calculate the conditional mutual information I(X;Y|Z)
+#        
+#    Uses log2 so mutual information is in bits. This is O(X*Y*Z) where
+#    X Y and Z are the number of unique categories in each array
+#
+#    Args:
+#        arrayx (np.array): an array of discrete categories
+#        arrayy (np.array): an array of discrete categories
+#        arrayz (np.array): an array of discrete categories
+#    Returns:
+#        conditional mutual information arrayx;arrayy | arrayz
+#    """
+#
+#    total_x = arrayx.size 
+#    total_y = arrayy.size
+#    total_z = arrayz.size
+#    total = total_x
+#    #if total_x != total_y or total_y != total_z:
+#    #    raise ValueError(
+#    #        "Array sizes must be the same {} {} {}".format(
+#    #            total_x,
+#    #            total_y,
+#    #            total_z
+#    #        )
+#    #    )
+#    #else:
+#    #    total = total_x
+#    CMI = 0
+#    # CMI will look at each position of arr_x and arr_y that are of value z in arr_z
+#    for z in uniquez:
+#        # set the indices we will look at in arr_x and arr_y
+#        subset = (arrayz == z)[:,0]
+#        # set number of vals == z in arr_z as denominator
+#        total_subset = np.sum(subset)
+#        p_z = total_subset/total
+#        this_MI = 0
+#
+#        for x in uniquex:
+#            for y in uniquey:
+#                # calculate the probability that the indices of arr_x and arr_y
+#                #  corresponding to those in arr_z == z are equal to x or y.
+#                # so essentially, in english, we're saying the following:
+#                #  given that arr_z is what it is, what is the MI between
+#                #  arr_x and arr_y?
+#                row_is_y = (arrayy[subset] == y)[:,0]
+#                row_is_x = arrayx[subset] == x
+#                p_x = np.sum(row_is_x)/total_subset
+#                p_y = np.sum(row_is_y)/total_subset
+#                p_x_y = np.sum(
+#                    np.logical_and(
+#                        arrayx[subset] == x,
+#                        row_is_y
+#                    )
+#                ) / total_subset
+#                if p_x_y == 0 or p_x == 0 or p_y == 0:
+#                    this_MI += 0
+#                else:
+#                    this_MI += p_x_y*np.log2(p_x_y/(p_x*p_y))
+#
+#        CMI += p_z*this_MI
+#
+#    return CMI
 

@@ -7,20 +7,20 @@ dependencies:
     - python
     - scikit-learn
     - R
-    - pip
+      #- pip
     - numpy
-    - numba
-    - ipython
+      #- numba
+      #- ipython
     - matplotlib
     - bioconductor-dnashaper
     - bioconductor-genomeinfodbdata
     - bioconductor-genomeinfodb
     - r-prroc
     - r-glmnet
-    - r-nnet
+      #- r-nnet
     - r-bh
-    - boost
-    - jupyter
+      #- boost
+      #- jupyter
     - rpy2
     - seaborn
     - meme
