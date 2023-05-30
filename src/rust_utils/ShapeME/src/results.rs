@@ -14,6 +14,8 @@ pub struct Report{
     id: String,
     logo_data: Vec<String>,
     heatmap_data: Vec<String>,
+    aupr_curve_data: Vec<String>,
+    auprs: String,
 }
 
 fn get_img_data(
@@ -76,11 +78,20 @@ impl Report {
                 "final_heatmap.png",
             ).unwrap()
         }).collect();
+        let aupr_curve_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
+            get_img_data(
+                job_path,
+                fold_direc,
+                "precision_recall_curve.png",
+            ).unwrap()
+        }).collect();
 
         Ok(Report{
             id: String::from(id),
             logo_data,
             heatmap_data,
+            aupr_curve_data,
+            auprs: String::new(),
         })
     }
 }

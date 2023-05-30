@@ -1,3 +1,18 @@
+{% macro table_plot(plots) %}
+    <table style="width:100%">
+      <tr>
+        <th style="width:20%"></th>
+        <th></th>
+      </tr>
+      {% for img in plots %}
+      <tr>
+        <td>Fold {{ loop.index }}</td>
+        <td><img src="data:image/jpg;base64, {{ img }}"></td>
+      </tr>
+      {% endfor %}
+    </table>
+{% endmacro %}
+
 {% macro value_for(name) %}
     {%- if name in values -%}
         {{- values | get(key=name) | first -}}

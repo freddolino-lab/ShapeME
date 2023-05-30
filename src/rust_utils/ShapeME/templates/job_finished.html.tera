@@ -23,45 +23,18 @@
 
       <fieldset>
         <legend>Motifs</legend>
-
-        <table style="width:100%">
-          {% for logo_img in logo_data %}
-          <tr>
-            <td>Fold {{ loop.index }}</td>
-            <td><img src="data:image/jpg;base64, {{ logo_img }}"></td>
-          </tr>
-          {% endfor %}
-        </table>
+        {{ m::table_plot(plots=logo_data) }}
       </fieldset>
 
       <fieldset>
         <legend>Motif enrichment</legend>
-
-        <div class="row">
-          <div class="col">
-            <img src="data:image/jpg;base64, {{ heatmap_data.0 }}">
-            </href>
-          </div>
-        </div>
+        {{ m::table_plot(plots=heatmap_data) }}
       </fieldset>
 
       <fieldset>
         <legend>Performance</legend>
-
-        <div class="row">
-          <div class="col">
-{#
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-//////////// i need to get each AUPR
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-            <img src="{{ job_id.path }}/shape_fold_0/"
-#}
-          </div>
-        </div>
+        {{ m::table_plot(plots=aupr_curve_data) }}
       </fieldset>
-
 
     </div>
   </body>
