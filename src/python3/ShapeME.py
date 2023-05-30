@@ -436,11 +436,6 @@ def main():
                 if "No shape or sequence motifs found" in infer_result.stdout.decode():
                     continue
 
-            #print(infer_result.stderr.decode())
-            #print()
-            #print(infer_result.stdout.decode())
-            #sys.exit()
-
 
         logging.info(f"Evaluating motifs identified for fold {k}...")
         # workaround for potential security vulnerability of shell=True

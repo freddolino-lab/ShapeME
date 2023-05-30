@@ -13,6 +13,9 @@ tokio = { version="1.28.1", features=["process"] }
 serde_json = "1.0.59"
 serde = { version = "1.0", features = ["derive"] }
 dashmap = "5.4.0"
+image = "0.24.6"
+base64 = "0.21.2"
+glob = "0.3.1"
 
 [dependencies.rocket_dyn_templates]
 version = "=0.1.0-rc.3"

@@ -394,7 +394,7 @@ def plot_motif_enrichment(
     )
     texts = annotate_heatmap(im, valfmt="{x:.2f}", textcolors=("white","black"))
 
-    fig.tight_layout()
+    #fig.tight_layout()
     plt.savefig(file_name)
     plt.close()
 

@@ -66,20 +66,31 @@ async fn get_job(job_id: String, runs: &State<Arc<Runs>>) -> Template {
     let job_from_pool = data.dash_map.get_mut(&job_id);
 
     //println!("{:?}", job_from_pool);
+    /////////////////////////////////////////////////////////////////
+    // I'll be switching away from the dashmap-based monitoring of current jobs, and toward just
+    // checking whether directories exist and if so, does it contain the expected files for a
+    // finished job?
+    /////////////////////////////////////////////////////////////////
     // If the job is in the current pool it will be Some here.
     // If the job was run in a prior instance, it will be None, so the else block will
     //   take effect
     let template = 
         if let Some(mut job) = job_from_pool {
 
-            let report = Report::new(&job.context.path).await.expect("Unable to generate report");
+            let report = Report::new(
+                &job.context.id,
+                &job.context.path,
+            ).expect("Unable to generate report");
             Template::render("job_finished", &report)
 
         } else {
             let job_context = JobContext::check_directory(&job_id).unwrap();
             match job_context.status {
                 JobStatus::Finished => {
-                    let report = Report::new(&job_context.path).await.expect("Unable to generate report");
+                    let report = Report::new(
+                        &job_context.id,
+                        &job_context.path,
+                    ).expect("Unable to generate report");
                     Template::render("job_finished", &report)
                 },
                 JobStatus::Running => Template::render("job_running", &job_context),

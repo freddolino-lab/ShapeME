@@ -21,24 +21,25 @@
 
       <h2>Showing results for job {{ id }}</h2>
 
-      {#
-      {% if errors | length > 1 %}
-          <small class="text-error" style="margin-top: -20px">
-              {{ errors | length }} field(s) have errors
-          </small>
-      {% endif %}
-      #}
-
       <fieldset>
         <legend>Motifs</legend>
 
+        <table style="width:100%">
+          {% for logo_img in logo_data %}
+          <tr>
+            <td>Fold {{ loop.index }}</td>
+            <td><img src="data:image/jpg;base64, {{ logo_img }}"></td>
+          </tr>
+          {% endfor %}
+        </table>
+      </fieldset>
+
+      <fieldset>
+        <legend>Motif enrichment</legend>
+
         <div class="row">
           <div class="col">
-{#
-            <img src="{{ path }}/shape_fold_0_output/final_motifs.png", alt="Motif lineplots">
-#}
-            <href="{{ logo_file }}">
-            <img src="final_motifs.png", alt="Motif lineplots">
+            <img src="data:image/jpg;base64, {{ heatmap_data.0 }}">
             </href>
           </div>
         </div>

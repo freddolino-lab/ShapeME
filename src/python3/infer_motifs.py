@@ -769,10 +769,11 @@ if __name__ == "__main__":
 
     if not no_shape_motifs:
 
-        smv.plot_optim_shapes_and_weights(
+        smv.plot_logo(
             shape_motifs,
             final_motif_plot_fname,
-            records,
+            shape_motifs.shape_row_lut,
+            top_n = np.Inf,
         )
 
         # if there were both shape and seq motifs, combine into one model

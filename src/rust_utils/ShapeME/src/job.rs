@@ -62,7 +62,7 @@ pub struct Submit {
 
 #[derive(Debug, Serialize)]
 pub struct JobContext {
-    id: String,
+    pub id: String,
     email: String,
     pub path: PathBuf,
     fa_path: PathBuf,

@@ -4,38 +4,83 @@ use rocket::fs::NamedFile;
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
+use std::io::Cursor;
+use image::io::Reader as ImageReader;
+use glob::glob;
+use base64;
 
 #[derive(Serialize)]
 pub struct Report{
-    logo_file: NamedFile,
-    heatmap_file: NamedFile,
+    id: String,
+    logo_data: Vec<String>,
+    heatmap_data: Vec<String>,
 }
 
+fn get_img_data(
+        job_path: &PathBuf,
+        fold_direc: &str,
+        img_base: &str,
+) -> Result<String, Box<dyn Error>> {
+    let img = ImageReader::open(
+        job_path.as_path()
+        .join(fold_direc)
+        .join(img_base)
+    )?.decode()?;
+
+    let mut bytes: Vec<u8> = Vec::new();
+    img.write_to(
+        &mut Cursor::new(&mut bytes),
+        image::ImageOutputFormat::Png,
+    )?;
+    let data = base64::encode(&bytes);
+    Ok(data)
+}
+
+fn get_fold_direcs(job_path: &PathBuf) -> Vec<String> {
+    let search = job_path
+        .as_path()
+        .join("*fold_*_output");
+    let search_str = search.as_path().to_str().unwrap();
+    let fold_dirs = glob(
+        search_str
+    ).expect("No directories matching *fold_*_output found.");
+    let fold_dirs: Vec<String> = fold_dirs.map(
+        |a| {
+            let res = a.unwrap();
+            res.as_path().to_str().unwrap().to_string()
+        }
+    ).collect();
+    fold_dirs
+}
+
+//fn get_fold_curves(fold_dirs: Vec<String>) -> Vec<String> {
+//    let fold_curves
+//}
+
 impl Report {
-    pub fn new(job_path: &PathBuf) -> Result<Report, Box<dyn Error>> {
-        let logo_file = match std::fs::read(
-            job_path.as_path().join("shape_fold_0_output/final_motifs.png")
-        ) {
-            Ok(image_content) => {
+    pub fn new(id: &str, job_path: &PathBuf) -> Result<Report, Box<dyn Error>> {
 
-            }
-        }
-        //let logo_file = NamedFile::open(
-        //    job_path.as_path().join("shape_fold_0_output/final_motifs.png")
-        //).await?;
-        let heatmap_file = match std::fs::read(
-            job_path.as_path().join("shape_fold_0_output/final_motifs.png")
-        ) {
-            Ok(image_content) => {
+        let fold_direcs = get_fold_direcs(&job_path);
 
-            }
-        }
-        let heatmap_file = NamedFile::open(
-            job_path.as_path().join("shape_fold_0_output/final_heatmap.png")
-        ).await?;
+        let logo_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
+            get_img_data(
+                job_path,
+                fold_direc,
+                "final_motifs.png",
+            ).unwrap()
+        }).collect();
+        let heatmap_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
+            get_img_data(
+                job_path,
+                fold_direc,
+                "final_heatmap.png",
+            ).unwrap()
+        }).collect();
+
         Ok(Report{
-            logo_file,
-            heatmap_file,
+            id: String::from(id),
+            logo_data,
+            heatmap_data,
         })
     }
 }
