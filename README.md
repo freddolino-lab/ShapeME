@@ -2,10 +2,10 @@ TODO:
 1. add input file format specs (will add example\_files directory)
     [ ] place example files in directory
 2. add instructions for running examples
-3. add docs for every argument for every script
-    [x] find\_motifs.py
-    [ ] evaluate\_motifs.py
-    [ ] ShapeMe.py
+3. add docs for every argument for every script\\
+    [x] find\_motifs.py\\
+    [ ] evaluate\_motifs.py\\
+    [ ] ShapeMe.py\\
 
 # ShapeMe
 
@@ -29,19 +29,11 @@ The input files required by ShapeMe are:
         a tool such as [`bgtools`](https://github.com/jwschroeder3/bgtools.git).
     + For example scores files, see the txt files in the `examples/binary_example`,
         `examples/categorical_example`, and `examples/continuous_example`, directories.
-2. shape fasta files - shapes we typically use are below.
-    + electrostatic potential (EP)
-    + helical twist (HelT)
-    + minor groove width (MGW)
-    + propeller twist (ProT)
-    + roll (Roll)
-    + For example shape fasta files, see the `*.fa.*` files in the `examples/binary_example`,
-        `examples/categorical_example`, and `examples/continuous_example`, directories.
-3. Only if running sequence motif finding - sequence fasta file
+3. sequence fasta file
     + For example sequence fasta files, see the `*.fa` files in the `examples/binary_example`,
         `examples/categorical_example`, and `examples/continuous_example`, directories.
 
-As noted above, the sequence names in the fasta files and in the score
+The sequence names in the fasta files and in the score
 file must be in the same order.
 
 We provide utilities which should help to prepare, in most use cases,
@@ -63,8 +55,7 @@ narropeak file name, `<ref_fasta>` with the full path of the
 reference genome fasta file, `<out_prefix>` with the prefix to
 use for the ouptut fasta files, `<windowsize>` with the width
 of the chunks of the genome you would like to search for
-motifs within, and `<foldnum>` with the number of cross-validation
-folds you would like. For example, use 5 to do 5-fold cross-validation.
+motifs within.
 
 TODO: I think wsize must be less than the minimum narrowpeak region width,
 but I have to check on that and insert a note on it here.
@@ -77,19 +68,19 @@ singularity exec -B $(pwd):$(pwd) \
         <ref_fasta> \
         <out_prefix> \
         --wsize <windowsize> \
-        --kfold <foldnum> \
         --nrand 3 \
         --center_metric "height"
 ```
 
-For each fold, a pair of training and test data sequences will
-be prepared, along with their corresponding input text files
-denoting whether each sequence arose from the "positive" set or
-the "negative" set.
+The above command will create a fasta file of sequences and
+a scores file denoting whether each sequence arose from the "positive" set or
+the "negative" set. Using `--nrand 3` will create a fasta file and corresponding
+score file with three times as many sequences in the negative set (score is 0) as those
+in the positive set (score is 1).
 
 ### Using continuous inputs
 
-Continuous inputs will be quantized into categories by the `find_motifs.py` script.
+Continuous inputs will be quantized into categories by the `ShapeME.py` script.
 
 The user must simply create the score file with the continuous scores of interest,
 keeping in mind that the file must have two, tab-separated columns and
@@ -97,21 +88,14 @@ must have a header with column names "name" and "score".
 
 ## Calculating local shapes from sequences
 
-Next, local shapes must be calculated for each sequence in your training
-and testing data.
+Local shapes will be calculated for each sequence in your fasta file
+when the `ShapeME.py` script is run.
 
-Enter the directory containing your training and testing sequence files.
-
-Below, substitute the name of the fasta file for `<data_fasta>`. Do this
-for each train/test file for each fold.
-
-```bash
-singularity exec -B $(pwd):$(pwd) \
-    shapeme_<version>.sif \
-    python /src/python3/convert_seqs_to_shapes.py <data_fasta>
-```
-
-The above code will create five shape files for each fasta file you have,
+`ShapeME.py` will split your input data into the desired number of
+folds for k-fold cross validation (the number of folds being defined at
+the command line). Five shape files will be created for
+each set of training and testing data generated for each fold.
+The files will have the following names,
 where "\*" will be replaced with your file prefix.
 
 1. \*.fa.EP - electrostatic potential
@@ -122,13 +106,15 @@ where "\*" will be replaced with your file prefix.
 
 ### Using continuous scores
 
-We recommend that if the user is using categorical data that they first
+We recommend that if the user is using continuous data that they first
 convert their scores to robust z-scores using a tool such as
 [`bgtools`](https://github.com/jwschroeder3/bgtools.git),
 then manually create the required input file with paired sequence names
 and scores.
 
-Then, within `find_motifs.py`, 
+Then, when running `ShapeME.py`, set `--continuous <n>` at the command line,
+where `<n>` must be replaced with the number of binds to quantize the
+continuous scores into.
 
 # Running ShapeME
 
