@@ -1,7 +1,14 @@
 #[macro_use] extern crate rocket;
 
 mod job;
-use job::{Submit, Runs, insert_job, JobContext, Job, JobStatus};
+use job::{
+    Submit,
+    //Runs,
+    insert_job,
+    JobContext,
+    Job,
+    JobStatus,
+};
 
 mod results;
 use results::Report;
@@ -34,7 +41,7 @@ fn index() -> Template {
 #[post("/", data = "<form>")]
 async fn submit(
         form: Form<Contextual<'_, Submit>>,
-        runs: &State<Arc<Runs>>,
+        //runs: &State<Arc<Runs>>,
 ) -> (Status, Template) {
 
     let template = match form.value {
@@ -45,7 +52,11 @@ async fn submit(
 
             // start a job, job is placed into managed state
             let job_context = JobContext::set_up(submission).await.unwrap();
-            let job_id = insert_job(submission, job_context, &runs).await.unwrap();
+            let job_id = insert_job(
+                submission,
+                job_context,
+                //&runs,
+            ).await.unwrap();
             
             println!("{:?}", form.context);
             Template::render("success", &form.context)
@@ -60,10 +71,13 @@ async fn submit(
 }
 
 #[get("/jobs/<job_id>")]
-async fn get_job(job_id: String, runs: &State<Arc<Runs>>) -> Template {
+async fn get_job(
+        job_id: String,
+        //runs: &State<Arc<Runs>>,
+) -> Template {
 
-    let data = runs.inner();
-    let job_from_pool = data.dash_map.get_mut(&job_id);
+    //let data = runs.inner();
+    //let job_from_pool = data.dash_map.get_mut(&job_id);
 
     //println!("{:?}", job_from_pool);
     /////////////////////////////////////////////////////////////////
@@ -74,30 +88,29 @@ async fn get_job(job_id: String, runs: &State<Arc<Runs>>) -> Template {
     // If the job is in the current pool it will be Some here.
     // If the job was run in a prior instance, it will be None, so the else block will
     //   take effect
-    let template = 
-        if let Some(mut job) = job_from_pool {
+    //let template = 
+    //    if let Some(mut job) = job_from_pool {
 
+    //        let report = Report::new(
+    //            &job.context.id,
+    //            &job.context.path,
+    //        ).expect("Unable to generate report");
+    //        Template::render("job_finished", &report)
+
+    //    } else {
+    let job_context = JobContext::check_directory(&job_id).unwrap();
+    let template = match job_context.status {
+        JobStatus::Finished => {
             let report = Report::new(
-                &job.context.id,
-                &job.context.path,
+                &job_context.id,
+                &job_context.path,
             ).expect("Unable to generate report");
             Template::render("job_finished", &report)
-
-        } else {
-            let job_context = JobContext::check_directory(&job_id).unwrap();
-            match job_context.status {
-                JobStatus::Finished => {
-                    let report = Report::new(
-                        &job_context.id,
-                        &job_context.path,
-                    ).expect("Unable to generate report");
-                    Template::render("job_finished", &report)
-                },
-                JobStatus::Running => Template::render("job_running", &job_context),
-                JobStatus::Error => Template::render("job_error", &job_context),
-                JobStatus::Queued => Template::render("job_queued", &job_context),
-            }
-        };
+        },
+        JobStatus::Running => Template::render("job_running", &job_context),
+        JobStatus::Error => Template::render("job_error", &job_context),
+        JobStatus::Queued => Template::render("job_queued", &job_context),
+    };
     template
 }
 
@@ -110,9 +123,9 @@ async fn get_job(job_id: String, runs: &State<Arc<Runs>>) -> Template {
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .manage(Arc::new(Runs {
-            dash_map: DashMap::new(),
-        }))
+        //.manage(Arc::new(Runs {
+        //    dash_map: DashMap::new(),
+        //}))
         .manage(SubmitCount {count: AtomicUsize::new(0)})
         .mount("/", routes![index, submit, get_job])
         .attach(Template::fairing())

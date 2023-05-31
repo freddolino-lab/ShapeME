@@ -16,7 +16,9 @@ this_path = Path(__file__).parent.absolute()
 #plt.rc('figure', titlesize=10)
 
 def get_image(path):
+    #print(f"reading image in file {path}")
     img_arr = plt.imread(path, format="png")
+    #print(f"read image in file {path}")
     return img_arr
 
 def scale_image(img_arr, scale=1):
@@ -36,24 +38,38 @@ def plot_logo(
         legend_loc="upper left",
 ):
     
+    idx_shape_lut = {v:k for k,v in shape_lut.items()}
+    #print("==============================================")
+    #print("Plotting shape logos")
+    #print("==============================================")
     motif_list = motifs.motifs
     motif_list,top_n = set_up(motif_list, top_n)
     
     fig,ax = plt.subplots(ncols=1,nrows=top_n,figsize=(8.5,top_n*2),sharex=True)
 
     # pre-load images
+    #print(f"Setting up to plot")
     img_dict = {}
     offset_dict = {}
     just_a_motif = motif_list[0].motif
     shape_param_num = just_a_motif.shape[0]
+    #print(f"Now at line 55")
     offsets = np.linspace(-0.35, 0.35, shape_param_num)
+    #print(f"Now at line 57")
+    #print("==============================================")
+    #print(f"shape_lut: {shape_lut}")
+    #print("==============================================")
     for j in range(shape_param_num):
-        shape_name = shape_lut[j]
+        #print(f"Now at line 59")
+        #print(f"shape index {j}")
+        shape_name = idx_shape_lut[j]
+        #print(f"Setting up img_dict and offset_dict for {shape_name}")
         mark_fname = os.path.join(this_path,"img",shape_name+".png")
         img_arr = get_image(mark_fname)
         img_dict[shape_name] = img_arr
         offset_dict[shape_name] = offsets[j]
 
+    #print(f"Normalizing opacity and ylim values")
     max_weights = []
     uppers = []
     lowers = []
@@ -66,7 +82,9 @@ def plot_logo(
     lower = np.max(lowers) - 0.75
     ylims = np.max(np.abs([upper, lower]))
 
+    #print(f"Looping over motifs to plot")
     for i,res in enumerate(motif_list[:top_n]):
+        #print(f"Working on motif {i}")
 
         if top_n == 1:
             this_ax = ax
@@ -86,7 +104,8 @@ def plot_logo(
         
         for j in range(opt_y.shape[0]):
 
-            shape_name = shape_lut[j]
+            shape_name = idx_shape_lut[j]
+            #print(f"Working on shape {shape_name} for motif {i}")
             img_arr = img_dict[shape_name]
             j_offset = offset_dict[shape_name]
             j_opt = opt_y[j,:]
@@ -98,6 +117,7 @@ def plot_logo(
                 weight = j_w[k]
 
                 #if weight > 0.2:
+                #print(f"Setting image opacity")
                 img = scale_image( img_arr, scale=weight )
                 img.image.axes = this_ax
                 ab = AnnotationBbox(
@@ -145,6 +165,7 @@ def plot_logo(
         handles, labels = ax[0].get_legend_handles_labels()
     this_ax.set_xlabel(f"Position (bp)")
     fig.legend(handles, labels, loc=legend_loc)
+    print(f"Writing shape logos to {file_name}")
     #fig.tight_layout()
     plt.savefig(file_name)
     plt.close()

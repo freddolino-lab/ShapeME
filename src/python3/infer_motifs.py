@@ -772,8 +772,8 @@ if __name__ == "__main__":
         smv.plot_logo(
             shape_motifs,
             final_motif_plot_fname,
-            shape_motifs.shape_row_lut,
-            top_n = np.Inf,
+            records.shape_name_lut,
+            #top_n = np.Inf,
         )
 
         # if there were both shape and seq motifs, combine into one model

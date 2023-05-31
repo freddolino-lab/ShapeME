@@ -1,5 +1,5 @@
-use tokio::process::{Command, Child};
-
+use rocket::tokio::process::{Command, Child};
+use crate::rocket::tokio::io::AsyncWriteExt;
 use rocket::form::{DataField, FromFormField};
 use rocket::FromForm;
 use rocket::data::ToByteUnit;
@@ -193,16 +193,20 @@ async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
 // I need to get writing stdout to a file working
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
-    //let log_fname = self.path.as_path().join("shapeme.log");
-    //let out_log = tokio::fs::File::create(log_fname).await?;
+    //let log_fname = path.as_path().join("shapeme.log");
+    //let mut out_log = tokio::fs::File::create(log_fname).await?;
 
     //let mut cmd = self.build_cmd()?;
 
     println!("{:?}", cmd);
-    let child = cmd
+    let mut child = cmd
         //.stdout(out_log)
         .spawn()
         .expect("Error spawning child process");
+    //let stdout = child.stdout.take().unwrap();
+    //tokio::spawn(async move {
+    //    out_log.write(stdout).await.unwrap();
+    //});
 
     Ok(child)
 }
@@ -211,21 +215,20 @@ async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
 pub async fn insert_job(
         sub: &Submit,
         context: JobContext,
-        state: &State<Arc<Runs>>,
+        //state: &State<Arc<Runs>>,
 ) -> Result<String, Box<dyn Error>> {
     // set paths and upload files
     //let context = JobContext::set_up(sub).await?;
     let job = Job::set_up_job(sub, context).await?;
     let job_id = job.context.id.clone();
-    let job_id_2 = job.context.id.clone();
 
-    let state_data = state.inner().clone();
+    //let state_data = state.inner().clone();
 
-    tokio::spawn(async move {
-        state_data.dash_map.insert(job_id, job);
-    });
+    //tokio::spawn(async move {
+    //    state_data.dash_map.insert(job_id, job);
+    //});
 
-    Ok(job_id_2)
+    Ok(job_id)
 }
 
 #[derive(Debug)]
@@ -474,7 +477,7 @@ impl Cfg {
     }
 }
 
-pub struct Runs {
-    pub dash_map: DashMap<String, Job>
-}
+//pub struct Runs {
+//    pub dash_map: DashMap<String, Job>
+//}
 
