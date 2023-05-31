@@ -165,6 +165,8 @@ if __name__ == "__main__":
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
 
+    state = {"status": "running"}
+
     args = parser.parse_args()
 
     loglevel = args.log_level
@@ -196,6 +198,7 @@ if __name__ == "__main__":
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
     out_heatmap_fname = os.path.join(out_direc, "final_heatmap.png")
+    status_fname = out_motif_basename + "_status.json"
     find_seq_motifs = args.find_seq_motifs
     seq_fasta = args.seq_fasta
     if seq_fasta is not None:
@@ -311,6 +314,8 @@ if __name__ == "__main__":
                 streme_err.write(streme_result.stderr.decode())
             except UnicodeDecodeError as e:
                 logging.warning("Problem writing to {streme_err_fname}:\n{e}")
+                with open(status_fname, "w") as stat_f:
+                    json.dump({"status": "error"}, stat_f)
                 sys.exit(1)
 
     # if user has a meme file (could be from streme above, or from input arg), run fimo
@@ -750,6 +755,8 @@ if __name__ == "__main__":
                     f"informative shape motif. Not writing a shape motif to output."\
                     f"Exiting now."
                 )
+                with open(status_fname, "w") as stat_f:
+                    json.dump({"status": "no_motifs"}, stat_f)
                 sys.exit()
             # if the shape performs better than intercept, set shape_motif_exists to True
             else:
@@ -861,6 +868,8 @@ if __name__ == "__main__":
                     f"Therefore, no informative sequence or shape motif exists."\
                     f"Not writing a motif to output. Exiting now."
                 )
+                with open(status_fname, "w") as stat_f:
+                    json.dump({"status": "no_motifs"}, stat_f)
                 sys.exit()
 
             elif len(shape_and_seq_motifs) == 1:
@@ -893,6 +902,8 @@ if __name__ == "__main__":
                         f"informative motif. Not writing a motif to output. "\
                         f"Exiting now."
                     )
+                    with open(status_fname, "w") as stat_f:
+                        json.dump({"status": "no_motifs"}, stat_f)
                     sys.exit()
 
     motifs_info = []
@@ -914,7 +925,10 @@ if __name__ == "__main__":
             shape_and_seq_motifs.write_file(out_fname, records)
 
     if not np.any([seq_motif_exists, shape_motif_exists]):
-        print("No shape or sequence motifs found. Exiting now.")
+        print()
+        logging.info("No shape or sequence motifs found. Exiting now.")
+        with open(status_fname, "w") as stat_f:
+            json.dump({"status": "no_motifs"}, stat_f)
         sys.exit()
 
     # if there was more than one inout.Motifs object generated, choose best model here
@@ -950,4 +964,7 @@ if __name__ == "__main__":
     logging.info(f"Writing motif enrichment heatmap to {out_heatmap_fname}")
     smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
+
+    with open(status_fname, "w") as stat_f:
+        json.dump({"status": "completed"}, stat_f)
 

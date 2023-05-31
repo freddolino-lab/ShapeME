@@ -4,7 +4,7 @@ mod job;
 use job::{
     Submit,
     //Runs,
-    insert_job,
+    run_job,
     JobContext,
     Job,
     JobStatus,
@@ -52,14 +52,15 @@ async fn submit(
 
             // start a job, job is placed into managed state
             let job_context = JobContext::set_up(submission).await.unwrap();
-            let job_id = insert_job(
+            let job_id = run_job(
                 submission,
-                job_context,
+                &job_context,
                 //&runs,
             ).await.unwrap();
             
-            println!("{:?}", form.context);
-            Template::render("success", &form.context)
+            //println!("{:?}", form.context);
+            //Template::render("success", &form.context)
+            Template::render("success", &job_context)
         }
         None => {
             println!("None returned on submit!!");

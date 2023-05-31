@@ -17,6 +17,10 @@
     <div class="container">
     <h1>Successful job submission</h1>
 
+      Job {{ id }} successfully submitted. You can check its status at
+      <a href="/jobs/{{ id }}">this site</a>
+
+      {#
       <h3>Submission Info</h3>
 
       <ul>
@@ -27,5 +31,6 @@
       </ul>
 
       <a href="/">&lt; Submit Another</a>
+      #}
   </body>
 </html>

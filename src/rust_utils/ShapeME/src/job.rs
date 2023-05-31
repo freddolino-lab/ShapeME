@@ -16,12 +16,12 @@ use dashmap::DashMap;
 
 const JOB_ID_LENGTH: usize = 10;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum JobStatus {
     Running,
     Queued,
-    Finished,
-    Error,
+    FinishedOK,
+    FinishedError,
 }
 
 #[derive(Debug, FromForm)]
@@ -126,14 +126,14 @@ impl JobContext {
             ///////////////////////////////////////////////////////////
             // needs work
             ///////////////////////////////////////////////////////////
-            let status = JobStatus::Finished;
+            let status = JobStatus::FinishedOK;
             let email = "no email";
             (status,email)
         } else {
             ///////////////////////////////////////////////////////////
             // here i should have a 404 catcher
             ///////////////////////////////////////////////////////////
-            (JobStatus::Error, "no email")
+            (JobStatus::FinishedError, "no email")
         };
 
         let fa_path = job_path.join("seqs.fa");
@@ -153,7 +153,7 @@ impl JobContext {
 
 impl Job {
     /// creates job data directory with uid, uploads fasta and score files
-    async fn set_up_job(sub: &Submit, context: JobContext) -> Result<Job, Box<dyn Error>> {
+    async fn set_up_job(sub: &Submit, context: &JobContext) -> Result<(), Box<dyn Error>> {
 
         let mut cmd = sub.cfg.build_cmd(
             &context.path,
@@ -162,7 +162,7 @@ impl Job {
         )?;
         let child = spawn_job(&mut cmd).await?;
 
-        Ok(Job { context, child })
+        Ok(())//Job { context, child })
     }
 
     pub fn check_status(&mut self) -> JobStatus {
@@ -170,12 +170,12 @@ impl Job {
         let status = match res {
             Ok(no_err) => {
                 if let Some(exit_status) = no_err {
-                    JobStatus::Finished
+                    JobStatus::FinishedOK
                 } else {
                     JobStatus::Running
                 }
             },
-            Err(error) => JobStatus::Error,
+            Err(error) => JobStatus::FinishedError,
         };
         status
     }
@@ -212,15 +212,15 @@ async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
 }
 
 /// Creates and spawns a job and inserts into Runs
-pub async fn insert_job(
+pub async fn run_job(
         sub: &Submit,
-        context: JobContext,
+        context: &JobContext,
         //state: &State<Arc<Runs>>,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<(), Box<dyn Error>> {
     // set paths and upload files
     //let context = JobContext::set_up(sub).await?;
-    let job = Job::set_up_job(sub, context).await?;
-    let job_id = job.context.id.clone();
+    let _ = Job::set_up_job(sub, context).await?;
+    //let job_id = context.id.clone();
 
     //let state_data = state.inner().clone();
 
@@ -228,7 +228,7 @@ pub async fn insert_job(
     //    state_data.dash_map.insert(job_id, job);
     //});
 
-    Ok(job_id)
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -339,16 +339,19 @@ impl Cfg {
             score_path: &PathBuf,
     ) -> Result<Command, Box<dyn Error>> {
 
-        let container =  concat!(
-            env!("CARGO_MANIFEST_DIR"), "/../../../singularity/current/ShapeME.sif"
-        );
+        //let container =  concat!(
+        //    env!("CARGO_MANIFEST_DIR"), "/../../../singularity/current/ShapeME.sif"
+        //);
         let pycmd = concat!(env!("CARGO_MANIFEST_DIR"), "/../../python3/ShapeME.py");
 
-        let mut cmd = Command::new("singularity");
-        cmd.arg("exec");
-        cmd.arg(container);
-        cmd.arg("python");
-        cmd.arg(pycmd);
+        //let mut cmd = Command::new("singularity");
+        //cmd.arg("exec");
+        //cmd.arg(container);
+        //cmd.arg("python");
+        //cmd.arg(pycmd);
+        
+        let mut cmd = Command::new("python");
+        cmd.arg(pymcd);
 
         cmd.arg("--score_file");
         if let Some(arg) = &self.score_file {

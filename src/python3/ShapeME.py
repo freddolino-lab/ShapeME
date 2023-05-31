@@ -178,10 +178,11 @@ def set_outdir_pref(no_shape_motifs, find_seq_motifs):
         if find_seq_motifs:
             outdir_pre += "seq"
         else:
-            sys.exit(
+            logging.error(
                 f"You included --no_shape_motifs without including --find_seq_motifs. "\
                 f"No motifs will be found. Exiting now."
             )
+            sys.exit(1)
     return outdir_pre
 
 
