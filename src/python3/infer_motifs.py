@@ -43,8 +43,11 @@ def two_way_to_log_odds(two_way):
     denom = np.array(two_way[2], dtype=float) / np.array(two_way[3],dtype=float)
     return np.log(num/denom)
 
+def main():
 
-if __name__ == "__main__":
+    with open(status_fname, "w") as stat_f:
+        json.dump("Running"}, stat_f)
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
@@ -315,7 +318,7 @@ if __name__ == "__main__":
             except UnicodeDecodeError as e:
                 logging.warning("Problem writing to {streme_err_fname}:\n{e}")
                 with open(status_fname, "w") as stat_f:
-                    json.dump({"status": "error"}, stat_f)
+                    json.dump("FinishedError"}, stat_f)
                 sys.exit(1)
 
     # if user has a meme file (could be from streme above, or from input arg), run fimo
@@ -756,7 +759,7 @@ if __name__ == "__main__":
                     f"Exiting now."
                 )
                 with open(status_fname, "w") as stat_f:
-                    json.dump({"status": "no_motifs"}, stat_f)
+                    json.dump("FinishedNoMotif"}, stat_f)
                 sys.exit()
             # if the shape performs better than intercept, set shape_motif_exists to True
             else:
@@ -869,7 +872,7 @@ if __name__ == "__main__":
                     f"Not writing a motif to output. Exiting now."
                 )
                 with open(status_fname, "w") as stat_f:
-                    json.dump({"status": "no_motifs"}, stat_f)
+                    json.dump("FinishedNoMotif"}, stat_f)
                 sys.exit()
 
             elif len(shape_and_seq_motifs) == 1:
@@ -903,7 +906,7 @@ if __name__ == "__main__":
                         f"Exiting now."
                     )
                     with open(status_fname, "w") as stat_f:
-                        json.dump({"status": "no_motifs"}, stat_f)
+                        json.dump("FinishedNoMotif"}, stat_f)
                     sys.exit()
 
     motifs_info = []
@@ -928,7 +931,7 @@ if __name__ == "__main__":
         print()
         logging.info("No shape or sequence motifs found. Exiting now.")
         with open(status_fname, "w") as stat_f:
-            json.dump({"status": "no_motifs"}, stat_f)
+            json.dump("FinishedNoMotif"}, stat_f)
         sys.exit()
 
     # if there was more than one inout.Motifs object generated, choose best model here
@@ -966,5 +969,16 @@ if __name__ == "__main__":
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
 
     with open(status_fname, "w") as stat_f:
-        json.dump({"status": "completed"}, stat_f)
+        json.dump("FinishedWithMotifs"}, stat_f)
+
+
+if __name__ == "__main__":
+
+    try:
+        main()
+    except e:
+        logging.error(f"Error encountered in infer_motifs.py:\n\n{e}")
+        with open(status_fname, "w") as stat_f:
+            json.dump("FinishedError"}, stat_f)
+        sys.exit(1)
 

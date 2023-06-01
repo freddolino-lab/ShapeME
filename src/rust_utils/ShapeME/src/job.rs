@@ -20,7 +20,8 @@ const JOB_ID_LENGTH: usize = 10;
 pub enum JobStatus {
     Running,
     Queued,
-    FinishedOK,
+    FinishedWithMotifs,
+    FinishedNoMotif,
     FinishedError,
 }
 
