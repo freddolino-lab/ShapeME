@@ -1063,6 +1063,17 @@ if __name__ == "__main__":
         in_direc = args.data_dir
         out_direc = args.out_dir
         out_direc = os.path.join(in_direc, out_direc)
+
+        report_info = {
+            "error": e,
+        }
+        write_report(
+            environ = jinja_env,
+            temp_base = "error.html.temp",
+            info = report_info,
+            out_name = out_page_name,
+        )
+
         status_fname = os.path.join(out_direc, "job_status.json")
         with open(status_fname, "w") as status_f:
             json.dump(status, status_f)
