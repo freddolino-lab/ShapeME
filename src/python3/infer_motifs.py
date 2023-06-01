@@ -10,6 +10,7 @@ import pickle
 import time
 import subprocess
 import multiprocessing
+from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
 
 import evaluate_motifs as evm
@@ -20,6 +21,8 @@ sys.path.insert(0, this_path)
 infer_bin = os.path.join(this_path, '../rust_utils/target/release/infer_motifs')
 supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
 
+jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
+
 from rpy2.robjects.packages import importr
 import rpy2.robjects as ro
 from rpy2.robjects import numpy2ri
@@ -28,6 +31,12 @@ numpy2ri.activate()
 prroc = importr('PRROC')
 glmnet = importr('glmnet')
 base = importr('base')
+
+def write_report(environ, temp_base, info, out_name):
+    template = environ.get_template(temp_base)
+    content = template.render(**info)
+    with open(out_name, "w", encoding="utf-8") as report:
+        report.write(content)
 
 
 def two_way_to_log_odds(two_way):
@@ -43,11 +52,7 @@ def two_way_to_log_odds(two_way):
     denom = np.array(two_way[2], dtype=float) / np.array(two_way[3],dtype=float)
     return np.log(num/denom)
 
-def main():
-
-    with open(status_fname, "w") as stat_f:
-        json.dump("Running"}, stat_f)
-
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
@@ -164,13 +169,14 @@ def main():
     parser.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
+    args = parser.parse_args()
+    return args
+
+
+def main(args, status):
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
-
-    state = {"status": "running"}
-
-    args = parser.parse_args()
 
     loglevel = args.log_level
     numeric_level = getattr(logging, loglevel.upper(), None)
@@ -201,7 +207,7 @@ def main():
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
     out_heatmap_fname = os.path.join(out_direc, "final_heatmap.png")
-    status_fname = out_motif_basename + "_status.json"
+    status_fname = os.path.join(out_direc, "job_status.json")
     find_seq_motifs = args.find_seq_motifs
     seq_fasta = args.seq_fasta
     if seq_fasta is not None:
@@ -216,6 +222,15 @@ def main():
 
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
+
+    if os.path.isfile(status_fname):
+        with open(status_fname, "r") as status_f:
+            status = json.load(status_f)
+        
+    status = "Running"
+
+    with open(status_fname, "w") as status_f:
+        json.dump(status, status_f)
 
     print()
     logging.info("Reading input data and shape info.")
@@ -317,8 +332,18 @@ def main():
                 streme_err.write(streme_result.stderr.decode())
             except UnicodeDecodeError as e:
                 logging.warning("Problem writing to {streme_err_fname}:\n{e}")
-                with open(status_fname, "w") as stat_f:
-                    json.dump("FinishedError"}, stat_f)
+
+                report_info = {"error": e}
+                write_report(
+                    environ = jinja_env,
+                    temp_base = "streme_err_html.temp",
+                    info = report_info,
+                    out_name = out_page_name,
+                )
+
+                status = "FinishedError"
+                with open(status_fname, "w") as status_f:
+                    json.dump(status, status_f)
                 sys.exit(1)
 
     # if user has a meme file (could be from streme above, or from input arg), run fimo
@@ -758,8 +783,18 @@ def main():
                     f"informative shape motif. Not writing a shape motif to output."\
                     f"Exiting now."
                 )
-                with open(status_fname, "w") as stat_f:
-                    json.dump("FinishedNoMotif"}, stat_f)
+
+                report_info = {}
+                write_report(
+                    environ = jinja_env,
+                    temp_base = "no_motifs.html.temp",
+                    info = report_info,
+                    out_name = out_page_name,
+                )
+
+                status = "FinishedNoMotif"
+                with open(status_fname, "w") as status_f:
+                    json.dump(status, status_f)
                 sys.exit()
             # if the shape performs better than intercept, set shape_motif_exists to True
             else:
@@ -871,8 +906,18 @@ def main():
                     f"Therefore, no informative sequence or shape motif exists."\
                     f"Not writing a motif to output. Exiting now."
                 )
-                with open(status_fname, "w") as stat_f:
-                    json.dump("FinishedNoMotif"}, stat_f)
+
+                report_info = {}
+                write_report(
+                    environ = jinja_env,
+                    temp_base = "no_motifs.html.temp",
+                    info = report_info,
+                    out_name = out_page_name,
+                )
+
+                status = "FinishedNoMotif"
+                with open(status_fname, "w") as status_f:
+                    json.dump(status, status_f)
                 sys.exit()
 
             elif len(shape_and_seq_motifs) == 1:
@@ -905,8 +950,18 @@ def main():
                         f"informative motif. Not writing a motif to output. "\
                         f"Exiting now."
                     )
-                    with open(status_fname, "w") as stat_f:
-                        json.dump("FinishedNoMotif"}, stat_f)
+
+                    report_info = {}
+                    write_report(
+                        environ = jinja_env,
+                        temp_base = "no_motifs.html.temp",
+                        info = report_info,
+                        out_name = out_page_name,
+                    )
+
+                    status = "FinishedNoMotif"
+                    with open(status_fname, "w") as status_f:
+                        json.dump(status, status_f)
                     sys.exit()
 
     motifs_info = []
@@ -930,8 +985,18 @@ def main():
     if not np.any([seq_motif_exists, shape_motif_exists]):
         print()
         logging.info("No shape or sequence motifs found. Exiting now.")
-        with open(status_fname, "w") as stat_f:
-            json.dump("FinishedNoMotif"}, stat_f)
+
+        report_info = {}
+        write_report(
+            environ = jinja_env,
+            temp_base = "no_motifs.html.temp",
+            info = report_info,
+            out_name = out_page_name,
+        )
+
+        status = "FinishedNoMotif"
+        with open(status_fname, "w") as status_f:
+            json.dump(status, status_f)
         sys.exit()
 
     # if there was more than one inout.Motifs object generated, choose best model here
@@ -968,17 +1033,38 @@ def main():
     smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
 
-    with open(status_fname, "w") as stat_f:
-        json.dump("FinishedWithMotifs"}, stat_f)
+    report_info = {
+        "logo_data": ,
+        "heatmap_data": ,
+        "aupr_curve_data": ,
+    }
+    write_report(
+        environ = jinja_env,
+        temp_base = "motifs.html.temp",
+        info = report_info,
+        out_name = out_page_name,
+    )
+
+    status = "FinishedWithMotifs"
+    with open(status_fname, "w") as status_f:
+        json.dump(status, status_f)
 
 
 if __name__ == "__main__":
 
+    status = "Running"
+    args = parse_args()
+
     try:
-        main()
+        main(args, status)
     except e:
         logging.error(f"Error encountered in infer_motifs.py:\n\n{e}")
-        with open(status_fname, "w") as stat_f:
-            json.dump("FinishedError"}, stat_f)
+        status = "FinishedError"
+        in_direc = args.data_dir
+        out_direc = args.out_dir
+        out_direc = os.path.join(in_direc, out_direc)
+        status_fname = os.path.join(out_direc, "job_status.json")
+        with open(status_fname, "w") as status_f:
+            json.dump(status, status_f)
         sys.exit(1)
 

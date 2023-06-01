@@ -1,16 +1,17 @@
 use rocket::tokio::process::{Command, Child};
-use crate::rocket::tokio::io::AsyncWriteExt;
+use rocket::tokio::io::AsyncWriteExt;
 use rocket::form::{DataField, FromFormField};
 use rocket::FromForm;
 use rocket::data::ToByteUnit;
 use rocket::{tokio, State};
-use rocket::serde::Serialize;
+use rocket::serde::{Serialize, Deserialize};
 
 use std::sync::Arc;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::fmt;
 
+use serde_json;
 use rand::{self, Rng};
 use dashmap::DashMap;
 
@@ -23,6 +24,7 @@ pub enum JobStatus {
     FinishedWithMotifs,
     FinishedNoMotif,
     FinishedError,
+    DoesNotExist,
 }
 
 #[derive(Debug, FromForm)]
@@ -61,7 +63,7 @@ pub struct Submit {
     pub cfg: Cfg,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JobContext {
     pub id: String,
     email: String,
@@ -78,6 +80,19 @@ pub struct Job {
 }
 
 impl JobContext {
+
+    pub fn to_json(&self, fname: &PathBuf) -> Result<(), Box<dyn Error>> {
+        let out_file = std::fs::File::create(fname)?;
+        let _ = serde_json::to_writer_pretty(&out_file, self)?;
+        Ok(())
+    }
+
+    fn from_json(fname: &PathBuf) -> Result<JobContext, Box<dyn Error>> {
+        let in_file = std::fs::File::open(fname)?;
+        let job_context: JobContext = serde_json::from_reader(&in_file)?;
+        Ok(job_context)
+    }
+
     /// Generate a unique ID with `size` characters. For readability,
     /// the characters used are from the sets [0-9], [A-Z], [a-z].
     pub fn make_id(size: usize) -> String {
@@ -121,21 +136,35 @@ impl JobContext {
 
     pub fn check_directory(job_id: &str) -> Result<JobContext, Box<dyn Error>> {
 
-        let job_path = build_job_path(job_id);
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+// problem here is that I'm not searching the fold directories
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
 
-        let (status,email) = if job_path.is_dir() {
-            ///////////////////////////////////////////////////////////
-            // needs work
-            ///////////////////////////////////////////////////////////
-            let status = JobStatus::FinishedOK;
-            let email = "no email";
-            (status,email)
-        } else {
-            ///////////////////////////////////////////////////////////
-            // here i should have a 404 catcher
-            ///////////////////////////////////////////////////////////
-            (JobStatus::FinishedError, "no email")
-        };
+        let job_path = build_job_path(job_id);
+        let status_fname = job_path.join("job_status.json");
+        let status_file = std::fs::File::open(&status_fname)?;
+        let status = serde_json::from_reader(&status_file)?;
+        let email = "";
+
+        //let (status,email) = if job_path.is_dir() {
+        //    ///////////////////////////////////////////////////////////
+        //    // needs work
+        //    ///////////////////////////////////////////////////////////
+        //    let status = JobStatus::FinishedOK;
+        //    let email = "no email";
+        //    (status,email)
+        //} else {
+        //    ///////////////////////////////////////////////////////////
+        //    // here i should have a 404 catcher
+        //    ///////////////////////////////////////////////////////////
+        //    (JobStatus::FinishedError, "no email")
+        //};
 
         let fa_path = job_path.join("seqs.fa");
         let score_path = job_path.join("scores.txt");
@@ -171,7 +200,7 @@ impl Job {
         let status = match res {
             Ok(no_err) => {
                 if let Some(exit_status) = no_err {
-                    JobStatus::FinishedOK
+                    JobStatus::FinishedWithMotifs
                 } else {
                     JobStatus::Running
                 }
@@ -352,7 +381,7 @@ impl Cfg {
         //cmd.arg(pycmd);
         
         let mut cmd = Command::new("python");
-        cmd.arg(pymcd);
+        cmd.arg(pycmd);
 
         cmd.arg("--score_file");
         if let Some(arg) = &self.score_file {

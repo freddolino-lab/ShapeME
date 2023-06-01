@@ -101,16 +101,18 @@ async fn get_job(
     //    } else {
     let job_context = JobContext::check_directory(&job_id).unwrap();
     let template = match job_context.status {
-        JobStatus::Finished => {
+        JobStatus::FinishedWithMotifs => {
             let report = Report::new(
                 &job_context.id,
                 &job_context.path,
             ).expect("Unable to generate report");
             Template::render("job_finished", &report)
         },
+        JobStatus::FinishedNoMotif => Template::render("job_no_motif", &job_context),
         JobStatus::Running => Template::render("job_running", &job_context),
-        JobStatus::Error => Template::render("job_error", &job_context),
+        JobStatus::FinishedError => Template::render("job_error", &job_context),
         JobStatus::Queued => Template::render("job_queued", &job_context),
+        JobStatus::DoesNotExist => Template::render("job_does_not_exist", &job_context),
     };
     template
 }

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>ShapeME</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='chota.min.css') }}">
+    <style>
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>ShapeME results</h1>
+
+      Your job ran normally, and no motifs were identified.
+
+    </div>
+  </body>
+</html>
