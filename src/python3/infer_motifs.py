@@ -1,4 +1,5 @@
 import inout
+import base64
 import sys
 import os
 import logging
@@ -207,6 +208,7 @@ def main(args, status):
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
     out_heatmap_fname = os.path.join(out_direc, "final_heatmap.png")
+    out_page_name = os.path.join(out_direc, "report.html")
     status_fname = os.path.join(out_direc, "job_status.json")
     find_seq_motifs = args.find_seq_motifs
     seq_fasta = args.seq_fasta
@@ -821,6 +823,9 @@ def main(args, status):
             #top_n = np.Inf,
         )
 
+        with open(final_motif_plot_fname, "rb") as image_file:
+            logo_data = base64.b64encode(image_file.read()).decode()
+
         # if there were both shape and seq motifs, combine into one model
         if shape_motif_exists and seq_motif_exists:
 
@@ -1031,12 +1036,13 @@ def main(args, status):
         np.save(out_coef_f, best_motif_coefs)
     logging.info(f"Writing motif enrichment heatmap to {out_heatmap_fname}")
     smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
+    with open(out_heatmap_fname, "rb") as image_file:
+        heatmap_data = base64.b64encode(image_file.read()).decode()
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
 
     report_info = {
-        "logo_data": ,
-        "heatmap_data": ,
-        "aupr_curve_data": ,
+        "logo_data": logo_data,
+        "heatmap_data": heatmap_data,
     }
     write_report(
         environ = jinja_env,
@@ -1057,15 +1063,20 @@ if __name__ == "__main__":
 
     try:
         main(args, status)
-    except e:
-        logging.error(f"Error encountered in infer_motifs.py:\n\n{e}")
+    except Exception as err:
+        logging.error(f"Error encountered in infer_motifs.py:\n\n{err}\n")
         status = "FinishedError"
         in_direc = args.data_dir
         out_direc = args.out_dir
         out_direc = os.path.join(in_direc, out_direc)
 
+        if not os.path.isdir(out_direc):
+            os.mkdir(out_direc)
+
+        out_page_name = os.path.join(out_direc, "report.html")
+
         report_info = {
-            "error": e,
+            "error": err,
         }
         write_report(
             environ = jinja_env,
