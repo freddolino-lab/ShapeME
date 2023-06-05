@@ -36,8 +36,6 @@ fn index() -> Template {
 // NOTE: We use `Contextual` here because we want to collect all submitted form
 // fields to re-render forms with submitted values on error. If you have no such
 // need, do not use `Contextual`. Use the equivalent of `Form<Submit<'_>>`.
-// ////////////////////////////////////
-// try tokio::spawn for async; need to figure out how to track running jobs
 #[post("/", data = "<form>")]
 async fn submit(
         form: Form<Contextual<'_, Submit>>,
@@ -74,32 +72,9 @@ async fn submit(
 #[get("/jobs/<job_id>")]
 async fn get_job(
         job_id: String,
-        //runs: &State<Arc<Runs>>,
 ) -> Template {
 
-    //let data = runs.inner();
-    //let job_from_pool = data.dash_map.get_mut(&job_id);
-
-    //println!("{:?}", job_from_pool);
-    /////////////////////////////////////////////////////////////////
-    // I'll be switching away from the dashmap-based monitoring of current jobs, and toward just
-    // checking whether directories exist and if so, does it contain the expected files for a
-    // finished job?
-    /////////////////////////////////////////////////////////////////
-    // If the job is in the current pool it will be Some here.
-    // If the job was run in a prior instance, it will be None, so the else block will
-    //   take effect
-    //let template = 
-    //    if let Some(mut job) = job_from_pool {
-
-    //        let report = Report::new(
-    //            &job.context.id,
-    //            &job.context.path,
-    //        ).expect("Unable to generate report");
-    //        Template::render("job_finished", &report)
-
-    //    } else {
-    let job_context = JobContext::check_directory(&job_id).unwrap();
+    let job_context = JobContext::check_job(&job_id).unwrap();
     let template = match job_context.status {
         JobStatus::FinishedWithMotifs => {
             let report = Report::new(
