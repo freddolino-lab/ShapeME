@@ -1,5 +1,7 @@
 #[macro_use] extern crate rocket;
 
+mod db;
+
 mod job;
 use job::{
     Submit,
@@ -108,4 +110,5 @@ fn rocket() -> _ {
         .mount("/", routes![index, submit, get_job])
         .attach(Template::fairing())
         .mount("/", FileServer::from(relative!("/static")))
+        .attach(db::stage())
 }
