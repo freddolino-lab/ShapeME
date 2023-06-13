@@ -15,6 +15,9 @@ use job::{
 mod results;
 use results::Report;
 
+mod db;
+use db::{User, Db};
+
 use rocket::http::Status;
 use rocket::form::{Form, Contextual, Context};
 use rocket::fs::{FileServer, relative};
@@ -26,19 +29,51 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use dashmap::DashMap;
 
-struct SubmitCount {
-    count: AtomicUsize
-}
-
 #[get("/")]
 fn index() -> Template {
     Template::render("index", &Context::default())
 }
 
+#[post("/", data = "<form>")]
+async fn login(
+        form: Form<Contextual<'_, User>>,
+) -> Template {
+    let template = match form.value {
+        Some(ref credentials) => {
+            // check if user exists, if not, serve the create account page
+            let (user_exists,cred_check) = User::check_user(credentials);
+            if user_exists {
+                if cred_check {
+                } else {
+                    Template::render("auth_failure", &Context::default())
+                }
+            } else {
+                /////////////////////////////////////////////////////////
+                // update to print error at top of page if user was not found
+                /////////////////////////////////////////////////////////
+                Template::render("create_account", &Context::default())
+            }
+        }
+        None => {
+            println!("None returned on submit!!");
+            Template::render("index", &form.context)
+        }
+}
+
+#[get("/create_account")]
+fn create_account() -> Template {
+    Template::render("create_account", &Context::default())
+}
+
+#[get("/submit")]
+fn submit_form() -> Template {
+    Template::render("submit", &Context::default())
+}
+
 // NOTE: We use `Contextual` here because we want to collect all submitted form
 // fields to re-render forms with submitted values on error. If you have no such
 // need, do not use `Contextual`. Use the equivalent of `Form<Submit<'_>>`.
-#[post("/", data = "<form>")]
+#[post("/submit", data = "<form>")]
 async fn submit(
         form: Form<Contextual<'_, Submit>>,
         //runs: &State<Arc<Runs>>,
@@ -106,8 +141,8 @@ fn rocket() -> _ {
         //.manage(Arc::new(Runs {
         //    dash_map: DashMap::new(),
         //}))
-        .manage(SubmitCount {count: AtomicUsize::new(0)})
-        .mount("/", routes![index, submit, get_job])
+        //.manage(SubmitCount {count: AtomicUsize::new(0)})
+        .mount("/", routes![index, submit_form, submit, get_job])
         .attach(Template::fairing())
         .mount("/", FileServer::from(relative!("/static")))
         .attach(db::stage())

@@ -1,0 +1,72 @@
+{% import "macros" as m %}
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>ShapeME</title>
+    <link rel="stylesheet" href="/chota.min.css">
+    <style>
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>ShapeME account creation form</h1>
+
+      {% if errors | length > 1 %}
+          <small class="text-error" style="margin-top: -20px">
+              {{ errors | length }} field(s) have errors
+          </small>
+      {% endif %}
+
+      <form action="/" method="post" enctype="multipart/form-data">
+        <fieldset>
+          <legend>User information</legend>
+          <div class="row">
+            <div class="col">
+              {{ m::input(label="First name", type="text", name="account.first_name") }}
+              <!-- required -->
+            </div>
+            <div class="col">
+              {{ m::input(label="Last name", type="text", name="account.last_name") }}
+              <!-- required -->
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              {{ m::input(label="Email Address (this will be your username)", type="text", name="account.email") }}
+              <!-- required pattern=".*@.*"/> -->
+            </div>
+
+          </div>
+
+          <div class="row">
+            <div class="col">
+              {{ m::input(label="Password", type="password", name="account.password.first") }}
+              <!--   required minlength="6"  /> -->
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col">
+            {{
+              m::input(label="Confirm Password",
+              type="password",
+              name="account.password.second")
+            }}
+            <!--   required minlength="6"  /> -->
+            </div>
+          </div>
+        </fieldset>
+        <br />
+        <input type="submit" ="Create account" class="is-full-width" />
+      </form>
+    </div>
+  </body>
+</html>

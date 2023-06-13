@@ -1,3 +1,7 @@
 [default]
 limits.data-form = "2MiB"
 template_dir = "templates/"
+
+[default.databases.rusqlite]
+url = "db/shapeme.sqlite"
+timeout = 10
