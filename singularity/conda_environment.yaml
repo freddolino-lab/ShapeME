@@ -24,5 +24,6 @@ dependencies:
     - seaborn
     - meme
     - pip
+    - sqlite
     - pip:
         - jinja2

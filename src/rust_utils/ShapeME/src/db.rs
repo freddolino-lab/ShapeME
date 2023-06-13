@@ -2,38 +2,29 @@ use rocket::{Rocket, Build};
 use rocket::fairing::AdHoc;
 use rocket::serde::{Serialize, Deserialize, json::Json};
 use rocket::response::{Debug, status::Created};
+use rocket::fs::relative;
 
 use rocket_sync_db_pools::rusqlite;
 
 use self::rusqlite::params;
 
 #[database("rusqlite")]
-struct Db(rusqlite::Connection);
+pub struct Db(rusqlite::Connection);
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
-struct Post {
+pub struct User {
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
-    id: Option<i64>,
-    title: String,
-    text: String,
+    pub id: u64,
+    first: String,
+    last: String,
+    pub email: String,
+    password: String,
 }
 
 type Result<T, E = Debug<rusqlite::Error>> = std::result::Result<T, E>;
 
-#[post("/", data = "<post>")]
-async fn create(db: Db, post: Json<Post>) -> Result<Created<Json<Post>>> {
-    let item = post.clone();
-    db.run(move |conn| {
-        conn.execute("INSERT INTO posts (title, text) VALUES (?1, ?2)",
-            params![item.title, item.text])
-    }).await?;
-
-    Ok(Created::new("/").body(post))
-}
-
-#[get("/")]
-async fn list(db: Db) -> Result<Json<Vec<i64>>> {
+async fn check_user(db: Db) -> Result<Json<Vec<i64>>> {
     let ids = db.run(|conn| {
         conn.prepare("SELECT id FROM posts")?
             .query_map(params![], |row| row.get(0))?
@@ -43,8 +34,7 @@ async fn list(db: Db) -> Result<Json<Vec<i64>>> {
     Ok(Json(ids))
 }
 
-#[get("/<id>")]
-async fn read(db: Db, id: i64) -> Option<Json<Post>> {
+async fn check_user(db: Db, id: i64) -> Option<Json<Post>> {
     let post = db.run(move |conn| {
         conn.query_row("SELECT id, title, text FROM posts WHERE id = ?1", params![id],
             |r| Ok(Post { id: Some(r.get(0)?), title: r.get(1)?, text: r.get(2)? }))
@@ -67,23 +57,6 @@ async fn destroy(db: Db) -> Result<()> {
     db.run(move |conn| conn.execute("DELETE FROM posts", params![])).await?;
 
     Ok(())
-}
-
-async fn init_db(rocket: Rocket<Build>) -> Rocket<Build> {
-    Db::get_one(&rocket).await
-        .expect("database mounted")
-        .run(|conn| {
-            conn.execute(r#"
-                CREATE TABLE posts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title VARCHAR NOT NULL,
-                    text VARCHAR NOT NULL,
-                    published BOOLEAN NOT NULL DEFAULT 0
-                )"#, params![])
-        }).await
-        .expect("can init rusqlite DB");
-
-    rocket
 }
 
 pub fn stage() -> AdHoc {
