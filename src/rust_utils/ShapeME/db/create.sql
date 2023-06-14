@@ -8,7 +8,8 @@ CREATE TABLE users (
 );
 
 CREATE TABLE jobs (
-    id integer primary key,
+    id text NOT NULL UNIQUE,
+    name text,
     args text,
     version text,
     uid integer,
@@ -20,6 +21,7 @@ CREATE TABLE jobs (
 
 PRAGMA foreign_keys = ON;
 
-INSERT INTO users (first, last, email, password) VALUES ("Test", "User", "test_email@fake.com", "111111");
-INSERT INTO jobs (args, version, uid) VALUES ("", "0.1.0", 1);
-INSERT INTO jobs (args, version, uid) VALUES ("", "0.1.0", 2);
+INSERT INTO users (first, last, email, password) VALUES ("Test", "User", "test_email@fake.com", "855b797db4d3cfae2fb40101ae299d75fae1ce6f41b2f067a4f1561409f49801");
+INSERT INTO jobs (id, args, version, uid) VALUES ("0O3YSDFJK", "", "0.1.0", 1);
+INSERT INTO jobs (id, args, version, uid) VALUES ("0O3YSDFJK", "", "0.1.0", 1);
+INSERT INTO jobs (id, args, version, uid) VALUES ("SDFSKJDLFKJS", "", "0.1.0", 2);

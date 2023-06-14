@@ -1,37 +1,65 @@
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+// to do: go to dashboard on login ////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+
+
+
 //use std::error::Error;
 //use std::io::ErrorKind;
 use std::fmt;
+use std::error::Error;
+use std::path::{Path, PathBuf};
+use std::io::Cursor;
+use image::io::Reader as ImageReader;
+use glob::glob;
+use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
 
-use rusqlite::Error;
-//use rusqlite::Error::QueryReturnedNoRows;
+use crypto::digest::Digest;
+use crypto::sha3::Sha3;
 
 //use rocket::{Rocket, Build};
+use rocket::tokio::process::{Command, Child};
 use rocket::fairing::AdHoc;
 use rocket::serde::{Serialize, Deserialize, json::Json};
 use rocket::response::{Debug};//, status::Created};
 use rocket::fs::relative;
-use rocket::form::{Form, Contextual, Context};
+use rocket::form::{Form, Contextual, Context, DataField, FromFormField};
 use rocket::FromForm;
 use rocket_dyn_templates::Template;
-use rocket::http::Status;
-
-//use rocket_sync_db_pools::{database, diesel};
-//use self::diesel::prelude::*;
+use rocket::http::{Status, CookieJar, Cookie};
+use rocket::data::ToByteUnit;
+use rocket::tokio;
 
 use rocket_sync_db_pools::{database, rusqlite};
 use self::rusqlite::params;
 
+use serde_json;
+use rand::{self, Rng};
+
+const JOB_ID_LENGTH: usize = 12;
+
 #[database("shapeme")]
 struct Db(rusqlite::Connection);
 
-//#[database("diesel")]
-//struct Db(diesel::SqliteConnection);
+struct NoUserError;
 
-type Result<T, E = Debug<rusqlite::Error>> = std::result::Result<T, E>;
+type DbResult<T, E = Debug<rusqlite::Error>> = std::result::Result<T, E>;
+
+fn hash_password(password: &str) -> String {
+    let mut hasher = Sha3::sha3_256();
+    hasher.input_str(password);
+    hasher.result_str()
+}
 
 #[derive(Debug, FromForm)]
 #[allow(dead_code)]
-pub struct CreateUser<'a> {
+struct CreateUser<'a> {
     #[field(validate = len(1..))]
     first: String,
     #[field(validate = len(1..))]
@@ -52,14 +80,22 @@ struct CreatePassword<'a> {
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromForm)]
 #[serde(crate = "rocket::serde")]
-pub struct User {
+struct User {
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     uid: Option<i32>,
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     first: Option<String>,
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     last: Option<String>,
-    pub email: String,
+    email: String,
+    password_hash: String,
+}
+
+
+#[derive(Debug, Clone, Deserialize, Serialize, FromForm)]
+#[serde(crate = "rocket::serde")]
+struct LoginUser {
+    email: String,
     password: String,
 }
 
@@ -69,20 +105,21 @@ impl User {
         let last = create_user.last.clone();
         let email = create_user.email.clone();
         let pass = String::from(create_user.password.first);
+        let hash = hash_password(&pass);
         User{
             uid: None,
             first: Some(first),
             last: Some(last),
             email: email,
-            password: pass,
+            password_hash: hash,
         }
     }
 
-    async fn insert_into_db(&self, db: &Db) -> Result<()> {
+    async fn insert_into_db(&self, db: &Db) -> DbResult<()> {
         let first = self.first.as_ref().unwrap().clone();
         let last = self.last.as_ref().unwrap().clone();
         let email = String::from(&self.email);
-        let pass = String::from(&self.password);
+        let pass = String::from(&self.password_hash);
         db.run(move |conn| {
             conn.execute(
                 "INSERT INTO users (first, last, email, password) VALUES (?1, ?2, ?3, ?4)",
@@ -92,50 +129,8 @@ impl User {
     }
 }
 
-//#[rocket::async_trait]
-//impl FromFormField for User {
-//    //async fn from_data(field: DataField<'a, '_>) -> rocket::form::Result<'a, Self> {
-//    async fn from_data(field: DataField) -> rocket::form::Result<Self> {
-//        let stream = field.data.open(u32::MAX.bytes());
-//        let bytes = stream.into_bytes().await?;
-//        let file = File {
-//            //file_name: field.file_name,
-//            data: bytes.value,
-//        };
-//        Ok(file)
-//    }
-//}
 
-
-//table! {
-//    users (uid) {
-//        uid -> Nullable<Integer>,
-//        first -> Text,
-//        last -> Text,
-//        email -> Text,
-//        password -> Text,
-//    }
-//}
-
-#[derive(Debug, Clone)]
-struct NoUserError;
-
-impl fmt::Display for NoUserError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "No such user found")
-    }
-}
-
-#[derive(Debug, Clone)]
-struct AuthError;
-
-impl fmt::Display for AuthError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "User and password do not match")
-    }
-}
-
-async fn check_user(db: &Db, email: String) -> Result<User> {
+async fn check_user(db: &Db, email: String) -> DbResult<User> {
     let user = db.run(move |conn| {
         conn.query_row("SELECT uid, first, last, email, password FROM users WHERE email = ?1", params![email],
             |r| Ok(User {
@@ -143,7 +138,7 @@ async fn check_user(db: &Db, email: String) -> Result<User> {
                 first: Some(r.get(1)?),
                 last: Some(r.get(2)?),
                 email: r.get(3)?,
-                password: r.get(4)?,
+                password_hash: r.get(4)?,
             }))
     }).await?;
 
@@ -151,7 +146,13 @@ async fn check_user(db: &Db, email: String) -> Result<User> {
 }
 
 fn check_auth(db: &Db, user: &User, password: &str) -> bool {
-    user.password == password
+    let hash = hash_password(password);
+    user.password_hash == hash
+}
+
+#[post("/logout")]
+fn logout(mut cookies: &CookieJar<'_>) -> () {
+    cookies.remove_private(Cookie::named("uid"));
 }
 
 #[get("/")]
@@ -162,10 +163,11 @@ fn login_form() -> Template {
 #[post("/", data = "<form>")]
 async fn login(
         db: Db,
-        form: Form<Contextual<'_, User>>,
+        form: Form<Contextual<'_, LoginUser>>,
+        mut cookies: &CookieJar<'_>,
 ) -> (Status, Template) {
 
-    //println!("form:\n{:?}", form);
+    println!("form:\n{:?}", form);
     let template = match form.value {
         Some(ref user) => {
             // check if user exists, if not, serve the create account page
@@ -174,9 +176,13 @@ async fn login(
             
             let template = match user_info_result {
                 Ok(user_info) => {
+                    let uid = format!("{}", &user_info.uid.unwrap());
                     let authorized = check_auth(&db, &user_info, &user.password);
                     if authorized {
                         println!("User {:?} authorized", &user.email);
+                        cookies.add_private(
+                            Cookie::new("uid", uid)
+                        );
                         Template::render("dashboard", &Context::default())
                     } else {
                         println!("User {:?} not authorized", &user.email);
@@ -184,7 +190,7 @@ async fn login(
                     }
                 },
                 Err(error) => match error.0 {
-                    Error::QueryReturnedNoRows => {
+                    rusqlite::Error::QueryReturnedNoRows => {
                         println!("No such user:\n{:?}", &form.context);
                         Template::render("no_such_user", &form.context)
                     },
@@ -212,21 +218,23 @@ fn create_account_form() -> Template {
 async fn create_account(
         db: Db,
         form: Form<Contextual<'_, CreateUser<'_>>>,
+        mut cookies: &CookieJar<'_>,
 ) -> (Status, Template) {
     println!("form:\n{:?}", form);
     let template = match form.value {
         Some(ref create_user) => {
             let user = User::from_create_user(create_user);
-            // CHECK WHETHER USER ALREADY EXISTS!!!!!!!!
+            let uid = format!("{}", &user.uid.unwrap());
             let insert_result = user.insert_into_db(&db).await;
 
             let template = match insert_result {
                 Ok(nothing) => {
                     println!("User {} created.", &user.email);
+                    cookies.add_private(Cookie::new("uid", uid));
                     Template::render("dashboard", &Context::default())
                 },
                 Err(error) => match error.0 {
-                    Error::SqliteFailure(err, Some(msg)) => {
+                    rusqlite::Error::SqliteFailure(err, Some(msg)) => {
                         println!("Error in creating user {}.\n{:?}\n{:?}", &user.email, &err, &msg);
                         Template::render("account_exists", &Context::default())
                     },
@@ -246,9 +254,811 @@ async fn create_account(
     (form.context.status(), template)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum JobStatus {
+    Running,
+    Queued,
+    FinishedWithMotifs,
+    FinishedNoMotif,
+    FinishedError,
+    DoesNotExist,
+}
+
+#[derive(Debug, FromForm)]
+#[allow(dead_code)]
+pub struct Submission {
+    #[field(validate = len(1..))]
+    name: String,
+    //#[field(validate = ext(ContentType::Fasta))]
+    fa_file: File,
+    //#[field(validate = ext(ContentType::Scores))]
+    score_file: File,
+}
+
+#[derive(Debug, FromForm)]
+#[allow(dead_code)]
+pub struct Submit {
+    //pub account: Account,
+    pub submission: Submission,
+    pub cfg: Cfg,
+}
+
+impl Submit {
+    async fn insert_into_db(&self, db: &Db, uid: &i32, job_id: &str) -> Result<(), Box<dyn Error>> {
+        let job_name = self.submission.name.clone();
+        let arg_string = self.cfg.build_arg_string()?;
+        let id = String::from(job_id);
+        let user_id = uid.clone();
+        ////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////
+        let version = "0.1.0";
+        db.run(move |conn| {
+            conn.execute(
+                "INSERT INTO jobs
+                    (id, name, args, version, uid)
+                    VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![id, job_name, arg_string, version, user_id])
+        }).await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JobContext {
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    //email: String,
+    pub path: PathBuf,
+    fa_path: PathBuf,
+    score_path: PathBuf,
+    pub status: JobStatus,
+}
+
+#[derive(Debug)]
+pub struct Job {
+    pub context: JobContext,
+    child: Child,
+}
+
+impl JobContext {
+
+    pub fn to_json(&self, fname: &PathBuf) -> Result<(), Box<dyn Error>> {
+        let out_file = std::fs::File::create(fname)?;
+        let _ = serde_json::to_writer_pretty(&out_file, self)?;
+        Ok(())
+    }
+
+    fn from_json(fname: &PathBuf) -> Result<JobContext, Box<dyn Error>> {
+        let in_file = std::fs::File::open(fname)?;
+        let job_context: JobContext = serde_json::from_reader(&in_file)?;
+        Ok(job_context)
+    }
+
+    /// Generate a unique ID with `size` characters. For readability,
+    /// the characters used are from the sets [0-9], [A-Z], [a-z].
+    pub fn make_id(size: usize) -> String {
+        const BASE62: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+        let mut id = String::with_capacity(size);
+        let mut rng = rand::thread_rng();
+        for _ in 0..size {
+            id.push(BASE62[rng.gen::<usize>() % 62] as char);
+        }
+        id
+    }
+
+    async fn set_up(db: &Db, cookies: &CookieJar<'_>, sub: &Submit) -> Result<JobContext, Box<dyn Error>> {
+
+        let id = JobContext::make_id(JOB_ID_LENGTH);
+
+        let maybe_cookie = cookies.get_private("uid");
+        if let Some(cookie) = maybe_cookie {
+            let uid: i32 = cookie.value().to_string().parse()?;
+            sub.insert_into_db(&db, &uid, &id);
+        } else {
+            println!("No uid")
+        };
+
+        let job_path = build_job_path(&id);
+        let _ = std::fs::create_dir_all(job_path.clone());
+ 
+        let mut path = PathBuf::new();
+        path.push(&job_path);
+
+        // we write the fasta and score files using a uid
+        //let email: String = sub.account.email.clone();
+
+        let fa_path = path.join(String::from("seqs.fa"));
+        let _ = sub.submission.fa_file.upload(&fa_path).await?;
+        // write score file to job's data path
+        let score_path = path.join(String::from("scores.txt"));
+        let _ = sub.submission.score_file.upload(&score_path).await?;
+        let status = JobStatus::Queued;
+        Ok(JobContext{
+            id: Some(id),
+            //email,
+            path,
+            fa_path,
+            score_path,
+            status,
+        })
+    }
+
+    pub fn check_job(job_id: &str) -> Result<JobContext, Box<dyn Error>> {
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+// problem here is that I'm not searching the fold directories
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+
+        let job_path = build_job_path(job_id);
+        let status_fname = job_path.join("job_status.json");
+        let status_file = std::fs::File::open(&status_fname)?;
+        let status = serde_json::from_reader(&status_file)?;
+        //let email = "";
+
+        //let (status,email) = if job_path.is_dir() {
+        //    ///////////////////////////////////////////////////////////
+        //    // needs work
+        //    ///////////////////////////////////////////////////////////
+        //    let status = JobStatus::FinishedOK;
+        //    let email = "no email";
+        //    (status,email)
+        //} else {
+        //    ///////////////////////////////////////////////////////////
+        //    // here i should have a 404 catcher
+        //    ///////////////////////////////////////////////////////////
+        //    (JobStatus::FinishedError, "no email")
+        //};
+
+        let fa_path = job_path.join("seqs.fa");
+        let score_path = job_path.join("scores.txt");
+
+        Ok(JobContext{
+            id: Some(job_id.to_string()),
+            path: job_path.into(),
+            //email: email.to_string(),
+            status: status,
+            fa_path: fa_path,
+            score_path: score_path,
+        })
+    }
+}
+
+
+impl Job {
+    /// creates job data directory with uid, uploads fasta and score files
+    async fn set_up_job(sub: &Submit, context: &JobContext) -> Result<(), Box<dyn Error>> {
+
+        let mut cmd = sub.cfg.build_cmd(
+            &context.path,
+            &context.fa_path,
+            &context.score_path,
+        )?;
+        let child = spawn_job(&mut cmd).await?;
+
+        Ok(())//Job { context, child })
+    }
+
+    pub fn check_status(&mut self) -> JobStatus {
+        let res = self.child.try_wait();
+        let status = match res {
+            Ok(no_err) => {
+                if let Some(exit_status) = no_err {
+                    JobStatus::FinishedWithMotifs
+                } else {
+                    JobStatus::Running
+                }
+            },
+            Err(error) => JobStatus::FinishedError,
+        };
+        status
+    }
+}
+
+fn build_job_path(id: &str) -> PathBuf {
+    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "data");
+    Path::new(root).join(id.clone())
+}
+
+async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
+
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+// I need to get writing stdout to a file working
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+    //let log_fname = path.as_path().join("shapeme.log");
+    //let mut out_log = tokio::fs::File::create(log_fname).await?;
+
+    //let mut cmd = self.build_cmd()?;
+
+    println!("{:?}", cmd);
+    let child = cmd
+        //.stdout(out_log)
+        .spawn()
+        .expect("Error spawning child process");
+    //let stdout = child.stdout.take().unwrap();
+    //tokio::spawn(async move {
+    //    out_log.write(stdout).await.unwrap();
+    //});
+
+    Ok(child)
+}
+
+/// Creates and spawns a job and inserts into Runs
+pub async fn run_job(
+        sub: &Submit,
+        context: &JobContext,
+        //state: &State<Arc<Runs>>,
+) -> Result<(), Box<dyn Error>> {
+    // set paths and upload files
+    //let context = JobContext::set_up(sub).await?;
+    let _ = Job::set_up_job(sub, context).await?;
+    //let job_id = context.id.clone();
+
+    //let state_data = state.inner().clone();
+
+    //tokio::spawn(async move {
+    //    state_data.dash_map.insert(job_id, job);
+    //});
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub struct File {
+    //file_name: Option<FileName>,
+    data: Vec<u8>,
+}
+
+impl File {
+    pub async fn upload(&self, path: &PathBuf) -> Result<(), Box<dyn Error>> {
+        tokio::fs::write(path.clone(), self.data.to_vec()).await?;
+        Ok(())
+    }
+}
+
+#[rocket::async_trait]
+impl<'a> FromFormField<'a> for File {
+    /////////////////////////////////////////////////////////////////
+    // NOTE: write in checks for fasta and score file specification
+    /////////////////////////////////////////////////////////////////
+    async fn from_data(field: DataField<'a, '_>) -> rocket::form::Result<'a, Self> {
+    //async fn from_data(field: DataField) -> rocket::form::Result<Self> {
+        let stream = field.data.open(u32::MAX.bytes());
+        let bytes = stream.into_bytes().await?;
+        let file = File {
+            //file_name: field.file_name,
+            data: bytes.value,
+        };
+        Ok(file)
+    }
+}
+
+////////////////////////////////////////////////////
+// I should probably switch all these fields to custom structs that derive FromFormField
+////////////////////////////////////////////////////
+#[derive(Debug, FromForm)]
+#[allow(dead_code)]
+pub struct Cfg {
+    force: bool,
+    skip_inference: bool,
+    #[field(validate = range(1..10), default=5)]
+    crossval_folds: u8,
+    score_file: Option<String>,
+    data_dir: Option<String>,
+    #[field(validate = range(5..20), default=10)]
+    kmer: u8,
+    #[field(validate = range(1..5), default=1)]
+    max_count: u8,
+    continuous: Option<u8>,
+    #[field(default=2.0)]
+    threshold_sd: f64,
+    #[field(validate = range(500..50000), default=500)]
+    init_threshold_seed_num: u64,
+    #[field(default=100)]
+    init_threshold_recs_per_seed: u64,
+    #[field(default=2)]
+    init_threshold_windows_per_record: u64,
+    #[field(default=8)]
+    max_batch_no_new_seed: u8,
+    #[field(default=4)]
+    nprocs: u16,
+    #[field(default=3.0)]
+    upper_threshold_constraint: f64,
+    #[field(default=0.0)]
+    lower_threshold_constraint: f64,
+    #[field(default=4.0)]
+    upper_shape_constraint: f64,
+    #[field(default=-4.0)]
+    lower_shape_constraint: f64,
+    #[field(default=4.0)]
+    upper_weights_constraint: f64,
+    #[field(default=-4.0)]
+    lower_weights_constraint: f64,
+    #[field(default=1.0)]
+    temperature: f64,
+    #[field(default=0.01)]
+    t_adj: f64,
+    #[field(default=0.25)]
+    stepsize: f64,
+    #[field(default=20000)]
+    opt_niter: u64,
+    #[field(default=0.1)]
+    alpha: f64,
+    #[field(default=500)]
+    batch_size: u64,
+    find_seq_motifs: bool,
+    no_shape_motifs: bool,
+    seq_fasta: Option<String>,
+    #[field(default=String::from("9"))]
+    seq_motif_positive_cats: Option<String>,
+    #[field(default=0.05)]
+    streme_thresh: f64,
+    seq_meme_file: Option<String>,
+    shape_rust_file: Option<String>,
+    write_all_files: bool,
+    exhaustive: bool,
+    #[field(default=100000)]
+    max_n: u64,
+    #[field(default="info")]
+    log_level: String,
+}
+
+impl Cfg {
+    fn build_arg_string(&self) -> Result<String, Box<dyn Error>> {
+        let mut args = Vec::new();
+
+        let streme_thresh = format!("{}", self.streme_thresh);
+        if self.find_seq_motifs {
+            args.push("--find_seq_motifs");
+            args.push("--streme_thresh");
+            args.push(&streme_thresh);
+        }
+        let a = if let Some(arg) = &self.seq_motif_positive_cats {
+            args.push("--seq_motif_positive_cats");
+            format!("{}", arg)
+        } else {
+            String::from("")
+        };
+        args.push(&a);
+        if self.no_shape_motifs {
+            args.push("--no_shape_motifs");
+        }
+
+        if let Some(arg) = &self.seq_meme_file {
+            args.push("--seq_meme_file");
+            args.push(arg);
+        }
+        if let Some(arg) = &self.shape_rust_file {
+            args.push("--shape_rust_file");
+            args.push(arg);
+        }
+        if self.write_all_files {
+            args.push("--write_all_files");
+        }
+        if self.exhaustive {
+            args.push("--exhaustive");
+        }
+
+        if self.force {
+            args.push("--force");
+        }
+        if self.skip_inference {
+            args.push("--skip_inference");
+        }
+        args.push("--crossval_folds");
+        let a = format!("{}", self.crossval_folds);
+        args.push(&a);
+
+        args.push("--kmer");
+        let a = format!("{}", self.kmer);
+        args.push(&a);
+
+        args.push("--max_count");
+        let a = format!("{}", self.max_count);
+        args.push(&a);
+
+        let a = if let Some(arg) = &self.continuous {
+            args.push("--continuous");
+            format!("{}", arg)
+        } else {
+            String::from("")
+        };
+        args.push(&a);
+
+        args.push("--threshold_sd");
+        let a = format!("{}", self.threshold_sd);
+        args.push(&a);
+
+        args.push("--init_threshold_seed_num");
+        let a = format!("{}", self.init_threshold_seed_num);
+        args.push(&a);
+
+        args.push("--init_threshold_recs_per_seed");
+        let a = format!("{}", self.init_threshold_recs_per_seed);
+        args.push(&a);
+
+        args.push("--init_threshold_windows_per_record");
+        let a = format!("{}", self.init_threshold_windows_per_record);
+        args.push(&a);
+
+        args.push("--max_batch_no_new_seed");
+        let a = format!("{}", self.max_batch_no_new_seed);
+        args.push(&a);
+
+        args.push("--nprocs");
+        let a = format!("{}", self.nprocs);
+        args.push(&a);
+
+        args.push("--threshold_constraints");
+        let a = format!("{}", self.lower_threshold_constraint);
+        args.push(&a);
+        let a = format!("{}", self.upper_threshold_constraint);
+        args.push(&a);
+
+        args.push("--shape_constraints");
+        let a = format!("{}", self.lower_shape_constraint);
+        args.push(&a);
+        let a = format!("{}", self.upper_shape_constraint);
+        args.push(&a);
+
+        args.push("--weights_constraints");
+        let a = format!("{}", self.lower_weights_constraint);
+        args.push(&a);
+        let a = format!("{}", self.upper_weights_constraint);
+        args.push(&a);
+
+        args.push("--temperature");
+        let a = format!("{}", self.temperature);
+        args.push(&a);
+
+        args.push("--t_adj");
+        let a = format!("{}", self.t_adj);
+        args.push(&a);
+
+        args.push("--stepsize");
+        let a = format!("{}", self.stepsize);
+        args.push(&a);
+
+        args.push("--opt_niter");
+        let a = format!("{}", self.opt_niter);
+        args.push(&a);
+
+        args.push("--alpha");
+        let alpha = format!("{}", self.alpha);
+        args.push(&alpha);
+
+        args.push("--batch_size");
+        let batch_size = format!("{}", self.batch_size);
+        args.push(&batch_size);
+
+        args.push("--max_n");
+        let max_n = format!("{}", self.max_n);
+        args.push(&max_n);
+
+        args.push("--log_level");
+        args.push(self.log_level.as_str());
+
+        let arg_string = args.join(" ");
+        Ok(arg_string)
+    }
+
+    pub fn build_cmd(
+            &self,
+            job_path: &PathBuf,
+            fa_path: &PathBuf,
+            score_path: &PathBuf,
+    ) -> Result<Command, Box<dyn Error>> {
+
+        //let container =  concat!(
+        //    env!("CARGO_MANIFEST_DIR"), "/../../../singularity/current/ShapeME.sif"
+        //);
+        let pycmd = concat!(env!("CARGO_MANIFEST_DIR"), "/../../python3/ShapeME.py");
+
+        //let mut cmd = Command::new("singularity");
+        //cmd.arg("exec");
+        //cmd.arg(container);
+        //cmd.arg("python");
+        //cmd.arg(pycmd);
+        
+        let mut cmd = Command::new("python");
+        cmd.arg(pycmd);
+
+        cmd.arg("--score_file");
+        if let Some(arg) = &self.score_file {
+            cmd.arg(arg);
+        } else {
+            cmd.arg(score_path.clone().into_os_string());
+        }
+
+        cmd.arg("--data_dir");
+        if let Some(arg) = &self.data_dir {
+            cmd.arg(arg);
+        } else {
+            cmd.arg(job_path);
+        }
+
+        cmd.arg("--seq_fasta");
+        if let Some(arg) = &self.seq_fasta {
+            cmd.arg(arg);
+        } else {
+            cmd.arg(fa_path.clone().into_os_string());
+        }
+
+        if self.find_seq_motifs {
+            cmd.arg("--find_seq_motifs");
+            cmd.arg("--streme_thresh");
+            cmd.arg(format!("{}", self.streme_thresh));
+        }
+        if let Some(arg) = &self.seq_motif_positive_cats {
+            cmd.arg("--seq_motif_positive_cats");
+            cmd.arg(format!("{}", arg));
+        }
+        if self.no_shape_motifs {
+            cmd.arg("--no_shape_motifs");
+        }
+
+        if let Some(arg) = &self.seq_meme_file {
+            cmd.arg("--seq_meme_file");
+            cmd.arg(arg);
+        }
+        if let Some(arg) = &self.shape_rust_file {
+            cmd.arg("--shape_rust_file");
+            cmd.arg(arg);
+        }
+        if self.write_all_files {
+            cmd.arg("--write_all_files");
+        }
+        if self.exhaustive {
+            cmd.arg("--exhaustive");
+        }
+
+        if self.force {
+            cmd.arg("--force");
+        }
+        if self.skip_inference {
+            cmd.arg("--skip_inference");
+        }
+        cmd.arg("--crossval_folds");
+        cmd.arg(format!("{}", self.crossval_folds));
+
+        cmd.arg("--kmer");
+        cmd.arg(format!("{}", self.kmer));
+
+        cmd.arg("--max_count");
+        cmd.arg(format!("{}", self.max_count));
+
+        if let Some(arg) = &self.continuous {
+            cmd.arg("--continuous");
+            cmd.arg(format!("{}", arg));
+        }
+
+        cmd.arg("--threshold_sd");
+        cmd.arg(format!("{}", self.threshold_sd));
+
+        cmd.arg("--init_threshold_seed_num");
+        cmd.arg(format!("{}", self.init_threshold_seed_num));
+
+        cmd.arg("--init_threshold_recs_per_seed");
+        cmd.arg(format!("{}", self.init_threshold_recs_per_seed));
+
+        cmd.arg("--init_threshold_windows_per_record");
+        cmd.arg(format!("{}", self.init_threshold_windows_per_record));
+
+        cmd.arg("--max_batch_no_new_seed");
+        cmd.arg(format!("{}", self.max_batch_no_new_seed));
+
+        cmd.arg("--nprocs");
+        cmd.arg(format!("{}", self.nprocs));
+
+        cmd.arg("--threshold_constraints");
+        cmd.arg(format!("{}", self.lower_threshold_constraint));
+        cmd.arg(format!("{}", self.upper_threshold_constraint));
+
+        cmd.arg("--shape_constraints");
+        cmd.arg(format!("{}", self.lower_shape_constraint));
+        cmd.arg(format!("{}", self.upper_shape_constraint));
+
+        cmd.arg("--weights_constraints");
+        cmd.arg(format!("{}", self.lower_weights_constraint));
+        cmd.arg(format!("{}", self.upper_weights_constraint));
+
+        cmd.arg("--temperature");
+        cmd.arg(format!("{}", self.temperature));
+
+        cmd.arg("--t_adj");
+        cmd.arg(format!("{}", self.t_adj));
+
+        cmd.arg("--stepsize");
+        cmd.arg(format!("{}", self.stepsize));
+
+        cmd.arg("--opt_niter");
+        cmd.arg(format!("{}", self.opt_niter));
+
+        cmd.arg("--alpha");
+        cmd.arg(format!("{}", self.alpha));
+
+        cmd.arg("--batch_size");
+        cmd.arg(format!("{}", self.batch_size));
+
+        cmd.arg("--max_n");
+        cmd.arg(format!("{}", self.max_n));
+
+        cmd.arg("--log_level");
+        cmd.arg(self.log_level.as_str());
+
+        Ok(cmd)
+    }
+}
+
+#[get("/submit")]
+fn submit_form() -> Template {
+    Template::render("submit", &Context::default())
+}
+
+// NOTE: We use `Contextual` here because we want to collect all submitted form
+// fields to re-render forms with submitted values on error. If you have no such
+// need, do not use `Contextual`. Use the equivalent of `Form<Submit<'_>>`.
+#[post("/submit", data = "<form>")]
+async fn submit(
+        db: Db,
+        form: Form<Contextual<'_, Submit>>,
+        cookies: &CookieJar<'_>,
+        //runs: &State<Arc<Runs>>,
+) -> (Status, Template) {
+
+    let template = match form.value {
+        Some(ref submit) => {
+
+            //println!("submit: {:#?}", submit);
+            println!("submit.cfg: {:#?}", submit.cfg);
+
+            // start a job, job is placed into managed state
+            let job_context = JobContext::set_up(&db, &cookies, submit).await.unwrap();
+            let job_id = run_job(
+                submit,
+                &job_context,
+                //&runs,
+            ).await.unwrap();
+            
+            //println!("{:?}", form.context);
+            //Template::render("success", &form.context)
+            Template::render("success", &job_context)
+        }
+        None => {
+            println!("None returned on submit!!");
+            Template::render("index", &form.context)
+        }
+    };
+
+    (form.context.status(), template)
+}
+
+#[get("/jobs/<job_id>")]
+async fn get_job(
+        job_id: String,
+) -> Template {
+
+    let job_context = JobContext::check_job(&job_id).unwrap();
+    let template = match job_context.status {
+        JobStatus::FinishedWithMotifs => {
+            if let Some(id) = job_context.id {
+                let report = Report::new(
+                    &id,
+                    &job_context.path,
+                ).expect("Unable to generate report");
+                Template::render("job_finished", &report)
+            } else {
+                Template::render("job_does_not_exist", &job_context)
+            }
+        },
+        JobStatus::FinishedNoMotif => Template::render("job_no_motif", &job_context),
+        JobStatus::Running => Template::render("job_running", &job_context),
+        JobStatus::FinishedError => Template::render("job_error", &job_context),
+        JobStatus::Queued => Template::render("job_queued", &job_context),
+        JobStatus::DoesNotExist => Template::render("job_does_not_exist", &job_context),
+    };
+    template
+}
+
+#[derive(Serialize)]
+pub struct Report{
+    id: String,
+    logo_data: Vec<String>,
+    heatmap_data: Vec<String>,
+    aupr_curve_data: Vec<String>,
+    auprs: String,
+}
+
+fn get_img_data(
+        job_path: &PathBuf,
+        fold_direc: &str,
+        img_base: &str,
+) -> Result<String, Box<dyn Error>> {
+    let img = ImageReader::open(
+        job_path.as_path()
+        .join(fold_direc)
+        .join(img_base)
+    )?.decode()?;
+
+    let mut bytes: Vec<u8> = Vec::new();
+    img.write_to(
+        &mut Cursor::new(&mut bytes),
+        image::ImageOutputFormat::Png,
+    )?;
+    let data = general_purpose::STANDARD.encode(&bytes);
+    Ok(data)
+}
+
+fn get_fold_direcs(job_path: &PathBuf) -> Vec<String> {
+    let search = job_path
+        .as_path()
+        .join("*fold_*_output");
+    let search_str = search.as_path().to_str().unwrap();
+    let fold_dirs = glob(
+        search_str
+    ).expect("No directories matching *fold_*_output found.");
+    let fold_dirs: Vec<String> = fold_dirs.map(
+        |a| {
+            let res = a.unwrap();
+            res.as_path().to_str().unwrap().to_string()
+        }
+    ).collect();
+    fold_dirs
+}
+
+impl Report {
+    pub fn new(id: &str, job_path: &PathBuf) -> Result<Report, Box<dyn Error>> {
+
+        let fold_direcs = get_fold_direcs(&job_path);
+
+        let logo_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
+            get_img_data(
+                job_path,
+                fold_direc,
+                "final_motifs.png",
+            ).expect("Unable to open final_motifs.png")
+        }).collect();
+        let heatmap_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
+            get_img_data(
+                job_path,
+                fold_direc,
+                "final_heatmap.png",
+            ).expect("Unable to open final_heatmap.png")
+        }).collect();
+        let aupr_curve_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
+            get_img_data(
+                job_path,
+                fold_direc,
+                "precision_recall_curve.png",
+            ).expect("Unable to open precision_recall_curve.png")
+        }).collect();
+
+        Ok(Report{
+            id: String::from(id),
+            logo_data,
+            heatmap_data,
+            aupr_curve_data,
+            auprs: String::new(),
+        })
+    }
+}
 pub fn stage() -> AdHoc {
     AdHoc::on_ignite("Database stage", |rocket| async {
         rocket.attach(Db::fairing())
-            .mount("/", routes![login_form, login, create_account_form, create_account])
+            .mount("/", routes![
+                login_form, login, create_account_form, create_account,
+                submit_form, submit, get_job,
+            ])
     })
 }
