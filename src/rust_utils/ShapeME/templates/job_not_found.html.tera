@@ -17,7 +17,7 @@
   </head>
   <body>
     <div class="container">
-      <h1>Job not found....</h1>
+      <h1 style="color:red;">Job not found....</h1>
 
       {% if errors | length > 1 %}
           <small class="text-error" style="margin-top: -20px">

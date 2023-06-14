@@ -17,6 +17,8 @@
   </head>
   <body>
     <div class="container">
+      <h2 style="color:red;">An account is already registered for the specified email address.</h2>
+
       <h1>Login to use ShapeME or <a href="/create_account">create an account</a></h1>
 
       {% if errors | length > 1 %}
@@ -24,8 +26,6 @@
               {{ errors | length }} field(s) have errors
           </small>
       {% endif %}
-
-      <h2 style="color:red;">No user, "{{ values.email.0 }}", found. Check spelling or create an account.</h2>
 
       <form action="/" method="post" enctype="multipart/form-data">
         <fieldset>

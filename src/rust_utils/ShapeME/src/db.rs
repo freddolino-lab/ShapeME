@@ -31,21 +31,23 @@ type Result<T, E = Debug<rusqlite::Error>> = std::result::Result<T, E>;
 
 #[derive(Debug, FromForm)]
 #[allow(dead_code)]
-pub struct CreateAccount {
+pub struct CreateUser<'a> {
     #[field(validate = len(1..))]
     first: String,
     #[field(validate = len(1..))]
     last: String,
-    password: CreatePassword,
+    password: CreatePassword<'a>,
     #[field(validate = contains('@').or_else(msg!("invalid email address")))]
     pub email: String,
 }
 
 #[derive(Debug, FromForm)]
-struct CreatePassword {
+struct CreatePassword<'a> {
     #[field(validate = len(6..))]
-    first: String,
-    second: String,
+    #[field(validate = eq(self.second))]
+    first: &'a str,
+    #[field(validate = eq(self.first))]
+    second: &'a str,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromForm)]
@@ -59,6 +61,35 @@ pub struct User {
     last: Option<String>,
     pub email: String,
     password: String,
+}
+
+impl User {
+    fn from_create_user(create_user: &CreateUser) -> User {
+        let first = create_user.first.clone();
+        let last = create_user.last.clone();
+        let email = create_user.email.clone();
+        let pass = String::from(create_user.password.first);
+        User{
+            uid: None,
+            first: Some(first),
+            last: Some(last),
+            email: email,
+            password: pass,
+        }
+    }
+
+    async fn insert_into_db(&self, db: &Db) -> Result<()> {
+        let first = self.first.as_ref().unwrap().clone();
+        let last = self.last.as_ref().unwrap().clone();
+        let email = String::from(&self.email);
+        let pass = String::from(&self.password);
+        db.run(move |conn| {
+            conn.execute(
+                "INSERT INTO users (first, last, email, password) VALUES (?1, ?2, ?3, ?4)",
+                params![first, last, email, pass])
+        }).await?;
+        Ok(())
+    }
 }
 
 //#[rocket::async_trait]
@@ -123,6 +154,11 @@ fn check_auth(db: &Db, user: &User, password: &str) -> bool {
     user.password == password
 }
 
+#[get("/")]
+fn login_form() -> Template {
+    Template::render("index", &Context::default())
+}
+
 #[post("/", data = "<form>")]
 async fn login(
         db: Db,
@@ -133,7 +169,6 @@ async fn login(
     let template = match form.value {
         Some(ref user) => {
             // check if user exists, if not, serve the create account page
-            //let (user_exists,cred_check) = User::check_user(credentials);
             let email = String::from(&user.email);
             let user_info_result = check_user(&db, email).await;
             
@@ -142,7 +177,7 @@ async fn login(
                     let authorized = check_auth(&db, &user_info, &user.password);
                     if authorized {
                         println!("User {:?} authorized", &user.email);
-                        Template::render("submit", &Context::default())
+                        Template::render("dashboard", &Context::default())
                     } else {
                         println!("User {:?} not authorized", &user.email);
                         Template::render("no_auth", &form.context)
@@ -161,7 +196,7 @@ async fn login(
             template
         }
         None => {
-            println!("None returned on submit!!");
+            println!("None returned on login!!");
             Template::render("index", &form.context)
         }
     };
@@ -169,21 +204,51 @@ async fn login(
 }
 
 #[get("/create_account")]
-fn account_form() -> Template {
+fn create_account_form() -> Template {
     Template::render("create_account", &Context::default())
 }
 
-#[post("/create_account"), data = "<form>")]
-fn create_account(
+#[post("/create_account", data = "<form>")]
+async fn create_account(
         db: Db,
-        form: Form<Contextual<'_, User>>,
+        form: Form<Contextual<'_, CreateUser<'_>>>,
 ) -> (Status, Template) {
+    println!("form:\n{:?}", form);
+    let template = match form.value {
+        Some(ref create_user) => {
+            let user = User::from_create_user(create_user);
+            // CHECK WHETHER USER ALREADY EXISTS!!!!!!!!
+            let insert_result = user.insert_into_db(&db).await;
+
+            let template = match insert_result {
+                Ok(nothing) => {
+                    println!("User {} created.", &user.email);
+                    Template::render("dashboard", &Context::default())
+                },
+                Err(error) => match error.0 {
+                    Error::SqliteFailure(err, Some(msg)) => {
+                        println!("Error in creating user {}.\n{:?}\n{:?}", &user.email, &err, &msg);
+                        Template::render("account_exists", &Context::default())
+                    },
+                    other_error => {
+                        println!("Error in creating user {}.\n{:?}", &user.email, other_error);
+                        Template::render("create_account", &Context::default())
+                    }
+                },
+            };
+            template
+        }
+        None => {
+            Template::render("create_account", &Context::default())
+        }
+    };
+ 
     (form.context.status(), template)
 }
 
 pub fn stage() -> AdHoc {
     AdHoc::on_ignite("Database stage", |rocket| async {
         rocket.attach(Db::fairing())
-            .mount("/", routes![login, account_form, create_account])
+            .mount("/", routes![login_form, login, create_account_form, create_account])
     })
 }

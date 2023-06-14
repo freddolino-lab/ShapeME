@@ -23,7 +23,7 @@ version = "=0.1.0-rc.3"
 features=["tera"]
 
 [dependencies.rocket_sync_db_pools]
-#path = "../../contrib/sync_db_pools/lib/"
+version = "=0.1.0-rc.3"
 features = ["sqlite_pool"]
 
 #[dependencies.rocket_sync_db_pools]

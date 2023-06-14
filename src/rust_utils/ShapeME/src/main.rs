@@ -26,11 +26,6 @@ use rocket_dyn_templates::Template;
 //use std::sync::atomic::AtomicUsize;
 //use dashmap::DashMap;
 
-#[get("/")]
-fn index() -> Template {
-    Template::render("index", &Context::default())
-}
-
 #[get("/submit")]
 fn submit_form() -> Template {
     Template::render("submit", &Context::default())
@@ -109,7 +104,7 @@ fn rocket() -> _ {
         //}))
         //.manage(SubmitCount {count: AtomicUsize::new(0)})
 
-        .mount("/", routes![index, submit_form, submit, get_job])
+        .mount("/", routes![submit_form, submit, get_job])
         .attach(Template::fairing())
         .attach(db::stage())
         .mount("/", FileServer::from(relative!("/static")))
