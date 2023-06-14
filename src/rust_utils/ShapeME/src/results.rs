@@ -1,9 +1,7 @@
-use rocket::fs::{FileServer, relative};
 use rocket::serde::Serialize;
-use rocket::fs::NamedFile;
 
 use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::io::Cursor;
 use image::io::Reader as ImageReader;
 use glob::glob;

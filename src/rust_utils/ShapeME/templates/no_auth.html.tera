@@ -25,6 +25,8 @@
           </small>
       {% endif %}
 
+      <h2>User and password do not match.</h2>
+
       <form action="/" method="post" enctype="multipart/form-data">
         <fieldset>
           <legend>User information</legend>

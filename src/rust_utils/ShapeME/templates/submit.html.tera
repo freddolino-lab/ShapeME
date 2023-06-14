@@ -17,6 +17,7 @@
   </head>
   <body>
     <div class="container">
+      <h4>Login successful</h4>
       <h1>ShapeME submission form</h1>
 
       {% if errors | length > 1 %}
@@ -148,7 +149,7 @@
         </fieldset>
 
         <br />
-        <input type="submit" ="Submit" class="is-full-width" />
+        <input type="submit" value="Submit" class="is-full-width" />
       </form>
     </div>
   </body>

@@ -1,14 +1,12 @@
 #[macro_use] extern crate rocket;
 
-mod db;
-
 mod job;
 use job::{
     Submit,
     //Runs,
     run_job,
     JobContext,
-    Job,
+    //Job,
     JobStatus,
 };
 
@@ -16,7 +14,6 @@ mod results;
 use results::Report;
 
 mod db;
-use db::{User, Db};
 
 use rocket::http::Status;
 use rocket::form::{Form, Contextual, Context};
@@ -25,44 +22,13 @@ use rocket::State;
 
 use rocket_dyn_templates::Template;
 
-use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
-use dashmap::DashMap;
+//use std::sync::Arc;
+//use std::sync::atomic::AtomicUsize;
+//use dashmap::DashMap;
 
 #[get("/")]
 fn index() -> Template {
     Template::render("index", &Context::default())
-}
-
-#[post("/", data = "<form>")]
-async fn login(
-        form: Form<Contextual<'_, User>>,
-) -> Template {
-    let template = match form.value {
-        Some(ref credentials) => {
-            // check if user exists, if not, serve the create account page
-            let (user_exists,cred_check) = User::check_user(credentials);
-            if user_exists {
-                if cred_check {
-                } else {
-                    Template::render("auth_failure", &Context::default())
-                }
-            } else {
-                /////////////////////////////////////////////////////////
-                // update to print error at top of page if user was not found
-                /////////////////////////////////////////////////////////
-                Template::render("create_account", &Context::default())
-            }
-        }
-        None => {
-            println!("None returned on submit!!");
-            Template::render("index", &form.context)
-        }
-}
-
-#[get("/create_account")]
-fn create_account() -> Template {
-    Template::render("create_account", &Context::default())
 }
 
 #[get("/submit")]
@@ -80,15 +46,15 @@ async fn submit(
 ) -> (Status, Template) {
 
     let template = match form.value {
-        Some(ref submission) => {
+        Some(ref submit) => {
 
-            //println!("submission: {:#?}", submission);
-            println!("submission.cfg: {:#?}", submission.cfg);
+            //println!("submit: {:#?}", submit);
+            println!("submit.cfg: {:#?}", submit.cfg);
 
             // start a job, job is placed into managed state
-            let job_context = JobContext::set_up(submission).await.unwrap();
+            let job_context = JobContext::set_up(submit).await.unwrap();
             let job_id = run_job(
-                submission,
+                submit,
                 &job_context,
                 //&runs,
             ).await.unwrap();
@@ -142,8 +108,10 @@ fn rocket() -> _ {
         //    dash_map: DashMap::new(),
         //}))
         //.manage(SubmitCount {count: AtomicUsize::new(0)})
+
         .mount("/", routes![index, submit_form, submit, get_job])
         .attach(Template::fairing())
-        .mount("/", FileServer::from(relative!("/static")))
         .attach(db::stage())
+        .mount("/", FileServer::from(relative!("/static")))
+        //.attach(job::stage())
 }

@@ -1,0 +1,124 @@
+warning: /Users/schroedj/src/DNAshape_motif_finder/src/rust_utils/ShapeME/Cargo.toml: dependency (rocket_sync_db_pools) specified without providing a local path, Git repository, or version to use. This will be considered an error in future versions
+   Compiling ShapeME v0.1.0 (/Users/schroedj/src/DNAshape_motif_finder/src/rust_utils/ShapeME)
+error: expected `,`
+   --> ShapeME/src/db.rs:147:32
+    |
+146 |                     ErrorKind::QueryReturnedNoRows {
+    |                     ------------------------------ while parsing the fields for this pattern
+147 |                         println!("No such user:\n{:?}", &form.context);
+    |                                ^
+
+error: unexpected `,` in pattern
+   --> ShapeME/src/db.rs:149:22
+    |
+149 |                     },
+    |                      ^
+    |
+help: try adding parentheses to match on a tuple...
+    |
+146 ~                     (ErrorKind::QueryReturnedNoRows {
+147 |                         println!("No such user:\n{:?}", &form.context);
+148 |                         Template::render("index", &form.context)
+149 |                     },
+150 ~                     other_error) => {
+    |
+help: ...or a vertical bar to match on multiple alternatives
+    |
+146 ~                     ErrorKind::QueryReturnedNoRows {
+147 +                         println!("No such user:\n{:?}" | &form.context);
+148 +                         Template::render("index" | &form.context)
+149 +                     } |
+150 ~                     other_error => {
+    |
+
+error: expected `,`
+         --- help: #[post] can only be used on functions
+   --> ShapeME/src/db.rs:147:32
+    |
+147 |                         println!("No such user:\n{:?}", &form.context);
+    |                                ^
+
+error[E0433]: failed to resolve: use of undeclared crate or module `fmt`
+  --> ShapeME/src/db.rs:87:6
+   |
+87 | impl fmt::Display for NoUserError {
+   |      ^^^ use of undeclared crate or module `fmt`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `fmt`
+  --> ShapeME/src/db.rs:88:27
+   |
+88 |     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+   |                           ^^^ use of undeclared crate or module `fmt`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `fmt`
+  --> ShapeME/src/db.rs:88:46
+   |
+88 |     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+   |                                              ^^^ use of undeclared crate or module `fmt`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `fmt`
+  --> ShapeME/src/db.rs:96:6
+   |
+96 | impl fmt::Display for AuthError {
+   |      ^^^ use of undeclared crate or module `fmt`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `fmt`
+  --> ShapeME/src/db.rs:97:27
+   |
+97 |     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+   |                           ^^^ use of undeclared crate or module `fmt`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `fmt`
+  --> ShapeME/src/db.rs:97:46
+   |
+97 |     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+   |                                              ^^^ use of undeclared crate or module `fmt`
+
+error[E0422]: cannot find struct, variant or union type `login` in this scope
+   --> ShapeME/src/db.rs:174:33
+    |
+174 |             .mount("/", routes![login, create_account])
+    |                                 ^^^^^ not found in this scope
+
+warning: unused imports: `alphabet`, `self`
+ --> ShapeME/src/results.rs:8:36
+  |
+8 | use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
+  |                                    ^^^^                    ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `json::Json`
+ --> ShapeME/src/db.rs:5:45
+  |
+5 | use rocket::serde::{Serialize, Deserialize, json::Json};
+  |                                             ^^^^^^^^^^
+
+warning: unused import: `rocket::fs::relative`
+ --> ShapeME/src/db.rs:7:5
+  |
+7 | use rocket::fs::relative;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Contextual`, `Form`
+ --> ShapeME/src/db.rs:8:20
+  |
+8 | use rocket::form::{Form, Contextual, Context};
+  |                    ^^^^  ^^^^^^^^^^
+
+warning: unused import: `rocket::http::Status`
+  --> ShapeME/src/db.rs:11:5
+   |
+11 | use rocket::http::Status;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rocket::State`
+  --> ShapeME/src/main.rs:21:5
+   |
+21 | use rocket::State;
+   |     ^^^^^^^^^^^^^
+
+Some errors have detailed explanations: E0422, E0433.
+For more information about an error, try `rustc --explain E0422`.
+warning: `ShapeME` (bin "ShapeME") generated 6 warnings
+error: could not compile `ShapeME` due to 10 previous errors; 6 warnings emitted

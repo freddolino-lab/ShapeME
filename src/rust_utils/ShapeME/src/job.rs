@@ -1,19 +1,19 @@
 use rocket::tokio::process::{Command, Child};
-use rocket::tokio::io::AsyncWriteExt;
+//use rocket::tokio::io::AsyncWriteExt;
 use rocket::form::{DataField, FromFormField};
 use rocket::FromForm;
 use rocket::data::ToByteUnit;
-use rocket::{tokio, State};
+use rocket::tokio;
 use rocket::serde::{Serialize, Deserialize};
 
-use std::sync::Arc;
+//use std::sync::Arc;
 use std::error::Error;
 use std::path::{Path, PathBuf};
-use std::fmt;
+//use std::fmt;
 
 use serde_json;
 use rand::{self, Rng};
-use dashmap::DashMap;
+//use dashmap::DashMap;
 
 const JOB_ID_LENGTH: usize = 10;
 
@@ -25,13 +25,6 @@ pub enum JobStatus {
     FinishedNoMotif,
     FinishedError,
     DoesNotExist,
-}
-
-#[derive(Debug, FromForm)]
-struct Password {
-    #[field(validate = len(6..))]
-    first: String,
-    second: String,
 }
 
 #[derive(Debug, FromForm)]
@@ -47,18 +40,8 @@ pub struct Submission {
 
 #[derive(Debug, FromForm)]
 #[allow(dead_code)]
-pub struct Account {
-    #[field(validate = len(1..))]
-    name: String,
-    password: Password,
-    #[field(validate = contains('@').or_else(msg!("invalid email address")))]
-    pub email: String,
-}
-
-#[derive(Debug, FromForm)]
-#[allow(dead_code)]
 pub struct Submit {
-    pub account: Account,
+    //pub account: Account,
     pub submission: Submission,
     pub cfg: Cfg,
 }
@@ -66,7 +49,7 @@ pub struct Submit {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JobContext {
     pub id: String,
-    email: String,
+    //email: String,
     pub path: PathBuf,
     fa_path: PathBuf,
     score_path: PathBuf,
@@ -116,7 +99,7 @@ impl JobContext {
         path.push(&job_path);
 
         // we write the fasta and score files using a uid
-        let email: String = sub.account.email.clone();
+        //let email: String = sub.account.email.clone();
 
         let fa_path = path.join(String::from("seqs.fa"));
         let _ = sub.submission.fa_file.upload(&fa_path).await?;
@@ -126,7 +109,7 @@ impl JobContext {
         let status = JobStatus::Queued;
         Ok(JobContext{
             id,
-            email,
+            //email,
             path,
             fa_path,
             score_path,
@@ -150,7 +133,7 @@ impl JobContext {
         let status_fname = job_path.join("job_status.json");
         let status_file = std::fs::File::open(&status_fname)?;
         let status = serde_json::from_reader(&status_file)?;
-        let email = "";
+        //let email = "";
 
         //let (status,email) = if job_path.is_dir() {
         //    ///////////////////////////////////////////////////////////
@@ -172,7 +155,7 @@ impl JobContext {
         Ok(JobContext{
             id: job_id.to_string(),
             path: job_path.into(),
-            email: email.to_string(),
+            //email: email.to_string(),
             status: status,
             fa_path: fa_path,
             score_path: score_path,
@@ -229,7 +212,7 @@ async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
     //let mut cmd = self.build_cmd()?;
 
     println!("{:?}", cmd);
-    let mut child = cmd
+    let child = cmd
         //.stdout(out_log)
         .spawn()
         .expect("Error spawning child process");
