@@ -2,7 +2,9 @@
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
-// to do: go to dashboard on login ////////////////////////////////////////
+// todo: insert job to db upon submission!!
+// todo: go to dashboard upson submission!!
+// todo: add logout button!!
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
@@ -78,19 +80,21 @@ struct CreatePassword<'a> {
     second: &'a str,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, FromForm)]
-#[serde(crate = "rocket::serde")]
+//#[derive(Debug, Clone, Deserialize, Serialize, FromForm)]
+#[derive(Debug)]
+//#[serde(crate = "rocket::serde")]
 struct User {
-    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     uid: Option<i32>,
-    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     first: Option<String>,
-    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     last: Option<String>,
     email: String,
-    password_hash: String,
+    password_hash: Option<String>,
 }
 
+//#[derive(Debug, Serialize, Deserialize)]
+//struct UserContext {
+//    uid: &i32,
+//}
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromForm)]
 #[serde(crate = "rocket::serde")]
@@ -100,6 +104,46 @@ struct LoginUser {
 }
 
 impl User {
+    
+    async fn check_user(db: &Db, email: String) -> DbResult<User> {
+        let user = db.run(move |conn| {
+            conn.query_row(
+                "SELECT uid, first, last, email, password FROM users WHERE email = ?1",
+                params![email],
+                |r| Ok(User {
+                    uid: Some(r.get(0)?),
+                    first: Some(r.get(1)?),
+                    last: Some(r.get(2)?),
+                    email: r.get(3)?,
+                    password_hash: r.get(4)?,
+                }))
+        }).await?;
+
+        Ok(user)
+    }
+
+    fn check_auth(&self, db: &Db, password: &str) -> bool {
+        let hash = hash_password(password);
+        self.password_hash == Some(hash)
+    }
+
+    async fn from_uid(db: &Db, uid: i32) -> DbResult<User> {
+
+        let user = db.run(move |conn| {
+            conn.query_row(
+                "SELECT uid, first, last, email FROM users WHERE uid = ?1",
+                params![uid],
+                |r| Ok(User {
+                    uid: Some(r.get(0)?),
+                    first: Some(r.get(1)?),
+                    last: Some(r.get(2)?),
+                    email: r.get(3)?,
+                    password_hash: None,
+                }))
+        }).await?;
+        Ok(user)
+    }
+
     fn from_create_user(create_user: &CreateUser) -> User {
         let first = create_user.first.clone();
         let last = create_user.last.clone();
@@ -111,44 +155,57 @@ impl User {
             first: Some(first),
             last: Some(last),
             email: email,
-            password_hash: hash,
+            password_hash: Some(hash),
         }
     }
 
+    /// Inserts this user into sqlite database
     async fn insert_into_db(&self, db: &Db) -> DbResult<()> {
         let first = self.first.as_ref().unwrap().clone();
         let last = self.last.as_ref().unwrap().clone();
         let email = String::from(&self.email);
-        let pass = String::from(&self.password_hash);
+        let pass_hash = self.password_hash.as_ref().unwrap().clone();
+        //let pass = String::from();
         db.run(move |conn| {
             conn.execute(
                 "INSERT INTO users (first, last, email, password) VALUES (?1, ?2, ?3, ?4)",
-                params![first, last, email, pass])
+                params![first, last, email, pass_hash])
         }).await?;
         Ok(())
+    }
+
+    /// Gets every job from db for this user.
+    async fn fetch_all_jobs(&self, db: &Db) -> DbResult<Jobs> {
+        let jobs_result: Jobs = if let Some(uid) = self.uid {
+            db.run(move |conn| {
+                let mut stmt = conn
+                    .prepare("SELECT id, name, args, version, uid FROM jobs WHERE uid = ?1")
+                    .expect("Unable to prepare statement");
+                let jobs_iter = stmt.query_map(params![uid], |row| {
+                    Ok(JobRow {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        args: row.get(2)?,
+                        version: row.get(3)?,
+                        uid: row.get(4)?,
+                    })
+                }).expect("Db query failed");
+                let mut jobs: Vec<JobRow> = Vec::new();
+                for job_row in jobs_iter {
+                    jobs.push(job_row.expect("unable to get jobrow"));
+                }
+                Jobs{jobs}
+            }).await
+        } else {
+            let jobs: Vec<JobRow> = Vec::new();
+            Jobs{jobs}
+        };
+        Ok(jobs_result)
     }
 }
 
 
-async fn check_user(db: &Db, email: String) -> DbResult<User> {
-    let user = db.run(move |conn| {
-        conn.query_row("SELECT uid, first, last, email, password FROM users WHERE email = ?1", params![email],
-            |r| Ok(User {
-                uid: Some(r.get(0)?),
-                first: Some(r.get(1)?),
-                last: Some(r.get(2)?),
-                email: r.get(3)?,
-                password_hash: r.get(4)?,
-            }))
-    }).await?;
 
-    Ok(user)
-}
-
-fn check_auth(db: &Db, user: &User, password: &str) -> bool {
-    let hash = hash_password(password);
-    user.password_hash == hash
-}
 
 #[post("/logout")]
 fn logout(mut cookies: &CookieJar<'_>) -> () {
@@ -172,18 +229,20 @@ async fn login(
         Some(ref user) => {
             // check if user exists, if not, serve the create account page
             let email = String::from(&user.email);
-            let user_info_result = check_user(&db, email).await;
+            let user_info_result = User::check_user(&db, email).await;
             
             let template = match user_info_result {
                 Ok(user_info) => {
                     let uid = format!("{}", &user_info.uid.unwrap());
-                    let authorized = check_auth(&db, &user_info, &user.password);
+                    let authorized = user_info.check_auth(&db, &user.password);
                     if authorized {
                         println!("User {:?} authorized", &user.email);
                         cookies.add_private(
                             Cookie::new("uid", uid)
                         );
-                        Template::render("dashboard", &Context::default())
+                        let user_jobs = user_info.fetch_all_jobs(&db).await.unwrap();
+                        //println!("user jobs context{:?}", user_jobs);
+                        Template::render("dashboard", &user_jobs)
                     } else {
                         println!("User {:?} not authorized", &user.email);
                         Template::render("no_auth", &form.context)
@@ -231,7 +290,7 @@ async fn create_account(
                 Ok(nothing) => {
                     println!("User {} created.", &user.email);
                     cookies.add_private(Cookie::new("uid", uid));
-                    Template::render("dashboard", &Context::default())
+                    Template::render("submit", &Context::default())
                 },
                 Err(error) => match error.0 {
                     rusqlite::Error::SqliteFailure(err, Some(msg)) => {
@@ -298,7 +357,7 @@ impl Submit {
         db.run(move |conn| {
             conn.execute(
                 "INSERT INTO jobs
-                    (id, name, args, version, uid)
+                    (id, name, args, version, uid, link)
                     VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![id, job_name, arg_string, version, user_id])
         }).await?;
@@ -317,11 +376,17 @@ pub struct JobContext {
     pub status: JobStatus,
 }
 
-#[derive(Debug)]
-pub struct Job {
-    pub context: JobContext,
-    child: Child,
+#[derive(Debug, Serialize)]
+struct JobRow {
+    id: String,
+    name: String,
+    args: String,
+    version: String,
+    uid: i32,
 }
+
+#[derive(Debug, Serialize)]
+struct Jobs { jobs: Vec<JobRow> }
 
 impl JobContext {
 
@@ -350,7 +415,11 @@ impl JobContext {
         id
     }
 
-    async fn set_up(db: &Db, cookies: &CookieJar<'_>, sub: &Submit) -> Result<JobContext, Box<dyn Error>> {
+    async fn set_up(
+            db: &Db,
+            cookies: &CookieJar<'_>,
+            sub: &Submit,
+    ) -> Result<JobContext, Box<dyn Error>> {
 
         let id = JobContext::make_id(JOB_ID_LENGTH);
 
@@ -385,6 +454,19 @@ impl JobContext {
             score_path,
             status,
         })
+    }
+
+    /// creates job data directory with uid, uploads fasta and score files
+    async fn set_up_job(&self, sub: &Submit) -> Result<(), Box<dyn Error>> {
+
+        let mut cmd = sub.cfg.build_cmd(
+            &self.path,
+            &self.fa_path,
+            &self.score_path,
+        )?;
+        let child = spawn_job(&mut cmd).await?;
+
+        Ok(())
     }
 
     pub fn check_job(job_id: &str) -> Result<JobContext, Box<dyn Error>> {
@@ -434,35 +516,35 @@ impl JobContext {
 }
 
 
-impl Job {
-    /// creates job data directory with uid, uploads fasta and score files
-    async fn set_up_job(sub: &Submit, context: &JobContext) -> Result<(), Box<dyn Error>> {
-
-        let mut cmd = sub.cfg.build_cmd(
-            &context.path,
-            &context.fa_path,
-            &context.score_path,
-        )?;
-        let child = spawn_job(&mut cmd).await?;
-
-        Ok(())//Job { context, child })
-    }
-
-    pub fn check_status(&mut self) -> JobStatus {
-        let res = self.child.try_wait();
-        let status = match res {
-            Ok(no_err) => {
-                if let Some(exit_status) = no_err {
-                    JobStatus::FinishedWithMotifs
-                } else {
-                    JobStatus::Running
-                }
-            },
-            Err(error) => JobStatus::FinishedError,
-        };
-        status
-    }
-}
+//impl Job {
+//    ///// creates job data directory with uid, uploads fasta and score files
+//    //async fn set_up_job(sub: &Submit, context: &JobContext) -> Result<(), Box<dyn Error>> {
+//
+//    //    let mut cmd = sub.cfg.build_cmd(
+//    //        &context.path,
+//    //        &context.fa_path,
+//    //        &context.score_path,
+//    //    )?;
+//    //    let child = spawn_job(&mut cmd).await?;
+//
+//    //    Ok(())//Job { context, child })
+//    //}
+//
+//    //pub fn check_status(&mut self) -> JobStatus {
+//    //    let res = self.child.try_wait();
+//    //    let status = match res {
+//    //        Ok(no_err) => {
+//    //            if let Some(exit_status) = no_err {
+//    //                JobStatus::FinishedWithMotifs
+//    //            } else {
+//    //                JobStatus::Running
+//    //            }
+//    //        },
+//    //        Err(error) => JobStatus::FinishedError,
+//    //    };
+//    //    status
+//    //}
+//}
 
 fn build_job_path(id: &str) -> PathBuf {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "data");
@@ -501,15 +583,7 @@ pub async fn run_job(
         //state: &State<Arc<Runs>>,
 ) -> Result<(), Box<dyn Error>> {
     // set paths and upload files
-    //let context = JobContext::set_up(sub).await?;
-    let _ = Job::set_up_job(sub, context).await?;
-    //let job_id = context.id.clone();
-
-    //let state_data = state.inner().clone();
-
-    //tokio::spawn(async move {
-    //    state_data.dash_map.insert(job_id, job);
-    //});
+    let _ = context.set_up_job(sub).await?;
 
     Ok(())
 }

@@ -1,3 +1,22 @@
+{% macro jobs_table(jobs) %}
+    <table style="width:100%">
+      <tr>
+        <th>Job ID</th>
+        <th>Name</th>
+        <th>arguments</th>
+        <th>ShapeME version</th>
+      </tr>
+      {% for job in jobs %}
+      <tr>
+        <td>{{ job.id }}</td>
+        <td>{{ job.name }}</td>
+        <td>{{ job.args }}</td>
+        <td>{{ job.version }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+{% endmacro %}
+
 {% macro table_plot(plots) %}
     <table style="width:100%">
       <tr>
