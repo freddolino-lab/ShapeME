@@ -41,6 +41,8 @@ def write_report(environ, temp_base, info, out_name):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--dsm_file', action='store', type=str, required=True,
+        help='dsm file containing all folds\' motifs to be filtered and merged.')
     parser.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
     parser.add_argument('--shape_files', nargs="+", type=str, required=True,
@@ -49,10 +51,8 @@ def parse_args():
         help='shape names (MUST BE IN SAME ORDER AS CORRESPONDING SHAPE FILES)')
     parser.add_argument('--out_prefix', type=str, required=True,
         help="Prefix to apply to output files.")
-    parser.add_argument('--data_dir', type=str, required=True,
-        help="Directory from which input files will be read.")
-    parser.add_argument('--out_dir', type=str, required=True,
-        help="Directory (within 'data_dir') into which output files will be written.")
+    parser.add_argument('--direc', type=str, required=True,
+        help="Directory into which motifs file, sequence fasta file, and scores file can be found. Also the directory into which output files will be written.")
     parser.add_argument('--kmer', type=int,
         help='kmer size to search for shape motifs. Default=%(default)d', default=15)
     parser.add_argument('--max_count', type=int, default=1,
@@ -124,7 +124,7 @@ def parse_args():
             f"This is useful if you basically want to use this script "\
             f"as a wrapper for streme to just find sequence motifs.")
     parser.add_argument("--seq_fasta", type=str, default=None,
-        help=f"Name of fasta file (located within in_direc, do not include the "\
+        help=f"Name of fasta file (located within direc, do not include the "\
             f"directory, just the file name) containing sequences in which to "\
             f"search for motifs")
     parser.add_argument('--seq_motif_positive_cats', required=False, default="1",
@@ -139,7 +139,7 @@ def parse_args():
     parser.add_argument('--streme_thresh', default = 0.05,
         help="Threshold for including motifs identified by streme. Default: %(default)f")
     parser.add_argument("--seq_meme_file", type=str, default=None,
-        help=f"Name of meme-formatted file (file must be located in data_dir) "\
+        help=f"Name of meme-formatted file (file must be located in direc) "\
             f"to be used for searching for known sequence motifs of interest in "\
             f"seq_fasta")
     parser.add_argument("--shape_rust_file", type=str, default=None,
@@ -183,10 +183,10 @@ def main(args, status):
     logging.info("Arguments:")
     print(str(args))
 
+# NOTE: for much of what's done, merge_folds rust binary can just use one of the folds' config files
     out_pref = args.out_prefix
-    in_direc = args.data_dir
-    out_direc = args.out_dir
-    out_direc = os.path.join(in_direc, out_direc)
+    out_direc = args.direc
+    dsm_file = os.path.join(out_direc, args.dsm_file)
     in_fname = args.score_file
     shape_names = args.shape_names
     shape_files = args.shape_files
@@ -199,10 +199,10 @@ def main(args, status):
     find_seq_motifs = args.find_seq_motifs
     seq_fasta = args.seq_fasta
     if seq_fasta is not None:
-        seq_fasta = os.path.join(in_direc, seq_fasta)
+        seq_fasta = os.path.join(out_direc, seq_fasta)
     seq_meme_file = args.seq_meme_file
     if seq_meme_file is not None:
-        seq_meme_file = os.path.join(in_direc, seq_meme_file)
+        seq_meme_file = os.path.join(out_direc, seq_meme_file)
     fimo_direc = f"{out_direc}/fimo_out"
     streme_direc = f"{out_direc}/streme_out"
     streme_thresh = args.streme_thresh
@@ -215,7 +215,7 @@ def main(args, status):
     logging.info("Reading input data and shape info.")
     # read in shapes
     records = inout.construct_records(
-        in_direc,
+        out_direc,
         shape_names,
         shape_files,
         in_fname,
@@ -236,7 +236,7 @@ def main(args, status):
 
     logging.info("Normalizing parameters")
 
-
+    # read in the merged dsm file
     all_motifs = 
     all_seq_motifs,all_shape_motifs = all_motifs.split_seq_and_shape_motifs()
 
@@ -1053,9 +1053,7 @@ if __name__ == "__main__":
     except Exception as err:
         logging.error(f"Error encountered in infer_motifs.py:\n\n{err}\n")
         status = "FinishedError"
-        in_direc = args.data_dir
         out_direc = args.out_dir
-        out_direc = os.path.join(in_direc, out_direc)
 
         if not os.path.isdir(out_direc):
             os.mkdir(out_direc)

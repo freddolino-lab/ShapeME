@@ -516,6 +516,7 @@ def main():
         else:
             continue
 
+    # if not motifs, write status file saying so and exit normally
     if len(folds_with_motifs) == 0:
         status = "FinishedNoMotif"
         with open(status_fname, "w") as status_f:
@@ -530,17 +531,14 @@ def main():
         shutil.copyfile(src_file, dsm_file)
 
     else:
-        
-        ####################################################################
-        ####################################################################
-        ####################################################################
-        ## need to write merged dsm file. will be read and split bewteen seq/shape by merge_folds.py
-        ####################################################################
-        ####################################################################
-        ####################################################################
-        dsm_files = [fold[1] for fold in folds_with_motifs[1:len(folds_with_motifs)]]
+        # first_file will just be copied to the main job directory
+        first_file = folds_with_motifs.pop(0)
+        dsm_files = [ fold[1] for fold in folds_with_motifs ]
         dsm_file = os.path.join(data_dir, "fold_motifs.dsm")
-        shutil.copyfile(folds_with_motifs[0][1], dsm_file)
+        # copy first dsm file to main data directory
+        shutil.copyfile(first_file[1], dsm_file)
+        # append each following dms file's motifs to the main dms file
+        # this file will be read and split between seq/shape by merge_folds.py
         for fname in dsm_files:
             subprocess.run("sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}", shell=True)
 
@@ -551,13 +549,14 @@ def main():
 ################################################################################
 ################################################################################
 ################################################################################
+# NOTE: merge_folds rust binary can just use a cfg file from one of the folds
         MERGE_EXE = f"python {this_path}/merge_folds.py "\
+            f"--dsm_file fold_motifs.dsm "\
             f"--shape_files {full_shape_fnames} "\
             f"--shape_names {' '.join(shape_names)} "\
             f"--motifs_file {dsm_file} "\
-            f"--data_dir {data_dir} "\
+            f"--direc {data_dir} "\
             f"--score_file {score_fname} "\
-            f"--out_dir {data_dir} "\
             f"--nprocs {args.nprocs} "\
             f"--out_prefix {outdir_pre}"
 
