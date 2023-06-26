@@ -14,6 +14,7 @@ from pathlib import Path
 import logging
 import shlex
 import shutil
+import json
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
@@ -49,8 +50,10 @@ def read_score_file(infile):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--skip_inference', action="store_true", default=False,
-        help=f"Include this flag at the command line to run only evaluation. "\
+        help=f"Include this flag at the command line to skip motif inference. "\
             f"This is useful if you've already run inference on all folds.")
+    parser.add_argument('--skip_evaluation', action="store_true", default=False,
+        help=f"Include this flag at the command line to skip evaluation of motifs.")
     parser.add_argument('--force', action="store_true", default=False,
         help=f"Forces each fold to run, clobbering any extant output directories.")
     parser.add_argument('--crossval_folds', action="store", type=int, required=True,
@@ -145,8 +148,6 @@ def parse_args():
         help=f"Name of meme-formatted file (file must be located in data_dir) "\
             f"to be used for searching for known sequence motifs of interest in "\
             f"seq_fasta")
-    parser.add_argument("--shape_rust_file", type=str, default=None,
-        help=f"Name of json file containing output from rust binary")
     parser.add_argument("--write_all_files", action="store_true",
         help=f"Add this flag to write all motif meme files, regardless of whether "\
             f"the model with shape motifs, sequence motifs, or both types of "\
@@ -261,6 +262,9 @@ def main():
         sys.exit(1)
     else:
         logging.info("Converting training sequences to shapes ran without error")
+        full_shape_fnames = ""
+        for shape_name in shape_names:
+            full_shape_fnames += f"{seq_fasta}.{shape_name} "
 
     # get list of ((train_seq,train_y),(test_seq,test_y)) tuples for each fold
     folds = seqs.split_kfold( kfold, yvals )
@@ -278,19 +282,20 @@ def main():
         # if the output directory does exist, exit by default, but allow
         #  to clobber if user provides --force at CLI
         else:
-            if args.force:
-                # remove the current directory and all its contents
-                shutil.rmtree(out_dir)
-                # create empty directory
-                os.makedirs(out_dir)
-            else:
-                logging.error(
-                    f"The intended output directory, {out_dir}, already "\
-                    f"exists. We try not to clobber existing data. "\
-                    f"Either rename the existing directory or remove it. "\
-                    f"Nothing was done for fold {k}. Exiting now."
-                )
-                sys.exit(1)
+            if not args.skip_inference:
+                if args.force:
+                    # remove the current directory and all its contents
+                    shutil.rmtree(out_dir)
+                    # create empty directory
+                    os.makedirs(out_dir)
+                else:
+                    logging.error(
+                        f"The intended output directory, {out_dir}, already "\
+                        f"exists. We try not to clobber existing data. "\
+                        f"Either rename the existing directory or remove it. "\
+                        f"Nothing was done for fold {k}. Exiting now."
+                    )
+                    sys.exit(1)
 
         train_base = f"fold_{k}_train"
         test_base = f"fold_{k}_test"
@@ -472,40 +477,41 @@ def main():
                     continue
 
 
-        logging.info(f"Evaluating motifs identified for fold {k}...")
-        # workaround for potential security vulnerability of shell=True
-        EVAL_CMD = shlex.quote(EVAL_EXE)
-        EVAL_CMD = EVAL_EXE
-        eval_result = subprocess.run(
-            EVAL_CMD,
-            shell=True,
-            capture_output=True,
-            #check=True,
-        )
-        if eval_result.returncode != 0:
-            logging.error(
-                f"ERROR: running the following command:\n\n"\
-                f"{EVAL_CMD}\n\n"\
-                f"resulted in the following stderr:\n\n"\
-                f"{eval_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{eval_result.stdout.decode()}"
+        if not args.skip_evaluation:
+            logging.info(f"Evaluating motifs identified for fold {k}...")
+            # workaround for potential security vulnerability of shell=True
+            EVAL_CMD = shlex.quote(EVAL_EXE)
+            EVAL_CMD = EVAL_EXE
+            eval_result = subprocess.run(
+                EVAL_CMD,
+                shell=True,
+                capture_output=True,
+                #check=True,
             )
-            sys.exit(1)
-        else:
-            logging.info(
-                f"Motif evaluation was performed by running the following command:\n\n"\
-                f"{EVAL_CMD}\n\n"\
-                f"resulting in the following stderr:\n\n"\
-                f"{infer_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{infer_result.stdout.decode()}"
-            )
+            if eval_result.returncode != 0:
+                logging.error(
+                    f"ERROR: running the following command:\n\n"\
+                    f"{EVAL_CMD}\n\n"\
+                    f"resulted in the following stderr:\n\n"\
+                    f"{eval_result.stderr.decode()}\n\n"
+                    f"and the following stdout:\n\n"\
+                    f"{eval_result.stdout.decode()}"
+                )
+                sys.exit(1)
+            else:
+                logging.info(
+                    f"Motif evaluation was performed by running the following command:\n\n"\
+                    f"{EVAL_CMD}\n\n"\
+                    f"resulting in the following stderr:\n\n"\
+                    f"{infer_result.stderr.decode()}\n\n"
+                    f"and the following stdout:\n\n"\
+                    f"{infer_result.stdout.decode()}"
+                )
 
-        #print(eval_result.stderr.decode())
-        #print()
-        #print(eval_result.stdout.decode())
-        #sys.exit()
+            #print(eval_result.stderr.decode())
+            #print()
+            #print(eval_result.stdout.decode())
+            #sys.exit()
 
     folds_with_motifs = []
     for k,fold_direc in enumerate(fold_direcs):
@@ -540,7 +546,7 @@ def main():
         # append each following dms file's motifs to the main dms file
         # this file will be read and split between seq/shape by merge_folds.py
         for fname in dsm_files:
-            subprocess.run("sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}", shell=True)
+            subprocess.run(f"sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}", shell=True)
 
 ################################################################################
 ################################################################################
@@ -550,13 +556,13 @@ def main():
 ################################################################################
 ################################################################################
 # NOTE: merge_folds rust binary can just use a cfg file from one of the folds
-        MERGE_EXE = f"python {this_path}/merge_folds.py "\
-            f"--dsm_file fold_motifs.dsm "\
+        MERGE_CMD = f"python {this_path}/merge_folds.py "\
+            f"--motifs_file fold_motifs.dsm "\
             f"--shape_files {full_shape_fnames} "\
             f"--shape_names {' '.join(shape_names)} "\
             f"--motifs_file {dsm_file} "\
             f"--direc {data_dir} "\
-            f"--score_file {score_fname} "\
+            f"--score_file {in_fname} "\
             f"--nprocs {args.nprocs} "\
             f"--out_prefix {outdir_pre}"
 

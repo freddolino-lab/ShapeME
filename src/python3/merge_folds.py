@@ -19,7 +19,7 @@ import fimopytools as fimo
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
-infer_bin = os.path.join(this_path, '../rust_utils/target/release/merge_folds')
+merge_bin = os.path.join(this_path, '../rust_utils/target/release/merge_folds')
 supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
@@ -41,7 +41,7 @@ def write_report(environ, temp_base, info, out_name):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dsm_file', action='store', type=str, required=True,
+    parser.add_argument('--motifs_file', action='store', type=str, required=True,
         help='dsm file containing all folds\' motifs to be filtered and merged.')
     parser.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
@@ -142,8 +142,6 @@ def parse_args():
         help=f"Name of meme-formatted file (file must be located in direc) "\
             f"to be used for searching for known sequence motifs of interest in "\
             f"seq_fasta")
-    parser.add_argument("--shape_rust_file", type=str, default=None,
-        help=f"Name of json file containing output from rust binary")
     parser.add_argument("--write_all_files", action="store_true",
         help=f"Add this flag to write all motif meme files, regardless of whether "\
             f"the model with shape motifs, sequence motifs, or both types of "\
@@ -186,10 +184,11 @@ def main(args, status):
 # NOTE: for much of what's done, merge_folds rust binary can just use one of the folds' config files
     out_pref = args.out_prefix
     out_direc = args.direc
-    dsm_file = os.path.join(out_direc, args.dsm_file)
+    dsm_file = os.path.join(out_direc, args.motifs_file)
     in_fname = args.score_file
     shape_names = args.shape_names
     shape_files = args.shape_files
+    rust_motifs_fname = os.path.join(out_direc, "fold_shapes.json")
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
@@ -207,6 +206,23 @@ def main(args, status):
     streme_direc = f"{out_direc}/streme_out"
     streme_thresh = args.streme_thresh
     no_shape_motifs = args.no_shape_motifs
+
+    alpha = args.alpha
+    max_count = args.max_count
+
+    temp = args.temperature
+    step = args.stepsize
+    
+    mi_fname = os.path.join(
+        out_direc,
+        f'{out_pref}_initial_mutual_information_max_count_{max_count}.pkl'
+    )
+
+    shape_fname = os.path.join(out_direc, 'shapes.npy')
+    config_fname = os.path.join(out_direc, 'config.json')
+    shape_fit_fname = os.path.join(out_direc, 'shape_lasso_fit.pkl')
+    seq_fit_fname = os.path.join(out_direc, 'seq_lasso_fit.pkl')
+    shape_and_seq_fit_fname = os.path.join(out_direc, 'shape_and_seq_lasso_fit.pkl')
 
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
@@ -237,17 +253,61 @@ def main(args, status):
     logging.info("Normalizing parameters")
 
     # read in the merged dsm file
-    all_motifs = 
+    all_motifs = inout.Motifs()
+    all_motifs.read_file( dsm_file )
     all_seq_motifs,all_shape_motifs = all_motifs.split_seq_and_shape_motifs()
 
+    all_shape_motifs.write_shape_motifs_as_rust_output(rust_motifs_fname)
+    rust_out_fname = os.path.join(out_direc, "merged_shape_motifs.json")
 
+    # write shapes to npy file. Permute axes 1 and 2.
+    with open(shape_fname, 'wb') as shape_f:
+        np.save(shape_fname, records.X.transpose((0,2,1,3)))
 
+    yval_fname = os.path.join(out_direc, 'y_vals.npy')
+    # write y-vals to npy file.
+    with open(yval_fname, 'wb') as f:
+        np.save(f, records.y.astype(np.int64))
 
+    MERGE_CMD = f"{merge_bin} {config_fname}"
 
+    max_batch = args.max_batch_no_new_seed
+    merge_args_dict = {
+        'eval_rust_fname': rust_motifs_fname,
+        'shape_fname': shape_fname,
+        'yvals_fname': yval_fname,
+        'alpha': args.alpha,
+        'max_count': args.max_count,
+        'kmer': args.kmer,
+        'cores': args.nprocs,
+        'seed_sample_size': args.init_threshold_seed_num,
+        'records_per_seed': args.init_threshold_recs_per_seed,
+        'windows_per_record': args.init_threshold_windows_per_record,
+        'thresh_sd_from_mean': args.threshold_sd,
+        'threshold_lb': args.threshold_constraints[0],
+        'threshold_ub': args.threshold_constraints[1],
+        'shape_lb': args.shape_constraints[0],
+        'shape_ub': args.shape_constraints[1],
+        'weight_lb': args.weights_constraints[0],
+        'weight_ub': args.weights_constraints[1],
+        'temperature': args.temperature,
+        'stepsize': args.stepsize,
+        'n_opt_iter': args.opt_niter,
+        't_adjust': args.t_adj,
+        'batch_size': args.batch_size,
+        'max_batch_no_new': max_batch,
+        'merge_rust_fname': dsm_file,
+    }
 
-    #if args.nonormalize:
-    #    records.determine_center_spread(method=inout.identity_csp)
-    #else:
+    if args.continuous is not None:
+        merge_args_dict['y_cat_num'] = num_cats
+
+    # supplement args info with shape center and spread from database
+    merge_args_dict['names'] = []
+    merge_args_dict['indices'] = []
+    merge_args_dict['centers'] = []
+    merge_args_dict['spreads'] = []
+
     records.determine_center_spread()
     records.normalize_shape_values()
 
@@ -256,145 +316,149 @@ def main(args, status):
         this_spread = records.shape_spreads[shape_idx]
         logging.info(f"{name}: center={this_center:.2f}, spread={this_spread:.2f}")
 
-    yval_fname = os.path.join(out_direc, 'y_vals.npy')
-    # write y-vals to npy file.
-    with open(yval_fname, 'wb') as f:
-        np.save(f, records.y.astype(np.int64))
+    for name,shape_idx in records.shape_name_lut.items():
+        this_center = records.shape_centers[shape_idx]
+        this_spread = records.shape_spreads[shape_idx]
+        merge_args_dict['names'].append(name)
+        merge_args_dict['indices'].append(shape_idx)
+        merge_args_dict['centers'].append(this_center)
+        merge_args_dict['spreads'].append(this_spread)
+    
+    # write cfg to file
+    with open(config_fname, 'w') as f:
+        json.dump(merge_args_dict, f, indent=1)
 
-    if find_seq_motifs:
-        # if asked for seq motifs but didn't pass seq fa file, exception
-        if seq_fasta is None:
-            raise inout.NoSeqFaException()
-        # if both seq_motifs and meme file were passed, raise exception
-        if seq_meme_file is not None:
-            raise inout.SeqMotifOptionException(seq_meme_file)
-
-        seq_meme_file = f"{streme_direc}/streme.txt"
-        streme_exec = os.path.join(this_path, "run_streme.py")
-
-        # NA-containing records were removed, so use retained_records to get right
-        # sequences if calling sequence motifs
-        seqs = inout.FastaFile()
-        with open(seq_fasta,"r") as seq_f:
-            seqs.read_whole_file(seq_f)
-
-        seqs = seqs[records.complete_records]
-        tmp_dir = tempfile.TemporaryDirectory()
-        tmp_direc = tmp_dir.name
-        tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
-        with open(tmp_seq_fname, "w") as tmp_f:
-            seqs.write(tmp_f)
-
-        STREME = f"python {streme_exec} "\
-            f"--seq_fname {tmp_seq_fname} "\
-            f"--yvals_fname {yval_fname} "\
-            f"--pos_cats {args.seq_motif_positive_cats} "\
-            f"--threshold {streme_thresh} "\
-            f"--out_direc {streme_direc}"
-
-        streme_result = subprocess.run(
-            STREME,
-            shell=True,
-            capture_output=True,
-        )
-        if streme_result.returncode != 0:
-            raise(Exception(
-                f"run_streme.py returned non-zero exit status.\n"\
-                f"Stderr: {streme_result.stderr.decode()}\n"\
-                f"Stdout: {streme_result.stdout.decode()}"
-            ))
-
-        streme_log_fname = f"{streme_direc}/streme_run.log"
-        streme_err_fname = f"{streme_direc}/streme_run.err"
+    if not no_shape_motifs:
         print()
-        logging.info(
-            f"Ran streme: for details, see "\
-            f"{streme_log_fname} and {streme_err_fname}"
-        )
+        retcode = subprocess.call(MERGE_CMD, shell=True, env=my_env)
+        if retcode != 0:
+            raise inout.RustBinaryException(MERGE_CMD)
 
-        with open(streme_log_fname, "w") as streme_out:
-            # streme log gets captured as stderr, so write stderr to file
-            streme_out.write(streme_result.stdout.decode())
-        with open(streme_err_fname, "w") as streme_err:
-            # streme log gets captured as stderr, so write stderr to file
-            try:
-                streme_err.write(streme_result.stderr.decode())
-            except UnicodeDecodeError as e:
-                logging.warning("Problem writing to {streme_err_fname}:\n{e}")
 
-                report_info = {"error": e}
-                write_report(
-                    environ = jinja_env,
-                    temp_base = "streme_err_html.temp",
-                    info = report_info,
-                    out_name = out_page_name,
-                )
 
-                status = "FinishedError"
-                with open(status_fname, "w") as status_f:
-                    json.dump(status, status_f)
-                sys.exit(1)
+
+#######################################################################
+#######################################################################
+## come back to LASSO-based filtering of seq motifs after testing shape filtering
+#######################################################################
+#######################################################################
+
+    #if find_seq_motifs:
+    #    # if asked for seq motifs but didn't pass seq fa file, exception
+    #    if seq_fasta is None:
+    #        raise inout.NoSeqFaException()
+    #    # if both seq_motifs and meme file were passed, raise exception
+    #    if seq_meme_file is not None:
+    #        raise inout.SeqMotifOptionException(seq_meme_file)
+
+    #    seq_meme_file = f"{streme_direc}/streme.txt"
+    #    streme_exec = os.path.join(this_path, "run_streme.py")
+
+    #    # NA-containing records were removed, so use retained_records to get right
+    #    # sequences if calling sequence motifs
+    #    seqs = inout.FastaFile()
+    #    with open(seq_fasta,"r") as seq_f:
+    #        seqs.read_whole_file(seq_f)
+
+    #    seqs = seqs[records.complete_records]
+    #    tmp_dir = tempfile.TemporaryDirectory()
+    #    tmp_direc = tmp_dir.name
+    #    tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
+    #    with open(tmp_seq_fname, "w") as tmp_f:
+    #        seqs.write(tmp_f)
+
+    #    STREME = f"python {streme_exec} "\
+    #        f"--seq_fname {tmp_seq_fname} "\
+    #        f"--yvals_fname {yval_fname} "\
+    #        f"--pos_cats {args.seq_motif_positive_cats} "\
+    #        f"--threshold {streme_thresh} "\
+    #        f"--out_direc {streme_direc}"
+
+    #    streme_result = subprocess.run(
+    #        STREME,
+    #        shell=True,
+    #        capture_output=True,
+    #    )
+    #    if streme_result.returncode != 0:
+    #        raise(Exception(
+    #            f"run_streme.py returned non-zero exit status.\n"\
+    #            f"Stderr: {streme_result.stderr.decode()}\n"\
+    #            f"Stdout: {streme_result.stdout.decode()}"
+    #        ))
+
+    #    streme_log_fname = f"{streme_direc}/streme_run.log"
+    #    streme_err_fname = f"{streme_direc}/streme_run.err"
+    #    print()
+    #    logging.info(
+    #        f"Ran streme: for details, see "\
+    #        f"{streme_log_fname} and {streme_err_fname}"
+    #    )
+
+    #    with open(streme_log_fname, "w") as streme_out:
+    #        # streme log gets captured as stderr, so write stderr to file
+    #        streme_out.write(streme_result.stdout.decode())
+    #    with open(streme_err_fname, "w") as streme_err:
+    #        # streme log gets captured as stderr, so write stderr to file
+    #        try:
+    #            streme_err.write(streme_result.stderr.decode())
+    #        except UnicodeDecodeError as e:
+    #            logging.warning("Problem writing to {streme_err_fname}:\n{e}")
+
+    #            report_info = {"error": e}
+    #            write_report(
+    #                environ = jinja_env,
+    #                temp_base = "streme_err_html.temp",
+    #                info = report_info,
+    #                out_name = out_page_name,
+    #            )
+
+    #            status = "FinishedError"
+    #            with open(status_fname, "w") as status_f:
+    #                json.dump(status, status_f)
+    #            sys.exit(1)
 
     # if user has a meme file (could be from streme above, or from input arg), run fimo
-    if seq_meme_file is not None:
+    #if seq_meme_file is not None:
 
-        if seq_fasta is None:
-            raise inout.NoSeqFaException()
+    #    if seq_fasta is None:
+    #        raise inout.NoSeqFaException()
 
-        # NA-containing records were removed, so use retained_records to get right
-        # sequences if calling sequence motifs
-        seqs = inout.FastaFile()
-        with open(seq_fasta,"r") as seq_f:
-            seqs.read_whole_file(seq_f)
+    #    # NA-containing records were removed, so use retained_records to get right
+    #    # sequences if calling sequence motifs
+    #    seqs = inout.FastaFile()
+    #    with open(seq_fasta,"r") as seq_f:
+    #        seqs.read_whole_file(seq_f)
 
-        seqs = seqs[records.complete_records]
-        tmp_dir = tempfile.TemporaryDirectory()
-        tmp_direc = tmp_dir.name
-        tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
-        with open(tmp_seq_fname, "w") as tmp_f:
-            seqs.write(tmp_f)
+    #    seqs = seqs[records.complete_records]
+    #    tmp_dir = tempfile.TemporaryDirectory()
+    #    tmp_direc = tmp_dir.name
+    #    tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
+    #    with open(tmp_seq_fname, "w") as tmp_f:
+    #        seqs.write(tmp_f)
 
-        fimo_exec = os.path.join(this_path, "run_fimo.py")
-        FIMO = f"python {fimo_exec} "\
-            f"--seq_fname {tmp_seq_fname} "\
-            f"--meme_file {seq_meme_file} "\
-            f"--out_direc {fimo_direc}"
+    #    fimo_exec = os.path.join(this_path, "run_fimo.py")
+    #    FIMO = f"python {fimo_exec} "\
+    #        f"--seq_fname {tmp_seq_fname} "\
+    #        f"--meme_file {seq_meme_file} "\
+    #        f"--out_direc {fimo_direc}"
 
-        fimo_result = subprocess.run(
-            FIMO,
-            shell=True,
-            check=True,
-            capture_output=True,
-        )
-        fimo_log_fname = f"{fimo_direc}/fimo_run.log"
-        fimo_err_fname = f"{fimo_direc}/fimo_run.err"
-        print()
-        logging.info(
-            f"Ran fimo: for details, see "\
-            f"{fimo_log_fname} and {fimo_err_fname}"
-        )
-        with open(fimo_log_fname, "w") as fimo_out:
-            fimo_out.write(fimo_result.stdout.decode())
-        with open(fimo_err_fname, "w") as fimo_err:
-            fimo_err.write(fimo_result.stderr.decode())
-
-    alpha = args.alpha
-    max_count = args.max_count
-
-    temp = args.temperature
-    step = args.stepsize
-    
-    mi_fname = os.path.join(
-        out_direc,
-        f'{out_pref}_initial_mutual_information_max_count_{max_count}.pkl'
-    )
-
-    shape_fname = os.path.join(out_direc, 'shapes.npy')
-    config_fname = os.path.join(out_direc, 'config.json')
-    rust_out_fname = os.path.join(out_direc, args.motifs_file)
-    shape_fit_fname = os.path.join(out_direc, 'shape_lasso_fit.pkl')
-    seq_fit_fname = os.path.join(out_direc, 'seq_lasso_fit.pkl')
-    shape_and_seq_fit_fname = os.path.join(out_direc, 'shape_and_seq_lasso_fit.pkl')
+    #    fimo_result = subprocess.run(
+    #        FIMO,
+    #        shell=True,
+    #        check=True,
+    #        capture_output=True,
+    #    )
+    #    fimo_log_fname = f"{fimo_direc}/fimo_run.log"
+    #    fimo_err_fname = f"{fimo_direc}/fimo_run.err"
+    #    print()
+    #    logging.info(
+    #        f"Ran fimo: for details, see "\
+    #        f"{fimo_log_fname} and {fimo_err_fname}"
+    #    )
+    #    with open(fimo_log_fname, "w") as fimo_out:
+    #        fimo_out.write(fimo_result.stdout.decode())
+    #    with open(fimo_err_fname, "w") as fimo_err:
+    #        fimo_err.write(fimo_result.stderr.decode())
 
     # get the F-score for an intercept-only model, which will ultimately be compared
     # to the F-score we get from any other fit to choose whether there is a motif or not.
@@ -421,162 +485,162 @@ def main(args, status):
     # if we found motifs using streme, we'll have a value for seq_meme_file.
     # also will work if we passed a known motif file instead of finding our own
     # sequence motif
-    if seq_meme_file is not None:
+    #if seq_meme_file is not None:
 
-        # This step will just get the motif names and sequences,
-        # hits arrays and such will be supplemented later using fimo output
-        seq_motifs = inout.Motifs(
-            fname = seq_meme_file,
-            motif_type = "sequence",
-            evalue_thresh = streme_thresh,
-        )
+    #    # This step will just get the motif names and sequences,
+    #    # hits arrays and such will be supplemented later using fimo output
+    #    seq_motifs = inout.Motifs(
+    #        fname = seq_meme_file,
+    #        motif_type = "sequence",
+    #        evalue_thresh = streme_thresh,
+    #    )
 
-        if len(seq_motifs) == 0:
-            print()
-            logging.info(f"No sequence motifs passed e-value "\
-                f"threshold of {streme_thresh}, setting find_seq_motifs "\
-                f"back to False and moving on to shape motif inference.")
-            # set find_seq_motifs back to False to disable seq stuff later on
-            find_seq_motifs = False
-        else:
-            find_seq_motifs = True
+    #    if len(seq_motifs) == 0:
+    #        print()
+    #        logging.info(f"No sequence motifs passed e-value "\
+    #            f"threshold of {streme_thresh}, setting find_seq_motifs "\
+    #            f"back to False and moving on to shape motif inference.")
+    #        # set find_seq_motifs back to False to disable seq stuff later on
+    #        find_seq_motifs = False
+    #    else:
+    #        find_seq_motifs = True
 
-    if find_seq_motifs:
+    #if find_seq_motifs:
 
-        logging.info("\nFitting regression model to sequence motifs")
-        
-        seq_motifs.get_X(
-            fimo_fname = f"{fimo_direc}/fimo.tsv",
-            rec_db = records,
-        )
-        seq_motifs.supplement_robustness(records, supp_bin, my_env=my_env)
+    #    logging.info("\nFitting regression model to sequence motifs")
+    #    
+    #    seq_motifs.get_X(
+    #        fimo_fname = f"{fimo_direc}/fimo.tsv",
+    #        rec_db = records,
+    #    )
+    #    seq_motifs.supplement_robustness(records, supp_bin, my_env=my_env)
 
-        one_seq_motif = False
+    #    one_seq_motif = False
 
-        if len(seq_motifs) == 1:
+    #    if len(seq_motifs) == 1:
 
-            print()
-            logging.info(
-                f"Only one sequence motif present. "\
-                f"Performing model selection using CV-F1 to determine whether "\
-                f"the motif is informative over intercept alone."
-            )
-            # toggle one_seq_motif to True for later use in building combined
-            # seq and shape motif design matrix
-            ######################################################################
-            one_seq_motif = True # comment for debugging to force seq inclusion
-            #seq_motif_exists = True # uncomment for debugging to force seq inclusion
+    #        print()
+    #        logging.info(
+    #            f"Only one sequence motif present. "\
+    #            f"Performing model selection using CV-F1 to determine whether "\
+    #            f"the motif is informative over intercept alone."
+    #        )
+    #        # toggle one_seq_motif to True for later use in building combined
+    #        # seq and shape motif design matrix
+    #        ######################################################################
+    #        one_seq_motif = True # comment for debugging to force seq inclusion
+    #        #seq_motif_exists = True # uncomment for debugging to force seq inclusion
 
-        else:
+    #    else:
 
-            # make sure yvalues are binary for this initial seq motif fit
-            fit_y = np.zeros_like(records.y)
-            pos_cats = [ int(_) for _ in args.seq_motif_positive_cats ]
-            for (i,yval) in enumerate(records.y):
-                if yval in pos_cats:
-                    fit_y[i] = 1
-            seq_fit = evm.train_glmnet(
-                seq_motifs.X,
-                fit_y,
-                folds=10,
-                family="binomial",
-                alpha=1,
-            )
+    #        # make sure yvalues are binary for this initial seq motif fit
+    #        fit_y = np.zeros_like(records.y)
+    #        pos_cats = [ int(_) for _ in args.seq_motif_positive_cats ]
+    #        for (i,yval) in enumerate(records.y):
+    #            if yval in pos_cats:
+    #                fit_y[i] = 1
+    #        seq_fit = evm.train_glmnet(
+    #            seq_motifs.X,
+    #            fit_y,
+    #            folds=10,
+    #            family="binomial",
+    #            alpha=1,
+    #        )
 
-            with open(seq_fit_fname, "wb") as f:
-                pickle.dump(seq_fit, f)
+    #        with open(seq_fit_fname, "wb") as f:
+    #            pickle.dump(seq_fit, f)
 
-            seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
+    #        seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
 
-            print()
-            logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
-            logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
+    #        print()
+    #        logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
+    #        logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
 
-            filtered_seq_coefs = seq_motifs.filter_motifs(seq_coefs)
+    #        filtered_seq_coefs = seq_motifs.filter_motifs(seq_coefs)
 
-            print()
-            logging.info(
-                f"Number of sequence motifs left after LASSO regression: "\
-                f"{len(seq_motifs)}"
-            )
+    #        print()
+    #        logging.info(
+    #            f"Number of sequence motifs left after LASSO regression: "\
+    #            f"{len(seq_motifs)}"
+    #        )
 
-            if len(seq_motifs) == 0:
-                print()
-                logging.info(
-                    f"Only intercept term left after LASSO regression.\n"\
-                    f"Therefore, no informatife sequence motif exists."
-                )
-                seq_motif_exists = False
+    #        if len(seq_motifs) == 0:
+    #            print()
+    #            logging.info(
+    #                f"Only intercept term left after LASSO regression.\n"\
+    #                f"Therefore, no informatife sequence motif exists."
+    #            )
+    #            seq_motif_exists = False
 
-            elif len(seq_motifs) == 1:
-                print()
-                logging.info(
-                    f"Only one sequence motif left after LASSO regression.\n"\
-                    f"Performing model selection using CV-F1 to determine whether "\
-                    f"the remaining motif is informative over intercept alone."
-                )
+    #        elif len(seq_motifs) == 1:
+    #            print()
+    #            logging.info(
+    #                f"Only one sequence motif left after LASSO regression.\n"\
+    #                f"Performing model selection using CV-F1 to determine whether "\
+    #                f"the remaining motif is informative over intercept alone."
+    #            )
 
-                one_seq_motif = True
+    #            one_seq_motif = True
 
-            # if more than one left after LASSO, seq seq_motif_exists to True
-            else:
-                seq_motif_exists = True
+    #        # if more than one left after LASSO, seq seq_motif_exists to True
+    #        else:
+    #            seq_motif_exists = True
  
-        # supplement motifs object with CV-F1 score
-        intercept_and_motif_X = np.append(intercept_X, seq_motifs.X, axis=1)
+    #    # supplement motifs object with CV-F1 score
+    #    intercept_and_motif_X = np.append(intercept_X, seq_motifs.X, axis=1)
 
-        motif_fit = evm.train_sklearn_glm(
-            intercept_and_motif_X,
-            records.y,
-            family = fam,
-            fit_intercept = False, # intercept already in design mat
-        )
+    #    motif_fit = evm.train_sklearn_glm(
+    #        intercept_and_motif_X,
+    #        records.y,
+    #        family = fam,
+    #        fit_intercept = False, # intercept already in design mat
+    #    )
 
-        seq_motifs.metric = evm.CV_F1(
-            intercept_and_motif_X,
-            records.y,
-            folds = 5,
-            family = fam,
-            fit_intercept = False, # intercept already in design mat
-            cores = args.nprocs,
-        )
+    #    seq_motifs.metric = evm.CV_F1(
+    #        intercept_and_motif_X,
+    #        records.y,
+    #        folds = 5,
+    #        family = fam,
+    #        fit_intercept = False, # intercept already in design mat
+    #        cores = args.nprocs,
+    #    )
 
-        # if there's only one covariate, compare CV-F1 from intercept+motif
-        # and intercept only
-        if one_seq_motif:
-            metric_list = [ intercept_metric, seq_motifs.metric ]
-            model_list = [ intercept_fit, motif_fit ]
+    #    # if there's only one covariate, compare CV-F1 from intercept+motif
+    #    # and intercept only
+    #    if one_seq_motif:
+    #        metric_list = [ intercept_metric, seq_motifs.metric ]
+    #        model_list = [ intercept_fit, motif_fit ]
 
-            best_mod_idx = evm.choose_model(
-                metric_list,
-                model_list,
-                return_index = True,
-            )
+    #        best_mod_idx = evm.choose_model(
+    #            metric_list,
+    #            model_list,
+    #            return_index = True,
+    #        )
 
-            if best_mod_idx == 0:
-                print()
-                logging.info(
-                    f"Intercept-only model had better score than model fit using "\
-                    f"intercept and one sequence motif.\nTherefore, there is no "\
-                    f"informative "\
-                    f"sequence motif. Not writing a sequence motif to output."
-                )
-                seq_motif_exists = False
-            # if our one seq motif is better than intercept, set seq_motif_exits to True
-            else:
-                print()
-                logging.info(
-                    f"Sequence-motif-containing model performed better "\
-                    f"than intercept-only model. Therefore, at least one "\
-                    f"informative sequence motif exists."
-                )
+    #        if best_mod_idx == 0:
+    #            print()
+    #            logging.info(
+    #                f"Intercept-only model had better score than model fit using "\
+    #                f"intercept and one sequence motif.\nTherefore, there is no "\
+    #                f"informative "\
+    #                f"sequence motif. Not writing a sequence motif to output."
+    #            )
+    #            seq_motif_exists = False
+    #        # if our one seq motif is better than intercept, set seq_motif_exits to True
+    #        else:
+    #            print()
+    #            logging.info(
+    #                f"Sequence-motif-containing model performed better "\
+    #                f"than intercept-only model. Therefore, at least one "\
+    #                f"informative sequence motif exists."
+    #            )
 
-                filtered_seq_coefs = motif_fit.coef_
-                seq_coefs = motif_fit.coef_
-                print()
-                logging.info(f"Sequence motif coefficients:\n{filtered_seq_coefs}")
-                logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
-                seq_motif_exists = True
+    #            filtered_seq_coefs = motif_fit.coef_
+    #            seq_coefs = motif_fit.coef_
+    #            print()
+    #            logging.info(f"Sequence motif coefficients:\n{filtered_seq_coefs}")
+    #            logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
+    #            seq_motif_exists = True
 
     good_motif_out_fname = os.path.join(
         out_direc,
@@ -599,84 +663,15 @@ def main(args, status):
         f"{out_pref}_logistic_regression_coefs_per_class.txt",
     )
 
-    FIND_CMD = f"{infer_bin} {config_fname}"
-
-    max_batch = args.max_batch_no_new_seed
-    if args.exhaustive:
-        max_batch = 1_000_000_000
-
-    find_args_dict = {
-        'out_fname': rust_out_fname,
-        'shape_fname': shape_fname,
-        'yvals_fname': yval_fname,
-        'alpha': args.alpha,
-        'max_count': args.max_count,
-        'kmer': args.kmer,
-        'cores': args.nprocs,
-        'seed_sample_size': args.init_threshold_seed_num,
-        'records_per_seed': args.init_threshold_recs_per_seed,
-        'windows_per_record': args.init_threshold_windows_per_record,
-        'thresh_sd_from_mean': args.threshold_sd,
-        'threshold_lb': args.threshold_constraints[0],
-        'threshold_ub': args.threshold_constraints[1],
-        'shape_lb': args.shape_constraints[0],
-        'shape_ub': args.shape_constraints[1],
-        'weight_lb': args.weights_constraints[0],
-        'weight_ub': args.weights_constraints[1],
-        'temperature': args.temperature,
-        'stepsize': args.stepsize,
-        'n_opt_iter': args.opt_niter,
-        't_adjust': args.t_adj,
-        'batch_size': args.batch_size,
-        'max_batch_no_new': max_batch,
-        'good_motif_out_fname': good_motif_out_fname, 
-    }
-
-    if args.continuous is not None:
-        find_args_dict['y_cat_num'] = num_cats
-
-    # supplement args info with shape center and spread from database
-    find_args_dict['names'] = []
-    find_args_dict['indices'] = []
-    find_args_dict['centers'] = []
-    find_args_dict['spreads'] = []
-
-    for name,shape_idx in records.shape_name_lut.items():
-        this_center = records.shape_centers[shape_idx]
-        this_spread = records.shape_spreads[shape_idx]
-        find_args_dict['names'].append(name)
-        find_args_dict['indices'].append(shape_idx)
-        find_args_dict['centers'].append(this_center)
-        find_args_dict['spreads'].append(this_spread)
-    
-    # write cfg to file
-    with open(config_fname, 'w') as f:
-        json.dump(find_args_dict, f, indent=1)
-
-    if not no_shape_motifs:
-        # write shapes to npy file. Permute axes 1 and 2.
-        with open(shape_fname, 'wb') as shape_f:
-            np.save(shape_fname, records.X.transpose((0,2,1,3)))
-
+    if not os.path.isfile(rust_out_fname):
         print()
-        if args.shape_rust_file is None:
-            logging.info("Running shape motif selection and optimization.")
-            retcode = subprocess.call(FIND_CMD, shell=True, env=my_env)
-            if retcode != 0:
-                raise inout.RustBinaryException(FIND_CMD)
-        else:
-            logging.info(f"Reading prior shape motifs from {args.shape_rust_file}.")
-            rust_out_fname = args.shape_rust_file
-
-        if not os.path.isfile(rust_out_fname):
-            print()
-            logging.warning(
-                f"No output json file containing motifs from rust binary. "\
-                f"This usually means no motifs were identified, but you should "\
-                f"carfully check your log and error messages to make sure that's "\
-                f"really the case."
-            )
-            no_shape_motifs = True
+        logging.warning(
+            f"No output json file containing motifs from rust binary. "\
+            f"This usually means no motifs were identified, but you should "\
+            f"carfully check your log and error messages to make sure that's "\
+            f"really the case."
+        )
+        no_shape_motifs = True
 
     if not no_shape_motifs:
 
@@ -1051,7 +1046,7 @@ if __name__ == "__main__":
     try:
         main(args, status)
     except Exception as err:
-        logging.error(f"Error encountered in infer_motifs.py:\n\n{err}\n")
+        logging.error(f"Error encountered in merge_motifs.py:\n\n{err}\n")
         status = "FinishedError"
         out_direc = args.out_dir
 

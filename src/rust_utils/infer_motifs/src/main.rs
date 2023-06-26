@@ -89,7 +89,6 @@ fn main() {
         if cfg.max_batch_no_new < 1000000000 {
             motifs = motifs.filter_motifs(
                 &rec_db,
-                &threshold,
                 &cfg.max_count,
             );
 
@@ -122,7 +121,6 @@ fn main() {
     println!("{} seeds collected during initial batched evaluation.", motifs.len());
     let mut motifs = motifs.filter_motifs(
         &rec_db,
-        &threshold,
         &cfg.max_count,
     );
     println!("{} motifs left after pooled CMI-based filtering.", motifs.len());
@@ -238,7 +236,6 @@ fn main() {
     println!("\nFiltering optimized motifs based on conditional mutual information.");
     let mut motifs = motifs.filter_motifs(
         &rec_db,
-        &threshold,
         &cfg.max_count,
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());

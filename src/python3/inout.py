@@ -911,7 +911,7 @@ class Motifs:
         for motif in self:
             rust_dicts.append(motif.get_rust_dict())
         with open(out_fname, "w") as f:
-            json.dump(rust_dicts, f)
+            json.dump(rust_dicts, f, indent=4)
 
     def set_transforms_from_meme_line(self, line):
         """Method to place shape centers and spreads
@@ -1036,22 +1036,21 @@ class Motifs:
                             else:
                                 in_motif = False
                                 in_weights = False
-                                motif_list.append(
-                                    Motif(
-                                        identifier = motif_id,
-                                        alt_name = motif_name,
-                                        row_lut = row_lut,
-                                        motif = data_arr,
-                                        evalue = evalue,
-                                        motif_type = motif_type,
-                                        mi = ami,
-                                        weights = weights_arr,
-                                        zscore = zscore,
-                                        robustness = robustness,
-                                        nsites = nsites,
-                                        threshold = threshold,
-                                    )
+                                this_motif = Motif(
+                                    identifier = motif_id,
+                                    alt_name = motif_name,
+                                    row_lut = row_lut,
+                                    motif = data_arr,
+                                    evalue = evalue,
+                                    motif_type = motif_type,
+                                    mi = ami,
+                                    weights = weights_arr,
+                                    zscore = zscore,
+                                    robustness = robustness,
+                                    nsites = nsites,
+                                    threshold = threshold,
                                 )
+                                motif_list.append(this_motif)
                         
                 else:
                     if not in_motif:

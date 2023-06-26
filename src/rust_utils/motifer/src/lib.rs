@@ -1214,7 +1214,7 @@ pub fn get_fitted_gamma_cdf_vals(params: &Vec<f64>, data: &Vec<f64>) -> Vec<f64>
 pub fn filter_motifs<'a>(
         motifs: &'a mut Vec<Motif>,
         rec_db: &'a RecordsDB,
-        threshold: &'a f64,
+        //threshold: &'a f64,
         max_count: &'a i64,
 ) -> Motifs {
 
@@ -1695,6 +1695,14 @@ impl Motifs {
         }
     }
 
+    pub fn fold_merge_update(&mut self, rec_db: &RecordsDB, max_count: &i64) {
+        self.post_optim_update(rec_db, max_count);
+        for (i,motif) in self.motifs.iter_mut().enumerate() {
+            println!("Calculating final adjusted mutual information for motif {}", i);
+            motif.update_mi(rec_db, max_count);
+        }
+    }
+
     fn gather_dist_arr(&self) -> Array2<f64> {
         let mut all_dists = Array2::<f64>::zeros(
             (self.len(), self.motifs[0].dists.len())
@@ -1751,7 +1759,6 @@ impl Motifs {
     pub fn filter_motifs<'a>(
             &mut self,
             rec_db: &'a RecordsDB,
-            threshold: &'a f64,
             max_count: &'a i64,
     ) -> Motifs {
 
@@ -1762,19 +1769,33 @@ impl Motifs {
         //  we multiply by two because we'll be optimizing shape AND weight values
         //  then add one for the threshold
         let rec_num = rec_db.len();
+        println!("rec_num: {}", &rec_num);
         let shape_num = self.motifs[0].params.params.raw_dim()[0];
+        println!("shape_num: {}", &shape_num);
         let win_len = self.motifs[0].params.params.raw_dim()[1];
+        println!("win_len: {}", &win_len);
         let delta_k = shape_num * win_len * 2 + 1;
+        println!("delta_k: {}", &delta_k);
         //let mut info_vals_in_model = Vec::<&f64>::new();
 
         // sort the Vec of Motifs in order of descending mutual information
         self.sort_motifs();
+
+        for (k,motif) in self.motifs.iter().enumerate() {
+            println!("Motif {k} AMI is {}", motif.mi);
+        }
 
         let mut top_motifs = Vec::new();
 
         // Make sure first seed passes AIC
         let log_lik = rec_num as f64 * self.motifs[0].mi;
         let aic = info_theory::calc_aic(delta_k, log_lik);
+
+        println!("===========================");
+        println!("{} motifs here.", &self.len());
+
+        println!("AIC: {}", &aic);
+
         if aic < 0.0 {
             let motif = self.motifs[0].to_motif();
             top_motifs.push(motif);
@@ -1782,6 +1803,9 @@ impl Motifs {
         } else {
             return Motifs::new(top_motifs)
         }
+
+        println!("===========================");
+        println!("{} motifs there.", &top_motifs.len());
 
         // loop through candidate motifs
         for cand_motif in self.motifs[1..self.motifs.len()].iter() {
