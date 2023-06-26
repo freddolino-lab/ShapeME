@@ -18,8 +18,15 @@
   <body>
     <div class="container">
       <h4>Login successful</h4>
-      <a href="/submit">&lt; Submit a job</a>
+      <a href="/logout">Log out</a>
+      <br>
+      <a href="/submit">Submit a job</a>
       <h1>ShapeME dashboard</h1>
+
+      {% if jobs | length == 0 %}
+        Welcome to your dashboard. There's not much to see yet since you haven't run
+        any jobs. Once you have, you'll be able to monitor their progress here.
+      {% endif %}
 
       {{ m::jobs_table(jobs=jobs) }}
 

@@ -17,6 +17,12 @@
     <div class="container">
     <h1>Successful job submission</h1>
 
+      <br>
+      <a href="/submit">Submit another job</a>
+      <br>
+      <a href="/dashboard">Back to dashboard</a>
+      <br>
+
       Job {{ id }} successfully submitted. You can check its status at
       <a href="/jobs/{{ id }}">this site</a>
 

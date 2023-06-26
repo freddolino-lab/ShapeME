@@ -26,6 +26,11 @@
           </small>
       {% endif %}
 
+      <a href="/logout">Log out</a>
+      <br>
+      <a href="/dashboard">Back to dashboard</a>
+      <br>
+
       <form action="/submit" method="post" enctype="multipart/form-data">
         {#
         <fieldset>

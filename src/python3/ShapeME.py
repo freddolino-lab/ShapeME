@@ -197,7 +197,13 @@ def main():
     find_seq_motifs = args.find_seq_motifs
     no_shape_motifs = args.no_shape_motifs
     in_fname = os.path.join(data_dir, args.score_file)
+    motifs_rust_file = os.path.join(data_dir, "fold_motifs.json")
+    status_fname = os.path.join(data_dir, "job_status.json")
     max_n = args.max_n
+
+    status = "Running"
+    with open(status_fname, "w") as status_f:
+        json.dump(status, status_f)
 
     loglevel = args.log_level
     numeric_level = getattr(logging, loglevel.upper(), None)
@@ -230,14 +236,42 @@ def main():
             for name,yval in zip(seq_names,yvals):
                 of.write(f"\n{name}\t{yval}")
 
+    #############################################################
+    #############################################################
+    ## currently I do a bunch of redundant conversions, one set for each fold.
+    ## in future versions, use this conversion in fold splitting.
+    #############################################################
+    #############################################################
+    convert = f"Rscript {this_path}/utils/calc_shape.R {seq_fasta}"
+    convert_result = subprocess.run(
+        convert,
+        shell=True,
+        capture_output=True,
+        #check=True,
+    )
+    if convert_result.returncode != 0:
+        logging.error(
+            f"ERROR: running the following command:\n\n"\
+            f"{convert}\n\n"\
+            f"resulted in the following stderr:\n\n"\
+            f"{convert_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"\
+            f"{convert_result.stdout.decode()}"
+        )
+        sys.exit(1)
+    else:
+        logging.info("Converting training sequences to shapes ran without error")
+
     # get list of ((train_seq,train_y),(test_seq,test_y)) tuples for each fold
     folds = seqs.split_kfold( kfold, yvals )
+    fold_direcs = []
 
     # write the data to files for each fold, run motif inference and evaluation
     # on each fold
     for k,fold in enumerate(folds):
 
         out_dir = os.path.join(data_dir, f"{outdir_pre}_fold_{k}_output")
+        fold_direcs.append(out_dir)
         # if the output directory does not exist, make it
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
@@ -473,8 +507,96 @@ def main():
         #print(eval_result.stdout.decode())
         #sys.exit()
 
+    folds_with_motifs = []
+    for k,fold_direc in enumerate(fold_direcs):
+        motifs_file = os.path.join(fold_direc, "final_motifs.dsm")
+        if os.path.isfile(motifs_file):
+            # place fold motifs into all_motifs
+            folds_with_motifs.append((k, motifs_file))
+        else:
+            continue
+
+    if len(folds_with_motifs) == 0:
+        status = "FinishedNoMotif"
+        with open(status_fname, "w") as status_f:
+            json.dump(status, status_f)
+        logging.info("No motifs found in any folds")
+        sys.exit(0)
+
+    # if only one fold has a result, copy it to the main directory
+    elif len(folds_with_motifs) == 1:
+        src_file = os.path.join(fold_direcs[0], "final_motifs.dsm")
+        dsm_file = os.path.join(data_dir, "final_motifs.dsm")
+        shutil.copyfile(src_file, dsm_file)
+
+    else:
+        
+        ####################################################################
+        ####################################################################
+        ####################################################################
+        ## need to write merged dsm file. will be read and split bewteen seq/shape by merge_folds.py
+        ####################################################################
+        ####################################################################
+        ####################################################################
+        dsm_files = [fold[1] for fold in folds_with_motifs[1:len(folds_with_motifs)]]
+        dsm_file = os.path.join(data_dir, "fold_motifs.dsm")
+        shutil.copyfile(folds_with_motifs[0][1], dsm_file)
+        for fname in dsm_files:
+            subprocess.run("sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}", shell=True)
+
+################################################################################
+################################################################################
+################################################################################
+## need to edit merge_folds to read motifs file, do cmi filter. ################
+################################################################################
+################################################################################
+################################################################################
+        MERGE_EXE = f"python {this_path}/merge_folds.py "\
+            f"--shape_files {full_shape_fnames} "\
+            f"--shape_names {' '.join(shape_names)} "\
+            f"--motifs_file {dsm_file} "\
+            f"--data_dir {data_dir} "\
+            f"--score_file {score_fname} "\
+            f"--out_dir {data_dir} "\
+            f"--nprocs {args.nprocs} "\
+            f"--out_prefix {outdir_pre}"
+
+        merge_result = subprocess.run(
+            MERGE_CMD,
+            shell=True,
+            capture_output=True,
+            #check=True,
+        )
+        if merge_result.returncode != 0:
+            logging.error(
+                f"ERROR: running the following command:\n\n"\
+                f"{MERGE_CMD}\n\n"\
+                f"resulted in the following stderr:\n\n"\
+                f"{merge_result.stderr.decode()}\n\n"
+                f"and the following stdout:\n\n"\
+                f"{merge_result.stdout.decode()}"
+            )
+            sys.exit(1)
+        else:
+            logging.info(
+                f"Merging motifs across folds was performed by running "\
+                f"the following command:\n\n"\
+                f"{MERGE_CMD}\n\n"\
+                f"resulting in the following stderr:\n\n"\
+                f"{merge_result.stderr.decode()}\n\n"
+                f"and the following stdout:\n\n"\
+                f"{merge_result.stdout.decode()}"
+            )
+
+    ######################################
+    ## now save images for report and write html report file
+    ######################################
+    status = "FinishedWithMotifs"
+    with open(status_fname, "w") as status_f:
+        json.dump(status, status_f)
+    logging.info("ShapeME finished")
+
 
 if __name__ == '__main__':
     main()
-
 

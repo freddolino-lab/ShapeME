@@ -2,14 +2,11 @@
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
-// todo: insert job to db upon submission!!
-// todo: go to dashboard upson submission!!
-// todo: add logout button!!
+// todo: job monitoring in dashboard
+// todo: job reports
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////
-
 
 
 //use std::error::Error;
@@ -49,7 +46,19 @@ const JOB_ID_LENGTH: usize = 12;
 #[database("shapeme")]
 struct Db(rusqlite::Connection);
 
+#[derive(Debug,Clone)]
 struct NoUserError;
+
+#[derive(Debug,Clone)]
+struct NoLoggedInUserError;
+
+impl fmt::Display for NoLoggedInUserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "No user logged in. Redirecting to login page.")
+    }
+}
+
+impl Error for NoLoggedInUserError {}
 
 type DbResult<T, E = Debug<rusqlite::Error>> = std::result::Result<T, E>;
 
@@ -99,7 +108,9 @@ struct User {
 #[derive(Debug, Clone, Deserialize, Serialize, FromForm)]
 #[serde(crate = "rocket::serde")]
 struct LoginUser {
+    #[field(validate = contains('@').or_else(msg!("invalid email address")))]
     email: String,
+    #[field(validate = len(6..))]
     password: String,
 }
 
@@ -160,7 +171,7 @@ impl User {
     }
 
     /// Inserts this user into sqlite database
-    async fn insert_into_db(&self, db: &Db) -> DbResult<()> {
+    async fn insert_into_db(&self, db: &Db) -> DbResult<i32> {
         let first = self.first.as_ref().unwrap().clone();
         let last = self.last.as_ref().unwrap().clone();
         let email = String::from(&self.email);
@@ -171,7 +182,10 @@ impl User {
                 "INSERT INTO users (first, last, email, password) VALUES (?1, ?2, ?3, ?4)",
                 params![first, last, email, pass_hash])
         }).await?;
-        Ok(())
+        let uid: i32 = db.run(move |conn| {
+            conn.last_insert_rowid()
+        }).await.try_into().unwrap();
+        Ok(uid)
     }
 
     /// Gets every job from db for this user.
@@ -204,18 +218,36 @@ impl User {
     }
 }
 
-
-
-
-#[post("/logout")]
-fn logout(mut cookies: &CookieJar<'_>) -> () {
+#[get("/logout")]
+fn logout(mut cookies: &CookieJar<'_>) -> Template {
     cookies.remove_private(Cookie::named("uid"));
+    Template::render("index", &Context::default())
 }
 
 #[get("/")]
 fn login_form() -> Template {
     Template::render("index", &Context::default())
 }
+
+#[get("/dashboard")]
+async fn dashboard(
+        db: Db,
+        mut cookies: &CookieJar<'_>
+) -> Template {
+    let maybe_cookie = cookies.get_private("uid");
+    // if a user is logged in, serve their dashboard, else redirect to index
+    let template = if let Some(cookie) = maybe_cookie {
+        let uid = cookie.value().to_string().parse().unwrap();
+        let user = User::from_uid(&db, uid).await.unwrap();
+        let user_jobs = user.fetch_all_jobs(&db).await.unwrap();
+        Template::render("dashboard", &user_jobs)
+    } else {
+        println!("No user logged in, redirecting to login page.");
+        Template::render("index", &Context::default())
+    };
+    template
+}
+
 
 #[post("/", data = "<form>")]
 async fn login(
@@ -283,14 +315,15 @@ async fn create_account(
     let template = match form.value {
         Some(ref create_user) => {
             let user = User::from_create_user(create_user);
-            let uid = format!("{}", &user.uid.unwrap());
             let insert_result = user.insert_into_db(&db).await;
 
             let template = match insert_result {
-                Ok(nothing) => {
+                Ok(uid) => {
                     println!("User {} created.", &user.email);
-                    cookies.add_private(Cookie::new("uid", uid));
-                    Template::render("submit", &Context::default())
+                    cookies.add_private(Cookie::new("uid", uid.to_string()));
+                    let user = User::from_uid(&db, uid).await.unwrap();
+                    let user_jobs = user.fetch_all_jobs(&db).await.unwrap();
+                    Template::render("dashboard", &user_jobs)
                 },
                 Err(error) => match error.0 {
                     rusqlite::Error::SqliteFailure(err, Some(msg)) => {
@@ -306,7 +339,7 @@ async fn create_account(
             template
         }
         None => {
-            Template::render("create_account", &Context::default())
+            Template::render("create_account", &form.context)
         }
     };
  
@@ -343,7 +376,12 @@ pub struct Submit {
 }
 
 impl Submit {
-    async fn insert_into_db(&self, db: &Db, uid: &i32, job_id: &str) -> Result<(), Box<dyn Error>> {
+    async fn insert_into_db(
+            &self,
+            db: &Db,
+            uid: &i32,
+            job_id: &str,
+    ) -> Result<(), Box<dyn Error>> {
         let job_name = self.submission.name.clone();
         let arg_string = self.cfg.build_arg_string()?;
         let id = String::from(job_id);
@@ -356,9 +394,8 @@ impl Submit {
         let version = "0.1.0";
         db.run(move |conn| {
             conn.execute(
-                "INSERT INTO jobs
-                    (id, name, args, version, uid, link)
-                    VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO jobs (id, name, args, version, uid)
+                VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![id, job_name, arg_string, version, user_id])
         }).await?;
         Ok(())
@@ -369,7 +406,6 @@ impl Submit {
 pub struct JobContext {
     #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    //email: String,
     pub path: PathBuf,
     fa_path: PathBuf,
     score_path: PathBuf,
@@ -424,12 +460,15 @@ impl JobContext {
         let id = JobContext::make_id(JOB_ID_LENGTH);
 
         let maybe_cookie = cookies.get_private("uid");
-        if let Some(cookie) = maybe_cookie {
+        let uid_result: Result<i32, NoLoggedInUserError> = if let Some(cookie) = maybe_cookie {
             let uid: i32 = cookie.value().to_string().parse()?;
-            sub.insert_into_db(&db, &uid, &id);
+            sub.insert_into_db(&db, &uid, &id).await.unwrap();
+            Ok(uid)
         } else {
-            println!("No uid")
+            println!("No uid");
+            Err(NoLoggedInUserError)
         };
+        let uid = uid_result?;
 
         let job_path = build_job_path(&id);
         let _ = std::fs::create_dir_all(job_path.clone());
@@ -448,7 +487,6 @@ impl JobContext {
         let status = JobStatus::Queued;
         Ok(JobContext{
             id: Some(id),
-            //email,
             path,
             fa_path,
             score_path,
@@ -1127,12 +1165,13 @@ impl Report {
         })
     }
 }
+
 pub fn stage() -> AdHoc {
     AdHoc::on_ignite("Database stage", |rocket| async {
         rocket.attach(Db::fairing())
             .mount("/", routes![
                 login_form, login, create_account_form, create_account,
-                submit_form, submit, get_job,
+                submit_form, submit, get_job, dashboard, logout
             ])
     })
 }

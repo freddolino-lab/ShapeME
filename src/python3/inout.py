@@ -1326,7 +1326,6 @@ class Motifs:
             #    motif["contingency_fit_samples"] = ro.conversion.rpy2py(c_df)
             #    motif["null_fit_samples"] = ro.conversion.rpy2py(i_df)
 
-
     def merge_with_motifs(self, other):
 
         orig_covar_num = self.X.shape[1]
@@ -1384,7 +1383,6 @@ class Motifs:
                 f"motif lut: {self.var_lut}\n"\
             )
             sys.exit(1)
-
 
     def filter_motifs(self, coefs):
         '''Determines which coeficients were shrunk to zero during LASSO regression
@@ -1487,7 +1485,6 @@ class Motifs:
         self.var_lut = new_lut
 
         return(retained_coefs)
-
 
     def prep_shape_logit_reg_data(self, max_count):
         """Converts motif hit categories to X matrix of
