@@ -1064,7 +1064,7 @@ if __name__ == "__main__":
     try:
         main(args, status)
     except Exception as err:
-        logging.error(f"Error encountered in infer_motifs.py:\n\n{err}\n")
+        logging.error(f"\nError encountered in infer_motifs.py:\n{err}\n")
         status = "FinishedError"
         in_direc = args.data_dir
         out_direc = args.out_dir

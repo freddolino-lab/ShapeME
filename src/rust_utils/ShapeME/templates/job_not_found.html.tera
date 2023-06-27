@@ -17,6 +17,10 @@
   </head>
   <body>
     <div class="container">
+      <a href="/logout">Log out</a>
+      <br>
+      <a href="/dashboard">Back to dashboard</a>
+      <br>
       <h1 style="color:red;">Job not found....</h1>
 
       {% if errors | length > 1 %}

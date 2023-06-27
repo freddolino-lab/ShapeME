@@ -861,9 +861,13 @@ class Motifs:
                         f"a json file of motifs."
                     )
                 self.motifs = read_shape_motifs(fname, shape_lut, alt_name_base)
+                if len(self.motifs) == 0:
+                    raise Exception(f"No shape motifs found in {fname}")
                 self.motif_type = motif_type
             elif motif_type == "sequence":
                 self.motifs = parse_meme_file(fname, evalue_thresh=evalue_thresh)
+                if len(self.motifs) == 0:
+                    raise Exception(f"No sequence motifs found in {fname}")
                 self.motif_type = motif_type
             else:
                 raise ReadMotifException()

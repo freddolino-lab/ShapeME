@@ -503,9 +503,9 @@ def main():
                     f"Motif evaluation was performed by running the following command:\n\n"\
                     f"{EVAL_CMD}\n\n"\
                     f"resulting in the following stderr:\n\n"\
-                    f"{infer_result.stderr.decode()}\n\n"
+                    f"{eval_result.stderr.decode()}\n\n"
                     f"and the following stdout:\n\n"\
-                    f"{infer_result.stdout.decode()}"
+                    f"{eval_result.stdout.decode()}"
                 )
 
             #print(eval_result.stderr.decode())
@@ -535,29 +535,34 @@ def main():
         src_file = os.path.join(fold_direcs[0], "final_motifs.dsm")
         dsm_file = os.path.join(data_dir, "final_motifs.dsm")
         shutil.copyfile(src_file, dsm_file)
+        ###########################################################
+        ###########################################################
+        ## need to also copy files with prec-rec curve, heatmap, etc
+        ###########################################################
+        ###########################################################
 
     else:
         # first_file will just be copied to the main job directory
         first_file = folds_with_motifs.pop(0)
+        first_fold_direc = os.path.dirname(first_file[1])
         dsm_files = [ fold[1] for fold in folds_with_motifs ]
         dsm_file = os.path.join(data_dir, "fold_motifs.dsm")
         # copy first dsm file to main data directory
         shutil.copyfile(first_file[1], dsm_file)
+        # copy a config file to main direc for initializing merge_folds.py
+        cfg_basename = "template_config.json"
+        cfg_file = os.path.join(data_dir, cfg_basename)
+        shutil.copyfile(os.path.join(first_fold_direc, "config.json"), cfg_file)
         # append each following dms file's motifs to the main dms file
         # this file will be read and split between seq/shape by merge_folds.py
         for fname in dsm_files:
-            subprocess.run(f"sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}", shell=True)
+            subprocess.run(
+                f"sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}",
+                shell=True,
+            )
 
-################################################################################
-################################################################################
-################################################################################
-## need to edit merge_folds to read motifs file, do cmi filter. ################
-################################################################################
-################################################################################
-################################################################################
-# NOTE: merge_folds rust binary can just use a cfg file from one of the folds
         MERGE_CMD = f"python {this_path}/merge_folds.py "\
-            f"--motifs_file fold_motifs.dsm "\
+            f"--config_file {cfg_basename} "\
             f"--shape_files {full_shape_fnames} "\
             f"--shape_names {' '.join(shape_names)} "\
             f"--motifs_file {dsm_file} "\
@@ -591,6 +596,52 @@ def main():
                 f"{merge_result.stderr.decode()}\n\n"
                 f"and the following stdout:\n\n"\
                 f"{merge_result.stdout.decode()}"
+            )
+
+        logging.info(f"Evaluating set of motifs merged from folds...")
+        MERGE_EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
+            f"--test_shape_files {full_shape_fnames} "\
+            f"--shape_names {' '.join(shape_names)} "\
+            f"--data_dir {data_dir} "\
+            f"--test_score_file {in_fname} "\
+            f"--out_dir {data_dir} "\
+            f"--nprocs {args.nprocs} "\
+            f"--out_prefix {outdir_pre}"
+
+        if args.continuous is not None:
+            MERGE_EVAL_EXE += f" --continuous {args.continuous}"
+
+        if find_seq_motifs:
+            MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "\
+                f"--find_seq_motifs {args.find_seq_motifs} "
+
+        # workaround for potential security vulnerability of shell=True
+        MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
+        MERGE_EVAL_CMD = MERGE_EVAL_EXE
+        merge_eval_result = subprocess.run(
+            MERGE_EVAL_CMD,
+            shell=True,
+            capture_output=True,
+            #check=True,
+        )
+        if merge_eval_result.returncode != 0:
+            logging.error(
+                f"ERROR: running the following command:\n\n"\
+                f"{MERGE_EVAL_CMD}\n\n"\
+                f"resulted in the following stderr:\n\n"\
+                f"{merge_eval_result.stderr.decode()}\n\n"
+                f"and the following stdout:\n\n"\
+                f"{merge_eval_result.stdout.decode()}"
+            )
+            sys.exit(1)
+        else:
+            logging.info(
+                f"Motif evaluation was performed by running the following command:\n\n"\
+                f"{MERGE_EVAL_CMD}\n\n"\
+                f"resulting in the following stderr:\n\n"\
+                f"{merge_eval_result.stderr.decode()}\n\n"
+                f"and the following stdout:\n\n"\
+                f"{merge_eval_result.stdout.decode()}"
             )
 
     ######################################

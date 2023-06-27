@@ -195,7 +195,7 @@ impl User {
                 let mut stmt = conn
                     .prepare("SELECT id, name, args, version, uid FROM jobs WHERE uid = ?1")
                     .expect("Unable to prepare statement");
-                let jobs_iter = stmt.query_map(params![uid], |row| {
+                let job_rows_iter = stmt.query_map(params![uid], |row| {
                     Ok(JobRow {
                         id: row.get(0)?,
                         name: row.get(1)?,
@@ -204,14 +204,17 @@ impl User {
                         uid: row.get(4)?,
                     })
                 }).expect("Db query failed");
-                let mut jobs: Vec<JobRow> = Vec::new();
-                for job_row in jobs_iter {
-                    jobs.push(job_row.expect("unable to get jobrow"));
+                let mut jobs: Vec<JobContext> = Vec::new();
+                for job_row_result in job_rows_iter {
+                    let job_row = job_row_result.expect("unable to get jobrow");
+                    let job_context = JobContext::from_jobrow(job_row)
+                        .expect("unable to make jobcontext");
+                    jobs.push(job_context);
                 }
                 Jobs{jobs}
             }).await
         } else {
-            let jobs: Vec<JobRow> = Vec::new();
+            let jobs: Vec<JobContext> = Vec::new();
             Jobs{jobs}
         };
         Ok(jobs_result)
@@ -410,6 +413,8 @@ pub struct JobContext {
     fa_path: PathBuf,
     score_path: PathBuf,
     pub status: JobStatus,
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
+    job_row: Option<JobRow>,
 }
 
 #[derive(Debug, Serialize)]
@@ -422,7 +427,7 @@ struct JobRow {
 }
 
 #[derive(Debug, Serialize)]
-struct Jobs { jobs: Vec<JobRow> }
+struct Jobs { jobs: Vec<JobContext> }
 
 impl JobContext {
 
@@ -435,6 +440,15 @@ impl JobContext {
     fn from_json(fname: &PathBuf) -> Result<JobContext, Box<dyn Error>> {
         let in_file = std::fs::File::open(fname)?;
         let job_context: JobContext = serde_json::from_reader(&in_file)?;
+        Ok(job_context)
+    }
+
+    fn from_jobrow(job_row: JobRow) -> Result<JobContext, Box<dyn Error>> {
+        /////////////////////////////////////////////////////////
+        // I need a workaround for when the directory for the job is deleted
+        /////////////////////////////////////////////////////////
+        let mut job_context = JobContext::check_job(&job_row.id)?;
+        job_context.job_row = Some(job_row);
         Ok(job_context)
     }
 
@@ -491,6 +505,7 @@ impl JobContext {
             fa_path,
             score_path,
             status,
+            job_row: None,
         })
     }
 
@@ -509,18 +524,9 @@ impl JobContext {
 
     pub fn check_job(job_id: &str) -> Result<JobContext, Box<dyn Error>> {
 
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-// problem here is that I'm not searching the fold directories
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////
-
         let job_path = build_job_path(job_id);
         let status_fname = job_path.join("job_status.json");
+        //println!("Status file name: {:?}", &status_fname);
         let status_file = std::fs::File::open(&status_fname)?;
         let status = serde_json::from_reader(&status_file)?;
         //let email = "";
@@ -545,10 +551,10 @@ impl JobContext {
         Ok(JobContext{
             id: Some(job_id.to_string()),
             path: job_path.into(),
-            //email: email.to_string(),
-            status: status,
             fa_path: fa_path,
             score_path: score_path,
+            status: status,
+            job_row: None,
         })
     }
 }
@@ -1048,6 +1054,7 @@ async fn submit(
             Template::render("success", &job_context)
         }
         None => {
+            println!("Form: {:?}", &form.context);
             println!("None returned on submit!!");
             Template::render("index", &form.context)
         }
@@ -1085,6 +1092,15 @@ async fn get_job(
 
 #[derive(Serialize)]
 pub struct Report{
+    id: String,
+    logo_data: String,
+    heatmap_data: String,
+    aupr_curve_data: String,
+    auprs: String,
+}
+
+#[derive(Serialize)]
+pub struct FoldReport{
     id: String,
     logo_data: Vec<String>,
     heatmap_data: Vec<String>,
@@ -1132,6 +1148,41 @@ fn get_fold_direcs(job_path: &PathBuf) -> Vec<String> {
 impl Report {
     pub fn new(id: &str, job_path: &PathBuf) -> Result<Report, Box<dyn Error>> {
 
+        //let job_os_string = job_path.clone().into_os_string();
+        //let job_direc_string = job_os_string.into_string().unwrap();
+        let logo_data: String = get_img_data(
+            job_path,
+            ".",
+            "final_motifs.png",
+        ).expect("Unable to open final_motifs.png");
+
+        let heatmap_data: String = get_img_data(
+            job_path,
+            ".",
+            "final_heatmap.png",
+        ).expect("Unable to open final_heatmap.png");
+
+        let aupr_curve_data: String = get_img_data(
+            job_path,
+            ".",
+            "precision_recall_curve.png",
+        ).expect("Unable to open precision_recall_curve.png");
+
+        Ok(Report{
+            id: String::from(id),
+            logo_data,
+            heatmap_data,
+            aupr_curve_data,
+            auprs: String::new(),
+        })
+    }
+
+
+}
+
+impl FoldReport {
+    pub fn new(id: &str, job_path: &PathBuf) -> Result<FoldReport, Box<dyn Error>> {
+
         let fold_direcs = get_fold_direcs(&job_path);
 
         let logo_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
@@ -1156,7 +1207,7 @@ impl Report {
             ).expect("Unable to open precision_recall_curve.png")
         }).collect();
 
-        Ok(Report{
+        Ok(FoldReport{
             id: String::from(id),
             logo_data,
             heatmap_data,
@@ -1164,6 +1215,7 @@ impl Report {
             auprs: String::new(),
         })
     }
+
 }
 
 pub fn stage() -> AdHoc {

@@ -254,7 +254,8 @@ def heatmap(data, pvals, row_labels, col_labels, ax=None,
 
     min_p = 1e-4
     clipped_pvals = np.clip(pvals, min_p, 1.0)
-    alpha = (-np.log10(clipped_pvals) + 1) / (-np.log10(min_p) + 1)
+    #alpha = (-np.log10(clipped_pvals) + 1) / (-np.log10(min_p) + 1)
+    alpha = 1 - clipped_pvals
 
     # Plot the heatmap
     im = ax.imshow(X=data, alpha=alpha, **kwargs)

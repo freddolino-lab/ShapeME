@@ -502,10 +502,10 @@ def evaluate_fit2(
     else:
         yhat = inv_logit(yhat)
         
-    print("************************************")
-    print(f"yhat shape: {yhat.shape}")
-    print(f"yhat: {yhat}")
-    print("************************************")
+    #print("************************************")
+    #print(f"yhat shape: {yhat.shape}")
+    #print(f"yhat: {yhat}")
+    #print("************************************")
 
     #classes = np.zeros((num_seqs, num_cats, thresh_num))
     #for (i,threshold) in enumerate(np.linspace(
@@ -724,19 +724,20 @@ if __name__ == "__main__":
     parser.add_argument('--continuous', type=int, default=None,
             help="number of bins to discretize continuous input data with")
     parser.add_argument('--test_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
-    parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
+    parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir", default=None)
     parser.add_argument('--test_shape_files', nargs="+", type=str,
                          help='inputfiles with test shape scores')
     parser.add_argument('--train_shape_files', nargs="+", type=str,
-                         help='inputfiles with training shape scores')
+                         help='inputfiles with training shape scores', default=None)
     parser.add_argument('--shape_names', nargs="+", type=str,
                          help='parameter names')
     parser.add_argument('--data_dir', type=str, help="Directory containing data")
-    parser.add_argument('--train_score_file', type=str, help="File with peak names and y-vals")
+    parser.add_argument('--train_score_file', type=str, help="File with peak names and y-vals", default=None)
     parser.add_argument('--test_score_file', type=str, help="File with peak names and y-vals")
     parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
     parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
     parser.add_argument('--out_prefix', type=str, help="Prefix to prepend to output files.")
+    parser.add_argument('--config_file', type=str, help="Basename of configuration file.", default="config.json")
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
@@ -758,7 +759,7 @@ if __name__ == "__main__":
     train_shape_fname = os.path.join(out_direc, 'train_shapes.npy')
     test_yval_fname = os.path.join(out_direc, 'test_y_vals.npy')
     train_yval_fname = os.path.join(out_direc, 'train_y_vals.npy')
-    config_fname = os.path.join(out_direc, 'config.json')
+    config_fname = os.path.join(out_direc, args.config_file)
     # temp file just for running fimo
     seq_meme_fname = os.path.join(out_direc, 'seq_motifs.meme')
     rust_motifs_fname = os.path.join(out_direc, 'eval_rust_results.json')
@@ -779,22 +780,23 @@ if __name__ == "__main__":
     with open(config_fname, 'r') as f:
         args_dict = json.load(f)
 
-    train_records,train_bins,train_orig_y = read_records(
-        args_dict,
-        in_direc,
-        args.train_score_file,
-        args.shape_names,
-        args.train_shape_files,
-        continuous=args.continuous,
-        dset_type="training",
-    )
+    if (args.train_score_file is not None) and (args.train_shape_files is not None):
+        train_records,train_bins,train_orig_y = read_records(
+            args_dict,
+            in_direc,
+            args.train_score_file,
+            args.shape_names,
+            args.train_shape_files,
+            continuous=args.continuous,
+            dset_type="training",
+        )
 
-    # write shapes to npy file. Permute axes 1 and 2.
-    with open(train_shape_fname, 'wb') as shape_f:
-        np.save(shape_f, train_records.X.transpose((0,2,1,3)))
-    # write y-vals to npy file.
-    with open(train_yval_fname, 'wb') as f:
-        np.save(f, train_records.y.astype(np.int64))
+        # write shapes to npy file. Permute axes 1 and 2.
+        with open(train_shape_fname, 'wb') as shape_f:
+            np.save(shape_f, train_records.X.transpose((0,2,1,3)))
+        # write y-vals to npy file.
+        with open(train_yval_fname, 'wb') as f:
+            np.save(f, train_records.y.astype(np.int64))
 
     logit_reg_str = "eval_logistic_regression_result.pkl"
     logit_reg_fname = os.path.join(
@@ -829,9 +831,10 @@ if __name__ == "__main__":
 
     logging.info("Getting distance between motifs and each record")
 
-    train_y = train_records.y
+    if (args.train_score_file is not None) and (args.train_shape_files is not None):
+        train_y = train_records.y
     test_y = test_records.y
-    fam = set_family(train_y)
+    fam = set_family(test_y)
 
     if os.path.isfile(motif_fname):
 
@@ -852,39 +855,44 @@ if __name__ == "__main__":
                 out_direc,
                 test_records,
             )
-            train_shape_motifs = shape_run(
-                shape_motifs,
-                rust_motifs_fname,
-                train_shape_fname,
-                train_yval_fname,
-                args_dict,
-                config_fname,
-                rust_bin,
-                out_direc,
-                train_records,
-            )
 
-            all_train_motifs = train_shape_motifs
+            if (args.train_score_file is not None) and (args.train_shape_files is not None):
+                train_shape_motifs = shape_run(
+                    shape_motifs,
+                    rust_motifs_fname,
+                    train_shape_fname,
+                    train_yval_fname,
+                    args_dict,
+                    config_fname,
+                    rust_bin,
+                    out_direc,
+                    train_records,
+                )
+
+                all_train_motifs = train_shape_motifs
             all_test_motifs = test_shape_motifs
 
         if len(seq_motifs) > 0:
 
             if args.test_seq_fasta is None:
                 raise inout.NoSeqFaException()
-            if args.train_seq_fasta is None:
-                raise inout.NoSeqFaException()
+
+            if (args.train_score_file is not None) and (args.train_shape_files is not None):
+                if args.train_seq_fasta is None:
+                    raise inout.NoSeqFaException()
 
             test_seq_fasta = os.path.join(in_direc, args.test_seq_fasta)
-            train_seq_fasta = os.path.join(in_direc, args.train_seq_fasta)
+            if (args.train_score_file is not None) and (args.train_shape_files is not None):
+                train_seq_fasta = os.path.join(in_direc, args.train_seq_fasta)
 
-            train_seq_motifs = fimo_run(
-                seq_motifs,
-                train_seq_fasta,
-                seq_meme_fname,
-                fimo_direc,
-                this_path,
-                train_records,
-            )
+                train_seq_motifs = fimo_run(
+                    seq_motifs,
+                    train_seq_fasta,
+                    seq_meme_fname,
+                    fimo_direc,
+                    this_path,
+                    train_records,
+                )
             test_seq_motifs = fimo_run(
                 seq_motifs,
                 test_seq_fasta,
@@ -896,17 +904,23 @@ if __name__ == "__main__":
 
             if len(shape_motifs) > 0:
                 all_test_motifs = test_shape_motifs.new_with_motifs(test_seq_motifs)
-                all_train_motifs = train_shape_motifs.new_with_motifs(train_seq_motifs)
+                if (args.train_score_file is not None) and (args.train_shape_files is not None):
+                    all_train_motifs = train_shape_motifs.new_with_motifs(train_seq_motifs)
             else:
                 all_test_motifs = test_seq_motifs
-                all_train_motifs = train_seq_motifs
+                if (args.train_score_file is not None) and (args.train_shape_files is not None):
+                    all_train_motifs = train_seq_motifs
 
         # categories need to start with 0, so subtract one from
         #  each value until at least one of the y-val vectors has 0 as
         #  its minimum
-        while (np.min(train_y) != 0) and (np.min(test_y) != 0):
-            train_y -= 1
-            test_y -= 1
+        if (args.train_score_file is not None) and (args.train_shape_files is not None):
+            while (np.min(train_y) != 0) and (np.min(test_y) != 0):
+                train_y -= 1
+                test_y -= 1
+        else:
+            while np.min(test_y) != 0:
+                test_y -= 1
 
 ##############################################################################
 ##############################################################################

@@ -3,15 +3,17 @@
       <tr>
         <th>Job ID</th>
         <th>Name</th>
-        <th>arguments</th>
+        <th>Arguments</th>
         <th>ShapeME version</th>
+        <th>Job status</th>
       </tr>
       {% for job in jobs %}
       <tr>
         <td><a href="/jobs/{{job.id}}">{{ job.id }}</a></td>
-        <td>{{ job.name }}</td>
-        <td>{{ job.args }}</td>
-        <td>{{ job.version }}</td>
+        <td>{{ job.job_row.name }}</td>
+        <td>{{ job.job_row.args }}</td>
+        <td>{{ job.job_row.version }}</td>
+        <td>{{ job.status }}</td>
       </tr>
       {% endfor %}
     </table>

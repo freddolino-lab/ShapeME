@@ -111,17 +111,17 @@
             <div class="col">
               <label>Boolean Options (check to set to True, leave unchecked to set to False)</label>
               <br />
-              {{ m::checkbox(name="cfg.force", label="Force", value="Force") }}
+              {{ m::checkbox(name="cfg.force", label="Force", value="no") }}
               <br />
-              {{ m::checkbox(name="cfg.skip_inference", label="Skip inference (it's rare that you'll check this box)", value="Skip inference") }}
+              {{ m::checkbox(name="cfg.skip_inference", label="Skip inference (it's rare that you'll check this box)", value="no") }}
               <br />
-              {{ m::checkbox(name="cfg.find_seq_motifs", label="Find sequence motifs", value="Find sequence motifs") }}
+              {{ m::checkbox(name="cfg.find_seq_motifs", label="Find sequence motifs", value="no") }}
               <br />
-              {{ m::checkbox(name="cfg.no_shape_motifs", label="Don't find shape motifs", value="Don't find shape motifs") }}
+              {{ m::checkbox(name="cfg.no_shape_motifs", label="Don't find shape motifs", value="no") }}
               <br />
-              {{ m::checkbox(name="cfg.write_all_files", label="Write all model files", value="Write all model files") }}
+              {{ m::checkbox(name="cfg.write_all_files", label="Write all model files", value="no") }}
               <br />
-              {{ m::checkbox(name="cfg.exhaustive", label="Do an exhaustive initial search for seeds", value="Do an exhaustive initial search for seeds") }}
+              {{ m::checkbox(name="cfg.exhaustive", label="Do an exhaustive initial search for seeds", value="no") }}
             </div>
           </div>
 

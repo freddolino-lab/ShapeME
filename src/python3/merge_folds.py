@@ -43,6 +43,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--motifs_file', action='store', type=str, required=True,
         help='dsm file containing all folds\' motifs to be filtered and merged.')
+    parser.add_argument('--config_file', action='store', type=str, required=True,
+        help='config file to initialize arguments.')
     parser.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
     parser.add_argument('--shape_files', nargs="+", type=str, required=True,
@@ -106,10 +108,6 @@ def parse_args():
     parser.add_argument('--opt_niter', type=int, default=10000,
         help=f"Sets the number of simulated annealing iterations to "\
             f"undergo during optimization. Default: %(default)d.")
-    #parser.add_argument('--nonormalize', action="store_true",
-    #    help='don\'t normalize the input data by robustZ')
-    #parser.add_argument('--motif_perc', type=float, default=1,
-    #    help="fraction of data to EVALUATE motifs on. Default=%(default)f")
     parser.add_argument('--alpha', type=float, default=0.0,
         help=f"Lower limit on transformed weight values prior to "\
             f"normalization to sum to 1. Default: %(default)f")
@@ -188,7 +186,7 @@ def main(args, status):
     in_fname = args.score_file
     shape_names = args.shape_names
     shape_files = args.shape_files
-    rust_motifs_fname = os.path.join(out_direc, "fold_shapes.json")
+    rust_motifs_fname = os.path.join(out_direc, "fold_shape_motifs.json")
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
     out_coefs_fname = out_motif_basename + "_coefficients.npy"
@@ -219,7 +217,8 @@ def main(args, status):
     )
 
     shape_fname = os.path.join(out_direc, 'shapes.npy')
-    config_fname = os.path.join(out_direc, 'config.json')
+    rust_config_fname = os.path.join(out_direc, 'config.json')
+    template_config_fname = os.path.join(out_direc, args.config_file)
     shape_fit_fname = os.path.join(out_direc, 'shape_lasso_fit.pkl')
     seq_fit_fname = os.path.join(out_direc, 'seq_lasso_fit.pkl')
     shape_and_seq_fit_fname = os.path.join(out_direc, 'shape_and_seq_lasso_fit.pkl')
@@ -246,6 +245,14 @@ def main(args, status):
 
     fam,num_cats = evm.set_family(records.y)
     records.set_category_lut()
+    records.determine_center_spread()
+    records.normalize_shape_values()
+
+    for name,shape_idx in records.shape_name_lut.items():
+        this_center = records.shape_centers[shape_idx]
+        this_spread = records.shape_spreads[shape_idx]
+        logging.info(f"{name}: center={this_center:.2f}, spread={this_spread:.2f}")
+
 
     logging.info("Distribution of sequences per class:")
     logging.info(records.seqs_per_bin())
@@ -269,47 +276,24 @@ def main(args, status):
     with open(yval_fname, 'wb') as f:
         np.save(f, records.y.astype(np.int64))
 
-    MERGE_CMD = f"{merge_bin} {config_fname}"
+    MERGE_CMD = f"{merge_bin} {rust_config_fname}"
 
     max_batch = args.max_batch_no_new_seed
-    merge_args_dict = {
-        'eval_rust_fname': rust_motifs_fname,
-        'shape_fname': shape_fname,
-        'yvals_fname': yval_fname,
-        'alpha': args.alpha,
-        'max_count': args.max_count,
-        'kmer': args.kmer,
-        'cores': args.nprocs,
-        'seed_sample_size': args.init_threshold_seed_num,
-        'records_per_seed': args.init_threshold_recs_per_seed,
-        'windows_per_record': args.init_threshold_windows_per_record,
-        'thresh_sd_from_mean': args.threshold_sd,
-        'threshold_lb': args.threshold_constraints[0],
-        'threshold_ub': args.threshold_constraints[1],
-        'shape_lb': args.shape_constraints[0],
-        'shape_ub': args.shape_constraints[1],
-        'weight_lb': args.weights_constraints[0],
-        'weight_ub': args.weights_constraints[1],
-        'temperature': args.temperature,
-        'stepsize': args.stepsize,
-        'n_opt_iter': args.opt_niter,
-        't_adjust': args.t_adj,
-        'batch_size': args.batch_size,
-        'max_batch_no_new': max_batch,
-        'merge_rust_fname': dsm_file,
-    }
+    # read in one of the folds' config files to port applicable args over
+    with open(template_config_fname, "r") as f:
+        merge_args_dict = json.load(f)
 
-    if args.continuous is not None:
-        merge_args_dict['y_cat_num'] = num_cats
+    merge_args_dict['eval_rust_fname'] = rust_motifs_fname
+    merge_args_dict['shape_fname'] = shape_fname
+    merge_args_dict['yvals_fname'] = yval_fname
+    merge_args_dict['cores'] = args.nprocs
+    merge_args_dict['out_fname'] = out_direc
 
     # supplement args info with shape center and spread from database
     merge_args_dict['names'] = []
     merge_args_dict['indices'] = []
     merge_args_dict['centers'] = []
     merge_args_dict['spreads'] = []
-
-    records.determine_center_spread()
-    records.normalize_shape_values()
 
     for name,shape_idx in records.shape_name_lut.items():
         this_center = records.shape_centers[shape_idx]
@@ -325,7 +309,7 @@ def main(args, status):
         merge_args_dict['spreads'].append(this_spread)
     
     # write cfg to file
-    with open(config_fname, 'w') as f:
+    with open(rust_config_fname, 'w') as f:
         json.dump(merge_args_dict, f, indent=1)
 
     if not no_shape_motifs:
@@ -333,8 +317,6 @@ def main(args, status):
         retcode = subprocess.call(MERGE_CMD, shell=True, env=my_env)
         if retcode != 0:
             raise inout.RustBinaryException(MERGE_CMD)
-
-
 
 
 #######################################################################
@@ -677,7 +659,7 @@ def main(args, status):
 
         shape_motifs = inout.Motifs(
             rust_out_fname,
-            motif_type="shape",
+            motif_type = "shape",
             shape_lut = records.shape_name_lut,
             max_count = args.max_count,
         )
@@ -1046,9 +1028,9 @@ if __name__ == "__main__":
     try:
         main(args, status)
     except Exception as err:
-        logging.error(f"Error encountered in merge_motifs.py:\n\n{err}\n")
+        logging.error(f"\nError encountered in merge_folds.py:\n{err}\n")
         status = "FinishedError"
-        out_direc = args.out_dir
+        out_direc = args.direc
 
         if not os.path.isdir(out_direc):
             os.mkdir(out_direc)

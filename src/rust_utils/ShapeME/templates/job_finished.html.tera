@@ -20,6 +20,10 @@
       <h1>ShapeME results</h1>
 
       <h2>Showing results for job {{ id }}</h2>
+      <a href="/logout">Log out</a>
+      <br>
+      <a href="/dashboard">Back to dashboard</a>
+      <br>
 
       <fieldset>
         <legend>Motifs</legend>

@@ -396,10 +396,12 @@ mod tests {
         let db = setup_RecordsDB(30, 30);
         let seeds = db.make_seed_vec(15, 0.01);
         let test_seed = &seeds.seeds[100];
-        let hits = db.get_hits(&test_seed.params.params,
-                    &seeds.weights.weights_norm.view(),
-                    &1.0,
-                    &10);
+        let hits = db.get_hits(
+            &test_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            &1.0,
+            &10,
+        );
         assert_eq!(hits[[6,0]], 10)
     }
 
@@ -409,10 +411,12 @@ mod tests {
         let db = setup_RecordsDB(30, 30);
         let seeds = db.make_seed_vec(15, 0.01);
         let test_seed = &seeds.seeds[100];
-        let hits = db.get_hits(&test_seed.params.params,
-                    &seeds.weights.weights_norm.view(),
-                    &1.0,
-                    &max_count);
+        let hits = db.get_hits(
+            &test_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            &1.0,
+            &max_count,
+        );
         
         let hit_cats = info_theory::categorize_hits(&hits, &max_count);
         let hv = hit_cats.view();
@@ -421,6 +425,26 @@ mod tests {
         let ami = info_theory::adjusted_mutual_information(contingency.view());
         let ami_answer = 0.04326620722450172; // calculated using sklear.metrics.adjusted_mutual_info_score
         assert!(AbsDiff::default().epsilon(1e-6).eq(&ami_answer, &ami));
+    }
+
+    #[test]
+    fn test_fold_merge_update() {
+
+        let mut motifs: Motifs = read_motifs("../test_data/test_motifs.json");
+        // simulates args as they'll come from env::args in main.rs
+        let args = [
+            String::from("motifer"),
+            String::from("../test_data/config.json"),
+        ];
+        let cfg = parse_config(&args).unwrap();
+        let rec_db = RecordsDB::new_from_files(
+            &cfg.shape_fname,
+            &cfg.yvals_fname,
+        );
+
+        println!("{:?}", motifs);
+        motifs.fold_merge_update(&rec_db, &1, &0.01);
+        println!("{:?}", motifs);
     }
 
     #[test]
@@ -436,7 +460,7 @@ mod tests {
     #[test]
     fn test_read_files() {
         // read in shapes
-        let fname = "../../test_data/shapes.npy";
+        let fname = "../test_data/shapes.npy";
         let arr: Array4<f64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000, 5, 56, 2), arr.dim());
         assert!(AbsDiff::default().epsilon(1e-6).eq(&125522.42816848765, &arr.sum()));
@@ -470,7 +494,7 @@ mod tests {
         );
 
         // read in y-vals
-        let fname = "../../test_data/y_vals.npy";
+        let fname = "../test_data/y_vals.npy";
         let y_vals: Array1<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000), y_vals.dim());
         assert_eq!(391, y_vals.sum());
@@ -478,13 +502,13 @@ mod tests {
         // read in hits for first record, first window, calculated in python
         // These values will be used to test whether our rust hit counting
         // yields the same results as our python hit counting.
-        let fname = "../../test_data/hits.npy";
+        let fname = "../test_data/hits.npy";
         let hits: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000,2), hits.dim());
         assert_eq!(1323, hits.sum());
 
         // read in some other parameters we'll need
-        let fname = "../../test_data/test_args.pkl";
+        let fname = "../test_data/test_args.pkl";
         let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
         let buf_reader = BufReader::new(file);
@@ -511,9 +535,9 @@ mod tests {
     #[test]
     fn test_db_from_file() {
         // read in shapes
-        let shape_fname = String::from("../../test_data/shapes.npy");
+        let shape_fname = String::from("../test_data/shapes.npy");
         // read in y-vals
-        let y_fname = String::from("../../test_data/y_vals.npy");
+        let y_fname = String::from("../test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
             &shape_fname,
             &y_fname,
@@ -584,16 +608,16 @@ mod tests {
     #[test]
     fn test_db_operations() {
         // read in shapes
-        let shape_fname = String::from("../../test_data/shapes.npy");
+        let shape_fname = String::from("../test_data/shapes.npy");
         // read in y-vals
-        let y_fname = String::from("../../test_data/y_vals.npy");
+        let y_fname = String::from("../test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
             &shape_fname,
             &y_fname,
         );
 
         // read in some other parameters we'll need
-        let fname = "../../test_data/test_args.pkl";
+        let fname = "../test_data/test_args.pkl";
         let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
         let buf_reader = BufReader::new(file);
@@ -616,7 +640,7 @@ mod tests {
         //////////////////////////////////////////////////////////////////////////////
         // The second record in the database was compared to the second seed in python.
         // So look at second record in rec_db and second seed, just like I did in python
-        // when I made the file "../../test_data/distances.npy"
+        // when I made the file "../test_data/distances.npy"
         //////////////////////////////////////////////////////////////////////////////
         for (i,rec) in rec_db.iter().enumerate() {
             // skip all but i == 1
@@ -646,7 +670,7 @@ mod tests {
 
         // read in the distances output by python
         let dist_answer: Array2<f64> = ndarray_npy::read_npy(
-            String::from("../../test_data/distances.npy")
+            String::from("../test_data/distances.npy")
         ).unwrap();
         //println!("Dist answer: {:?}", dist_answer);
         //println!("Minus dists: {:?}", minus_dists);
@@ -711,7 +735,7 @@ mod tests {
         assert!(AbsDiff::default().epsilon(1e-6).eq(&test_seed.mi, &hash.get("mi").unwrap()));
 
         // yields the same results as our python hit counting.
-        let fname = "../../test_data/hits.npy";
+        let fname = "../test_data/hits.npy";
         let hits_true: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!(hits_true.sum(), hits.sum());
         assert_eq!(hits_true, hits);
@@ -745,9 +769,9 @@ mod tests {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("../../test_data/config.json"),
+            String::from("../test_data/config.json"),
         ];
-        let cfg = parse_config(&args);
+        let cfg = parse_config(&args).unwrap();
         let rec_db = RecordsDB::new_from_files(
             &cfg.shape_fname,
             &cfg.yvals_fname,
@@ -777,9 +801,9 @@ mod tests {
 
     #[test]
     fn test_read_motifs () {
-        let motifs: Motifs = read_motifs("../../test_data/test_motifs.json");
+        let motifs: Motifs = read_motifs("../test_data/test_motifs.json");
         println!("{:?}", motifs.motifs[0].params.params);
-        let motifs: Motifs = read_motifs("../../test_data/test_motifs_err.json");
+        let motifs: Motifs = read_motifs("../test_data/test_motifs_err.json");
         println!("{:?}", motifs.motifs[0].params.params);
     }
 
@@ -788,10 +812,10 @@ mod tests {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("../../test_data/config_init_thresh.json"),
+            String::from("../test_data/config_init_thresh.json"),
         ];
 
-        let cfg = parse_config(&args);
+        let cfg = parse_config(&args).unwrap();
         let rec_db = RecordsDB::new_from_files(
             &cfg.shape_fname,
             &cfg.yvals_fname,
@@ -1695,10 +1719,26 @@ impl Motifs {
         }
     }
 
-    pub fn fold_merge_update(&mut self, rec_db: &RecordsDB, max_count: &i64) {
-        self.post_optim_update(rec_db, max_count);
+    pub fn fold_merge_update(
+            &mut self,
+            rec_db: &RecordsDB,
+            max_count: &i64,
+            alpha: &f64,
+    ) {
         for (i,motif) in self.motifs.iter_mut().enumerate() {
-            println!("Calculating final adjusted mutual information for motif {}", i);
+            motif.normalize_weights(alpha);
+            let hits = rec_db.get_hits(
+                &motif.params.params.view(),
+                &motif.weights.weights_norm.view(),
+                &motif.threshold,
+                max_count,
+            );
+            //println!("hits shape: {:?}", &hits.shape());
+            motif.hits = hits;
+            motif.update_min_dists(rec_db);
+            motif.update_hit_positions(rec_db, max_count);
+            motif.update_robustness(rec_db, max_count);
+            motif.update_zscore(rec_db, max_count);
             motif.update_mi(rec_db, max_count);
         }
     }
@@ -1791,9 +1831,6 @@ impl Motifs {
         let log_lik = rec_num as f64 * self.motifs[0].mi;
         let aic = info_theory::calc_aic(delta_k, log_lik);
 
-        println!("===========================");
-        println!("{} motifs here.", &self.len());
-
         println!("AIC: {}", &aic);
 
         if aic < 0.0 {
@@ -1803,9 +1840,6 @@ impl Motifs {
         } else {
             return Motifs::new(top_motifs)
         }
-
-        println!("===========================");
-        println!("{} motifs there.", &top_motifs.len());
 
         // loop through candidate motifs
         for cand_motif in self.motifs[1..self.motifs.len()].iter() {
