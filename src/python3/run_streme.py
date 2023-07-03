@@ -12,7 +12,7 @@ import sys
 import os
 import numpy as np
 
-def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc):
+def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc, tmpdir=None):
     '''Runs streme to find motifs present in `seq_fname` enriched
     in peak regions identified as 1 in `yvals_fname`.
 
@@ -37,6 +37,8 @@ def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc):
     out_direc : str
         Absolute path to the directory to be created, or clobbered if it already
         exists, by streme. Will contain streme output.
+    tmpdir : str
+        Location into which to write temporary files. If None, uses environment's TMPDIR.
     '''
 
     fa_file = inout.FastaFile()
@@ -50,7 +52,7 @@ def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc):
         fa_file.read_whole_file(f)
     with open(yvals_fname, "rb") as f:
         yvals = np.load(f)
-        
+
     for (i,yval) in enumerate(yvals):
         name = fa_file.names[i]
         entry = fa_file.pull_entry(name)
@@ -59,13 +61,17 @@ def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc):
         else:
             neg_fa_file.add_entry(entry)
 
-    with tempfile.NamedTemporaryFile("w") as pos_f:
-        pos_fa_file.write(pos_f)
+    #tmp_pos = os.path.join(tmpdir, "tmp_pos.fa")
+    #with open(tmp_pos, "w") as pos_f:
+    with tempfile.NamedTemporaryFile("w", dir=tmpdir) as pos_f:
         tmp_pos = pos_f.name
+        pos_fa_file.write(pos_f)
 
-        with tempfile.NamedTemporaryFile("w") as neg_f:
-            neg_fa_file.write(neg_f)
+    #tmp_neg = os.path.join(tmpdir, "tmp_neg.fa")
+    #with open(tmp_neg, "w") as neg_f:
+        with tempfile.NamedTemporaryFile("w", dir=tmpdir) as neg_f:
             tmp_neg = neg_f.name
+            neg_fa_file.write(neg_f)
 
             STREME = f"streme --evalue --thresh {threshold} "\
                 f" --p {tmp_pos} --n {tmp_neg} --dna "\
@@ -99,6 +105,9 @@ def main():
     parser.add_argument('--out_direc', action='store', type=str, required=True,
         help=f"Absolute path to the directory to be created, or clobbered if it "\
             f"already exists, by streme. Will contain streme output.")
+    parser.add_argument('--tmpdir', action='store', type=str, default=None,
+        help=f"Sets the location into which to write temporary files. If ommitted, will "\
+                f"use TMPDIR environment variable.")
     args = parser.parse_args()
 
     result = run_streme(
@@ -107,6 +116,7 @@ def main():
         args.pos_cats,
         args.threshold,
         args.out_direc,
+        args.tmpdir,
     )
 
     print(result.stdout)

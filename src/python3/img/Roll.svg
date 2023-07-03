@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg147"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="Roll.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview149"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.68328423"
+     inkscape:cx="397.34563"
+     inkscape:cy="561.9916"
+     inkscape:window-width="1920"
+     inkscape:window-height="939"
+     inkscape:window-x="1080"
+     inkscape:window-y="503"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs144">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37874">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37876"
+         width="11.836165"
+         height="20.534292"
+         x="41.725475"
+         y="66.274551" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37870">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37872"
+         width="11.836165"
+         height="20.534292"
+         x="42.70718"
+         y="124.56451" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37866">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37868"
+         width="11.836165"
+         height="20.534292"
+         x="49.750195"
+         y="153.77293" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-5">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-6"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-6-9">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-2-8"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-72">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-82"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-7-9">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-5-9"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-9-6">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-8-0"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37862">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37864"
+         width="11.836165"
+         height="20.534292"
+         x="43.387917"
+         y="201.81023" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37858">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37860"
+         width="11.836165"
+         height="20.534292"
+         x="45.833248"
+         y="240.00302" />
+    </clipPath>
+    <marker
+       style="overflow:visible"
+       id="TriangleOutM-9"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path1766-1" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g12400-0"
+       inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/Roll.png"
+       inkscape:export-xdpi="600"
+       inkscape:export-ydpi="600"
+       transform="translate(4.783219,-131.0055)"
+       clip-path="url(#clipPath37858)">
+      <circle
+         style="fill:#00a100;fill-opacity:1;stroke:none;stroke-width:0.108;stroke-opacity:1"
+         id="path1171-21-9-7"
+         cx="51.850288"
+         cy="250.43155"
+         r="12.111778"
+         inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/MGW.png"
+         inkscape:export-xdpi="300"
+         inkscape:export-ydpi="300" />
+      <path
+         id="path11276-5"
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:0.988038;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#TriangleOutM-9)"
+         d="m 54.810016,253.74015 c -0.774471,0.77447 -1.844392,1.25349 -3.026195,1.25349 -2.363606,0 -4.279688,-1.91609 -4.279685,-4.27969 10e-7,-2.3636 1.916081,-4.27968 4.279685,-4.27968 1.181802,0 2.251723,0.47902 3.026193,1.25349"
+         sodipodi:nodetypes="csssc" />
+    </g>
+  </g>
+</svg>

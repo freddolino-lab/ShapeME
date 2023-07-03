@@ -665,7 +665,7 @@ class Motif:
             alt_name=None, mi=None, hits=None, dists=None,
             weights=None, threshold=None, positions=None,
             zscore=None, robustness=None, evalue=None,
-            motif_type=None, enrichments=None, nsites=None,
+            motif_type=None, enrichments=None, nsites=None, X=None
     ):
         self.identifier = identifier
         self.alt_name = alt_name
@@ -683,6 +683,7 @@ class Motif:
         self.motif_type = motif_type
         self.enrichments = enrichments
         self.nsites = nsites
+        self.X = X
 
     def __str__(self):
         outstr = self.create_data_header_line()
@@ -766,6 +767,9 @@ class Motif:
 
         string += "\n"
         return string
+
+    def ppm(self):
+        return self.motif.transpose()
 
     def create_data_lines(self):
         """ Method to create data lines from a motif 
@@ -890,6 +894,9 @@ class Motifs:
             outstr += motif.create_data_header_line()
             outstr += "\n"
         return outstr
+
+    def sort_motfs(self):
+        pass
 
     def get_shape_str(self):
         shape_tuples = list([ (v,k) for k,v in self.shape_row_lut.items() ])
@@ -1113,6 +1120,41 @@ class Motifs:
 
     def write_enrichment_heatmap(self):
         pass
+
+    def get_ppms(self):
+        ppms = []
+        for motif in self:
+            if motif.motif_type == "sequence":
+                ppms.append(motif.ppm())
+        return ppms
+
+    def write_seq_motif_meme_file(self, fname):
+        """ Method to write a file from sequence Motifs object
+
+        Args:
+        -----
+        fname : str
+            name of outputfile
+        """
+
+        # ensure only the seq motifs will be written
+        seq_motifs,shape_motifs = self.split_seq_and_shape_motifs()
+        if len(seq_motifs) == 0:
+            print("No sequence motifs to write to meme file, skipping writing file.")
+            return
+
+        with open(fname, mode="w") as f:
+
+            f.write("MEME version 4\n\n")
+            f.write("ALPHABET= ACGT\n\n")
+            f.write("strands: + -\n\n")
+            f.write("Background letter frequencies\n")
+            f.write("A 0.25 C 0.25 G 0.25 T 0.25 \n\n")
+
+            for i, motif in enumerate(seq_motifs):
+                f.write(motif.create_data_header_line())
+                f.write(motif.create_data_lines())
+                f.write("\n")
 
     def write_file(self, fname, rec_db):
         """ Method to write a file from Motifs object

@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg147"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="ProT.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview149"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.68328423"
+     inkscape:cx="397.34563"
+     inkscape:cy="561.9916"
+     inkscape:window-width="1920"
+     inkscape:window-height="939"
+     inkscape:window-x="1080"
+     inkscape:window-y="503"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs144">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37874">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37876"
+         width="11.836165"
+         height="20.534292"
+         x="41.725475"
+         y="66.274551" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37870">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37872"
+         width="11.836165"
+         height="20.534292"
+         x="42.70718"
+         y="124.56451" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37866">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37868"
+         width="11.836165"
+         height="20.534292"
+         x="49.750195"
+         y="153.77293" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-5">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-6"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-6-9">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-2-8"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-72">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-82"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-7-9">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-5-9"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-9-6">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-8-0"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g2087-2"
+       transform="translate(21.389089,-51.745426)"
+       inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/ProT.png"
+       inkscape:export-xdpi="600"
+       inkscape:export-ydpi="600"
+       clip-path="url(#clipPath37866)">
+      <g
+         id="g2801-7"
+         inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/ProT.png"
+         inkscape:export-xdpi="300"
+         inkscape:export-ydpi="300">
+        <circle
+           style="fill:#ffe500;fill-opacity:1;stroke:none;stroke-width:0.108;stroke-opacity:1"
+           id="path1171-2-6"
+           cx="55.710743"
+           cy="164.00537"
+           r="12.111778"
+           inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/ProT.png"
+           inkscape:export-xdpi="300"
+           inkscape:export-ydpi="300"
+           transform="translate(0.03646908,-0.02444826)" />
+        <g
+           id="g2171"
+           transform="matrix(0.470266,0,0,0.470266,29.556588,86.34483)">
+          <ellipse
+             style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.484725;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path7984-9-1"
+             cx="39.8438"
+             cy="154.76636"
+             rx="5.6350007"
+             ry="1.4280992"
+             clip-path="url(#clipPath1739-5)"
+             transform="matrix(0,-1,1.2458991,0,-136.7679,198.20595)" />
+          <ellipse
+             style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.484725;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path7984-9-6-3"
+             cx="39.8438"
+             cy="154.76636"
+             rx="5.6350007"
+             ry="1.4280992"
+             clip-path="url(#clipPath1739-6-9)"
+             transform="matrix(-0.95105652,-0.30901699,0.385004,-1.1849205,28.613923,357.48964)" />
+          <ellipse
+             style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.484725;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path7984-9-5-4-2"
+             cx="39.8438"
+             cy="154.76636"
+             rx="5.6350007"
+             ry="1.4280992"
+             clip-path="url(#clipPath1739-38-6-72)"
+             transform="matrix(-0.58778525,0.809017,-1.0079536,-0.73232113,231.54519,249.49741)" />
+          <ellipse
+             style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.484725;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path7984-9-5-4-6-1"
+             cx="39.8438"
+             cy="154.76636"
+             rx="5.6350007"
+             ry="1.4280992"
+             clip-path="url(#clipPath1739-38-6-7-9)"
+             transform="matrix(0.58778526,0.80901699,-1.0079536,0.73232116,191.27424,23.015787)" />
+          <ellipse
+             style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.484725;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path7984-9-5-4-7-5"
+             cx="39.8438"
+             cy="154.76636"
+             rx="5.6350007"
+             ry="1.4280992"
+             clip-path="url(#clipPath1739-38-6-9-6)"
+             transform="matrix(0.95105651,-0.309017,0.38500402,1.1849205,-36.194957,-8.3393638)" />
+          <circle
+             style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.565"
+             id="path1821-9"
+             cx="55.710743"
+             cy="164.00537"
+             r="1.3939342" />
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

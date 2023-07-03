@@ -188,6 +188,34 @@ impl User {
         Ok(uid)
     }
 
+    /// Gets job corresponding to the given id
+    async fn fetch_job(&self, db: &Db, job_id: &str) -> Result<JobContext, Box<dyn Error>> {
+        let uid = self.uid.clone();
+        let job_id = job_id.to_string();
+        let job_row: JobRow = db.run(move |conn| {
+            conn.query_row(
+                "SELECT id, name, args, version, uid
+                FROM jobs WHERE uid = ?1 and id = ?2",
+                params![uid, job_id],
+                |row| Ok(JobRow {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    args: row.get(2)?,
+                    version: row.get(3)?,
+                    uid: row.get(4)?,
+            }))
+        }).await?;
+        //////////////////////////////////////////////////////
+        // need to appropriately handle queryreturnednorows error
+        //////////////////////////////////////////////////////
+        //rusqlite::Error::QueryReturnedNoRows => {
+        //    println!("No such user:\n{:?}", &form.context);
+        //    Template::render("no_such_user", &form.context)
+        //}
+
+        JobContext::from_jobrow(job_row)
+    }
+
     /// Gets every job from db for this user.
     async fn fetch_all_jobs(&self, db: &Db) -> DbResult<Jobs> {
         let jobs_result: Jobs = if let Some(uid) = self.uid {
@@ -522,6 +550,12 @@ impl JobContext {
         Ok(())
     }
 
+    //////////////////////////////////////////////////////////////////
+    // I think I should change this to return Option<JobContext>
+    // That would simplify cases where errors killed jobs prior to a job_status.json file
+    // being created, as I could return None, and handle that None appropriately
+    // moving up.
+    //////////////////////////////////////////////////////////////////
     pub fn check_job(job_id: &str) -> Result<JobContext, Box<dyn Error>> {
 
         let job_path = build_job_path(job_id);
@@ -529,22 +563,6 @@ impl JobContext {
         //println!("Status file name: {:?}", &status_fname);
         let status_file = std::fs::File::open(&status_fname)?;
         let status = serde_json::from_reader(&status_file)?;
-        //let email = "";
-
-        //let (status,email) = if job_path.is_dir() {
-        //    ///////////////////////////////////////////////////////////
-        //    // needs work
-        //    ///////////////////////////////////////////////////////////
-        //    let status = JobStatus::FinishedOK;
-        //    let email = "no email";
-        //    (status,email)
-        //} else {
-        //    ///////////////////////////////////////////////////////////
-        //    // here i should have a 404 catcher
-        //    ///////////////////////////////////////////////////////////
-        //    (JobStatus::FinishedError, "no email")
-        //};
-
         let fa_path = job_path.join("seqs.fa");
         let score_path = job_path.join("scores.txt");
 
@@ -1049,7 +1067,7 @@ async fn submit(
                 //&runs,
             ).await.unwrap();
             
-            //println!("{:?}", form.context);
+            println!("{:?}", form.context);
             //Template::render("success", &form.context)
             Template::render("success", &job_context)
         }
@@ -1063,34 +1081,64 @@ async fn submit(
     (form.context.status(), template)
 }
 
+/////////////////////////////////////////////////////////////////
+// this is currently accessible to the public. I need to update check_job to also check_user
+/////////////////////////////////////////////////////////////////
 #[get("/jobs/<job_id>")]
 async fn get_job(
         job_id: String,
+        db: Db,
+        mut cookies: &CookieJar<'_>,
 ) -> Template {
 
-    let job_context = JobContext::check_job(&job_id).unwrap();
-    let template = match job_context.status {
-        JobStatus::FinishedWithMotifs => {
-            if let Some(id) = job_context.id {
-                let report = Report::new(
-                    &id,
-                    &job_context.path,
-                ).expect("Unable to generate report");
-                Template::render("job_finished", &report)
-            } else {
-                Template::render("job_does_not_exist", &job_context)
-            }
-        },
-        JobStatus::FinishedNoMotif => Template::render("job_no_motif", &job_context),
-        JobStatus::Running => Template::render("job_running", &job_context),
-        JobStatus::FinishedError => Template::render("job_error", &job_context),
-        JobStatus::Queued => Template::render("job_queued", &job_context),
-        JobStatus::DoesNotExist => Template::render("job_does_not_exist", &job_context),
+    let maybe_cookie = cookies.get_private("uid");
+    // if a user is logged in, get their jobs, else redirect to index
+    let template = if let Some(cookie) = maybe_cookie {
+        let uid = cookie.value().to_string().parse().unwrap();
+        let user = User::from_uid(&db, uid).await.unwrap();
+        let job_context = user.fetch_job(&db, &job_id).await.unwrap();
+        let template = match job_context.status {
+            JobStatus::FinishedWithMotifs => {
+                if let Some(id) = job_context.id {
+                    //println!("Generating report");
+                    let report = Report::new(
+                        &id,
+                        &job_context.path,
+                    ).expect("Unable to generate report");
+                    //println!("Rendering job_finished template");
+                    Template::render("job_finished", &report)
+                } else {
+                    Template::render("job_does_not_exist", &job_context)
+                }
+            },
+            JobStatus::FinishedNoMotif => Template::render("job_no_motif", &job_context),
+            JobStatus::Running => Template::render("job_running", &job_context),
+            JobStatus::FinishedError => Template::render("job_error", &job_context),
+            JobStatus::Queued => Template::render("job_queued", &job_context),
+            JobStatus::DoesNotExist => Template::render("job_does_not_exist", &job_context),
+        };
+        template
+    } else {
+        println!("No user logged in, redirecting to login page.");
+        Template::render("index", &Context::default())
     };
+
+    //println!("Getting job context");
+    //let maybe_cookie = cookies.get_private("uid");
+    //let uid_result: Result<i32, NoLoggedInUserError> = if let Some(cookie) = maybe_cookie {
+    //    let uid: i32 = cookie.value().to_string().parse()?;
+    //    Ok(uid)
+    //} else {
+    //    println!("No uid");
+    //    Err(NoLoggedInUserError)
+    //};
+    //let uid = uid_result?;
+
+    //let job_context = JobContext::check_job(&job_id).unwrap();
     template
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Report{
     id: String,
     logo_data: String,
@@ -1113,17 +1161,18 @@ fn get_img_data(
         fold_direc: &str,
         img_base: &str,
 ) -> Result<String, Box<dyn Error>> {
-    let img = ImageReader::open(
-        job_path.as_path()
-        .join(fold_direc)
-        .join(img_base)
-    )?.decode()?;
+    let img_path = job_path.as_path().join(fold_direc).join(img_base);
+    //println!("================");
+    //println!("reading image at {:?}", &img_path);
+    let img = ImageReader::open(img_path)?.decode()?;
 
     let mut bytes: Vec<u8> = Vec::new();
+    //println!("encoding image as bytes array");
     img.write_to(
         &mut Cursor::new(&mut bytes),
         image::ImageOutputFormat::Png,
     )?;
+    //println!("fetching bytes array");
     let data = general_purpose::STANDARD.encode(&bytes);
     Ok(data)
 }
@@ -1150,18 +1199,21 @@ impl Report {
 
         //let job_os_string = job_path.clone().into_os_string();
         //let job_direc_string = job_os_string.into_string().unwrap();
+        //println!("reading logo image");
         let logo_data: String = get_img_data(
             job_path,
             ".",
             "final_motifs.png",
         ).expect("Unable to open final_motifs.png");
 
+        //println!("reading heatmap image");
         let heatmap_data: String = get_img_data(
             job_path,
             ".",
             "final_heatmap.png",
         ).expect("Unable to open final_heatmap.png");
 
+        //println!("reading aupr curve image");
         let aupr_curve_data: String = get_img_data(
             job_path,
             ".",

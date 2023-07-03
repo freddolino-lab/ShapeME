@@ -275,10 +275,12 @@ def main():
     for k,fold in enumerate(folds):
 
         out_dir = os.path.join(data_dir, f"{outdir_pre}_fold_{k}_output")
+        tmpdir = os.path.join(out_dir, "tmp")
         fold_direcs.append(out_dir)
         # if the output directory does not exist, make it
         if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
+            #os.makedirs(out_dir)
+            os.makedirs(tmpdir)
         # if the output directory does exist, exit by default, but allow
         #  to clobber if user provides --force at CLI
         else:
@@ -408,6 +410,7 @@ def main():
                 f"--opt_niter {args.opt_niter} " \
                 f"--alpha {args.alpha} " \
                 f"--batch_size {args.batch_size} " \
+                f"--tmpdir {tmpdir} " \
                 f"--log_level {args.log_level}"
 
             if args.exhaustive:
@@ -437,10 +440,10 @@ def main():
             INFER_EXE += f" --seq_fasta {train_seq_fasta} " \
                 f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
                 f"--streme_thresh {args.streme_thresh} " \
-                f"--find_seq_motifs {args.find_seq_motifs} "
+                f"--find_seq_motifs "
             EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "\
                 f"--train_seq_fasta {train_seq_fasta} "\
-                f"--find_seq_motifs {args.find_seq_motifs} "
+                f"--find_seq_motifs "
 
         if not args.skip_inference:
             logging.info(f"Inferring motifs for fold {k}...")
@@ -613,7 +616,7 @@ def main():
 
         if find_seq_motifs:
             MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "\
-                f"--find_seq_motifs {args.find_seq_motifs} "
+                f"--find_seq_motifs "
 
         # workaround for potential security vulnerability of shell=True
         MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)

@@ -27,17 +27,17 @@
 
       <fieldset>
         <legend>Motifs</legend>
-        {{ m::table_plot(plots=logo_data) }}
+        {{ m::report_plot(plot=logo_data) }}
       </fieldset>
 
       <fieldset>
         <legend>Motif enrichment</legend>
-        {{ m::table_plot(plots=heatmap_data) }}
+        {{ m::report_plot(plot=heatmap_data) }}
       </fieldset>
 
       <fieldset>
         <legend>Performance</legend>
-        {{ m::table_plot(plots=aupr_curve_data) }}
+        {{ m::report_plot(plot=aupr_curve_data) }}
       </fieldset>
 
     </div>

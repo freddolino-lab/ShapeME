@@ -19,6 +19,14 @@
     </table>
 {% endmacro %}
 
+{% macro report_plot(plot) %}
+    <table style="width:100%">
+      <tr>
+        <td><img src="data:image/jpg;base64, {{ plot }}"></td>
+      </tr>
+    </table>
+{% endmacro %}
+
 {% macro table_plot(plots) %}
     <table style="width:100%">
       <tr>

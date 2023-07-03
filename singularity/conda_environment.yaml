@@ -1,5 +1,6 @@
 name: motifer
 channels:
+    - sssdgc
     - bioconda
     - conda-forge
     - defaults
@@ -14,8 +15,10 @@ dependencies:
     - bioconductor-dnashaper
     - bioconductor-genomeinfodbdata
     - bioconductor-genomeinfodb
+    - r-lazyeval
     - r-prroc
     - r-glmnet
+    - r-ggseqlogo
       #- r-nnet
     - r-bh
       #- boost
@@ -23,7 +26,12 @@ dependencies:
     - rpy2
     - seaborn
     - meme
+    - seqlogo
     - pip
+    - openssl
     - sqlite
+      #- sqlcipher
     - pip:
         - jinja2
+        - svgpath2mpl
+        - svgpathtools

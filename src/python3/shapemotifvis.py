@@ -8,8 +8,18 @@ import numpy as np
 import inout
 import sys
 from pathlib import Path
-#from svgpathtools import svg2paths
+from svgpathtools import svg2paths,parse_path
 #from svgpath2mpl import parse_path
+
+from rpy2.robjects.packages import importr
+import rpy2.robjects as ro
+from rpy2.robjects import numpy2ri
+import rpy2.robjects.lib.ggplot2 as ggplot
+from rpy2.robjects.conversion import localconverter
+
+#numpy2ri.activate()
+base = importr("base")
+ggseqlogo = importr("ggseqlogo")
 
 this_path = Path(__file__).parent.absolute()
 
@@ -21,154 +31,259 @@ def get_image(path):
     #print(f"read image in file {path}")
     return img_arr
 
-def scale_image(img_arr, scale=1):
+def get_svg(fname):
+    print(f"reading image in file {fname}")
+    paths,atts = svg2paths(fname)
+    #print(f"converting svg path: {paths}\nto mpl path")
+    #print("=====================================")
+    print(f"attributes: {atts}")
+    #sys.exit()
+    #img = parse_path(atts[0]["d"])
+    #print(f"read image in file {path}")
+    #return img
+    return paths[0]
+
+def scale_image(img_arr, scale=1, frameon=False):
     # scale the alpha layer
     img_cp = img_arr.copy()
     img_cp[:,:,3] *= scale
     #img = OffsetImage(img_arr, zoom=scale*0.1)
-    img = OffsetImage(img_cp, zoom=0.125)
+    if frameon:
+        img_cp[:,0:10,0:3] = 0
+        img_cp[:,0:10,3] = 1
+        img_cp[0:10,:,0:3] = 0
+        img_cp[0:10,:,3] = 1
+        img_cp[:,-10:-1,0:3] = 0
+        img_cp[:,-10:-1,3] = 1
+        img_cp[-10:-1,:,0:3] = 0
+        img_cp[-10:-1,:,3] = 1
+    img = OffsetImage(img_cp, zoom=1/30)
     return img
 
-def plot_logo(
-        motifs,
-        file_name,
-        shape_lut,
-        top_n = 30,
-        opacity=1,
-        legend_loc="upper left",
-):
-    
-    idx_shape_lut = {v:k for k,v in shape_lut.items()}
-    #print("==============================================")
-    #print("Plotting shape logos")
-    #print("==============================================")
-    motif_list = motifs.motifs
-    motif_list,top_n = set_up(motif_list, top_n)
-    
-    fig,ax = plt.subplots(ncols=1,nrows=top_n,figsize=(8.5,top_n*2),sharex=True)
+def set_plot_fname(motif, suffix):
+    print(motif.alt_name)
+    print(motif.identifier)
+    if motif.alt_name is None:
+        prefix = motif.identifier
+    elif motif.alt_name == "None":
+        prefix = motif.identifier
+    else:
+        prefix = motif.alt_name
+    file_name = suffix.format(prefix)
+    return file_name
 
-    # pre-load images
+def plot_seq_logo(motif, suffix):
+
+    ro.r("""
+        logo = function(mat, fname) {
+            gp = ggseqlogo(mat) + lims(y=c(0,2)) + theme(axis.line=element_line(color="black"))
+            ggsave(fname, gp, width=4, height=2)
+        }
+    """)
+    logo = ro.globalenv["logo"]
+
+    if motif.motif_type == "sequence":
+        ppm = motif.ppm()
+    file_name = set_plot_fname(motif, suffix)
+    flat = list(ppm.flatten())
+    with localconverter(ro.default_converter):
+        ppm_r = ro.r.matrix(
+            ro.FloatVector(flat),
+            nrow=ppm.shape[1],
+            ncol=ppm.shape[0],
+        )
+    ppm_r.rownames = ro.StrVector(["A","C","G","T"])
+    logo(ppm_r, file_name)
+    return file_name
+
+
+def plot_seq_logos(motifs, suffix):
+
+    seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+    fnames = []
+    for i,motif in enumerate(seq_motifs):
+        fnames.append((plot_seq_logo(motif, suffix),motif))
+    return fnames
+
+
+def set_icons(motif, shape_lut):
     #print(f"Setting up to plot")
     img_dict = {}
     offset_dict = {}
-    just_a_motif = motif_list[0].motif
-    shape_param_num = just_a_motif.shape[0]
+    shape_param_num = motif.motif.shape[0]
     #print(f"Now at line 55")
     offsets = np.linspace(-0.35, 0.35, shape_param_num)
     #print(f"Now at line 57")
     #print("==============================================")
     #print(f"shape_lut: {shape_lut}")
     #print("==============================================")
+    idx_shape_lut = {v:k for k,v in shape_lut.items()}
     for j in range(shape_param_num):
         #print(f"Now at line 59")
         #print(f"shape index {j}")
         shape_name = idx_shape_lut[j]
         #print(f"Setting up img_dict and offset_dict for {shape_name}")
+        #mark_fname = os.path.join(this_path,"img",shape_name+".svg")
         mark_fname = os.path.join(this_path,"img",shape_name+".png")
+        #img_path = get_svg(mark_fname)
+        # center the icon
+        #img_path.vertices -= img_path.vertices.mean(axis=0)
         img_arr = get_image(mark_fname)
         img_dict[shape_name] = img_arr
+        #img_dict[shape_name] = img_path
         offset_dict[shape_name] = offsets[j]
+    return (img_dict, offset_dict, idx_shape_lut)
 
-    #print(f"Normalizing opacity and ylim values")
+def set_limits(motifs, top_n):
     max_weights = []
     uppers = []
     lowers = []
-    for res in motif_list[:top_n]:
-        max_weights.append(res.weights.max())
-        lowers.append(res.motif.min())
-        uppers.append(res.motif.max())
+    for motif in motifs[:top_n]:
+        max_weights.append(motif.weights.max())
+        lowers.append(motif.motif.min())
+        uppers.append(motif.motif.max())
     w_max = np.max(max_weights)
     upper = np.max(uppers) + 0.75
     lower = np.max(lowers) - 0.75
     ylims = np.max(np.abs([upper, lower]))
+    return (w_max,upper,lower,ylims)
 
-    #print(f"Looping over motifs to plot")
-    for i,res in enumerate(motif_list[:top_n]):
-        #print(f"Working on motif {i}")
-
-        if top_n == 1:
-            this_ax = ax
-        else:
-            this_ax = ax[i]
-
-        this_ax.axhline(y=0.0, color="black", linestyle="solid")
-        this_ax.axhline(y=2.0, color="gray", linestyle="dashed")
-        this_ax.axhline(y=4.0, color="gray", linestyle="dashed")
-        this_ax.axhline(y=-2.0, color="gray", linestyle="dashed")
-        this_ax.axhline(y=-4.0, color="gray", linestyle="dashed")
-        mi = round(res.mi, 2)
-        opt_y = res.motif
-        norm_weights = res.weights / w_max
-        
-        x_vals = [i+1 for i in range(opt_y.shape[1])]
-        
-        for j in range(opt_y.shape[0]):
-
-            shape_name = idx_shape_lut[j]
-            #print(f"Working on shape {shape_name} for motif {i}")
-            img_arr = img_dict[shape_name]
-            j_offset = offset_dict[shape_name]
-            j_opt = opt_y[j,:]
-            j_w = norm_weights[j,:]
-
-            for k in range(opt_y.shape[1]):
-
-                x_pos = x_vals[k]
-                weight = j_w[k]
-
-                #if weight > 0.2:
-                #print(f"Setting image opacity")
-                img = scale_image( img_arr, scale=weight )
-                img.image.axes = this_ax
-                ab = AnnotationBbox(
-                    offsetbox = img,
-                    xy = (x_pos,j_opt[k]),
-                    # xybox and boxcoords together shift relative to xy
-                    xybox = (j_offset*50, 0.0),
-                    xycoords = "data",
-                    boxcoords = "offset points",
-                    frameon=False,
-                )
-                #print(f"x: {x_vals[k]}")
-                #print(f"y: {opt_y[j,k]}")
-                #print(f"dir-ab: {dir(ab)}")
-                #print(f"ab xycoords: {ab.xycoords}")
-                #print(f"dir-ab xycoords: {dir(ab.xycoords)}")
-                #print(f"ab xycoords.center: {ab.xycoords.center()}")
-                #print(f"ab boxcoords: {ab.boxcoords}")
-                this_ax.add_artist( ab )
-                #wind_ext = ab.get_window_extent()
-                #tight_box = ab.get_tightbbox()
-                #print(f"window_ext: {wind_ext}")
-                #print(f"tight_bbox: {tight_box}")
-                if j == 0:
-                    if k % 2 == 0:
-                        this_ax.axvspan(
-                            x_vals[k]-0.5,
-                            x_vals[k]+0.5,
-                            facecolor = "0.2",
-                            alpha=0.5,
-                        )
-
-        this_ax.set_ylim(bottom=-ylims, top=ylims)
-        this_ax.text(1, 3, f"MI: {mi}")
-        this_ax.set_ylabel(f"Shape value (z-score)")
-        if i == 0:
-            this_ax.set_title("Shape logo")
-            this_ax.set_xticks(x_vals)
-            this_ax.set_xlim(left=x_vals[0]-1, right=x_vals[-1]+1)
-
+def plot_shape_logo(
+        motif,
+        suffix,
+        idx_shape_lut,
+        img_dict,
+        offset_dict,
+        w_max,
+        upper,
+        lower,
+        ylims,
+):
+    file_name = set_plot_fname(motif, suffix)
+    fig,ax = plt.subplots(nrows=1, ncols=1, figsize=(8.5,2))
+    ax.axhline(y=0.0, color="black", linestyle="solid")
+    ax.axhline(y=2.0, color="gray", linestyle="dashed")
+    ax.axhline(y=4.0, color="gray", linestyle="dashed")
+    ax.axhline(y=-2.0, color="gray", linestyle="dashed")
+    ax.axhline(y=-4.0, color="gray", linestyle="dashed")
+    mi = round(motif.mi, 2)
+    opt_y = motif.motif
+    norm_weights = motif.weights / w_max
     
-    if top_n == 1:
-        handles, labels = ax.get_legend_handles_labels()
-    else:
-        handles, labels = ax[0].get_legend_handles_labels()
-    this_ax.set_xlabel(f"Position (bp)")
-    fig.legend(handles, labels, loc=legend_loc)
-    print(f"Writing shape logos to {file_name}")
+    x_vals = [i+1 for i in range(opt_y.shape[1])]
+    
+    for j in range(opt_y.shape[0]):
+
+        shape_name = idx_shape_lut[j]
+        #print(f"Working on shape {shape_name} for motif {i}")
+        img_arr = img_dict[shape_name]
+        j_offset = offset_dict[shape_name]
+        j_opt = opt_y[j,:]
+        j_w = norm_weights[j,:]
+
+        for k in range(opt_y.shape[1]):
+
+            x_pos = x_vals[k]
+            weight = j_w[k]
+
+            #ax.plot(x_pos, j_opt[k], marker=img_arr, markersize=40)
+
+            #if weight > 0.2:
+            #print(f"Setting image opacity")
+            img = scale_image( img_arr, scale=weight, frameon=True )
+            img.image.axes = ax
+            ab = AnnotationBbox(
+                offsetbox = img,
+                xy = (x_pos,j_opt[k]),
+                # xybox and boxcoords together shift relative to xy
+                xybox = (j_offset*50, 0.0),
+                xycoords = "data",
+                boxcoords = "offset points",
+                frameon=False,
+            )
+            #ab.patch.set_facecolor(None)
+            #print(f"x: {x_vals[k]}")
+            #print(f"y: {opt_y[j,k]}")
+            #print(f"dir-ab: {dir(ab)}")
+            #print(f"ab xycoords: {ab.xycoords}")
+            #print(f"dir-ab xycoords: {dir(ab.xycoords)}")
+            #print(f"ab xycoords.center: {ab.xycoords.center()}")
+            #print(f"ab boxcoords: {ab.boxcoords}")
+            ax.add_artist( ab )
+            #wind_ext = ab.get_window_extent()
+            #tight_box = ab.get_tightbbox()
+            #print(f"window_ext: {wind_ext}")
+            #print(f"tight_bbox: {tight_box}")
+            if j == 0:
+                if k % 2 == 0:
+                    ax.axvspan(
+                        x_vals[k]-0.5,
+                        x_vals[k]+0.5,
+                        facecolor = "0.2",
+                        alpha=0.5,
+                    )
+
+    ax.set_ylim(bottom=-ylims, top=ylims)
+    ax.text(1, 3, f"MI: {mi}")
+    ax.set_ylabel(f"Shape value (z-score)")
+    ax.set_xticks(x_vals)
+    ax.set_xlim(left=x_vals[0]-1, right=x_vals[-1]+1)
+    #if i == 0:
+    #    ax.set_title("Shape logo")
+    #    ax.set_xticks(x_vals)
+    #    ax.set_xlim(left=x_vals[0]-1, right=x_vals[-1]+1)
+
+    #if top_n == 1:
+    #    handles, labels = ax.get_legend_handles_labels()
+    #else:
+    #    handles, labels = ax[0].get_legend_handles_labels()
+    ax.set_xlabel(f"Position (bp)")
+    #fig.legend(handles, labels, loc=legend_loc)
+    print(f"Writing shape logo to {file_name}")
     #fig.tight_layout()
     plt.savefig(file_name)
     plt.close()
+    return file_name
+
+
+def plot_shape_logos(motifs, suffix, shape_lut, top_n = 30, opacity=1, legend_loc="upper left"):
+
+    seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+
+    # pre-load images
+    (img_dict,offset_dict,idx_shape_lut) = set_icons(shape_motifs[0], shape_lut)
+    (w_max,upper,lower,ylims) = set_limits(shape_motifs, top_n)
+
+    fnames = []
+    for i,motif in enumerate(shape_motifs):
+
+        fnames.append((plot_shape_logo(
+            motif,
+            suffix,
+            idx_shape_lut,
+            img_dict,
+            offset_dict,
+            w_max,
+            upper,
+            lower,
+            ylims,
+        ),motif))
+
+    return fnames
+
+
+def plot_logos(
+        motifs,
+        suffix,
+        shape_lut,
+        top_n = 30,
+        opacity=1,
+        legend_loc="upper left",
+):
+    # plot the sequence logos into pngs
+    fnames = plot_seq_logos(motifs, suffix)
+    fnames.extend(plot_shape_logos(motifs, suffix, shape_lut, top_n, opacity, legend_loc))
+    return fnames
 
 
 def plot_shapes(rec_db, rec_idx, file_name, take_complement=False):

@@ -111,21 +111,21 @@
             <div class="col">
               <label>Boolean Options (check to set to True, leave unchecked to set to False)</label>
               <br />
-              {{ m::checkbox(name="cfg.force", label="Force", value="no") }}
+              {{ m::checkbox(name="cfg.force", label="Force") }}
               <br />
-              {{ m::checkbox(name="cfg.skip_inference", label="Skip inference (it's rare that you'll check this box)", value="no") }}
+              {{ m::checkbox(name="cfg.skip_inference", label="Skip inference (it's rare that you'll check this box)") }}
               <br />
-              {{ m::checkbox(name="cfg.find_seq_motifs", label="Find sequence motifs", value="no") }}
+              {{ m::checkbox(name="cfg.find_seq_motifs", label="Find sequence motifs") }}
               <br />
-              {{ m::checkbox(name="cfg.no_shape_motifs", label="Don't find shape motifs", value="no") }}
+              {{ m::checkbox(name="cfg.no_shape_motifs", label="Don't find shape motifs") }}
               <br />
-              {{ m::checkbox(name="cfg.write_all_files", label="Write all model files", value="no") }}
+              {{ m::checkbox(name="cfg.write_all_files", label="Write all model files") }}
               <br />
-              {{ m::checkbox(name="cfg.exhaustive", label="Do an exhaustive initial search for seeds", value="no") }}
+              {{ m::checkbox(name="cfg.exhaustive", label="Do an exhaustive initial search for seeds") }}
             </div>
           </div>
 
-          {{ m::input_row(label="Sequence motif positive categories", type="text", name="cfg.seq_motif_positive_cats", value="9") }}
+          {{ m::input_row(label="Sequence motif positive categories", type="text", name="cfg.seq_motif_positive_cats", value="1") }}
           {{ m::input_row(label="Number of folds for k-fold CV", type="text", name="cfg.crossval_folds", value="5") }}
           {{ m::input_row(label="kmer size (length of motif to search for)", type="text", name="cfg.kmer", value="10") }}
           {{ m::input_row(label="Max number of motif ocurrances to count on each strand", type="text", name="cfg.max_count", value="1") }}

@@ -11,6 +11,7 @@ import pickle
 import time
 import subprocess
 import multiprocessing
+import tempfile
 from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
 
@@ -150,7 +151,7 @@ def parse_args():
             f"\"4\" would use category 4 as the positive set, whereas "\
             f"\"3,4\" would use categories 3 and 4 as "\
             f"the positive set.")
-    parser.add_argument('--streme_thresh', default = 0.05,
+    parser.add_argument('--streme_thresh', default = 0.05, type=float,
         help="Threshold for including motifs identified by streme. Default: %(default)f")
     parser.add_argument("--seq_meme_file", type=str, default=None,
         help=f"Name of meme-formatted file (file must be located in data_dir) "\
@@ -170,6 +171,9 @@ def parse_args():
     parser.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
+    parser.add_argument('--tmpdir', action='store', type=str, default=None,
+        help=f"Sets the location into which to write temporary files. If ommitted, will "\
+                f"use TMPDIR environment variable.")
     args = parser.parse_args()
     return args
 
@@ -219,8 +223,9 @@ def main(args, status):
         seq_meme_file = os.path.join(in_direc, seq_meme_file)
     fimo_direc = f"{out_direc}/fimo_out"
     streme_direc = f"{out_direc}/streme_out"
-    streme_thresh = args.streme_thresh
+    streme_thresh = float(args.streme_thresh)
     no_shape_motifs = args.no_shape_motifs
+    tmpdir = args.tmpdir
 
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
@@ -291,19 +296,23 @@ def main(args, status):
         with open(seq_fasta,"r") as seq_f:
             seqs.read_whole_file(seq_f)
 
-        seqs = seqs[records.complete_records]
-        tmp_dir = tempfile.TemporaryDirectory()
+        seqs = seqs[np.where(records.complete_records)[0]]
+        tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
         with open(tmp_seq_fname, "w") as tmp_f:
             seqs.write(tmp_f)
 
+        #tmp_seq_fname = os.path.join(out_direc,"tmp_seq.fa")
+        #with open(tmp_seq_fname, "w") as tmp_f:
+        #    seqs.write(tmp_f)
         STREME = f"python {streme_exec} "\
             f"--seq_fname {tmp_seq_fname} "\
             f"--yvals_fname {yval_fname} "\
             f"--pos_cats {args.seq_motif_positive_cats} "\
             f"--threshold {streme_thresh} "\
-            f"--out_direc {streme_direc}"
+            f"--out_direc {streme_direc} "\
+            f"--tmpdir {tmpdir}"
 
         streme_result = subprocess.run(
             STREME,
@@ -360,8 +369,8 @@ def main(args, status):
         with open(seq_fasta,"r") as seq_f:
             seqs.read_whole_file(seq_f)
 
-        seqs = seqs[records.complete_records]
-        tmp_dir = tempfile.TemporaryDirectory()
+        seqs = seqs[np.where(records.complete_records)[0]]
+        tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
         with open(tmp_seq_fname, "w") as tmp_f:
@@ -597,9 +606,17 @@ def main(args, status):
         f"stepsize_{step}_alpha_{alpha}_max_count_{max_count}.pkl",
     )
 
-    final_motif_plot_fname = os.path.join(
+    seq_motif_plot_fname = os.path.join(
         out_direc,
-        f"final_motifs.png"
+        f"seq_motif_logo.png"
+    )
+    shape_motif_plot_fname = os.path.join(
+        out_direc,
+        f"shape_motif_logo.png"
+    )
+    final_motif_plot_suffix = os.path.join(
+        out_direc,
+        "{}_final_motif.png"
     )
 
     logit_reg_fname = os.path.join(
@@ -816,16 +833,6 @@ def main(args, status):
 
     if not no_shape_motifs:
 
-        smv.plot_logo(
-            shape_motifs,
-            final_motif_plot_fname,
-            records.shape_name_lut,
-            #top_n = np.Inf,
-        )
-
-        with open(final_motif_plot_fname, "rb") as image_file:
-            logo_data = base64.b64encode(image_file.read()).decode()
-
         # if there were both shape and seq motifs, combine into one model
         if shape_motif_exists and seq_motif_exists:
 
@@ -1027,14 +1034,45 @@ def main(args, status):
     print(f"all motifs_info:\n{motifs_info}")
     print(f"Best motif coefficients:\n{best_motif_coefs}")
     print(f"Best motif info:\n{best_motifs}")
-        
-    # place enrichment as key in each motif's dictionary
+
+    # plot_fnames is a list of tuples with paired png file names and motif objects
+    plot_fnames = smv.plot_logos(
+        best_motifs,
+        final_motif_plot_suffix,
+        records.shape_name_lut,
+        #top_n = np.Inf,
+    )
+
+    # modify each motif's enrichments attribute
     best_motifs.get_enrichments(records)
+
+    #######################################################################
+    #######################################################################
+    ## consider whether to place enrichments in these tuples
+    #######################################################################
+    #######################################################################
+    logo_data = []
+    for plot_fname,motif in plot_fnames:
+        with open(plot_fname, "rb") as image_file:
+            logo_img = base64.b64encode(image_file.read()).decode()
+        logo_data.append((
+            logo_img,
+            motif.alt_name,
+            motif.identifier,
+            motif.mi,
+            motif.zscore,
+            motif.robustness,
+            motif.evalue,
+        ))
+
     # write motifs to meme-like file
     best_motifs.write_file(out_motif_fname, records)
     with open(out_coefs_fname, "wb") as out_coef_f:
         np.save(out_coef_f, best_motif_coefs)
     logging.info(f"Writing motif enrichment heatmap to {out_heatmap_fname}")
+    #####################################################################
+    ## needs fixed to not clip image
+    #####################################################################
     smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
     with open(out_heatmap_fname, "rb") as image_file:
         heatmap_data = base64.b64encode(image_file.read()).decode()
