@@ -911,10 +911,12 @@ class Motifs:
         seq_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "sequence"]
         seq_motifs.motif_type = "sequence"
         seq_motifs.seq_row_lut = self.seq_row_lut
+        print("finished getting list of seq motifs")
         shape_motifs = Motifs()
         shape_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "shape"]
         shape_motifs.motif_type = "shape"
         shape_motifs.shape_row_lut = self.shape_row_lut
+        print("finished getting list of shape motifs")
         return(seq_motifs, shape_motifs)
 
     def write_shape_motifs_as_rust_output(self, out_fname):

@@ -442,8 +442,8 @@ def main():
                 f"--streme_thresh {args.streme_thresh} " \
                 f"--find_seq_motifs "
             EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "\
-                f"--train_seq_fasta {train_seq_fasta} "\
-                f"--find_seq_motifs "
+                f"--train_seq_fasta {train_seq_fasta} "
+                #f"--find_seq_motifs "
 
         if not args.skip_inference:
             logging.info(f"Inferring motifs for fold {k}...")

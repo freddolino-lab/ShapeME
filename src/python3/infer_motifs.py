@@ -35,7 +35,10 @@ glmnet = importr('glmnet')
 base = importr('base')
 
 def write_report(environ, temp_base, info, out_name):
+    print("writing report")
+    print(f"base template: {temp_base}")
     template = environ.get_template(temp_base)
+    print(f"out_name: {out_name}")
     content = template.render(**info)
     with open(out_name, "w", encoding="utf-8") as report:
         report.write(content)
@@ -1082,12 +1085,14 @@ def main(args, status):
         "logo_data": logo_data,
         "heatmap_data": heatmap_data,
     }
+    print(f"report_info keys:\n{report_info.keys()}")
     write_report(
         environ = jinja_env,
         temp_base = "motifs.html.temp",
         info = report_info,
         out_name = out_page_name,
     )
+    print("finished writing report")
 
     status = "FinishedWithMotifs"
     with open(status_fname, "w") as status_f:

@@ -1,4 +1,4 @@
-{% macro table_plot(info) -%}
+{#{% macro table_plot(info) %}
     <table style="width:100%">
       <tr>
         <th>Logo</th>
@@ -21,7 +21,8 @@
       </tr>
       {% endfor %}
     </table>
-{%- endmacro %}
+{% endmacro %}
+#}
 
 <!DOCTYPE html>
 <html>
@@ -44,8 +45,32 @@
 
       <fieldset>
         <legend>Motifs</legend>
-          {% table_plot({{ logo_data }}) %}
+
+        <table style="width:100%">
+          <tr>
+            <th>Logo</th>
+            <th>Name</th>
+            <th>ID</th>
+            <th>Adj. MI</th>
+            <th>z-score</th>
+            <th>robustness</th>
+            <th>e-value</th>
+          </tr>
+          {% for motif_info in logo_data %}
+          <tr>
+            <td><img src="data:image/jpg;base64, {{ motif_info[0] }}"></td>
+            <td>{{ motif_info[1] }}</td>
+            <td>{{ motif_info[2] }}</td>
+            <td>{{ motif_info[3] }}</td>
+            <td>{{ motif_info[4] }}</td>
+            <td>{{ motif_info[5] }}</td>
+            <td>{{ motif_info[6] }}</td>
+          </tr>
+          {% endfor %}
         </table>
+
+
+          {# {{ table_plot({{ logo_data }}) }} #}
       </fieldset>
 
       <fieldset>

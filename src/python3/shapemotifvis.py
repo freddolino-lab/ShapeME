@@ -100,6 +100,8 @@ def plot_seq_logo(motif, suffix):
 def plot_seq_logos(motifs, suffix):
 
     seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+    if len(seq_motifs) == 0:
+        return []
     fnames = []
     for i,motif in enumerate(seq_motifs):
         fnames.append((plot_seq_logo(motif, suffix),motif))
@@ -248,7 +250,15 @@ def plot_shape_logo(
 
 def plot_shape_logos(motifs, suffix, shape_lut, top_n = 30, opacity=1, legend_loc="upper left"):
 
+    #print(motifs)
     seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+    #print(f"seq_motifs:\n{seq_motifs}")
+    #print(f"shape_motifs:\n{shape_motifs}")
+    #print(f"len(shape_motifs):\n{len(shape_motifs)}")
+    if shape_motifs is None:
+        return []
+    if len(shape_motifs) == 0:
+        return []
 
     # pre-load images
     (img_dict,offset_dict,idx_shape_lut) = set_icons(shape_motifs[0], shape_lut)
@@ -282,7 +292,9 @@ def plot_logos(
 ):
     # plot the sequence logos into pngs
     fnames = plot_seq_logos(motifs, suffix)
+    #print(f"file names after seq logos: {fnames}")
     fnames.extend(plot_shape_logos(motifs, suffix, shape_lut, top_n, opacity, legend_loc))
+    #print(f"file names after shape logos: {fnames}")
     return fnames
 
 
