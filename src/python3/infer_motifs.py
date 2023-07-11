@@ -233,6 +233,10 @@ def main(args, status):
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
 
+    if tmpdir is not None:
+        if not os.path.isdir(tmpdir):
+            os.mkdir(tmpdir)
+
     if os.path.isfile(status_fname):
         with open(status_fname, "r") as status_f:
             status = json.load(status_f)
@@ -303,6 +307,7 @@ def main(args, status):
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
+        print(f"tmp_seq_fname: {tmp_seq_fname}")
         with open(tmp_seq_fname, "w") as tmp_f:
             seqs.write(tmp_f)
 
@@ -376,6 +381,7 @@ def main(args, status):
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
+        print(f"tmp_seq_fname: {tmp_seq_fname}")
         with open(tmp_seq_fname, "w") as tmp_f:
             seqs.write(tmp_f)
 
@@ -468,14 +474,33 @@ def main(args, status):
 
     if find_seq_motifs:
 
-        logging.info("\nFitting regression model to sequence motifs")
-        
-        seq_motifs.get_X(
+        logging.info("\nPlacing each motif's robustness into motifs")
+        # set_X is called with nosort=True here just to get the hits array required
+        # for supplement_robustness and sorting later
+        seq_motifs.set_X(
+            max_count = max_count,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
             rec_db = records,
+            pval_thresh = streme_thresh,
+            nosort = True,
         )
-        seq_motifs.supplement_robustness(records, supp_bin, my_env=my_env)
 
+        seq_motifs.supplement_robustness(
+            records,
+            supp_bin,
+            my_env=my_env,
+            tmpdir=tmpdir,
+        )
+        logging.info("\nSorting sequence motifs by z-score")
+       
+        logging.info("\nFitting regression model to sequence motifs")
+        seq_motifs.set_X(
+            max_count = max_count,
+            fimo_fname = f"{fimo_direc}/fimo.tsv",
+            rec_db = records,
+            pval_thresh = streme_thresh,
+        )
+        print("Done getting X for seq motifs")
         one_seq_motif = False
 
         if len(seq_motifs) == 1:
@@ -517,7 +542,12 @@ def main(args, status):
             logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
             logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
 
-            filtered_seq_coefs = seq_motifs.filter_motifs(seq_coefs)
+            filtered_seq_coefs = seq_motifs.filter_motifs(
+                seq_coefs,
+                fimo_fname = f"{fimo_direc}/fimo.tsv",
+                rec_db = records,
+                pval_thresh = streme_thresh,
+            )
 
             print()
             logging.info(
@@ -643,7 +673,7 @@ def main(args, status):
         'shape_fname': shape_fname,
         'yvals_fname': yval_fname,
         'alpha': args.alpha,
-        'max_count': args.max_count,
+        'max_count': max_count,
         'kmer': args.kmer,
         'cores': args.nprocs,
         'seed_sample_size': args.init_threshold_seed_num,
@@ -717,10 +747,16 @@ def main(args, status):
             rust_out_fname,
             motif_type="shape",
             shape_lut = records.shape_name_lut,
-            max_count = args.max_count,
+            max_count = max_count,
         )
+
         # places design matrix and variable lookup table into shape_motifs
-        shape_motifs.get_X(max_count = args.max_count)
+        shape_motifs.set_X(
+            max_count = max_count,
+            fimo_fname = f"{fimo_direc}/fimo.tsv",
+            rec_db = records,
+        )
+        logging.info(f"Shape coefficient lookup table:\n{shape_motifs.var_lut}")
 
         shape_fit = evm.train_glmnet(
             shape_motifs.X,
@@ -741,7 +777,11 @@ def main(args, status):
 
         # go through coefficients and weed out motifs for which all
         #   hits' coefficients are zero.
-        filtered_shape_coefs = shape_motifs.filter_motifs(coefs)
+        filtered_shape_coefs = shape_motifs.filter_motifs(
+            coefs,
+            max_count = max_count,
+            rec_db = records,
+        )
 
         print()
         logging.info(
@@ -848,9 +888,21 @@ def main(args, status):
 
             #else:
 
-            shape_and_seq_motifs = shape_motifs.new_with_motifs(seq_motifs)
+            shape_and_seq_motifs = shape_motifs.new_with_motifs(
+                seq_motifs,
+                max_count = max_count,
+                fimo_fname = f"{fimo_direc}/fimo.tsv",
+                rec_db = records,
+                pval_thresh = streme_thresh,
+            )
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
+            shape_and_seq_motifs.set_X(
+                max_count = max_count,
+                fimo_fname = f"{fimo_direc}/fimo.tsv",
+                rec_db = records,
+                pval_thresh = streme_thresh,
+            )
             print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
             print(f"seq_var_lut: {seq_motifs.var_lut}")
             print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
@@ -885,7 +937,11 @@ def main(args, status):
             )
 
             filtered_shape_and_seq_coefs = shape_and_seq_motifs.filter_motifs(
-                shape_and_seq_coefs
+                shape_and_seq_coefs,
+                max_count = max_count,
+                fimo_fname = f"{fimo_direc}/fimo.tsv",
+                rec_db = records,
+                pval_thresh = streme_thresh,
             )
 
             print()

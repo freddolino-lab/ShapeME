@@ -26,7 +26,7 @@ use crypto::sha3::Sha3;
 use rocket::tokio::process::{Command, Child};
 use rocket::fairing::AdHoc;
 use rocket::serde::{Serialize, Deserialize, json::Json};
-use rocket::response::{Debug};//, status::Created};
+use rocket::response::{Debug, content::RawHtml};//, status::Created};
 use rocket::fs::relative;
 use rocket::form::{Form, Contextual, Context, DataField, FromFormField};
 use rocket::FromForm;
@@ -617,7 +617,8 @@ async fn spawn_job(cmd: &mut Command) -> Result<Child, Box<dyn Error>> {
 
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
-// I need to get writing stdout to a file working
+// I need to get writing stdout/stderr to a file working
+// HAVE CHILD OPEN/WRITE OUT/ERR
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
     //let log_fname = path.as_path().join("shapeme.log");
@@ -1082,45 +1083,60 @@ async fn submit(
 }
 
 /////////////////////////////////////////////////////////////////
-// this is currently accessible to the public. I need to update check_job to also check_user
+// Instead of returning a Template, this function should return html directly, since the reports
+// are already written in html files by ShapeME.py
 /////////////////////////////////////////////////////////////////
 #[get("/jobs/<job_id>")]
 async fn get_job(
         job_id: String,
         db: Db,
         mut cookies: &CookieJar<'_>,
-) -> Template {
+//) -> Template {
+) -> NamedFile {
 
     let maybe_cookie = cookies.get_private("uid");
     // if a user is logged in, get their jobs, else redirect to index
-    let template = if let Some(cookie) = maybe_cookie {
+    //let template = if let Some(cookie) = maybe_cookie {
+    let report = if let Some(cookie) = maybe_cookie {
         let uid = cookie.value().to_string().parse().unwrap();
         let user = User::from_uid(&db, uid).await.unwrap();
         let job_context = user.fetch_job(&db, &job_id).await.unwrap();
-        let template = match job_context.status {
-            JobStatus::FinishedWithMotifs => {
-                if let Some(id) = job_context.id {
-                    //println!("Generating report");
-                    let report = Report::new(
-                        &id,
-                        &job_context.path,
-                    ).expect("Unable to generate report");
-                    //println!("Rendering job_finished template");
-                    Template::render("job_finished", &report)
-                } else {
-                    Template::render("job_does_not_exist", &job_context)
-                }
-            },
-            JobStatus::FinishedNoMotif => Template::render("job_no_motif", &job_context),
-            JobStatus::Running => Template::render("job_running", &job_context),
-            JobStatus::FinishedError => Template::render("job_error", &job_context),
-            JobStatus::Queued => Template::render("job_queued", &job_context),
-            JobStatus::DoesNotExist => Template::render("job_does_not_exist", &job_context),
-        };
-        template
+        let report = Report::from_file(
+            &id,
+            &job_context.path,
+        ).expect("Unable to generate report");
+        //let template = match job_context.status {
+        //    JobStatus::FinishedWithMotifs => {
+        //        if let Some(id) = job_context.id {
+        //            ///////////////////////////////////////////////////////////////
+        //            // switch to just reading report.html in main direc, and serving that up here
+        //            ///////////////////////////////////////////////////////////////
+        //            let report = Report::from_file(
+        //                &id,
+        //                &job_context.path,
+        //            ).expect("Unable to generate report");
+        //            //let report = Report::new(
+        //            //    &id,
+        //            //    &job_context.path,
+        //            //).expect("Unable to generate report");
+        //            //println!("Rendering job_finished template");
+        //            //Template::render("job_finished", &report)
+        //            report.page
+        //        } else {
+        //            //Template::render("job_does_not_exist", &job_context)
+        //            Metadata::render("job_does_not_exist", &job_context)
+        //        }
+        //    },
+        //    JobStatus::FinishedNoMotif => Metadata::render("job_no_motif", &job_context),
+        //    JobStatus::Running => Metadata::render("job_running", &job_context),
+        //    JobStatus::FinishedError => Metadata::render("job_error", &job_context),
+        //    JobStatus::Queued => Metadata::render("job_queued", &job_context),
+        //    JobStatus::DoesNotExist => Metadata::render("job_does_not_exist", &job_context),
+        //};
+        //template
     } else {
         println!("No user logged in, redirecting to login page.");
-        Template::render("index", &Context::default())
+        //Template::render("index", &Context::default())
     };
 
     //println!("Getting job context");
@@ -1135,16 +1151,19 @@ async fn get_job(
     //let uid = uid_result?;
 
     //let job_context = JobContext::check_job(&job_id).unwrap();
-    template
+    //template
+    report
 }
 
-#[derive(Debug, Serialize)]
+//#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct Report{
-    id: String,
-    logo_data: String,
-    heatmap_data: String,
-    aupr_curve_data: String,
-    auprs: String,
+    //id: String,
+    //logo_data: String,
+    //heatmap_data: String,
+    //aupr_curve_data: String,
+    //auprs: String,
+    pub page: RawHtml<String>,
 }
 
 #[derive(Serialize)]
@@ -1152,7 +1171,7 @@ pub struct FoldReport{
     id: String,
     logo_data: Vec<String>,
     heatmap_data: Vec<String>,
-    aupr_curve_data: Vec<String>,
+    //aupr_curve_data: Vec<String>,
     auprs: String,
 }
 
@@ -1195,40 +1214,47 @@ fn get_fold_direcs(job_path: &PathBuf) -> Vec<String> {
 }
 
 impl Report {
-    pub fn new(id: &str, job_path: &PathBuf) -> Result<Report, Box<dyn Error>> {
 
-        //let job_os_string = job_path.clone().into_os_string();
-        //let job_direc_string = job_os_string.into_string().unwrap();
-        //println!("reading logo image");
-        let logo_data: String = get_img_data(
-            job_path,
-            ".",
-            "final_motifs.png",
-        ).expect("Unable to open final_motifs.png");
-
-        //println!("reading heatmap image");
-        let heatmap_data: String = get_img_data(
-            job_path,
-            ".",
-            "final_heatmap.png",
-        ).expect("Unable to open final_heatmap.png");
-
-        //println!("reading aupr curve image");
-        let aupr_curve_data: String = get_img_data(
-            job_path,
-            ".",
-            "precision_recall_curve.png",
-        ).expect("Unable to open precision_recall_curve.png");
-
-        Ok(Report{
-            id: String::from(id),
-            logo_data,
-            heatmap_data,
-            aupr_curve_data,
-            auprs: String::new(),
-        })
+    pub fn from_file(id: &str, job_path: &PathBuf) -> Result<Report, Box<dyn Error>> {
+        let file_path = job_path.as_path().join("report.html");
+        let page_text = std::fs::read_to_string(file_path).unwrap();
+        let page = RawHtml(page_text);
+        Ok(Report{page})
     }
 
+    //pub fn new(id: &str, job_path: &PathBuf) -> Result<Report, Box<dyn Error>> {
+
+    //    //let job_os_string = job_path.clone().into_os_string();
+    //    //let job_direc_string = job_os_string.into_string().unwrap();
+    //    //println!("reading logo image");
+    //    let logo_data: String = get_img_data(
+    //        job_path,
+    //        ".",
+    //        "final_motifs.png",
+    //    ).expect("Unable to open final_motifs.png");
+
+    //    //println!("reading heatmap image");
+    //    let heatmap_data: String = get_img_data(
+    //        job_path,
+    //        ".",
+    //        "final_heatmap.png",
+    //    ).expect("Unable to open final_heatmap.png");
+
+    //    //println!("reading aupr curve image");
+    //    //let aupr_curve_data: String = get_img_data(
+    //    //    job_path,
+    //    //    ".",
+    //    //    "precision_recall_curve.png",
+    //    //).expect("Unable to open precision_recall_curve.png");
+
+    //    Ok(Report{
+    //        id: String::from(id),
+    //        logo_data,
+    //        heatmap_data,
+    //        //aupr_curve_data,
+    //        auprs: String::new(),
+    //    })
+    //}
 
 }
 
@@ -1251,19 +1277,19 @@ impl FoldReport {
                 "final_heatmap.png",
             ).expect("Unable to open final_heatmap.png")
         }).collect();
-        let aupr_curve_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
-            get_img_data(
-                job_path,
-                fold_direc,
-                "precision_recall_curve.png",
-            ).expect("Unable to open precision_recall_curve.png")
-        }).collect();
+        //let aupr_curve_data: Vec<String> = fold_direcs.iter().map(|fold_direc| {
+        //    get_img_data(
+        //        job_path,
+        //        fold_direc,
+        //        "precision_recall_curve.png",
+        //    ).expect("Unable to open precision_recall_curve.png")
+        //}).collect();
 
         Ok(FoldReport{
             id: String::from(id),
             logo_data,
             heatmap_data,
-            aupr_curve_data,
+            //aupr_curve_data,
             auprs: String::new(),
         })
     }

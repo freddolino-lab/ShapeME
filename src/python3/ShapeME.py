@@ -49,91 +49,124 @@ def read_score_file(infile):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--skip_inference', action="store_true", default=False,
+
+    subparsers = parser.add_subparsers(help="commands", dest="command")
+
+    # prep_data
+    prep_data = subparsers.add_parser("prep_data", help=f"prepares fasta and scores file "\
+        f"given a reference genome fasta file and a narrowpeak file identifying "\
+        f"the 'positive' set in which to call enriched motifs.")
+    prep_data.add_argument('--data_dir', type=str, required=True,
+        help="Directory from which input files will be read.")
+    prep_data.add_argument('--narrowpeak_file', action="store", required=True,
+        help=f"Base name of narrowpeak file containing the 'positive' regions "\
+            f"in which to call enrichment motifs. "\
+            f"Must reside in the location given by `--data_dir`.")
+    prep_data.add_argument('--fasta_file', action="store", required=True,
+        help=f"Base name of fasta file from which to extract positive sequences "\
+            f"present in `--narrowpeak` file, in addition to randomly-selected negative sequences.")
+    prep_data.add_argument('--wsize', type=int, default=60,
+                        help="total window size around peak center")
+    prep_data.add_argument('--nrand', type=int, default=3, 
+            help="multiplier for number of random seqs to include")
+    prep_data.add_argument('--seed', type=int, default=1234, 
+            help="random seed for reproducibility")
+    prep_data.add_argument('--rmchr', action="store_true", default=False, 
+            help="rm chr string from peak chromosomes")
+    prep_data.add_argument('--continuous', default=False, action="store_true",
+            help="Include at command line to keep value field continuous")
+    prep_data.add_argument('--center_metric', type=str, 
+            help="geom or height, geom gives geometric center of the peak (default). \
+                    height gives narrowpeak defined peak summit.")
+
+    # infer
+    infer = subparsers.add_parser("infer", help="run motif inference using an existing fasta file and scores file")
+
+    infer.add_argument('--data_dir', type=str, required=True,
+        help="Directory from which input files will be read.")
+    infer.add_argument('--skip_inference', action="store_true", default=False,
         help=f"Include this flag at the command line to skip motif inference. "\
             f"This is useful if you've already run inference on all folds.")
-    parser.add_argument('--skip_evaluation', action="store_true", default=False,
+    infer.add_argument('--skip_evaluation', action="store_true", default=False,
         help=f"Include this flag at the command line to skip evaluation of motifs.")
-    parser.add_argument('--force', action="store_true", default=False,
+    infer.add_argument('--force', action="store_true", default=False,
         help=f"Forces each fold to run, clobbering any extant output directories.")
-    parser.add_argument('--crossval_folds', action="store", type=int, required=True,
+    infer.add_argument('--crossval_folds', action="store", type=int, required=True,
         help="Number of folds into which to split data for k-fold cross-validation",
         default=5)
-    parser.add_argument('--score_file', action='store', type=str, required=True,
+    infer.add_argument('--score_file', action='store', type=str, required=True,
         help='input text file with names and scores for training data')
-    parser.add_argument('--data_dir', type=str, required=True,
-        help="Directory from which input files will be read.")
-    parser.add_argument('--kmer', type=int,
+    infer.add_argument('--kmer', type=int,
         help='kmer size to search for shape motifs. Default=%(default)d', default=15)
-    parser.add_argument('--max_count', type=int, default=1,
+    infer.add_argument('--max_count', type=int, default=1,
         help=f"Maximum number of times a motif can match "\
             f"each of the forward and reverse strands in a reference. "\
             f"Default: %(default)d")
-    parser.add_argument('--continuous', type=int, default=None,
+    infer.add_argument('--continuous', type=int, default=None,
         help="number of bins to discretize continuous input data with")
-    parser.add_argument('--threshold_sd', type=float, default=2.0, 
+    infer.add_argument('--threshold_sd', type=float, default=2.0, 
         help=f"std deviations below mean for seed finding. "\
             f"Only matters for greedy search. Default=%(default)f")
-    parser.add_argument('--init_threshold_seed_num', type=int, default=500, 
+    infer.add_argument('--init_threshold_seed_num', type=int, default=500, 
         help=f"Number of randomly selected seeds to compare to records "\
             f"in the database during initial threshold setting. Default=%(default)d")
-    parser.add_argument('--init_threshold_recs_per_seed', type=int, default=20, 
+    infer.add_argument('--init_threshold_recs_per_seed', type=int, default=20, 
         help=f"Number of randomly selected records to compare to each seed "\
             f"during initial threshold setting. Default=%(default)d")
-    parser.add_argument('--init_threshold_windows_per_record', type=int, default=2, 
+    infer.add_argument('--init_threshold_windows_per_record', type=int, default=2, 
         help=f"Number of randomly selected windows within a given record "\
             f"to compare to each seed during initial threshold setting. "\
             f"Default=%(default)d")
-    parser.add_argument("--max_batch_no_new_seed", type=int, default=10,
+    infer.add_argument("--max_batch_no_new_seed", type=int, default=10,
         help=f"Sets the number of batches of seed evaluation with no new motifs "\
             f"added to the set of motifs to be optimized prior to truncating the "\
             f"initial search for motifs.")
-    parser.add_argument('--nprocs', type=int, default=1,
+    infer.add_argument('--nprocs', type=int, default=1,
         help="number of processors. Default: %(default)d")
-    parser.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
+    infer.add_argument('--threshold_constraints', nargs=2, type=float, default=[0,10],
         help=f"Sets the upper and lower limits on the match "\
             f"threshold during optimization. Defaults to 0 for the "\
             f"lower limit and 10 for the upper limit.")
-    parser.add_argument('--shape_constraints', nargs=2, type=float, default=[-4,4],
+    infer.add_argument('--shape_constraints', nargs=2, type=float, default=[-4,4],
         help=f"Sets the upper and lower limits on the shapes' z-scores "\
             f"during optimization. Defaults to -4 for the lower limit "\
             f"and 4 for the upper limit.")
-    parser.add_argument('--weights_constraints', nargs=2, type=float, default=[-4,4],
+    infer.add_argument('--weights_constraints', nargs=2, type=float, default=[-4,4],
         help="Sets the upper and lower limits on the pre-transformed, "\
             f"pre-normalized weights during optimization. Defaults to -4 "\
             f"for the lower limit and 4 for the upper limit.")
-    parser.add_argument('--temperature', type=float, default=0.4,
+    infer.add_argument('--temperature', type=float, default=0.4,
         help=f"Sets the temperature argument for simulated annealing. "\
             f"Default: %(default)f")
-    parser.add_argument('--t_adj', type=float, default=0.001,
+    infer.add_argument('--t_adj', type=float, default=0.001,
         help=f"Fraction by which temperature decreases each iteration of "\
             f"simulated annealing. Default: %(default)f")
-    parser.add_argument('--stepsize', type=float, default=0.25,
+    infer.add_argument('--stepsize', type=float, default=0.25,
         help=f"Sets the stepsize argument simulated annealing. This "\
             f"defines how far a given value can be modified for iteration i "\
             f"from its value at iteration i-1. A higher value will "\
             f"allow farther hops. Default: %(default)f")
-    parser.add_argument('--opt_niter', type=int, default=10000,
+    infer.add_argument('--opt_niter', type=int, default=10000,
         help=f"Sets the number of simulated annealing iterations to "\
             f"undergo during optimization. Default: %(default)d.")
-    parser.add_argument('--alpha', type=float, default=0.0,
+    infer.add_argument('--alpha', type=float, default=0.0,
         help=f"Lower limit on transformed weight values prior to "\
             f"normalization to sum to 1. Default: %(default)f")
-    parser.add_argument('--batch_size', type=int, default=2000,
+    infer.add_argument('--batch_size', type=int, default=2000,
         help=f"Number of records to process seeds from at a time. Set lower "\
             f"to avoid out-of-memory errors. Default: %(default)d")
-    parser.add_argument('--find_seq_motifs', action="store_true",
+    infer.add_argument('--find_seq_motifs', action="store_true",
         help=f"Add this flag to call sequence motifs using streme in addition "\
             f"to calling shape motifs.")
-    parser.add_argument("--no_shape_motifs", action="store_true",
+    infer.add_argument("--no_shape_motifs", action="store_true",
         help=f"Add this flag to turn off shape motif inference. "\
             f"This is useful if you basically want to use this script "\
             f"as a wrapper for streme to just find sequence motifs.")
-    parser.add_argument("--seq_fasta", type=str, default=None,
+    infer.add_argument("--seq_fasta", type=str, default=None,
         help=f"Name of fasta file (located within data_dir, do not include the "\
             f"directory, just the file name) containing sequences in which to "\
             f"search for motifs")
-    parser.add_argument('--seq_motif_positive_cats', required=False, default="1",
+    infer.add_argument('--seq_motif_positive_cats', required=False, default="1",
         action="store", type=str,
         help=f"Denotes which categories in `--infile` (or after quantization "\
             f"for a continous signal in the number of bins denoted by the "\
@@ -142,25 +175,25 @@ def parse_args():
             f"\"4\" would use category 4 as the positive set, whereas "\
             f"\"3,4\" would use categories 3 and 4 as "\
             f"the positive set.")
-    parser.add_argument('--streme_thresh', default = 0.05,
+    infer.add_argument('--streme_thresh', default = 0.05,
         help="Threshold for including motifs identified by streme. Default: %(default)f")
-    parser.add_argument("--seq_meme_file", type=str, default=None,
+    infer.add_argument("--seq_meme_file", type=str, default=None,
         help=f"Name of meme-formatted file (file must be located in data_dir) "\
             f"to be used for searching for known sequence motifs of interest in "\
             f"seq_fasta")
-    parser.add_argument("--write_all_files", action="store_true",
+    infer.add_argument("--write_all_files", action="store_true",
         help=f"Add this flag to write all motif meme files, regardless of whether "\
             f"the model with shape motifs, sequence motifs, or both types of "\
             f"motifs was most performant.")
-    parser.add_argument("--exhaustive", action="store_true", default=False,
+    infer.add_argument("--exhaustive", action="store_true", default=False,
         help=f"Add this flag to perform and exhaustive initial search for seeds. "\
             f"This can take a very long time for datasets with more than a few-thousand "\
             f"binding sites. Setting this option will override the "\
             f"--max_rounds_no_new_seed option.")
-    parser.add_argument("--max_n", type=int, action="store", default=np.Inf,
+    infer.add_argument("--max_n", type=int, action="store", default=np.Inf,
         help=f"Sets the maximum number of fasta records to use for motif inference. "\
             f"This is useful when runs are taking prohibitively long.")
-    parser.add_argument("--log_level", type=str, default="INFO",
+    infer.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
 
@@ -187,10 +220,7 @@ def set_outdir_pref(no_shape_motifs, find_seq_motifs):
     return outdir_pre
 
 
-def main():
-
-    args = parse_args()
-
+def infer(args):
     data_dir = args.data_dir
     shape_names = ["EP", "HelT", "MGW", "ProT", "Roll"]
     seq_fasta = os.path.join(data_dir, args.seq_fasta)
@@ -525,6 +555,7 @@ def main():
         else:
             continue
 
+    print(f"fold_with_motifs: {folds_with_motifs}")
     # if not motifs, write status file saying so and exit normally
     if len(folds_with_motifs) == 0:
         status = "FinishedNoMotif"
@@ -535,7 +566,7 @@ def main():
 
     # if only one fold has a result, copy it to the main directory
     elif len(folds_with_motifs) == 1:
-        src_file = os.path.join(fold_direcs[0], "final_motifs.dsm")
+        src_file = folds_with_motifs[0][1]
         dsm_file = os.path.join(data_dir, "final_motifs.dsm")
         shutil.copyfile(src_file, dsm_file)
         ###########################################################
@@ -545,6 +576,13 @@ def main():
         ###########################################################
 
     else:
+        # for each motif name, append fold_n after its name
+        for (k,fname) in folds_with_motifs:
+            cmd = r"sed -i 's/^\(MOTIF.*\)/\1_fold_{}/g' {}".format(k,fname)
+            subprocess.run(
+                cmd,
+                shell=True,
+            )
         # first_file will just be copied to the main job directory
         first_file = folds_with_motifs.pop(0)
         first_fold_direc = os.path.dirname(first_file[1])
@@ -566,12 +604,14 @@ def main():
 
         MERGE_CMD = f"python {this_path}/merge_folds.py "\
             f"--config_file {cfg_basename} "\
+            f"--seq_fasta {seq_fasta} "\
             f"--shape_files {full_shape_fnames} "\
             f"--shape_names {' '.join(shape_names)} "\
             f"--motifs_file {dsm_file} "\
             f"--direc {data_dir} "\
             f"--score_file {in_fname} "\
             f"--nprocs {args.nprocs} "\
+            f"--tmpdir {tmpdir} "\
             f"--out_prefix {outdir_pre}"
 
         merge_result = subprocess.run(
@@ -615,8 +655,7 @@ def main():
             MERGE_EVAL_EXE += f" --continuous {args.continuous}"
 
         if find_seq_motifs:
-            MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "\
-                f"--find_seq_motifs "
+            MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "
 
         # workaround for potential security vulnerability of shell=True
         MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
@@ -647,6 +686,10 @@ def main():
                 f"{merge_eval_result.stdout.decode()}"
             )
 
+    ########################################################
+    ## still need to gather final AUPR metrics for each fold, final motif, mean across folds
+    ########################################################
+
     ######################################
     ## now save images for report and write html report file
     ######################################
@@ -654,6 +697,62 @@ def main():
     with open(status_fname, "w") as status_f:
         json.dump(status, status_f)
     logging.info("ShapeME finished")
+
+
+def prep_data(args):
+    data_dir = args.data_dir
+    np_basename = args.narrowpeak_file
+    fa_basename = args.fasta_file
+    wsize = args.wsize
+    nrand = args.nrand
+    seed = args.seed
+    rmchr = args.rmchr
+    continuous = args.continuous
+    center_metric = args.center_metric
+
+    np_fname = os.path.join(data_dir, np_basename)
+    fa_fname = os.path.join(data_dir, fa_basename)
+
+    PREP_EXE = f"python {this_path}/convert_narrowpeak_to_fire.py "\
+        f"{np_fname} {fa_fname} seqs "\
+        f"--wsize {wsize} --nrand {nrand} --center_metric {center_metric}"
+
+    # workaround for potential security vulnerability of shell=True
+    PREP_CMD = shlex.quote(PREP_EXE)
+    prep_result = subprocess.run(
+        PREP_EXE,
+        shell=True,
+        capture_output=True,
+        #check=True,
+    )
+    if prep_result.returncode != 0:
+        logging.error(
+            f"ERROR: running the following command:\n\n"\
+            f"{PREP_CMD}\n\n"\
+            f"resulted in the following stderr:\n\n"\
+            f"{prep_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"\
+            f"{prep_result.stdout.decode()}"
+        )
+        sys.exit(1)
+    else:
+        logging.info(
+            f"Data were prepared by running the following command:\n\n"\
+            f"{PREP_CMD}\n\n"\
+            f"resulting in the following stderr:\n\n"\
+            f"{prep_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"\
+            f"{prep_result.stdout.decode()}"
+        )
+
+
+def main():
+
+    args = parse_args()
+    if args.command == "infer":
+        infer(args)
+    elif args.command == "prep_data":
+        prep_data(args)
 
 
 if __name__ == '__main__':

@@ -146,18 +146,27 @@ class FimoFile(object):
     def get_design_matrix(self, rec_db, pval_thresh=1.0, motif_list=None):
         var_lut = {}
         # set up array of zeros with n_records rows and n_motifs columns
+        print("gathering hits dict")
         motif_hits = self.gather_hits_dict(pval_thresh)
-        X = np.zeros((len(rec_db), len(motif_hits)))
+        print("done gathering hits dict")
+        X_list = []
+        hit = 1
         for (i,motif) in enumerate(motif_list):
-            motif_name = motif.alt_name
-            rec_name_list = motif_hits[motif_name]
-            for rec_name,rec_idx in rec_db.record_name_lut.items():
-                # if this record's name is in the fimo hits, set its index in X to 1
-                if rec_name in rec_name_list:
-                    X[rec_idx,i] = 1
-            # matches var_lut format in shape motifs
-            hit = 1
+            X_i = motif.get_X(rec_db, motif_hits)
+            X_list.append(X_i)
             var_lut[i] = {'motif_idx': i, 'hits': hit}
+        X = np.stack(X_list, axis=1)
+        #X = np.zeros((len(rec_db), len(motif_hits)))
+        #for (i,motif) in enumerate(motif_list):
+        #    motif_name = motif.alt_name
+        #    rec_name_list = motif_hits[motif_name]
+        #    for rec_name,rec_idx in rec_db.record_name_lut.items():
+        #        # if this record's name is in the fimo hits, set its index in X to 1
+        #        if rec_name in rec_name_list:
+        #            X[rec_idx,i] = 1
+        #    # matches var_lut format in shape motifs
+        #    hit = 1
+        #    var_lut[i] = {'motif_idx': i, 'hits': hit}
         return (X,var_lut)
 
     def __iter__(self):

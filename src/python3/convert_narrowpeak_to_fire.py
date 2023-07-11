@@ -65,8 +65,8 @@ class FIREfile(object):
     def write(self, fname):
         with open(fname, mode="w") as outf:
             outf.write("name\tscore\n")
-            for name, score in self:
-                outf.write("%s\t%s\n"%(name, score))
+            for name in self.names:
+                outf.write("%s\t%s\n"%(name, self.data[name]))
 
 
 def make_kfold_datasets(k, fastafile, firefile, outpre):
@@ -112,8 +112,6 @@ if __name__ == "__main__":
     parser.add_argument('outpre', type=str, help="output file prefix")
     parser.add_argument('--wsize', type=int, default=60,
                         help="total window size around peak center")
-    parser.add_argument('--kfold', type=int, default=None, 
-                        help="create k fold datasets for CV")
     parser.add_argument('--nrand', type=int, default=3, 
             help="multiplier for number of random seqs to include")
     parser.add_argument('--seed', type=int, default=1234, 
@@ -125,7 +123,6 @@ if __name__ == "__main__":
     parser.add_argument('--center_metric', type=str, 
             help="geom or height, geom gives geometric center of the peak (default). \
                     height gives narrowpeak defined peak summit.")
-    parser.add_argument
 
     args = parser.parse_args()
     np.random.seed(args.seed)
@@ -144,8 +141,9 @@ if __name__ == "__main__":
         for peak in peaks.generator():
             peak.chrm = peak.chrm.replace("chr", "")
     outfasta = fa.FastaFile()
-    realfire = FIREfile()
-    fakefire = FIREfile()
+    outfire = FIREfile()
+    #realfire = FIREfile()
+    #fakefire = FIREfile()
     for i, peak in enumerate(peaks.generator()):
         this_entry = fa.FastaEntry()
         if args.center_metric == "height":
@@ -167,9 +165,11 @@ if __name__ == "__main__":
         this_entry.set_header(">"+"peak_%i"%(i))
         outfasta.add_entry(this_entry)
         if args.continuous:
-            realfire.add_entry(this_entry.chrm_name(), peak.signalval)
+            #realfire.add_entry(this_entry.chrm_name(), peak.signalval)
+            outfire.add_entry(this_entry.chrm_name(), peak.signalval)
         else:
-            realfire.add_entry(this_entry.chrm_name(), 1)
+            #realfire.add_entry(this_entry.chrm_name(), 1)
+            outfire.add_entry(this_entry.chrm_name(), 1)
 
         for j in range(args.nrand):
             this_rand = fa.FastaEntry()
@@ -180,12 +180,12 @@ if __name__ == "__main__":
             this_rand.set_seq(this_seq)
             this_rand.set_header(">"+"peak_%i_%i"%(i,j))
             outfasta.add_entry(this_rand)
-            fakefire.add_entry(this_rand.chrm_name(),0)
-    finalfire = realfire + fakefire
-    finalfire.shuffle()
-    if args.kfold:
-        make_kfold_datasets(args.kfold, outfasta, finalfire, args.outpre)
-    else:
-        with open(args.outpre+".fa", mode="w") as outf:
-            outfasta.write(outf)
+            outfire.add_entry(this_rand.chrm_name(),0)
+            #fakefire.add_entry(this_rand.chrm_name(),0)
+    #finalfire = realfire + fakefire
+    #finalfire.shuffle()
+    #finalfire.write(args.outpre+".txt")
+    outfire.write(args.outpre+".txt")
+    with open(args.outpre+".fa", mode="w") as outf:
+        outfasta.write(outf)
         #outfire.write(args.outpre+"_fire.txt")

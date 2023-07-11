@@ -212,16 +212,27 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
                     in_motif = True
                 # parse motif name line
                 _,motif_id,motif_name = line.strip().split(' ')
+                print(f"Parsing motif id: {motif_id}")
+                print(f"name: {motif_name}")
                 # next line is matrix description
                 description_line = f.readline()
                 # gather info from the description line
+                print("Fetching alength")
                 alen = int(alphabet_len_pat.search(description_line).group())
+                print("Fetching mwidth")
                 mwidth = int(motif_width_pat.search(description_line).group())
                 pos_left = mwidth
                 print(description_line)
                 eval_match = eval_pat.search(description_line)
+                print("Fetching evalue")
                 evalue = float(eval_match.group())
-                nsites = int(nsites_pat.search(description_line).group())
+                print("Fetching nsites")
+
+                mo = nsites_pat.search(description_line)
+                if mo is not None:
+                    nsites = mo.group()
+                else:
+                    nsites = None
                 data_arr = np.zeros((alen, mwidth))
 
     passing_motifs = [motif for motif in motif_list if motif.evalue <= evalue_thresh]
@@ -694,6 +705,116 @@ class Motif:
         outstr += "\n"
         return outstr
 
+    def set_seq_X(self, rec_db, seq_motif_hits):
+        motif_name = self.alt_name
+        print(f"Getting hits from fimo file for motif {motif_name}")
+        #print(f"seq_motif_hits keys: {seq_motif_hits.keys()}")
+        rec_name_list = seq_motif_hits[motif_name]
+        # set up nx1 array to store design matrix for self
+        self.X = np.zeros((len(rec_db), 1))
+        self.hits = np.zeros((len(rec_db), 1))
+        # basically sets a placeholder lookup table for being able
+        # to easily merge sequence and shape motifs
+        self.var_lut = {0: {'hits': 1}}
+        for rec_name,rec_idx in rec_db.record_name_lut.items():
+            # if this record's name is in the fimo hits, set its index in X to 1
+            if rec_name in rec_name_list:
+                self.X[rec_idx,0] = 1
+                self.hits[rec_idx,0] = 1
+        if np.all(self.X == 0):
+            print(f"No records were identified as hits for motif {motif_name}. "\
+                    "Something is likely wrong. Exiting with error.")
+            sys.exit(1)
+        if np.all(self.X == 1):
+            print(f"All records were identified as hits for motif {motif_name}. "\
+                    "Something is likely wrong. Exiting with error.")
+            sys.exit(1)
+
+    def set_shape_X(self, rec_db, max_count):
+
+        n = max_count + 1
+        max_cat = int(n*n - n*(n-1)/2) - 1 # minus one to get rid of [0,0] category
+        rec_num = len(rec_db)
+
+        self.X = np.zeros((rec_num, max_cat), dtype="uint8")
+        self.var_lut = {}
+
+        col_idx = 0
+
+        for i in range(n):
+            for j in range(n):
+                # skip [0,0] case since that will be in intercept
+                if (i == 0) and (j == 0):
+                    continue
+                # don't do lower triangle
+                if j < i:
+                    continue
+                
+                hit = [i,j]
+                # get the appropriate motif
+
+                rows = np.all(self.hits == hit, axis=1)
+                self.X[rows,col_idx] = 1
+
+                self.var_lut[col_idx] = {
+                    'hits': hit,
+                }
+
+                col_idx += 1
+
+        # remove columns for which all records were zero
+        cols_all_zero = np.all(self.X == 0)
+        inds_all_zero = np.where(cols_all_zero)[0]
+        if len(inds_all_zero) > 0:
+            print(f"Removed {len(inds_all_zero)} columns from a motif's design matrix because they only contained the value 0 and thus provide no information.")
+        inds_not_all_zero = np.where(~cols_all_zero)[0]
+        self.X = self.X[:,inds_not_all_zero]
+        # re-set var lut after filtering out hit categories without hits
+        tmp_lut = {}
+        # get sorted list of keys from original var_lut
+        var_lut_keys = sorted(list(self.var_lut.keys()))
+        # re-index keys to tmp_lut
+        for i,k in enumerate(inds_not_all_zero):
+            tmp_lut[i] = self.var_lut[k]
+        self.var_lut = tmp_lut
+
+        # remove columns for which all records were one
+        cols_all_one = np.all(self.X == 1)
+        inds_all_one = np.where(cols_all_one)[0]
+        inds_not_all_one = np.where(~cols_all_one)[0]
+        if len(inds_all_one) > 0:
+            print(f"Removed {len(inds_all_one)} columns from a motif's design matrix because they only contained the value 1 and thus provide no information.")
+        self.X = self.X[:,inds_not_all_one]
+        # re-set var lut after filtering out hit categories without information
+        tmp_lut = {}
+        # get sorted list of keys from original var_lut
+        var_lut_keys = sorted(list(self.var_lut.keys()))
+        # re-index keys to tmp_lut
+        for i,k in enumerate(inds_not_all_one):
+            tmp_lut[i] = self.var_lut[k]
+        self.var_lut = tmp_lut
+
+    def set_X(self, rec_db, seq_motif_hits=None, max_count=None):
+
+        if self.motif_type == "sequence":
+            if seq_motif_hits is None:
+                print(f"Attempted to get design matrix for "\
+                    f"a sequence motif without passing seq_motif_hits. Exiting with error.")
+                sys.exit(1)
+            self.set_seq_X(rec_db, seq_motif_hits)
+
+        elif self.motif_type == "shape":
+            if max_count is None:
+                print(f"Attempted to get design matrix for "\
+                    f"a shape motif without passing max_count. Exiting with error.")
+                sys.exit(1)
+            self.set_shape_X(rec_db, max_count)
+
+        else:
+            print("to get design matrix for a motif, motif_type must be set. Exiting with error")
+            sys.exit(1)
+
+
     def get_enrichments(self, categories, cat_inds):
         '''Calculates and stores motif enrichments in each
         category in rec_db. Modifies self.enrichments
@@ -871,7 +992,8 @@ class Motifs:
             elif motif_type == "sequence":
                 self.motifs = parse_meme_file(fname, evalue_thresh=evalue_thresh)
                 if len(self.motifs) == 0:
-                    raise Exception(f"No sequence motifs found in {fname}")
+                    #raise Exception(f"No sequence motifs found in {fname}")
+                    print(f"No sequence motifs found in {fname}")
                 self.motif_type = motif_type
             else:
                 raise ReadMotifException()
@@ -895,8 +1017,8 @@ class Motifs:
             outstr += "\n"
         return outstr
 
-    def sort_motfs(self):
-        pass
+    def sort_motifs(self):
+        self.motifs.sort(key=lambda x: x.zscore, reverse=True)
 
     def get_shape_str(self):
         shape_tuples = list([ (v,k) for k,v in self.shape_row_lut.items() ])
@@ -1105,6 +1227,7 @@ class Motifs:
 
                     mo = robustness_pat.search(description_line)
                     if mo is not None:
+                        print("Fetching robustness")
                         robustness = [int(val) for val in mo.group(1,2)]
                     else:
                         robustness = None
@@ -1187,13 +1310,13 @@ class Motifs:
                     f.write(motif.create_weights_lines())
                 f.write("\n")
 
-    def supplement_robustness(self, rec_db, binary, my_env=None):
+    def supplement_robustness(self, rec_db, binary, my_env=None, tmpdir=None):
 
         ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
         zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
 
-        tmp_dir = tempfile.TemporaryDirectory()
+        tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         y_name = os.path.join(tmp_direc, "tmp_y.npy")
         np.save(y_name, rec_db.y.astype(np.int64))
@@ -1373,65 +1496,137 @@ class Motifs:
             #    motif["contingency_fit_samples"] = ro.conversion.rpy2py(c_df)
             #    motif["null_fit_samples"] = ro.conversion.rpy2py(i_df)
 
-    def merge_with_motifs(self, other):
+    def merge_with_motifs(self, other, max_count, fimo_fname, rec_db, pval_thresh):
 
-        orig_covar_num = self.X.shape[1]
-        new_motif_idx = len(self)
+        #orig_covar_num = self.X.shape[1]
+        #new_motif_idx = len(self)
 
-        self.X = np.append(self.X, other.X, axis=1)
-        self.var_lut = self.var_lut.copy()
+        #self.X = np.append(self.X, other.X, axis=1)
+        #self.var_lut = self.var_lut.copy()
         self.motifs.extend(other.motifs)
+        self.set_X(
+            max_count=max_count,
+            fimo_fname=fimo_fname,
+            rec_db=rec_db,
+            pval_thresh=pval_thresh,
+        )
 
-        for other_motif_key,other_motif_info in other.var_lut.items():
-            new_key = other_motif_key + orig_covar_num
-            other_motif_info['motif_idx'] = new_motif_idx
-            self.var_lut[new_key] = other_motif_info
-            new_motif_idx += 1
+        #for other_motif_key,other_motif_info in other.var_lut.items():
+        #    new_key = other_motif_key + orig_covar_num
+        #    other_motif_info['motif_idx'] = new_motif_idx
+        #    self.var_lut[new_key] = other_motif_info
+        #    new_motif_idx += 1
         
-    def new_with_motifs(self, other):
+    def new_with_motifs(self, other, max_count, fimo_fname, rec_db, pval_thresh):
         '''copies self and merges with other Motifs object.
         Returns a new Motifs object
         '''
         print("Merging two Motifs objects into a single, new Motifs object")
         new_motifs = copy.deepcopy(self)
         other_motifs = copy.deepcopy(other)
-        new_motifs.merge_with_motifs(other_motifs)
+        new_motifs.merge_with_motifs(other_motifs, max_count, fimo_fname, rec_db, pval_thresh)
         
         return new_motifs
 
     def get_distinct_ids(self):
         return set([motif.identifier for motif in self])
 
-    def get_X(self, max_count=None, fimo_fname=None, rec_db=None):
-        if self.motif_type == "shape":
-            self.prep_shape_logit_reg_data(max_count)
-        elif self.motif_type == "sequence":
-            self.prep_sequence_logit_reg_data(fimo_fname, rec_db)
+    def set_X(
+            self,
+            max_count=None,
+            fimo_fname=None,
+            rec_db=None,
+            pval_thresh=None,
+            nosort=False,
+    ):
 
-    def prep_sequence_logit_reg_data(self, fimo_fname, rec_db):
+        if not nosort:
+            print("\nSorting shape motifs by z-score")
+            self.sort_motifs()
+        # get idices of hits for seq motifs
+        print("iterating over motifs")
+        print(f"Fimo fname: {fimo_fname}")
+        motif_types = [motif.motif_type for motif in self]
+        # if any are sequence motifs, read fimo_file
+        if "sequence" in motif_types:
+            if fimo_fname is None:
+                print("Trying to set design matrix on sequence motif, but no fimo file provided.")
+                print("Exiting with error.")
+                sys.exit(1)
+            fimo_file = fimo.FimoFile()
+            fimo_file.parse(fimo_fname)
+            print(f"read {fimo_fname}")
+            ids_in_self = self.get_distinct_ids()
+            print(f"ids_in_self: {ids_in_self}")
+            retained_hits = fimo_file.filter_by_id(ids_in_self)
+            motif_hits = retained_hits.gather_hits_dict(pval_thresh)
+            print(f"retained_hits: {retained_hits}")
 
-        fimo_file = fimo.FimoFile()
-        fimo_file.parse(fimo_fname)
-        ids_in_self = self.get_distinct_ids()
-        retained_hits = fimo_file.filter_by_id(ids_in_self)
+        # set each motif's own individual var_lut and design matrix
+        for motif in self:
+            print(f"motif type: {motif.motif_type}")
+            if motif.motif_type == "sequence":
+                motif.set_X(rec_db, seq_motif_hits = motif_hits, max_count = max_count)
+            elif motif.motif_type == "shape":
+                motif.set_X(rec_db, max_count = max_count)
+                print(f"motif var lut: {motif.var_lut}")
 
-        self.X,self.var_lut = retained_hits.get_design_matrix(
-            rec_db,
-            motif_list = self.motifs,
-        )
-        try:
-            for i,motif in enumerate(self.motifs):
-                motif.hits = self.X[:,i][:,None]
-        except:
-            logging.error(
-                f"Problem creating X array for sequence motif logistic regression.\n"\
-                f"X array shape: {self.X.shape}\n"\
-                f"motif ids: {ids_in_self}\n"\
-                f"motif lut: {self.var_lut}\n"\
-            )
-            sys.exit(1)
+        # merge motifs' matrices and make a var_lut for this [Motifs] object
+        # initialize the design matrix to appropriate shape
+        n_cols = 0
+        for motif in self:
+            n_cols += motif.X.shape[1]
+        self.X = np.zeros((len(rec_db), n_cols), dtype="uint8")
 
-    def filter_motifs(self, coefs):
+        self.var_lut = {}
+        col_idx = 0
+        for i,motif in enumerate(self):
+            motif_lut_keys = sorted(list(motif.var_lut.keys()))
+            for j in motif_lut_keys:
+                # assign this column to appropriate column in self.X
+                self.X[:,col_idx] = motif.X[:,j]
+                self.var_lut[col_idx] = {
+                    'motif_idx': i,
+                    'hits': motif.var_lut[j]["hits"],
+                }
+                col_idx += 1
+
+        #if self.motif_type == "shape":
+        #    self.prep_shape_logit_reg_data(max_count)
+        #elif self.motif_type == "sequence":
+        #    self.prep_sequence_logit_reg_data(fimo_fname, rec_db)
+
+    #def prep_sequence_logit_reg_data(self, fimo_fname, rec_db):
+
+    #    fimo_file = fimo.FimoFile()
+    #    fimo_file.parse(fimo_fname)
+    #    ids_in_self = self.get_distinct_ids()
+    #    retained_hits = fimo_file.filter_by_id(ids_in_self)
+
+    #    self.X,self.var_lut = retained_hits.get_design_matrix(
+    #        rec_db,
+    #        motif_list = self.motifs,
+    #    )
+    #    try:
+    #        for i,motif in enumerate(self.motifs):
+    #            motif.hits = self.X[:,i][:,None]
+    #    except:
+    #        logging.error(
+    #            f"Problem creating X array for sequence motif logistic regression.\n"\
+    #            f"X array shape: {self.X.shape}\n"\
+    #            f"motif ids: {ids_in_self}\n"\
+    #            f"motif lut: {self.var_lut}\n"\
+    #        )
+    #        sys.exit(1)
+
+    def filter_motifs(
+            self,
+            coefs,
+            max_count = None,
+            fimo_fname = None,
+            rec_db = None,
+            pval_thresh = None,
+    ):
         '''Determines which coeficients were shrunk to zero during LASSO regression
         and removes motifs for which all covariates in X were zero. Returns
         a filtered set of motifs, a new array of X values (motif hits covariates),
@@ -1527,9 +1722,23 @@ class Motifs:
         for (new_i,filt_i) in enumerate(retain_coefs):
             retained_coefs[:,new_i] = coefs[:,filt_i]
 
+        #####################################################################
+        #####################################################################
+        #####################################################################
+        ## note: this is where I must change approach to use new set_X
+        #####################################################################
+        #####################################################################
+        #####################################################################
+        #####################################################################
         self.motifs = retained_motifs
-        self.X = retained_X
-        self.var_lut = new_lut
+        self.set_X(
+            max_count = max_count,
+            fimo_fname = fimo_fname,
+            rec_db = rec_db,
+            pval_thresh = pval_thresh,
+        )
+        #self.X = retained_X
+        #self.var_lut = new_lut
 
         return(retained_coefs)
 

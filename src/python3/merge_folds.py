@@ -13,6 +13,7 @@ import subprocess
 import multiprocessing
 from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
+import tempfile
 
 import evaluate_motifs as evm
 import fimopytools as fimo
@@ -149,6 +150,9 @@ def parse_args():
     parser.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
+    parser.add_argument('--tmpdir', action='store', type=str, default=None,
+        help=f"Sets the location into which to write temporary files. If ommitted, will "\
+                f"use TMPDIR environment variable.")
     args = parser.parse_args()
     return args
 
@@ -176,6 +180,8 @@ def main(args, status):
     logging.info("Arguments:")
     print(str(args))
 
+    no_shape_motifs = args.no_shape_motifs
+    tmpdir = args.tmpdir
     out_pref = args.out_prefix
     out_direc = args.direc
     dsm_file = os.path.join(out_direc, args.motifs_file)
@@ -219,6 +225,10 @@ def main(args, status):
 
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
+
+    if tmpdir is not None:
+        if not os.path.isdir(tmpdir):
+            os.mkdir(tmpdir)
 
     print()
     logging.info("Reading input data and shape info.")
@@ -331,19 +341,18 @@ def main(args, status):
             seqs.read_whole_file(seq_f)
 
         seqs = seqs[records.complete_records]
-        tmp_dir = tempfile.TemporaryDirectory()
-        tmp_direc = tmp_dir.name
-        tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
-        with open(tmp_seq_fname, "w") as tmp_f:
-            seqs.write(tmp_f)
+        #tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
+        #tmp_seq_fname = os.path.join(tmpdir,"tmp_seq.fa")
+        #with open(tmp_seq_fname, "w") as tmp_f:
+        #    seqs.write(tmp_f)
 
         seq_meme_file = os.path.join(out_direc,"fold_motifs.meme")
-        all_seq_motifs.write_seq_motif_meme_file(tmp_meme_fname)
+        all_seq_motifs.write_seq_motif_meme_file(seq_meme_file)
 
         fimo_exec = os.path.join(this_path, "run_fimo.py")
         FIMO = f"python {fimo_exec} "\
-            f"--seq_fname {tmp_seq_fname} "\
-            f"--meme_file {tmp_meme_file} "\
+            f"--seq_fname {seq_fasta} "\
+            f"--meme_file {seq_meme_file} "\
             f"--out_direc {fimo_direc}"
 
         fimo_result = subprocess.run(
@@ -361,11 +370,14 @@ def main(args, status):
         )
         with open(fimo_log_fname, "w") as fimo_out:
             fimo_out.write(fimo_result.stdout.decode())
+        print(f"Done writing to {fimo_log_fname}")
         with open(fimo_err_fname, "w") as fimo_err:
             fimo_err.write(fimo_result.stderr.decode())
+        print(f"Done writing to {fimo_err_fname}")
 
     # get the F-score for an intercept-only model, which will ultimately be compared
     # to the F-score we get from any other fit to choose whether there is a motif or not.
+    print(f"Fitting intercept-only regression model")
     intercept_X = np.ones((len(records), 1))
     intercept_fit = evm.train_sklearn_glm(
         intercept_X,
@@ -393,6 +405,7 @@ def main(args, status):
 
         # This step will just get the motif names and sequences,
         # hits arrays and such will be supplemented later using fimo output
+        print(f"Reading motifs in {seq_meme_file}")
         seq_motifs = inout.Motifs(
             fname = seq_meme_file,
             motif_type = "sequence",
@@ -401,11 +414,25 @@ def main(args, status):
 
         logging.info("\nFitting regression model to sequence motifs")
         
-        seq_motifs.get_X(
+        seq_motifs.set_X(
+            max_count = max_count,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
             rec_db = records,
+            pval_thresh = streme_thresh,
+            nosort = True,
         )
-        seq_motifs.supplement_robustness(records, supp_bin, my_env=my_env)
+        seq_motifs.supplement_robustness(
+            records,
+            supp_bin,
+            my_env=my_env,
+            tmpdir=tmpdir,
+        )
+        seq_motifs.set_X(
+            max_count = max_count,
+            fimo_fname = f"{fimo_direc}/fimo.tsv",
+            rec_db = records,
+            pval_thresh = streme_thresh,
+        )
 
         one_seq_motif = False
 
@@ -431,6 +458,7 @@ def main(args, status):
             for (i,yval) in enumerate(records.y):
                 if yval in pos_cats:
                     fit_y[i] = 1
+            print("Training LASSO regression to refine sequence motifs")
             seq_fit = evm.train_glmnet(
                 seq_motifs.X,
                 fit_y,
@@ -448,7 +476,12 @@ def main(args, status):
             logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
             logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
 
-            filtered_seq_coefs = seq_motifs.filter_motifs(seq_coefs)
+            filtered_seq_coefs = seq_motifs.filter_motifs(
+                seq_coefs,
+                fimo_fname = f"{fimo_direc}/fimo.tsv",
+                rec_db = records,
+                pval_thresh = streme_thresh,
+            )
 
             print()
             logging.info(
@@ -555,15 +588,16 @@ def main(args, status):
         f"{out_pref}_logistic_regression_coefs_per_class.txt",
     )
 
-    if not os.path.isfile(rust_out_fname):
-        print()
-        logging.warning(
-            f"No output json file containing motifs from rust binary. "\
-            f"This usually means no motifs were identified, but you should "\
-            f"carfully check your log and error messages to make sure that's "\
-            f"really the case."
-        )
-        no_shape_motifs = True
+    if not no_shape_motifs:
+        if not os.path.isfile(rust_out_fname):
+            print()
+            logging.warning(
+                f"No output json file containing motifs from rust binary. "\
+                f"This usually means no motifs were identified, but you should "\
+                f"carfully check your log and error messages to make sure that's "\
+                f"really the case."
+            )
+            no_shape_motifs = True
 
     if not no_shape_motifs:
 
@@ -574,7 +608,11 @@ def main(args, status):
             max_count = args.max_count,
         )
         # places design matrix and variable lookup table into shape_motifs
-        shape_motifs.get_X(max_count = args.max_count)
+        shape_motifs.set_X(
+            max_count = max_count,
+            fimo_fname = f"{fimo_direc}/fimo.tsv",
+            rec_db = records,
+        )
 
         shape_fit = evm.train_glmnet(
             shape_motifs.X,
@@ -595,7 +633,11 @@ def main(args, status):
 
         # go through coefficients and weed out motifs for which all
         #   hits' coefficients are zero.
-        filtered_shape_coefs = shape_motifs.filter_motifs(coefs)
+        filtered_shape_coefs = shape_motifs.filter_motifs(
+            coefs,
+            max_count = max_count,
+            rec_db = records,
+        )
 
         print()
         logging.info(
@@ -702,7 +744,12 @@ def main(args, status):
 
             #else:
 
-            shape_and_seq_motifs = shape_motifs.new_with_motifs(seq_motifs)
+            shape_and_seq_motifs = shape_motifs.new_with_motifs(
+                seq_motifs,
+                max_count,
+                fimo_fname = f"{fimo_direc}/fimo.tsv",
+                rec_db = records,
+            )
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
             print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
@@ -739,7 +786,11 @@ def main(args, status):
             )
 
             filtered_shape_and_seq_coefs = shape_and_seq_motifs.filter_motifs(
-                shape_and_seq_coefs
+                shape_and_seq_coefs,
+                max_count = max_count,
+                fimo_fname = f"{fimo_direc}/fimo.tsv",
+                rec_db = records,
+                pval_thresh = streme_thresh,
             )
 
             print()
@@ -958,6 +1009,10 @@ if __name__ == "__main__":
         if not os.path.isdir(out_direc):
             os.mkdir(out_direc)
 
+        status_fname = os.path.join(out_direc, "job_status.json")
+        with open(status_fname, "w") as status_f:
+            json.dump(status, status_f)
+
         out_page_name = os.path.join(out_direc, "report.html")
 
         report_info = {
@@ -969,9 +1024,5 @@ if __name__ == "__main__":
             info = report_info,
             out_name = out_page_name,
         )
-
-        status_fname = os.path.join(out_direc, "job_status.json")
-        with open(status_fname, "w") as status_f:
-            json.dump(status, status_f)
         sys.exit(1)
 

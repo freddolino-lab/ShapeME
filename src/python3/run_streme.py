@@ -57,29 +57,34 @@ def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc, tmpd
         name = fa_file.names[i]
         entry = fa_file.pull_entry(name)
         if yval in pos_cats:
+            print("Found a hit")
             pos_fa_file.add_entry(entry)
         else:
+            print("Not a hit")
             neg_fa_file.add_entry(entry)
 
-    #tmp_pos = os.path.join(tmpdir, "tmp_pos.fa")
-    #with open(tmp_pos, "w") as pos_f:
-    with tempfile.NamedTemporaryFile("w", dir=tmpdir) as pos_f:
-        tmp_pos = pos_f.name
+    tmp_pos = os.path.join(tmpdir, "tmp_pos.fa")
+    with open(tmp_pos, "w") as pos_f:
+    #with tempfile.NamedTemporaryFile("w", dir=tmpdir) as pos_f:
+        #tmp_pos = pos_f.name
         pos_fa_file.write(pos_f)
+        #print(f"tmp streme pos name: {tmp_pos}")
 
-    #tmp_neg = os.path.join(tmpdir, "tmp_neg.fa")
-    #with open(tmp_neg, "w") as neg_f:
-        with tempfile.NamedTemporaryFile("w", dir=tmpdir) as neg_f:
-            tmp_neg = neg_f.name
-            neg_fa_file.write(neg_f)
+    tmp_neg = os.path.join(tmpdir, "tmp_neg.fa")
+    with open(tmp_neg, "w") as neg_f:
+        #with tempfile.NamedTemporaryFile("w", dir=tmpdir) as neg_f:
+            #tmp_neg = neg_f.name
+        neg_fa_file.write(neg_f)
+        #print(f"tmp streme neg name: {tmp_neg}")
+        #print(os.listdir(tmpdir))
 
-            STREME = f"streme --evalue --thresh {threshold} "\
-                f" --p {tmp_pos} --n {tmp_neg} --dna "\
-                f"--oc {out_direc}"
-            print()
-            print("Running streme command:")
-            print(STREME)
-            result = subprocess.run(STREME, shell=True, check=True)
+    STREME = f"streme --evalue --thresh {threshold} "\
+        f" --p {tmp_pos} --n {tmp_neg} --dna "\
+        f"--oc {out_direc}"
+    print()
+    print("Running streme command:")
+    print(STREME)
+    result = subprocess.run(STREME, shell=True, check=True)
 
     return result
 
@@ -116,7 +121,7 @@ def main():
         args.pos_cats,
         args.threshold,
         args.out_direc,
-        args.tmpdir,
+        tmpdir = args.tmpdir,
     )
 
     print(result.stdout)

@@ -61,7 +61,6 @@ class FastaEntry(object):
             except IndexError:
                 fhandle.write(self.seq[i:-1] + "\n")
 
-
     def set_header(self, header):
         self.header = header
 

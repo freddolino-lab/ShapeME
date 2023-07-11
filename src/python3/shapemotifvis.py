@@ -3,6 +3,7 @@ import os
 #mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import seaborn as sns
 import infer_motifs as im
 import numpy as np
 import inout
@@ -350,7 +351,7 @@ def plot_optim_trajectory(motif_list, file_name, top_n=20, opacity=1):
 
 
 def heatmap(data, pvals, row_labels, col_labels, ax=None,
-            cbar_kw={}, cbarlabel="", **kwargs):
+            cbar_kw={}, cbarlabel="", robust=True, **kwargs):
     """
     Create a heatmap from a numpy array and two lists of labels.
     Copied and pasted from https://matplotlib.org/3.5.0/gallery/images_contours_and_fields/image_annotated_heatmap.html.
@@ -372,6 +373,9 @@ def heatmap(data, pvals, row_labels, col_labels, ax=None,
         A dictionary with arguments to `matplotlib.Figure.colorbar`.  Optional.
     cbarlabel
         The label for the colorbar.  Optional.
+    robust
+        If true (default), set max and min vals to upper and lower 2-nd percentile
+        found in data.
     **kwargs
         All other arguments are forwarded to `imshow`.
     """
@@ -383,6 +387,12 @@ def heatmap(data, pvals, row_labels, col_labels, ax=None,
     clipped_pvals = np.clip(pvals, min_p, 1.0)
     #alpha = (-np.log10(clipped_pvals) + 1) / (-np.log10(min_p) + 1)
     alpha = 1 - clipped_pvals
+
+    if robust:
+        minval = np.nanpercentile(data, 2)
+        maxval = np.nanpercentile(data, 98)
+        data[data < minval] = minval
+        data[data > maxval] = maxval
 
     # Plot the heatmap
     im = ax.imshow(X=data, alpha=alpha, **kwargs)
@@ -473,12 +483,76 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
 
     return texts
 
+def plot_motif_enrichment_new(
+        motifs,
+        file_name,
+        records,
+        top_n = 30,
+        robust = True,
+):
+    distinct_cats = np.unique(records.y)
+    cat_num = len(distinct_cats)
+
+    var_lut = motifs.var_lut
+    motif_covar_num = len(var_lut)
+    
+    hm_data = np.zeros((motif_covar_num,cat_num))
+    hm_pvals = np.zeros((motif_covar_num,cat_num))
+    hm_teststats = np.zeros((motif_covar_num,cat_num))
+    row_labs = []
+    for i,(covar_idx,covar_info) in enumerate(var_lut.items()):
+        hits = covar_info["hits"]
+        motif = motifs[covar_info["motif_idx"]]
+        enrich = motif.enrichments
+        for table_row_idx,row in enumerate(enrich["row_hit_vals"]):
+            if np.all(row == hits):
+                break
+        row_labs.append(f"Motif: {motif.identifier}, Hit: {hits}")
+
+        for j,category in enumerate(distinct_cats):
+            table_col_idx = np.where(enrich["col_cat_vals"] == category)[0][0]
+            # I need to map contingency table values back to heatmap row/col
+            # I have already mapped hits and categories to the index of the
+            # contingency table. Now I need to map them to indices of the heatmap.
+            hm_data[i,j] = enrich["log2_ratio"][table_row_idx,table_col_idx]
+            hm_pvals[i,j] = enrich["pvals"][table_row_idx,table_col_idx]
+            hm_teststats[i,j] = enrich["test_stats"][table_row_idx,table_col_idx]
+    col_labs = [f"Category: {int(records.category_lut[category]):d}" for category in distinct_cats]
+
+    abs_max = np.abs(hm_data.max())
+    abs_min = np.abs(hm_data.min())
+    lim = np.array([abs_min, abs_max]).max()
+
+    nrow = len(row_labs)
+    ncol = len(col_labs)
+
+    sns.heatmap(
+        hm_data,
+        cmap="bwr",
+        center=0.0,
+        robust=robust,
+        annot=True,
+        fmt='.2g',
+        annot_kws=None,
+        linewidths=0,
+        linecolor='white',
+        cbar=True,
+        cbar_kws=None,
+        cbar_ax=None,
+        square=False,
+        xticklabels=col_labs,
+        yticklabels=row_labs,
+        mask=None,
+        ax=None,
+    )
+
 
 def plot_motif_enrichment(
         motifs,
         file_name,
         records,
         top_n = 30,
+        robust = True,
 ):
     '''Plot a heatmap of enrichments for each motif within each category.
 
@@ -540,10 +614,11 @@ def plot_motif_enrichment(
         cbarlabel="log2-fold-enrichment",
         vmin = -lim,
         vmax = lim,
+        robust = robust,
     )
     texts = annotate_heatmap(im, valfmt="{x:.2f}", textcolors=("white","black"))
 
-    #fig.tight_layout()
+    fig.tight_layout()
     plt.savefig(file_name)
     plt.close()
 

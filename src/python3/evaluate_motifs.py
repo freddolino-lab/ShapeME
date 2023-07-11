@@ -89,12 +89,15 @@ def shape_run(
         shape_lut = recs.shape_name_lut,
         max_count = args_dict["max_count"],
     )
-    new_motifs.get_X(max_count = args_dict["max_count"])
+    new_motifs.set_X(
+        max_count = args_dict["max_count"],
+        rec_db = recs,
+    )
 
     return new_motifs
 
 
-def fimo_run(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs):
+def fimo_run(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs, streme_thresh):
 
     seq_motifs.write_file(seq_meme_fname, recs)
 
@@ -124,9 +127,11 @@ def fimo_run(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs)
 
     new_seq_motifs = copy.deepcopy(seq_motifs)
 
-    new_seq_motifs.get_X(
+    new_seq_motifs.set_X(
         fimo_fname = f"{fimo_direc}/fimo.tsv",
+        pval_thresh = streme_thresh,
         rec_db = recs,
+        nosort = True,
     )
 
     return new_seq_motifs
@@ -738,6 +743,8 @@ if __name__ == "__main__":
     parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
     parser.add_argument('--out_prefix', type=str, help="Prefix to prepend to output files.")
     parser.add_argument('--config_file', type=str, help="Basename of configuration file.", default="config.json")
+    parser.add_argument('--streme_thresh', type=float, default= 0.05,
+        help="Threshold for including motifs identified by streme. Default: %(default)f")
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
@@ -752,6 +759,7 @@ if __name__ == "__main__":
     in_direc = args.data_dir
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
+    streme_thresh = args.streme_thresh
 
     fimo_direc = f"{out_direc}/fimo_out"
     motif_fname = os.path.join(out_direc, 'final_motifs.dsm')
@@ -892,6 +900,7 @@ if __name__ == "__main__":
                     fimo_direc,
                     this_path,
                     train_records,
+                    streme_thresh,
                 )
             test_seq_motifs = fimo_run(
                 seq_motifs,
@@ -900,12 +909,25 @@ if __name__ == "__main__":
                 fimo_direc,
                 this_path,
                 test_records,
+                streme_thresh,
             )
 
             if len(shape_motifs) > 0:
-                all_test_motifs = test_shape_motifs.new_with_motifs(test_seq_motifs)
+                all_test_motifs = test_shape_motifs.new_with_motifs(
+                    test_seq_motifs,
+                    max_count = max_count,
+                    fimo_fname = f"{fimo_direc}/fimo.tsv",
+                    rec_db = records,
+                    pval_thresh = streme_thresh,
+                )
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
-                    all_train_motifs = train_shape_motifs.new_with_motifs(train_seq_motifs)
+                    all_train_motifs = train_shape_motifs.new_with_motifs(
+                        train_seq_motifs,
+                        max_count = max_count,
+                        fimo_fname = f"{fimo_direc}/fimo.tsv",
+                        rec_db = records,
+                        pval_thresh = streme_thresh,
+                    )
             else:
                 all_test_motifs = test_seq_motifs
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):

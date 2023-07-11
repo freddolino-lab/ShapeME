@@ -35,10 +35,12 @@
         {{ m::report_plot(plot=heatmap_data) }}
       </fieldset>
 
+      {#
       <fieldset>
         <legend>Performance</legend>
         {{ m::report_plot(plot=aupr_curve_data) }}
       </fieldset>
+      #}
 
     </div>
   </body>
