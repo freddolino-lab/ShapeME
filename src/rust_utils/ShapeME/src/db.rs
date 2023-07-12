@@ -78,6 +78,8 @@ struct CreateUser<'a> {
     password: CreatePassword<'a>,
     #[field(validate = contains('@').or_else(msg!("invalid email address")))]
     pub email: String,
+    #[field(validate = len(1..))]
+    lab_head: String,
 }
 
 #[derive(Debug, FromForm)]
@@ -98,6 +100,7 @@ struct User {
     last: Option<String>,
     email: String,
     password_hash: Option<String>,
+    lab_head: Option<String>,
 }
 
 //#[derive(Debug, Serialize, Deserialize)]
@@ -119,7 +122,7 @@ impl User {
     async fn check_user(db: &Db, email: String) -> DbResult<User> {
         let user = db.run(move |conn| {
             conn.query_row(
-                "SELECT uid, first, last, email, password FROM users WHERE email = ?1",
+                "SELECT uid, first, last, email, password, lab_head FROM users WHERE email = ?1",
                 params![email],
                 |r| Ok(User {
                     uid: Some(r.get(0)?),
@@ -127,6 +130,7 @@ impl User {
                     last: Some(r.get(2)?),
                     email: r.get(3)?,
                     password_hash: r.get(4)?,
+                    lab_head: Some(r.get(5)?),
                 }))
         }).await?;
 
@@ -161,12 +165,14 @@ impl User {
         let email = create_user.email.clone();
         let pass = String::from(create_user.password.first);
         let hash = hash_password(&pass);
+        let lab_head = create_user.lab_head.clone();
         User{
             uid: None,
             first: Some(first),
             last: Some(last),
             email: email,
             password_hash: Some(hash),
+            lab_head: Some(lab_head),
         }
     }
 
@@ -176,11 +182,13 @@ impl User {
         let last = self.last.as_ref().unwrap().clone();
         let email = String::from(&self.email);
         let pass_hash = self.password_hash.as_ref().unwrap().clone();
+        let lab_head = self.lab_head.as_ref().unwrap().clone();
         //let pass = String::from();
         db.run(move |conn| {
             conn.execute(
-                "INSERT INTO users (first, last, email, password) VALUES (?1, ?2, ?3, ?4)",
-                params![first, last, email, pass_hash])
+                "INSERT INTO users (first, last, email, password, lab_head)
+                VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![first, last, email, pass_hash, lab_head])
         }).await?;
         let uid: i32 = db.run(move |conn| {
             conn.last_insert_rowid()

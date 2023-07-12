@@ -46,6 +46,7 @@ from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
+supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
 
 #EPSILON = sys.float_info.epsilon
 
@@ -59,6 +60,7 @@ def shape_run(
         rust_bin,
         out_direc,
         recs,
+        tmpdir,
 ):
 
     shape_motifs.write_shape_motifs_as_rust_output(rust_motifs_fname)
@@ -92,14 +94,24 @@ def shape_run(
     new_motifs.set_X(
         max_count = args_dict["max_count"],
         rec_db = recs,
+        nosort = True,
     )
-
     return new_motifs
 
 
-def fimo_run(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs, streme_thresh):
+def fimo_run(
+        seq_motifs,
+        seq_fasta,
+        seq_meme_fname,
+        fimo_direc,
+        this_path,
+        recs,
+        streme_thresh,
+        tmpdir,
+):
 
     seq_motifs.write_file(seq_meme_fname, recs)
+    new_motifs = copy.deepcopy(seq_motifs)
 
     fimo_exec = os.path.join(this_path, "run_fimo.py")
     FIMO = f"python {fimo_exec} "\
@@ -125,16 +137,13 @@ def fimo_run(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs,
     with open(fimo_err_fname, "w") as fimo_err:
         fimo_err.write(fimo_result.stderr.decode())
 
-    new_seq_motifs = copy.deepcopy(seq_motifs)
-
-    new_seq_motifs.set_X(
+    new_motifs.set_X(
         fimo_fname = f"{fimo_direc}/fimo.tsv",
         pval_thresh = streme_thresh,
         rec_db = recs,
         nosort = True,
     )
-
-    return new_seq_motifs
+    return new_motifs
 
 
 def fetch_coefficients(family, fit, continuous):
@@ -745,6 +754,9 @@ if __name__ == "__main__":
     parser.add_argument('--config_file', type=str, help="Basename of configuration file.", default="config.json")
     parser.add_argument('--streme_thresh', type=float, default= 0.05,
         help="Threshold for including motifs identified by streme. Default: %(default)f")
+    parser.add_argument('--tmpdir', action='store', type=str, default=None,
+        help=f"Sets the location into which to write temporary files. If ommitted, will "\
+                f"use TMPDIR environment variable.")
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
@@ -760,6 +772,7 @@ if __name__ == "__main__":
     out_direc = args.out_dir
     out_direc = os.path.join(in_direc, out_direc)
     streme_thresh = args.streme_thresh
+    tmpdir = args.tmpdir
 
     fimo_direc = f"{out_direc}/fimo_out"
     motif_fname = os.path.join(out_direc, 'final_motifs.dsm')
@@ -787,6 +800,7 @@ if __name__ == "__main__":
     
     with open(config_fname, 'r') as f:
         args_dict = json.load(f)
+    max_count = args_dict["max_count"]
 
     if (args.train_score_file is not None) and (args.train_shape_files is not None):
         train_records,train_bins,train_orig_y = read_records(
@@ -862,6 +876,7 @@ if __name__ == "__main__":
                 rust_bin,
                 out_direc,
                 test_records,
+                tmpdir,
             )
 
             if (args.train_score_file is not None) and (args.train_shape_files is not None):
@@ -875,6 +890,7 @@ if __name__ == "__main__":
                     rust_bin,
                     out_direc,
                     train_records,
+                    tmpdir,
                 )
 
                 all_train_motifs = train_shape_motifs
@@ -893,6 +909,7 @@ if __name__ == "__main__":
             if (args.train_score_file is not None) and (args.train_shape_files is not None):
                 train_seq_fasta = os.path.join(in_direc, args.train_seq_fasta)
 
+                print(f"training fimo run")
                 train_seq_motifs = fimo_run(
                     seq_motifs,
                     train_seq_fasta,
@@ -901,7 +918,9 @@ if __name__ == "__main__":
                     this_path,
                     train_records,
                     streme_thresh,
+                    tmpdir,
                 )
+            print(f"testing fimo run")
             test_seq_motifs = fimo_run(
                 seq_motifs,
                 test_seq_fasta,
@@ -910,23 +929,34 @@ if __name__ == "__main__":
                 this_path,
                 test_records,
                 streme_thresh,
+                tmpdir,
             )
 
             if len(shape_motifs) > 0:
+                print("Merging testing motifs")
                 all_test_motifs = test_shape_motifs.new_with_motifs(
                     test_seq_motifs,
                     max_count = max_count,
                     fimo_fname = f"{fimo_direc}/fimo.tsv",
-                    rec_db = records,
+                    rec_db = test_records,
                     pval_thresh = streme_thresh,
+                    nosort = True,
                 )
+###########################################################################################
+###########################################################################################
+## HERES MY PROBLEM!!!!!!!!!!!!!!!!!!!!!!
+###########################################################################################
+###########################################################################################
+###########################################################################################
+                print("Merging training motifs")
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
                     all_train_motifs = train_shape_motifs.new_with_motifs(
                         train_seq_motifs,
                         max_count = max_count,
                         fimo_fname = f"{fimo_direc}/fimo.tsv",
-                        rec_db = records,
+                        rec_db = train_records,
                         pval_thresh = streme_thresh,
+                        nosort = True,
                     )
             else:
                 all_test_motifs = test_seq_motifs

@@ -37,10 +37,10 @@ fn main() {
     );
     println!("{} motifs left after pooled CMI-based filtering.", motifs.len());
 
-    let parent = path::Path::new(&cfg.eval_rust_fname).parent().unwrap();
+    //let parent = path::Path::new(&cfg.eval_rust_fname).parent().unwrap();
 
-    let merged_motifs_fname = parent.join("merged_shape_motifs.json");
-    println!("Writing merged motifs to {:?}", &merged_motifs_fname);
-    motifs.json_motifs(&merged_motifs_fname.to_str().unwrap());
+    //let merged_motifs_fname = parent.join("merged_shape_motifs.json");
+    println!("Writing merged motifs to {:?}", &cfg.out_fname);
+    motifs.json_motifs(&cfg.out_fname);
 }
 

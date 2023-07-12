@@ -8,6 +8,6 @@ members = [
     "get_robustness",
     "merge_folds",
     #"locate_motifs",
-    "ShapeME",
+    #"ShapeME",
 ]
 

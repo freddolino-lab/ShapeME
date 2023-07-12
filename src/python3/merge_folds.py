@@ -572,10 +572,9 @@ def main(args, status):
         f"{out_pref}_post_opt_cmi_filtered_motifs_temp_{temp}_"\
         f"stepsize_{step}_alpha_{alpha}_max_count_{max_count}.pkl",
     )
-
     final_motif_plot_suffix = os.path.join(
         out_direc,
-        f"final_motifs.png"
+        "{}_final_motif.png",
     )
 
     logit_reg_fname = os.path.join(
@@ -598,6 +597,19 @@ def main(args, status):
                 f"really the case."
             )
             no_shape_motifs = True
+        else:
+            with open(rust_out_fname, "r") as f:
+                merge_result = json.load(f)
+            if len(merge_result) == 0:
+                print()
+                logging.warning(
+                    f"Output from rust binary contains no motifs. "\
+                    f"This usually means there are no informative motifs. That is to say, "\
+                    f"no motifs passed the CMI/AIC filters, but you should "\
+                    f"carfully check your log and error messages to make sure that's "\
+                    f"really the case."
+                )
+                no_shape_motifs = True
 
     if not no_shape_motifs:
 
@@ -614,40 +626,43 @@ def main(args, status):
             rec_db = records,
         )
 
-        shape_fit = evm.train_glmnet(
-            shape_motifs.X,
-            records.y,
-            folds = 10,
-            family=fam,
-            alpha=1,
-        )
+        # check whether there are more than one covariates, do LASSO regression
+        if shape_motifs.X.shape[1] > 1:
 
-        with open(shape_fit_fname, "wb") as f:
-            pickle.dump(shape_fit, f)
+            shape_fit = evm.train_glmnet(
+                shape_motifs.X,
+                records.y,
+                folds = 10,
+                family=fam,
+                alpha=1,
+            )
 
-        coefs = evm.fetch_coefficients(fam, shape_fit, num_cats)
+            with open(shape_fit_fname, "wb") as f:
+                pickle.dump(shape_fit, f)
 
-        print()
-        logging.info(f"Shape motif coefficients:\n{coefs}")
-        logging.info(f"Shape coefficient lookup table:\n{shape_motifs.var_lut}")
+            coefs = evm.fetch_coefficients(fam, shape_fit, num_cats)
 
-        # go through coefficients and weed out motifs for which all
-        #   hits' coefficients are zero.
-        filtered_shape_coefs = shape_motifs.filter_motifs(
-            coefs,
-            max_count = max_count,
-            rec_db = records,
-        )
+            print()
+            logging.info(f"Shape motif coefficients:\n{coefs}")
+            logging.info(f"Shape coefficient lookup table:\n{shape_motifs.var_lut}")
 
-        print()
-        logging.info(
-            f"Number of shape motifs left after LASSO regression: "\
-            f"{len(shape_motifs)}"
-        )
-        logging.info(
-            f"Shape coefficient lookup table after filter:\n"\
-            f"{shape_motifs.var_lut}"
-        )
+            # go through coefficients and weed out motifs for which all
+            #   hits' coefficients are zero.
+            filtered_shape_coefs = shape_motifs.filter_motifs(
+                coefs,
+                max_count = max_count,
+                rec_db = records,
+            )
+
+            print()
+            logging.info(
+                f"Number of shape motifs left after LASSO regression: "\
+                f"{len(shape_motifs)}"
+            )
+            logging.info(
+                f"Shape coefficient lookup table after filter:\n"\
+                f"{shape_motifs.var_lut}"
+            )
 
         # supplement the shape motifs object with the CV-F1 from a model
         intercept_and_shape_X = np.append(intercept_X, shape_motifs.X, axis=1)
@@ -658,6 +673,9 @@ def main(args, status):
             family = fam,
             fit_intercept = False, # intercept already in design mat
         )
+
+        if shape_motifs.X.shape[1] == 1:
+            filtered_shape_coefs = motif_fit.coef_
 
         shape_motifs.metric = evm.CV_F1(
             intercept_and_shape_X,
@@ -955,17 +973,19 @@ def main(args, status):
     best_motifs.get_enrichments(records)
 
     logo_data = []
+    motif_num = len(best_motifs)
     for plot_fname,motif in plot_fnames:
         with open(plot_fname, "rb") as image_file:
             logo_img = base64.b64encode(image_file.read()).decode()
+        motif.set_evalue(motif_num)
         logo_data.append((
             logo_img,
             motif.alt_name,
             motif.identifier,
-            motif.mi,
-            motif.zscore,
+            f"{motif.mi:.2g}",
+            f"{motif.zscore:.2g}",
             motif.robustness,
-            motif.evalue,
+            f"{motif.evalue:.2g}",
         ))
 
     # write motifs to meme-like file
@@ -973,7 +993,7 @@ def main(args, status):
     with open(out_coefs_fname, "wb") as out_coef_f:
         np.save(out_coef_f, best_motif_coefs)
     logging.info(f"Writing motif enrichment heatmap to {out_heatmap_fname}")
-    smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
+    smv.plot_motif_enrichment_seaborn(best_motifs, out_heatmap_fname, records)
     with open(out_heatmap_fname, "rb") as image_file:
         heatmap_data = base64.b64encode(image_file.read()).decode()
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")

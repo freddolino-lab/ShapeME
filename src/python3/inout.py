@@ -705,11 +705,19 @@ class Motif:
         outstr += "\n"
         return outstr
 
+    def set_evalue(self, motif_num):
+        if self.zscore is None:
+            print("Cannot set e-value without z-score. Exiting with error.")
+            sys.exit(1)
+        pval = stats.norm.sf(self.zscore)
+        self.evalue = pval * motif_num
+
     def set_seq_X(self, rec_db, seq_motif_hits):
         motif_name = self.alt_name
         print(f"Getting hits from fimo file for motif {motif_name}")
         #print(f"seq_motif_hits keys: {seq_motif_hits.keys()}")
         rec_name_list = seq_motif_hits[motif_name]
+        print(f"rec_name_list:\n{rec_name_list}")
         # set up nx1 array to store design matrix for self
         self.X = np.zeros((len(rec_db), 1))
         self.hits = np.zeros((len(rec_db), 1))
@@ -719,21 +727,27 @@ class Motif:
         for rec_name,rec_idx in rec_db.record_name_lut.items():
             # if this record's name is in the fimo hits, set its index in X to 1
             if rec_name in rec_name_list:
-                self.X[rec_idx,0] = 1
-                self.hits[rec_idx,0] = 1
-        if np.all(self.X == 0):
+                #print(f"Record {rec_name} is a hit. Setting index {rec_idx} to 1.")
+                self.X[rec_idx] = 1
+                self.hits[rec_idx] = 1
+        print(f"max val in self.X: {self.X.max()}")
+        print(f"min val in self.X: {self.X.min()}")
+
+        if np.all(self.X == 0, axis=0):
             print(f"No records were identified as hits for motif {motif_name}. "\
                     "Something is likely wrong. Exiting with error.")
             sys.exit(1)
-        if np.all(self.X == 1):
+        if np.all(self.X == 1, axis=0):
             print(f"All records were identified as hits for motif {motif_name}. "\
                     "Something is likely wrong. Exiting with error.")
             sys.exit(1)
 
     def set_shape_X(self, rec_db, max_count):
 
+        print(f"Max count: {max_count}")
         n = max_count + 1
         max_cat = int(n*n - n*(n-1)/2) - 1 # minus one to get rid of [0,0] category
+        print(f"Max cat: {max_cat}")
         rec_num = len(rec_db)
 
         self.X = np.zeros((rec_num, max_cat), dtype="uint8")
@@ -751,6 +765,7 @@ class Motif:
                     continue
                 
                 hit = [i,j]
+                print(f"Hit: {hit}")
                 # get the appropriate motif
 
                 rows = np.all(self.hits == hit, axis=1)
@@ -763,11 +778,13 @@ class Motif:
                 col_idx += 1
 
         # remove columns for which all records were zero
-        cols_all_zero = np.all(self.X == 0)
+        cols_all_zero = np.all(self.X == 0, axis=0)
         inds_all_zero = np.where(cols_all_zero)[0]
         if len(inds_all_zero) > 0:
             print(f"Removed {len(inds_all_zero)} columns from a motif's design matrix because they only contained the value 0 and thus provide no information.")
         inds_not_all_zero = np.where(~cols_all_zero)[0]
+        print(f"inds_all_zero: {inds_all_zero}")
+        print(f"inds_not_all_zero: {inds_not_all_zero}")
         self.X = self.X[:,inds_not_all_zero]
         # re-set var lut after filtering out hit categories without hits
         tmp_lut = {}
@@ -779,9 +796,11 @@ class Motif:
         self.var_lut = tmp_lut
 
         # remove columns for which all records were one
-        cols_all_one = np.all(self.X == 1)
+        cols_all_one = np.all(self.X == 1, axis=0)
         inds_all_one = np.where(cols_all_one)[0]
         inds_not_all_one = np.where(~cols_all_one)[0]
+        print(f"inds_all_one: {inds_all_one}")
+        print(f"inds_not_all_one: {inds_not_all_one}")
         if len(inds_all_one) > 0:
             print(f"Removed {len(inds_all_one)} columns from a motif's design matrix because they only contained the value 1 and thus provide no information.")
         self.X = self.X[:,inds_not_all_one]
@@ -793,6 +812,7 @@ class Motif:
         for i,k in enumerate(inds_not_all_one):
             tmp_lut[i] = self.var_lut[k]
         self.var_lut = tmp_lut
+        print(f"var lut in set_shape_X: {self.var_lut}")
 
     def set_X(self, rec_db, seq_motif_hits=None, max_count=None):
 
@@ -1331,6 +1351,7 @@ class Motifs:
             np.save(hits_name, motif.hits.flatten().astype(np.int64))
 
             cmd = binary + f" {hits_name}"
+            print(f"\nRunning binary: {cmd}")
 
             result = subprocess.run(
                 cmd,
@@ -1496,7 +1517,7 @@ class Motifs:
             #    motif["contingency_fit_samples"] = ro.conversion.rpy2py(c_df)
             #    motif["null_fit_samples"] = ro.conversion.rpy2py(i_df)
 
-    def merge_with_motifs(self, other, max_count, fimo_fname, rec_db, pval_thresh):
+    def merge_with_motifs(self, other, max_count, fimo_fname, rec_db, pval_thresh, nosort=False):
 
         #orig_covar_num = self.X.shape[1]
         #new_motif_idx = len(self)
@@ -1509,6 +1530,7 @@ class Motifs:
             fimo_fname=fimo_fname,
             rec_db=rec_db,
             pval_thresh=pval_thresh,
+            nosort=nosort,
         )
 
         #for other_motif_key,other_motif_info in other.var_lut.items():
@@ -1517,14 +1539,21 @@ class Motifs:
         #    self.var_lut[new_key] = other_motif_info
         #    new_motif_idx += 1
         
-    def new_with_motifs(self, other, max_count, fimo_fname, rec_db, pval_thresh):
+    def new_with_motifs(self, other, max_count, fimo_fname, rec_db, pval_thresh, nosort=False):
         '''copies self and merges with other Motifs object.
         Returns a new Motifs object
         '''
         print("Merging two Motifs objects into a single, new Motifs object")
         new_motifs = copy.deepcopy(self)
         other_motifs = copy.deepcopy(other)
-        new_motifs.merge_with_motifs(other_motifs, max_count, fimo_fname, rec_db, pval_thresh)
+        new_motifs.merge_with_motifs(
+            other_motifs,
+            max_count,
+            fimo_fname,
+            rec_db,
+            pval_thresh,
+            nosort=nosort,
+        )
         
         return new_motifs
 
@@ -1545,10 +1574,10 @@ class Motifs:
             self.sort_motifs()
         # get idices of hits for seq motifs
         print("iterating over motifs")
-        print(f"Fimo fname: {fimo_fname}")
         motif_types = [motif.motif_type for motif in self]
         # if any are sequence motifs, read fimo_file
         if "sequence" in motif_types:
+            print(f"Fimo fname: {fimo_fname}")
             if fimo_fname is None:
                 print("Trying to set design matrix on sequence motif, but no fimo file provided.")
                 print("Exiting with error.")
@@ -1560,7 +1589,7 @@ class Motifs:
             print(f"ids_in_self: {ids_in_self}")
             retained_hits = fimo_file.filter_by_id(ids_in_self)
             motif_hits = retained_hits.gather_hits_dict(pval_thresh)
-            print(f"retained_hits: {retained_hits}")
+            print(f"motif_hits: {motif_hits}") 
 
         # set each motif's own individual var_lut and design matrix
         for motif in self:

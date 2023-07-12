@@ -641,6 +641,13 @@ def infer(args):
                 f"{merge_result.stdout.decode()}"
             )
 
+
+        with open(status_fname, "r") as status_f:
+            status = json.load(status_f)
+        if status == "FinishedNoMotif":
+            logging.info("No motifs after running merge_folds.py. Exiting.")
+            sys.exit(0)
+
         logging.info(f"Evaluating set of motifs merged from folds...")
         MERGE_EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
             f"--test_shape_files {full_shape_fnames} "\

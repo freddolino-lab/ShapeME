@@ -9,7 +9,7 @@ import numpy as np
 import inout
 import sys
 from pathlib import Path
-from svgpathtools import svg2paths,parse_path
+#from svgpathtools import svg2paths,parse_path
 #from svgpath2mpl import parse_path
 
 from rpy2.robjects.packages import importr
@@ -32,17 +32,17 @@ def get_image(path):
     #print(f"read image in file {path}")
     return img_arr
 
-def get_svg(fname):
-    print(f"reading image in file {fname}")
-    paths,atts = svg2paths(fname)
-    #print(f"converting svg path: {paths}\nto mpl path")
-    #print("=====================================")
-    print(f"attributes: {atts}")
-    #sys.exit()
-    #img = parse_path(atts[0]["d"])
-    #print(f"read image in file {path}")
-    #return img
-    return paths[0]
+#def get_svg(fname):
+#    print(f"reading image in file {fname}")
+#    paths,atts = svg2paths(fname)
+#    #print(f"converting svg path: {paths}\nto mpl path")
+#    #print("=====================================")
+#    print(f"attributes: {atts}")
+#    #sys.exit()
+#    #img = parse_path(atts[0]["d"])
+#    #print(f"read image in file {path}")
+#    #return img
+#    return paths[0]
 
 def scale_image(img_arr, scale=1, frameon=False):
     # scale the alpha layer
@@ -483,7 +483,7 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
 
     return texts
 
-def plot_motif_enrichment_new(
+def plot_motif_enrichment_seaborn(
         motifs,
         file_name,
         records,
@@ -525,6 +525,7 @@ def plot_motif_enrichment_new(
 
     nrow = len(row_labs)
     ncol = len(col_labs)
+    fig, ax = plt.subplots(figsize=(ncol*1.0, nrow*1.0))
 
     sns.heatmap(
         hm_data,
@@ -543,8 +544,11 @@ def plot_motif_enrichment_new(
         xticklabels=col_labs,
         yticklabels=row_labs,
         mask=None,
-        ax=None,
+        ax=ax,
     )
+    plt.tight_layout()
+    plt.savefig(file_name)
+    plt.close()
 
 
 def plot_motif_enrichment(

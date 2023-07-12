@@ -758,40 +758,43 @@ def main(args, status):
         )
         logging.info(f"Shape coefficient lookup table:\n{shape_motifs.var_lut}")
 
-        shape_fit = evm.train_glmnet(
-            shape_motifs.X,
-            records.y,
-            folds = 10,
-            family=fam,
-            alpha=1,
-        )
+        # check whether there are more than one covariates, do LASSO regression
+        if shape_motifs.X.shape[1] > 1:
 
-        with open(shape_fit_fname, "wb") as f:
-            pickle.dump(shape_fit, f)
+            shape_fit = evm.train_glmnet(
+                shape_motifs.X,
+                records.y,
+                folds = 10,
+                family=fam,
+                alpha=1,
+            )
 
-        coefs = evm.fetch_coefficients(fam, shape_fit, num_cats)
+            with open(shape_fit_fname, "wb") as f:
+                pickle.dump(shape_fit, f)
 
-        print()
-        logging.info(f"Shape motif coefficients:\n{coefs}")
-        logging.info(f"Shape coefficient lookup table:\n{shape_motifs.var_lut}")
+            coefs = evm.fetch_coefficients(fam, shape_fit, num_cats)
 
-        # go through coefficients and weed out motifs for which all
-        #   hits' coefficients are zero.
-        filtered_shape_coefs = shape_motifs.filter_motifs(
-            coefs,
-            max_count = max_count,
-            rec_db = records,
-        )
+            print()
+            logging.info(f"Shape motif coefficients:\n{coefs}")
+            logging.info(f"Shape coefficient lookup table:\n{shape_motifs.var_lut}")
 
-        print()
-        logging.info(
-            f"Number of shape motifs left after LASSO regression: "\
-            f"{len(shape_motifs)}"
-        )
-        logging.info(
-            f"Shape coefficient lookup table after filter:\n"\
-            f"{shape_motifs.var_lut}"
-        )
+            # go through coefficients and weed out motifs for which all
+            #   hits' coefficients are zero.
+            filtered_shape_coefs = shape_motifs.filter_motifs(
+                coefs,
+                max_count = max_count,
+                rec_db = records,
+            )
+
+            print()
+            logging.info(
+                f"Number of shape motifs left after LASSO regression: "\
+                f"{len(shape_motifs)}"
+            )
+            logging.info(
+                f"Shape coefficient lookup table after filter:\n"\
+                f"{shape_motifs.var_lut}"
+            )
 
         # supplement the shape motifs object with the CV-F1 from a model
         intercept_and_shape_X = np.append(intercept_X, shape_motifs.X, axis=1)
@@ -802,6 +805,9 @@ def main(args, status):
             family = fam,
             fit_intercept = False, # intercept already in design mat
         )
+
+        if shape_motifs.X.shape[1] == 1:
+            filtered_shape_coefs = motif_fit.coef_
 
         shape_motifs.metric = evm.CV_F1(
             intercept_and_shape_X,
@@ -1132,7 +1138,7 @@ def main(args, status):
     #####################################################################
     ## needs fixed to not clip image
     #####################################################################
-    smv.plot_motif_enrichment(best_motifs, out_heatmap_fname, records)
+    smv.plot_motif_enrichment_seaborn(best_motifs, out_heatmap_fname, records)
     with open(out_heatmap_fname, "rb") as image_file:
         heatmap_data = base64.b64encode(image_file.read()).decode()
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")

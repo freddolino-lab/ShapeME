@@ -33,5 +33,5 @@ dependencies:
       #- sqlcipher
     - pip:
         - jinja2
-        - svgpath2mpl
-        - svgpathtools
+        #- svgpath2mpl
+        #- svgpathtools
