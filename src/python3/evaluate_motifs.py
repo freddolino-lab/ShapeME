@@ -774,7 +774,8 @@ if __name__ == "__main__":
     streme_thresh = args.streme_thresh
     tmpdir = args.tmpdir
 
-    fimo_direc = f"{out_direc}/fimo_out"
+    train_fimo_direc = f"{out_direc}/train_fimo_out"
+    test_fimo_direc = f"{out_direc}/test_fimo_out"
     motif_fname = os.path.join(out_direc, 'final_motifs.dsm')
     test_shape_fname = os.path.join(out_direc, 'test_shapes.npy')
     train_shape_fname = os.path.join(out_direc, 'train_shapes.npy')
@@ -914,7 +915,7 @@ if __name__ == "__main__":
                     seq_motifs,
                     train_seq_fasta,
                     seq_meme_fname,
-                    fimo_direc,
+                    train_fimo_direc,
                     this_path,
                     train_records,
                     streme_thresh,
@@ -925,7 +926,7 @@ if __name__ == "__main__":
                 seq_motifs,
                 test_seq_fasta,
                 seq_meme_fname,
-                fimo_direc,
+                test_fimo_direc,
                 this_path,
                 test_records,
                 streme_thresh,
@@ -937,23 +938,17 @@ if __name__ == "__main__":
                 all_test_motifs = test_shape_motifs.new_with_motifs(
                     test_seq_motifs,
                     max_count = max_count,
-                    fimo_fname = f"{fimo_direc}/fimo.tsv",
+                    fimo_fname = f"{test_fimo_direc}/fimo.tsv",
                     rec_db = test_records,
                     pval_thresh = streme_thresh,
                     nosort = True,
                 )
-###########################################################################################
-###########################################################################################
-## HERES MY PROBLEM!!!!!!!!!!!!!!!!!!!!!!
-###########################################################################################
-###########################################################################################
-###########################################################################################
                 print("Merging training motifs")
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
                     all_train_motifs = train_shape_motifs.new_with_motifs(
                         train_seq_motifs,
                         max_count = max_count,
-                        fimo_fname = f"{fimo_direc}/fimo.tsv",
+                        fimo_fname = f"{train_fimo_direc}/fimo.tsv",
                         rec_db = train_records,
                         pval_thresh = streme_thresh,
                         nosort = True,

@@ -517,7 +517,7 @@ def plot_motif_enrichment_seaborn(
             hm_data[i,j] = enrich["log2_ratio"][table_row_idx,table_col_idx]
             hm_pvals[i,j] = enrich["pvals"][table_row_idx,table_col_idx]
             hm_teststats[i,j] = enrich["test_stats"][table_row_idx,table_col_idx]
-    col_labs = [f"Category: {int(records.category_lut[category]):d}" for category in distinct_cats]
+    col_labs = [f"Bin: {int(records.category_lut[category]):d}" for category in distinct_cats]
 
     abs_max = np.abs(hm_data.max())
     abs_min = np.abs(hm_data.min())
@@ -525,7 +525,7 @@ def plot_motif_enrichment_seaborn(
 
     nrow = len(row_labs)
     ncol = len(col_labs)
-    fig, ax = plt.subplots(figsize=(ncol*1.0, nrow*1.0))
+    fig, ax = plt.subplots(figsize=(ncol+5, nrow+1))
 
     sns.heatmap(
         hm_data,
@@ -538,7 +538,7 @@ def plot_motif_enrichment_seaborn(
         linewidths=0,
         linecolor='white',
         cbar=True,
-        cbar_kws=None,
+        cbar_kws={"label": "log2(motif enrichment)"},
         cbar_ax=None,
         square=False,
         xticklabels=col_labs,

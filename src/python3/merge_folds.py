@@ -767,6 +767,7 @@ def main(args, status):
                 max_count,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
+                pval_thresh = streme_thresh,
             )
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
