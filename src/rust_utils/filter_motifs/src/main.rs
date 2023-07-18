@@ -21,6 +21,10 @@ mod tests {
         let hits_c= vec![0,0,0,1,1,1];
         let ami_c: f64 = 0.0;
         let param_num_c: usize = 30;
+        let hits_d= vec![0,0,0,2,2,2];
+        let ami_d: f64 = 0.9;
+        let param_num_d: usize = 30;
+
         let rec_num: u64 = 100;
 
         let motif_a = MotifData{
@@ -38,9 +42,14 @@ mod tests {
             ami: ami_c,
             param_num: param_num_c,
         };
+        let motif_d = MotifData{
+            hits: hits_d,
+            ami: ami_d,
+            param_num: param_num_d,
+        };
         let motifs = MotifsData{
             y: y.to_vec(),
-            motifs: vec![motif_a, motif_b, motif_c],
+            motifs: vec![motif_a, motif_b, motif_c, motif_d],
             rec_num:rec_num,
         };
         motifs
@@ -94,7 +103,7 @@ impl MotifsData {
         // loop through candidate motifs
         for (i,cand_motif) in self.motifs[1..self.motifs.len()].iter().enumerate() {
             let ind = i+1;
-            println!("index: {}", ind);
+            //println!("index: {}", ind);
 
             // if this motif doesn't pass AIC on its own, with number of params, skip it
             let log_lik = self.rec_num as f64 * cand_motif.ami;
@@ -110,28 +119,28 @@ impl MotifsData {
                 // check the conditional mutual information for this motif with
                 //   each of the retained motifs
                 let good_cats = Array::from_vec(self.motifs[*motif_ind].hits.to_vec());
-                println!("Good cats: {:?}", good_cats);
-                println!("Candidate cats: {:?}", cand_cats);
-                println!("y-values: {:?}", y_vals);
+                //println!("Good cats: {:?}", good_cats);
+                //println!("Candidate cats: {:?}", cand_cats);
+                //println!("y-values: {:?}", y_vals);
 
                 let contingency = info_theory::construct_3d_contingency(
                     cand_cats.view(),
                     y_vals.view(),
                     good_cats.view(),
                 );
-                println!("Contingency: {:?}", contingency);
+                //println!("Contingency: {:?}", contingency);
                 let cmi = info_theory::conditional_adjusted_mutual_information(
                     contingency.view()
                 );
-                println!("CMI: {:?}", cmi);
+                //println!("CMI: {:?}", cmi);
 
                 // add candidate's parameter number to model
                 model_param_num += cand_motif.param_num;
-                println!("model_param_num: {}", model_param_num);
+                //println!("model_param_num: {}", model_param_num);
                 let log_lik = self.rec_num as f64 * cmi;
-                println!("log_lik: {}", log_lik);
+                //println!("log_lik: {}", log_lik);
                 let this_aic = info_theory::calc_aic(model_param_num, log_lik);
-                println!("this_aic: {}", this_aic);
+                //println!("this_aic: {}", this_aic);
 
                 // if candidate motif doesn't improve model as added to each of the
                 //   chosen motifs, skip it
