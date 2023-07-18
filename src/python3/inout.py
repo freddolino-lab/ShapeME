@@ -717,7 +717,7 @@ class Motif:
         print(f"Getting hits from fimo file for motif {motif_name}")
         #print(f"seq_motif_hits keys: {seq_motif_hits.keys()}")
         rec_name_list = seq_motif_hits[motif_name]
-        print(f"rec_name_list:\n{rec_name_list}")
+        #print(f"rec_name_list:\n{rec_name_list}")
         # set up nx1 array to store design matrix for self
         self.X = np.zeros((len(rec_db), 1))
         self.hits = np.zeros((len(rec_db), 1))
@@ -730,8 +730,8 @@ class Motif:
                 #print(f"Record {rec_name} is a hit. Setting index {rec_idx} to 1.")
                 self.X[rec_idx] = 1
                 self.hits[rec_idx] = 1
-        print(f"max val in self.X: {self.X.max()}")
-        print(f"min val in self.X: {self.X.min()}")
+        #print(f"max val in self.X: {self.X.max()}")
+        #print(f"min val in self.X: {self.X.min()}")
 
         if np.all(self.X == 0, axis=0):
             print(f"No records were identified as hits for motif {motif_name}. "\
@@ -744,10 +744,10 @@ class Motif:
 
     def set_shape_X(self, rec_db, max_count):
 
-        print(f"Max count: {max_count}")
+        #print(f"Max count: {max_count}")
         n = max_count + 1
         max_cat = int(n*n - n*(n-1)/2) - 1 # minus one to get rid of [0,0] category
-        print(f"Max cat: {max_cat}")
+        #print(f"Max cat: {max_cat}")
         rec_num = len(rec_db)
 
         self.X = np.zeros((rec_num, max_cat), dtype="uint8")
@@ -765,7 +765,7 @@ class Motif:
                     continue
                 
                 hit = [i,j]
-                print(f"Hit: {hit}")
+                #print(f"Hit: {hit}")
                 # get the appropriate motif
 
                 rows = np.all(self.hits == hit, axis=1)
@@ -783,8 +783,8 @@ class Motif:
         if len(inds_all_zero) > 0:
             print(f"Removed {len(inds_all_zero)} columns from a motif's design matrix because they only contained the value 0 and thus provide no information.")
         inds_not_all_zero = np.where(~cols_all_zero)[0]
-        print(f"inds_all_zero: {inds_all_zero}")
-        print(f"inds_not_all_zero: {inds_not_all_zero}")
+        #print(f"inds_all_zero: {inds_all_zero}")
+        #print(f"inds_not_all_zero: {inds_not_all_zero}")
         self.X = self.X[:,inds_not_all_zero]
         # re-set var lut after filtering out hit categories without hits
         tmp_lut = {}
@@ -799,8 +799,8 @@ class Motif:
         cols_all_one = np.all(self.X == 1, axis=0)
         inds_all_one = np.where(cols_all_one)[0]
         inds_not_all_one = np.where(~cols_all_one)[0]
-        print(f"inds_all_one: {inds_all_one}")
-        print(f"inds_not_all_one: {inds_not_all_one}")
+        #print(f"inds_all_one: {inds_all_one}")
+        #print(f"inds_not_all_one: {inds_not_all_one}")
         if len(inds_all_one) > 0:
             print(f"Removed {len(inds_all_one)} columns from a motif's design matrix because they only contained the value 1 and thus provide no information.")
         self.X = self.X[:,inds_not_all_one]
@@ -812,7 +812,7 @@ class Motif:
         for i,k in enumerate(inds_not_all_one):
             tmp_lut[i] = self.var_lut[k]
         self.var_lut = tmp_lut
-        print(f"var lut in set_shape_X: {self.var_lut}")
+        #print(f"var lut in set_shape_X: {self.var_lut}")
 
     def set_X(self, rec_db, seq_motif_hits=None, max_count=None):
 
@@ -1036,6 +1036,9 @@ class Motifs:
             outstr += motif.create_data_header_line()
             outstr += "\n"
         return outstr
+
+    def sort_motifs_by_mi(self):
+        self.motifs.sort(key=lambda x: x.mi, reverse=True)
 
     def sort_motifs(self):
         self.motifs.sort(key=lambda x: x.zscore, reverse=True)
@@ -1331,6 +1334,17 @@ class Motifs:
                 f.write("\n")
 
     def supplement_robustness(self, rec_db, binary, my_env=None, tmpdir=None):
+
+        motif_types = [motif.motif_type for motif in self]
+        # if any are sequence motifs, read fimo_file
+        if "shape" in motif_types:
+            raise(Exception(
+                f"\nsupplement_robustness method was called on a Motifs object containing "\
+                f"at least one shape motif. The supplement_robustness method must only be "\
+                f"called on Motifs objects containing only sequence motifs. "\
+                f"Exiting with error."
+            ))
+
 
         ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
@@ -1647,6 +1661,109 @@ class Motifs:
     #            f"motif lut: {self.var_lut}\n"\
     #        )
     #        sys.exit(1)
+
+    def cmi_filter(
+            self,
+            max_count,
+            binary,
+            fimo_fname,
+            rec_db,
+            pval_thresh,
+            my_env=None,
+            tmpdir=None,
+    ):
+        '''Filters motifs in self using conditional mutual information.
+
+        Modifies:
+        ---------
+        Modifies self in place, having retained only the motifs passing CMI filter.
+        '''
+
+        # sort motifs by descending ami to prep for cmi filter binary
+        self.sort_motifs_by_mi()
+
+        tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
+        tmp_direc = tmp_dir.name
+        # write y values to file
+        json_name = os.path.join(tmp_direc, "tmp.json")
+        #np.save(y_name, rec_db.y.astype(np.int64))
+
+        # loop over motifs to collect each one's 1D hit categories
+        motif_info = []
+        # this enables setting a separate category for seq hits (max_cat + 1)
+        max_cat = np.dot([max_count, max_count], [1, max_count+1])
+        seq_cat = max_cat + 1
+        for motif in self:
+            if motif.motif_type == "sequence":
+                this_hits = motif.X.flatten()
+                # set seq hits to seq_cat
+                this_hits[this_hits == 1] = seq_cat
+                hit_list = [int(_) for _ in this_hits]
+                # sequence motif param number is motif length * 3
+                param_num = motif.motif.shape[1] * 3
+            elif motif.motif_type == "shape":
+                this_hits = motif.hits
+                hit_cats = np.dot(this_hits, [1, max_count+1])
+                hit_list = [int(_) for _ in hit_cats.flatten()]
+                param_num = motif.motif.shape[0] * motif.motif.shape[1] * 2 + 1
+            else:
+                raise(Exception(
+                    f"motif type must be either 'shape' or 'sequence', "\
+                    f"but is {motif.motif_type}. Exiting with error."
+                ))
+            motif_info.append({"hits": hit_list, "ami": motif.mi, "param_num": param_num})
+
+        with open(json_name, "w") as f:
+        #with open("/home/jeremy/test.json", "w") as f:
+            json.dump({
+                "y": [int(_) for _ in rec_db.y.flatten()],
+                "motifs": motif_info,
+                "rec_num": len(rec_db),
+            }, f, indent=4)
+
+        cmd = binary + " " + json_name
+
+        print(f"\nRunning binary: {cmd}")
+
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            env=my_env,
+        )
+        tmp_dir.cleanup()
+        if result.returncode != 0:
+            raise(Exception(
+                f"Attempt to filter motifs by CMI failed.\n"\
+                f"STDOUT: {result.stdout.decode()}\n"
+                f"ERROR: {result.stderr.decode()}\n"\
+            ))
+
+        output = result.stdout.decode()
+        try:
+            # get indices from stdout of filter_motifs binary
+            retained_indices = [int(idx) for idx in output.strip().split(" ")]
+        except:
+            raise(Exception(
+                f"\nSomething went wrong in filtering motifs by cmi:\n"\
+                f"STDOUT: {result.stdout.decode()}\n"\
+                f"ERROR: {result.stderr.decode()}"\
+            ))
+
+        retained_motifs = []
+        for i,motif in enumerate(self):
+            if i in retained_indices:
+                retained_motifs.append(motif)
+
+        self.motifs = retained_motifs
+
+        self.set_X(
+            max_count = max_count,
+            fimo_fname = fimo_fname,
+            rec_db = rec_db,
+            pval_thresh = pval_thresh,
+            nosort = True,
+        )
 
     def filter_motifs(
             self,

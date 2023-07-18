@@ -2500,6 +2500,7 @@ impl<'a> IntoIterator for &'a Param {
     }
 }
 
+
 impl Motif {
     /// Returns a new motif instance by bundling with a weight vector
     /// of [MotifWeights] type. 

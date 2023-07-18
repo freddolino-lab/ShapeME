@@ -1,6 +1,6 @@
 name: motifer
 channels:
-    - sssdgc
+  #- sssdgc
     - bioconda
     - conda-forge
     - defaults
@@ -28,8 +28,8 @@ dependencies:
     - meme
     - seqlogo
     - pip
-    - openssl
-    - sqlite
+      #- openssl
+      #- sqlite
       #- sqlcipher
     - pip:
         - jinja2

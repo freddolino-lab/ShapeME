@@ -22,6 +22,7 @@ this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
 infer_bin = os.path.join(this_path, '../rust_utils/target/release/infer_motifs')
 supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
+cmi_bin = os.path.join(this_path, '../rust_utils/target/release/filter_motifs')
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
@@ -491,6 +492,17 @@ def main(args, status):
             my_env=my_env,
             tmpdir=tmpdir,
         )
+
+        seq_motifs.cmi_filter(
+            max_count = max_count,
+            binary = cmi_bin,
+            fimo_fname = f"{fimo_direc}/fimo.tsv",
+            rec_db = records,
+            pval_thresh = streme_thresh,
+            my_env = my_env,
+            tmpdir = tmpdir,
+        )
+
         logging.info("\nSorting sequence motifs by z-score")
        
         logging.info("\nFitting regression model to sequence motifs")
@@ -500,6 +512,7 @@ def main(args, status):
             rec_db = records,
             pval_thresh = streme_thresh,
         )
+
         print("Done getting X for seq motifs")
         one_seq_motif = False
 
@@ -903,129 +916,115 @@ def main(args, status):
             )
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
-            shape_and_seq_motifs.set_X(
+            shape_and_seq_motifs.cmi_filter(
                 max_count = max_count,
+                binary = cmi_bin,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
                 pval_thresh = streme_thresh,
+                my_env = my_env,
+                tmpdir = tmpdir,
             )
-            print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
-            print(f"seq_var_lut: {seq_motifs.var_lut}")
-            print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
-
-            shape_and_seq_fit = evm.train_glmnet(
-                shape_and_seq_motifs.X,
-                records.y,
-                folds=10,
-                family=fam,
-                alpha=1,
-            )
-            with open(shape_and_seq_fit_fname, "wb") as f:
-                pickle.dump(shape_and_seq_fit, f)
-
-            #shape_and_seq_motifs = shape_motifs.copy()
-            #shape_and_seq_motifs.extend(seq_motifs.copy())
-
-            shape_and_seq_coefs = evm.fetch_coefficients(
-                fam,
-                shape_and_seq_fit,
-                num_cats,
-            )
-
-            print()
-            logging.info(
-                f"Shape and sequence motif coefficients:\n"\
-                f"{shape_and_seq_coefs}"
-            )
-            logging.info(
-                f"Shape and sequence coefficient lookup table:\n"\
-                f"{shape_and_seq_motifs.var_lut}"
-            )
-
-            filtered_shape_and_seq_coefs = shape_and_seq_motifs.filter_motifs(
-                shape_and_seq_coefs,
-                max_count = max_count,
-                fimo_fname = f"{fimo_direc}/fimo.tsv",
-                rec_db = records,
-                pval_thresh = streme_thresh,
-            )
-
-            print()
-            logging.info(f"Number of final motifs: {len(shape_and_seq_motifs)}")
-
-            # supplement motifs object with CV-F1
-            intercept_and_shape_and_seq_X = np.append(
-                intercept_X,
-                shape_and_seq_motifs.X,
-                axis=1,
-            )
-
-            int_and_shape_and_seq_fit = evm.train_sklearn_glm(
-                intercept_and_shape_and_seq_X,
-                records.y,
-                family = fam,
-                fit_intercept = False, # intercept already in design mat
-            )
-
-            shape_and_seq_motifs.metric = evm.CV_F1(
-                intercept_and_shape_and_seq_X,
-                records.y,
-                folds = 5,
-                family = fam,
-                fit_intercept = False, # intercept already in design mat
-                cores = args.nprocs,
-            )
-
-            if len(shape_and_seq_motifs) == 0:
-                print()
+            # check whether all motifs of a specific type were removed using cmi
+            motif_types = [motif.motif_type for motif in shape_and_seq_motifs]
+            if not "sequence" in motif_types:
                 logging.info(
-                    f"Only intercept term left after LASSO regression.\n"\
-                    f"Therefore, no informative sequence or shape motif exists."\
-                    f"Not writing a motif to output. Exiting now."
+                    f"Filtering shape and sequence motif model using CMI "\
+                    f"removed all sequence motifs. Moving forward with only shape "\
+                    f"motifs."
                 )
-
-                report_info = {}
-                write_report(
-                    environ = jinja_env,
-                    temp_base = "no_motifs.html.temp",
-                    info = report_info,
-                    out_name = out_page_name,
-                )
-
-                status = "FinishedNoMotif"
-                with open(status_fname, "w") as status_f:
-                    json.dump(status, status_f)
-                sys.exit()
-
-            elif len(shape_and_seq_motifs) == 1:
-                print()
+                seq_motif_exists = False
+            if not "shape" in motif_types:
                 logging.info(
-                    f"Only one motif left after LASSO regression. "\
-                    f"Performing model selection using F1 to determine whether "\
-                    f"the remaining motif is informative over intercept alone."
+                    f"Filtering shape and sequence motif model using CMI "\
+                    f"removed all shape motifs. Moving forward with only sequence "\
+                    f"motifs."
                 )
-     
-                metric_list = [ intercept_metric, shape_and_seq_motifs.metric ]
-                model_list = [ intercept_fit, int_and_shape_and_seq_fit ]
+                shape_motif_exists = False
 
-                best_mod_idx = evm.choose_model(
-                    metric_list,
-                    model_list,
-                    return_index = True,
+            # if we still see evidence that shape AND sequence are important,
+            #  do the next stuff
+            if shape_motif_exists and seq_motif_exists:
+
+                shape_and_seq_motifs.set_X(
+                    max_count = max_count,
+                    fimo_fname = f"{fimo_direc}/fimo.tsv",
+                    rec_db = records,
+                    pval_thresh = streme_thresh,
+                )
+                print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
+                print(f"seq_var_lut: {seq_motifs.var_lut}")
+                print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
+
+                shape_and_seq_fit = evm.train_glmnet(
+                    shape_and_seq_motifs.X,
+                    records.y,
+                    folds=10,
+                    family=fam,
+                    alpha=1,
+                )
+                with open(shape_and_seq_fit_fname, "wb") as f:
+                    pickle.dump(shape_and_seq_fit, f)
+
+                #shape_and_seq_motifs = shape_motifs.copy()
+                #shape_and_seq_motifs.extend(seq_motifs.copy())
+
+                shape_and_seq_coefs = evm.fetch_coefficients(
+                    fam,
+                    shape_and_seq_fit,
+                    num_cats,
                 )
 
                 print()
                 logging.info(
-                    f"Intercept-only F-score: {intercept_metric}\n"\
-                    f"Intercept and one covariate F-score: {shape_and_seq_motifs.metric}"
+                    f"Shape and sequence motif coefficients:\n"\
+                    f"{shape_and_seq_coefs}"
                 )
-                if best_mod_idx == 0:
+                logging.info(
+                    f"Shape and sequence coefficient lookup table:\n"\
+                    f"{shape_and_seq_motifs.var_lut}"
+                )
+
+                filtered_shape_and_seq_coefs = shape_and_seq_motifs.filter_motifs(
+                    shape_and_seq_coefs,
+                    max_count = max_count,
+                    fimo_fname = f"{fimo_direc}/fimo.tsv",
+                    rec_db = records,
+                    pval_thresh = streme_thresh,
+                )
+
+                print()
+                logging.info(f"Number of final motifs: {len(shape_and_seq_motifs)}")
+
+                # supplement motifs object with CV-F1
+                intercept_and_shape_and_seq_X = np.append(
+                    intercept_X,
+                    shape_and_seq_motifs.X,
+                    axis=1,
+                )
+
+                int_and_shape_and_seq_fit = evm.train_sklearn_glm(
+                    intercept_and_shape_and_seq_X,
+                    records.y,
+                    family = fam,
+                    fit_intercept = False, # intercept already in design mat
+                )
+
+                shape_and_seq_motifs.metric = evm.CV_F1(
+                    intercept_and_shape_and_seq_X,
+                    records.y,
+                    folds = 5,
+                    family = fam,
+                    fit_intercept = False, # intercept already in design mat
+                    cores = args.nprocs,
+                )
+
+                if len(shape_and_seq_motifs) == 0:
                     print()
                     logging.info(
-                        f"Intercept-only model had better score than model fit using "\
-                        f"intercept and one motif covariate.\nTherefore, there is no "\
-                        f"informative motif. Not writing a motif to output. "\
-                        f"Exiting now."
+                        f"Only intercept term left after LASSO regression.\n"\
+                        f"Therefore, no informative sequence or shape motif exists."\
+                        f"Not writing a motif to output. Exiting now."
                     )
 
                     report_info = {}
@@ -1040,6 +1039,50 @@ def main(args, status):
                     with open(status_fname, "w") as status_f:
                         json.dump(status, status_f)
                     sys.exit()
+
+                elif len(shape_and_seq_motifs) == 1:
+                    print()
+                    logging.info(
+                        f"Only one motif left after LASSO regression. "\
+                        f"Performing model selection using F1 to determine whether "\
+                        f"the remaining motif is informative over intercept alone."
+                    )
+     
+                    metric_list = [ intercept_metric, shape_and_seq_motifs.metric ]
+                    model_list = [ intercept_fit, int_and_shape_and_seq_fit ]
+
+                    best_mod_idx = evm.choose_model(
+                        metric_list,
+                        model_list,
+                        return_index = True,
+                    )
+
+                    print()
+                    logging.info(
+                        f"Intercept-only F-score: {intercept_metric}\n"\
+                        f"Intercept and one covariate F-score: {shape_and_seq_motifs.metric}"
+                    )
+                    if best_mod_idx == 0:
+                        print()
+                        logging.info(
+                            f"Intercept-only model had better score than model fit using "\
+                            f"intercept and one motif covariate.\nTherefore, there is no "\
+                            f"informative motif. Not writing a motif to output. "\
+                            f"Exiting now."
+                        )
+
+                        report_info = {}
+                        write_report(
+                            environ = jinja_env,
+                            temp_base = "no_motifs.html.temp",
+                            info = report_info,
+                            out_name = out_page_name,
+                        )
+
+                        status = "FinishedNoMotif"
+                        with open(status_fname, "w") as status_f:
+                            json.dump(status, status_f)
+                        sys.exit()
 
     motifs_info = []
     if shape_motif_exists:
