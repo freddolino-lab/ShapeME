@@ -910,7 +910,7 @@ if __name__ == "__main__":
             if (args.train_score_file is not None) and (args.train_shape_files is not None):
                 train_seq_fasta = os.path.join(in_direc, args.train_seq_fasta)
 
-                print(f"training fimo run")
+                #print(f"training fimo run")
                 train_seq_motifs = fimo_run(
                     seq_motifs,
                     train_seq_fasta,
@@ -921,7 +921,7 @@ if __name__ == "__main__":
                     streme_thresh,
                     tmpdir,
                 )
-            print(f"testing fimo run")
+            #print(f"testing fimo run")
             test_seq_motifs = fimo_run(
                 seq_motifs,
                 test_seq_fasta,
@@ -934,7 +934,7 @@ if __name__ == "__main__":
             )
 
             if len(shape_motifs) > 0:
-                print("Merging testing motifs")
+                #print("Merging testing motifs")
                 all_test_motifs = test_shape_motifs.new_with_motifs(
                     test_seq_motifs,
                     max_count = max_count,
@@ -943,7 +943,7 @@ if __name__ == "__main__":
                     pval_thresh = streme_thresh,
                     nosort = True,
                 )
-                print("Merging training motifs")
+                #print("Merging training motifs")
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
                     all_train_motifs = train_shape_motifs.new_with_motifs(
                         train_seq_motifs,
