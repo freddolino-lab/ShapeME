@@ -1056,12 +1056,12 @@ class Motifs:
         seq_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "sequence"]
         seq_motifs.motif_type = "sequence"
         seq_motifs.seq_row_lut = self.seq_row_lut
-        print("finished getting list of seq motifs")
+        #print("finished getting list of seq motifs")
         shape_motifs = Motifs()
         shape_motifs.motifs = [copy.deepcopy(_) for _ in self if _.motif_type == "shape"]
         shape_motifs.motif_type = "shape"
         shape_motifs.shape_row_lut = self.shape_row_lut
-        print("finished getting list of shape motifs")
+        #print("finished getting list of shape motifs")
         return(seq_motifs, shape_motifs)
 
     def write_shape_motifs_as_rust_output(self, out_fname):
@@ -1584,35 +1584,35 @@ class Motifs:
     ):
 
         if not nosort:
-            print("\nSorting shape motifs by z-score")
+            #print("\nSorting shape motifs by z-score")
             self.sort_motifs()
         # get idices of hits for seq motifs
-        print("iterating over motifs")
+        #print("iterating over motifs")
         motif_types = [motif.motif_type for motif in self]
         # if any are sequence motifs, read fimo_file
         if "sequence" in motif_types:
-            print(f"Fimo fname: {fimo_fname}")
+            #print(f"Fimo fname: {fimo_fname}")
             if fimo_fname is None:
                 print("Trying to set design matrix on sequence motif, but no fimo file provided.")
                 print("Exiting with error.")
                 sys.exit(1)
             fimo_file = fimo.FimoFile()
             fimo_file.parse(fimo_fname)
-            print(f"read {fimo_fname}")
+            #print(f"read {fimo_fname}")
             ids_in_self = self.get_distinct_ids()
-            print(f"ids_in_self: {ids_in_self}")
+            #print(f"ids_in_self: {ids_in_self}")
             retained_hits = fimo_file.filter_by_id(ids_in_self)
             motif_hits = retained_hits.gather_hits_dict(pval_thresh)
-            print(f"motif_hits: {motif_hits}") 
+            #print(f"motif_hits: {motif_hits}") 
 
         # set each motif's own individual var_lut and design matrix
         for motif in self:
-            print(f"motif type: {motif.motif_type}")
+            #print(f"motif type: {motif.motif_type}")
             if motif.motif_type == "sequence":
                 motif.set_X(rec_db, seq_motif_hits = motif_hits, max_count = max_count)
             elif motif.motif_type == "shape":
                 motif.set_X(rec_db, max_count = max_count)
-                print(f"motif var lut: {motif.var_lut}")
+                #print(f"motif var lut: {motif.var_lut}")
 
         # merge motifs' matrices and make a var_lut for this [Motifs] object
         # initialize the design matrix to appropriate shape
@@ -1678,6 +1678,9 @@ class Motifs:
         ---------
         Modifies self in place, having retained only the motifs passing CMI filter.
         '''
+
+        print("Filtering motifs by CMI...")
+        print(f"Prior to CMI-based filter, there are {len(self)} motifs.")
 
         # sort motifs by descending ami to prep for cmi filter binary
         self.sort_motifs_by_mi()
@@ -1764,6 +1767,7 @@ class Motifs:
             pval_thresh = pval_thresh,
             nosort = True,
         )
+        print(f"After CMI-based filter, there are {len(self)} motifs.")
 
     def filter_motifs(
             self,
