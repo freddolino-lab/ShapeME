@@ -174,5 +174,8 @@ fn main() {
     let motif_data: MotifsData = serde_json::from_reader(buf_reader).unwrap();
 
     let result = motif_data.get_good_motif_indices();
+    if result.is_empty() {
+        println!("No motifs are informative");
+    }
     println!("{result}");
 }

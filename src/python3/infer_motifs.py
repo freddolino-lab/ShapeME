@@ -178,6 +178,8 @@ def parse_args():
     parser.add_argument('--tmpdir', action='store', type=str, default=None,
         help=f"Sets the location into which to write temporary files. If ommitted, will "\
                 f"use TMPDIR environment variable.")
+    parser.add_argument('--no_report', action="store_true", default=False,
+        help="Include at command line to suppress writing an html report of results. Note: a report will still be written in the case on an error.")
     args = parser.parse_args()
     return args
 
@@ -214,7 +216,7 @@ def main(args, status):
     shape_files = args.shape_files
     out_motif_basename = os.path.join(out_direc, "final_motifs")
     out_motif_fname = out_motif_basename + ".dsm"
-    out_coefs_fname = out_motif_basename + "_coefficients.npy"
+    out_coefs_fname = out_motif_basename + "_coefficients.pkl"
     out_heatmap_fname = os.path.join(out_direc, "final_heatmap.png")
     out_page_name = os.path.join(out_direc, "report.html")
     status_fname = os.path.join(out_direc, "job_status.json")
@@ -353,13 +355,14 @@ def main(args, status):
             except UnicodeDecodeError as e:
                 logging.warning("Problem writing to {streme_err_fname}:\n{e}")
 
-                report_info = {"error": e}
-                write_report(
-                    environ = jinja_env,
-                    temp_base = "streme_err_html.temp",
-                    info = report_info,
-                    out_name = out_page_name,
-                )
+                if not args.no_report:
+                    report_info = {"error": e}
+                    write_report(
+                        environ = jinja_env,
+                        temp_base = "streme_err_html.temp",
+                        info = report_info,
+                        out_name = out_page_name,
+                    )
 
                 status = "FinishedError"
                 with open(status_fname, "w") as status_f:
@@ -737,9 +740,11 @@ def main(args, status):
         print()
         if args.shape_rust_file is None:
             logging.info("Running shape motif selection and optimization.")
-            retcode = subprocess.call(FIND_CMD, shell=True, env=my_env)
-            if retcode != 0:
+            result = subprocess.run(FIND_CMD, shell=True, env=my_env, capture_output=True)
+            if result.returncode != 0:
                 raise inout.RustBinaryException(FIND_CMD)
+            if "No shape motifs found by infer_motifs binary." in result.stdout.decode():
+                no_shape_motifs = True
         else:
             logging.info(f"Reading prior shape motifs from {args.shape_rust_file}.")
             rust_out_fname = args.shape_rust_file
@@ -865,13 +870,14 @@ def main(args, status):
                     f"Exiting now."
                 )
 
-                report_info = {}
-                write_report(
-                    environ = jinja_env,
-                    temp_base = "no_motifs.html.temp",
-                    info = report_info,
-                    out_name = out_page_name,
-                )
+                if not args.no_report:
+                    report_info = {}
+                    write_report(
+                        environ = jinja_env,
+                        temp_base = "no_motifs.html.temp",
+                        info = report_info,
+                        out_name = out_page_name,
+                    )
 
                 status = "FinishedNoMotif"
                 with open(status_fname, "w") as status_f:
@@ -1027,13 +1033,14 @@ def main(args, status):
                         f"Not writing a motif to output. Exiting now."
                     )
 
-                    report_info = {}
-                    write_report(
-                        environ = jinja_env,
-                        temp_base = "no_motifs.html.temp",
-                        info = report_info,
-                        out_name = out_page_name,
-                    )
+                    if not args.no_report:
+                        report_info = {}
+                        write_report(
+                            environ = jinja_env,
+                            temp_base = "no_motifs.html.temp",
+                            info = report_info,
+                            out_name = out_page_name,
+                        )
 
                     status = "FinishedNoMotif"
                     with open(status_fname, "w") as status_f:
@@ -1071,13 +1078,14 @@ def main(args, status):
                             f"Exiting now."
                         )
 
-                        report_info = {}
-                        write_report(
-                            environ = jinja_env,
-                            temp_base = "no_motifs.html.temp",
-                            info = report_info,
-                            out_name = out_page_name,
-                        )
+                        if not args.no_report:
+                            report_info = {}
+                            write_report(
+                                environ = jinja_env,
+                                temp_base = "no_motifs.html.temp",
+                                info = report_info,
+                                out_name = out_page_name,
+                            )
 
                         status = "FinishedNoMotif"
                         with open(status_fname, "w") as status_f:
@@ -1106,13 +1114,14 @@ def main(args, status):
         print()
         logging.info("No shape or sequence motifs found. Exiting now.")
 
-        report_info = {}
-        write_report(
-            environ = jinja_env,
-            temp_base = "no_motifs.html.temp",
-            info = report_info,
-            out_name = out_page_name,
-        )
+        if not args.no_report:
+            report_info = {}
+            write_report(
+                environ = jinja_env,
+                temp_base = "no_motifs.html.temp",
+                info = report_info,
+                out_name = out_page_name,
+            )
 
         status = "FinishedNoMotif"
         with open(status_fname, "w") as status_f:
@@ -1175,12 +1184,14 @@ def main(args, status):
 
     # write motifs to meme-like file
     best_motifs.write_file(out_motif_fname, records)
+    coef_dict = {
+        "coefs": best_motif_coefs,
+        "var_lut": best_motifs.var_lut
+    }
     with open(out_coefs_fname, "wb") as out_coef_f:
-        np.save(out_coef_f, best_motif_coefs)
+        pickle.dump(coef_dict, out_coef_f)
     logging.info(f"Writing motif enrichment heatmap to {out_heatmap_fname}")
-    #####################################################################
-    ## needs fixed to not clip image
-    #####################################################################
+
     smv.plot_motif_enrichment_seaborn(best_motifs, out_heatmap_fname, records)
     with open(out_heatmap_fname, "rb") as image_file:
         heatmap_data = base64.b64encode(image_file.read()).decode()
@@ -1190,14 +1201,20 @@ def main(args, status):
         "logo_data": logo_data,
         "heatmap_data": heatmap_data,
     }
-    print(f"report_info keys:\n{report_info.keys()}")
-    write_report(
-        environ = jinja_env,
-        temp_base = "motifs.html.temp",
-        info = report_info,
-        out_name = out_page_name,
-    )
-    print("finished writing report")
+
+    if not args.no_report:
+        print(f"report_info keys:\n{report_info.keys()}")
+        write_report(
+            environ = jinja_env,
+            temp_base = "motifs.html.temp",
+            info = report_info,
+            out_name = out_page_name,
+        )
+        print("finished writing report")
+    else:
+        report_data_fname = os.path.join(out_direc, "report_data.pkl")
+        with open(report_data_fname, "wb") as report_data_f:
+            pickle.dump(report_info, report_data_f)
 
     status = "FinishedWithMotifs"
     with open(status_fname, "w") as status_f:
