@@ -149,7 +149,7 @@ def parse_args():
     parser.add_argument('--seq_motif_positive_cats', required=False, default="1",
         action="store", type=str,
         help=f"Denotes which categories in `--infile` (or after quantization "\
-            f"for a continous signal in the number of bins denoted by the "\
+            f"for a continuos signal in the number of bins denoted by the "\
             f"`--continuous` argument) to use as the positive "\
             f"set for sequence motif calling using streme. Example: "\
             f"\"4\" would use category 4 as the positive set, whereas "\

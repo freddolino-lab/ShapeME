@@ -396,6 +396,19 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
+def quantize_yvals(y, nbins):
+    quants = np.arange(0, 100, 100.0/nbins)
+    values = y
+    bins = []
+    for quant in quants:
+        bins.append(np.percentile(values, quant))
+    logging.warning("Quantizing on bins: {}".format(bins))
+    # subtract 1 to ensure categories start with 0
+    y = np.digitize(values, bins) - 1
+    return y
+
+
 def set_outdir_pref(no_shape_motifs, find_seq_motifs):
     """Assemble output directory name prefix
     """
@@ -448,6 +461,8 @@ def infer(args):
         seqs.read_whole_file(seq_f)
 
     yvals = read_score_file(in_fname)
+    if args.continuous is not None:
+        yvals = quantize_yvals(yvals, args.continuous)
 
     # down-sample number of records if that's what we've chosen to do
     if max_n < len(seqs):
@@ -623,6 +638,7 @@ def infer(args):
         )
 
     # get list of ((train_seq,train_y),(test_seq,test_y)) tuples for each fold
+
     folds = seqs.split_kfold( kfold, yvals )
     fold_direcs = []
 
