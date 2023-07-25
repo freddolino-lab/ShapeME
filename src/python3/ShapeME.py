@@ -468,10 +468,8 @@ def infer(args):
 
         EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
             f"--test_shape_files {test_shape_fnames} "\
-            f"--train_shape_files {train_shape_fnames} "\
             f"--shape_names {' '.join(shape_names)} "\
             f"--data_dir {data_dir} "\
-            f"--train_score_file {train_score_fname} "\
             f"--test_score_file {test_score_fname} "\
             f"--out_dir {out_dir} "\
             f"--nprocs {args.nprocs} "\
@@ -487,8 +485,8 @@ def infer(args):
                 f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
                 f"--streme_thresh {args.streme_thresh} " \
                 f"--find_seq_motifs "
-            EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "\
-                f"--train_seq_fasta {train_seq_fasta} "
+            EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "
+                #f"--train_seq_fasta {train_seq_fasta} "
                 #f"--find_seq_motifs "
 
         if not args.skip_inference:
@@ -708,10 +706,6 @@ def infer(args):
                 f"and the following stdout:\n\n"\
                 f"{merge_eval_result.stdout.decode()}"
             )
-
-    ########################################################
-    ## still need to gather final AUPR metrics for each fold, final motif, mean across folds
-    ########################################################
 
     ######################################
     ## now save images for report and write html report file
