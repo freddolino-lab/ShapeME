@@ -15,12 +15,208 @@ import logging
 import shlex
 import shutil
 import json
+from jinja2 import Environment,FileSystemLoader
+import seaborn as sns
+import pandas as pd
+import base64
+from matplotlib import pyplot as plt
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
 
 from convert_narrowpeak_to_fire import make_kfold_datasets
 import inout
+
+jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
+
+
+class Performance():
+
+    def __init__(self, fold_direcs):
+        self.gather_performance_metrics(fold_direcs)
+
+    def gather_performance_metrics(self, fold_direcs):
+
+        self.fold_count = len(fold_direcs)
+        self.fold_auprs = {}
+        self.random_aupr = {}
+        self.aupr = {}
+        self.cv_aupr = {}
+        self.cv_aupr_sd = {}
+        randoms = {}
+        self.any_motif = False
+        for k,fold_direc in enumerate(fold_direcs):
+            motifs_file = os.path.join(fold_direc, "final_motifs.dsm")
+            if os.path.isfile(motifs_file):
+                any_motif = True
+                # place fold motifs into all_motifs
+                aupr_fname = os.path.join(fold_direc, "precision_recall.json")
+                with open(aupr_fname, "r") as aupr_file:
+                    fold_data = json.load(aupr_file)
+                for category,aupr_data in fold_data.items():
+                    if not category in self.fold_auprs:
+                        self.fold_auprs[category] = []
+                        randoms[category] = []
+                    self.fold_auprs[category].append(aupr_data["auc"])
+                    randoms[category].append(aupr_data["random_auc"])
+            else:
+                continue
+
+            
+
+        joint_aupr_fname = os.path.join(fold_direc, "../precision_recall.json")
+        with open(joint_aupr_fname, "r") as aupr_file:
+            aupr_data = json.load(aupr_file)
+
+        for category in self.fold_auprs.keys():
+            self.random_aupr[category] = np.mean(randoms[category])
+            self.cv_aupr[category] = np.mean(self.fold_auprs[category])
+            self.cv_aupr_sd[category] = np.std(self.fold_auprs[category])
+            self.aupr[category] = aupr_data[category]["auc"]
+
+        if any_motif:
+            self.fold_count_with_motifs = len(randoms[category])
+        else:
+            self.fold_count_with_motifs = 0
+
+
+    def __str__(self):
+        string = f"\nJoint AUPR:\n{self.aupr}\n"\
+            f"Cross-validated AUPR:\n{self.cv_aupr}\n"\
+            f"Cross-validated random AUPR expected:\n{self.random_aupr}\n"\
+            f"Of {self.fold_count} folds used for cross-validation, "\
+            f"{self.fold_count_with_motifs} had motifs.\n"
+        return string
+
+    def plot_performance(self, plot_fname):
+        
+        folds = []
+        fold_categories = []
+        fold_auprs = []
+
+        cv_categories = []
+        cv_auprs = []
+
+        std_categories = []
+        ranges = []
+
+        joint_categories = []
+        joint_auprs = []
+
+        rand_yvals = []
+        randoms = []
+        rand_categories = []
+        
+        for category in self.aupr.keys():
+            #cat = int(category)
+            for k in range(self.fold_count):
+                try:
+                    folds.append(k)
+                    fold_categories.append(category)
+                    fold_auprs.append(self.fold_auprs[category][k])
+                except IndexError:
+                    continue
+ 
+            rand_yvals.append(float(category)-0.3)
+            rand_yvals.append(float(category)+0.3)
+            randoms.append(self.random_aupr[category])
+            randoms.append(self.random_aupr[category])
+            rand_categories.append(category)
+            rand_categories.append(category)
+
+            cv_aupr = self.cv_aupr[category]
+            stddev = self.cv_aupr_sd[category]
+            lower = cv_aupr - stddev
+            upper = cv_aupr + stddev
+
+            std_categories.append(category)
+            std_categories.append(category)
+            ranges.append(lower)
+            ranges.append(upper)
+
+            cv_categories.append(category)
+            cv_auprs.append(cv_aupr)
+
+            joint_categories.append(category)
+            joint_auprs.append(self.aupr[category])
+
+        fold_df = pd.DataFrame(data={"fold":folds, "aupr":fold_auprs, "cat":fold_categories})
+        print(f"fold_df:\n{fold_df}")
+        lims_df = pd.DataFrame(data={"xvals":ranges, "cat":std_categories})
+        print(f"lims_df:\n{lims_df}")
+        cv_df = pd.DataFrame(data={"aupr":cv_auprs, "cat":cv_categories})
+        print(f"cv_df:\n{cv_df}")
+        joint_df = pd.DataFrame(data={"aupr":joint_auprs, "cat":joint_categories})
+        print(f"joint_df:\n{joint_df}")
+        rand_df = pd.DataFrame(data={"randoms":randoms, "yvals":rand_yvals, "cat":rand_categories})
+        print(f"rand_df:\n{rand_df}")
+
+        fig,ax = plt.subplots(figsize=(5,1.5*len(self.aupr)))
+        sns.scatterplot(
+            data = rand_df,
+            x = "randoms",
+            y = "cat",
+            #hue = "cat",
+            s = 200,
+            marker = "|",
+            color = "red",
+            legend = False,
+            ax = ax,
+        )
+        sns.lineplot(
+            data = lims_df,
+            x = "xvals",
+            y = "cat",
+            hue = "cat",
+            legend = False,
+            ax = ax,
+        )
+        sns.stripplot(
+            data = fold_df,
+            x = "aupr",
+            y = "cat",
+            hue = "cat", 
+            jitter = 0.05,
+            dodge = True,
+            marker = ".",
+            legend = False,
+            ax = ax,
+        )
+        sns.scatterplot(
+            data = cv_df,
+            x = "aupr",
+            y = "cat",
+            hue = "cat", 
+            marker = "o",
+            legend = False,
+            ax = ax,
+        )
+        sns.scatterplot(
+            data = joint_df,
+            x = "aupr",
+            y = "cat",
+            hue = "cat", 
+            marker = "$\circ$",
+            ec = "face",
+            s = 100,
+            legend = False,
+            ax = ax,
+        )
+        plt.xlabel("AUPR")
+        plt.ylabel("Category")
+        plt.xlim((-0.05,1.05))
+        plt.tight_layout()
+        plt.savefig(plot_fname)
+
+
+def write_report(environ, temp_base, info, out_name):
+    print("writing report")
+    print(f"base template: {temp_base}")
+    template = environ.get_template(temp_base)
+    print(f"out_name: {out_name}")
+    content = template.render(**info)
+    with open(out_name, "w", encoding="utf-8") as report:
+        report.write(content)
 
 def read_score_file(infile):
     """Read a score file 
@@ -311,6 +507,136 @@ def infer(args):
         for shape_name in shape_names:
             full_shape_fnames += f"{seq_fasta}.{shape_name} "
 
+    tmpdir = os.path.join(data_dir, "tmp")
+    # if the output directory does not exist, make it
+    if not os.path.isdir(tmpdir):
+        os.makedirs(tmpdir)
+
+    INFER_EXE = f"python {this_path}/infer_motifs.py "\
+        f"--score_file {in_fname} "\
+        f"--shape_files {full_shape_fnames} "\
+        f"--shape_names {' '.join(shape_names)} "\
+        f"--out_prefix {outdir_pre} "\
+        f"--data_dir {data_dir} "\
+        f"--out_dir {data_dir} "\
+        f"--kmer {args.kmer} " \
+        f"--max_count {args.max_count} "\
+        f"--threshold_sd {args.threshold_sd} "\
+        f"--init_threshold_seed_num {args.init_threshold_seed_num} "\
+        f"--init_threshold_recs_per_seed {args.init_threshold_recs_per_seed} "\
+        f"--init_threshold_windows_per_record {args.init_threshold_windows_per_record} "\
+        f"--max_batch_no_new_seed {args.max_batch_no_new_seed} "\
+        f"--nprocs {args.nprocs} "\
+        f"--threshold_constraints "\
+            f"{args.threshold_constraints[0]} {args.threshold_constraints[1]} " \
+        f"--shape_constraints " \
+            f"{args.shape_constraints[0]} {args.shape_constraints[1]} " \
+        f"--weights_constraints " \
+            f"{args.weights_constraints[0]} {args.weights_constraints[1]} " \
+        f"--temperature {args.temperature} " \
+        f"--t_adj {args.t_adj} " \
+        f"--stepsize {args.stepsize} " \
+        f"--opt_niter {args.opt_niter} " \
+        f"--alpha {args.alpha} " \
+        f"--batch_size {args.batch_size} " \
+        f"--tmpdir {tmpdir} " \
+        f"--log_level {args.log_level} "\
+        f"--no_report"
+
+    if args.exhaustive:
+        INFER_EXE += f" --exhaustive"
+    if args.write_all_files:
+        INFER_EXE += f" --write_all_files"
+    if args.no_shape_motifs:
+        INFER_EXE += f" --no_shape_motifs"
+    if args.continuous is not None:
+        INFER_EXE += f" --continuous {args.continuous}"
+
+    if find_seq_motifs:
+
+        INFER_EXE += f" --seq_fasta {seq_fasta} " \
+            f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
+            f"--streme_thresh {args.streme_thresh} " \
+            f"--find_seq_motifs "
+
+    INFER_CMD = shlex.quote(INFER_EXE)
+    INFER_CMD = INFER_EXE
+    infer_result = subprocess.run(
+        INFER_CMD,
+        shell=True,
+        capture_output=True,
+        #check=True,
+    )
+    if infer_result.returncode != 0:
+        logging.error(
+            f"ERROR: running the following command:\n\n"\
+            f"{INFER_CMD}\n\n"\
+            f"resulted in the following stderr:\n\n"\
+            f"{infer_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"\
+            f"{infer_result.stdout.decode()}"
+        )
+        sys.exit(1)
+    else:
+        logging.info(
+            f"Motif inference was performed by running the following command:\n\n"\
+            f"{INFER_CMD}\n\n"\
+            f"resulting in the following stderr:\n\n"\
+            f"{infer_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"\
+            f"{infer_result.stdout.decode()}"
+        )
+        # if no motifs in this fold, move on to next one
+        if "No shape or sequence motifs found" in infer_result.stdout.decode():
+            status = "FinishedWithMotifs"
+            with open(status_fname, "w") as status_f:
+                json.dump(status, status_f)
+            logging.info("ShapeME finished")
+
+    MERGE_EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
+        f"--test_shape_files {full_shape_fnames} "\
+        f"--shape_names {' '.join(shape_names)} "\
+        f"--data_dir {data_dir} "\
+        f"--test_score_file {in_fname} "\
+        f"--out_dir {data_dir} "\
+        f"--nprocs {args.nprocs} "\
+        f"--out_prefix {outdir_pre}"
+
+    if args.continuous is not None:
+        MERGE_EVAL_EXE += f" --continuous {args.continuous}"
+
+    if find_seq_motifs:
+        MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "
+
+    # workaround for potential security vulnerability of shell=True
+    MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
+    MERGE_EVAL_CMD = MERGE_EVAL_EXE
+    merge_eval_result = subprocess.run(
+        MERGE_EVAL_CMD,
+        shell=True,
+        capture_output=True,
+        #check=True,
+    )
+    if merge_eval_result.returncode != 0:
+        logging.error(
+            f"ERROR: running the following command:\n\n"\
+            f"{MERGE_EVAL_CMD}\n\n"\
+            f"resulted in the following stderr:\n\n"\
+            f"{merge_eval_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"\
+            f"{merge_eval_result.stdout.decode()}"
+        )
+        sys.exit(1)
+    else:
+        logging.info(
+            f"Motif evaluation was performed by running the following command:\n\n"\
+            f"{MERGE_EVAL_CMD}\n\n"\
+            f"resulting in the following stderr:\n\n"\
+            f"{merge_eval_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"\
+            f"{merge_eval_result.stdout.decode()}"
+        )
+
     # get list of ((train_seq,train_y),(test_seq,test_y)) tuples for each fold
 
     folds = seqs.split_kfold( kfold, yvals )
@@ -560,160 +886,182 @@ def infer(args):
             #print(eval_result.stdout.decode())
             #sys.exit()
 
-    folds_with_motifs = []
-    for k,fold_direc in enumerate(fold_direcs):
-        motifs_file = os.path.join(fold_direc, "final_motifs.dsm")
-        if os.path.isfile(motifs_file):
-            # place fold motifs into all_motifs
-            folds_with_motifs.append((k, motifs_file))
-        else:
-            continue
+#    folds_with_motifs = []
+#    for k,fold_direc in enumerate(fold_direcs):
+#        motifs_file = os.path.join(fold_direc, "final_motifs.dsm")
+#        if os.path.isfile(motifs_file):
+#            # place fold motifs into all_motifs
+#            folds_with_motifs.append((k, motifs_file))
+#        else:
+#            continue
+#
+    #print(f"fold_with_motifs: {folds_with_motifs}")
+    ## if not motifs, write status file saying so and exit normally
+    #if len(folds_with_motifs) == 0:
+    #    status = "FinishedNoMotif"
+    #    with open(status_fname, "w") as status_f:
+    #        json.dump(status, status_f)
+    #    logging.info("No motifs found in any folds")
+    #    sys.exit(0)
 
-    print(f"fold_with_motifs: {folds_with_motifs}")
-    # if not motifs, write status file saying so and exit normally
-    if len(folds_with_motifs) == 0:
-        status = "FinishedNoMotif"
-        with open(status_fname, "w") as status_f:
-            json.dump(status, status_f)
-        logging.info("No motifs found in any folds")
-        sys.exit(0)
+    ## if only one fold has a result, copy it to the main directory
+    #elif len(folds_with_motifs) == 1:
+    #    src_file = folds_with_motifs[0][1]
+    #    dsm_file = os.path.join(data_dir, "final_motifs.dsm")
+    #    shutil.copyfile(src_file, dsm_file)
+    #    ###########################################################
+    #    ###########################################################
+    #    ## need to also copy files with prec-rec curve, heatmap, etc
+    #    ###########################################################
+    #    ###########################################################
 
-    # if only one fold has a result, copy it to the main directory
-    elif len(folds_with_motifs) == 1:
-        src_file = folds_with_motifs[0][1]
-        dsm_file = os.path.join(data_dir, "final_motifs.dsm")
-        shutil.copyfile(src_file, dsm_file)
-        ###########################################################
-        ###########################################################
-        ## need to also copy files with prec-rec curve, heatmap, etc
-        ###########################################################
-        ###########################################################
+    #else:
+    #    # for each motif name, append fold_n after its name
+    #    for (k,fname) in folds_with_motifs:
+    #        cmd = r"sed -i 's/^\(MOTIF.*\)/\1_fold_{}/g' {}".format(k,fname)
+    #        subprocess.run(
+    #            cmd,
+    #            shell=True,
+    #        )
+    #    # first_file will just be copied to the main job directory
+    #    first_file = folds_with_motifs.pop(0)
+    #    first_fold_direc = os.path.dirname(first_file[1])
+    #    dsm_files = [ fold[1] for fold in folds_with_motifs ]
+    #    dsm_file = os.path.join(data_dir, "fold_motifs.dsm")
+    #    # copy first dsm file to main data directory
+    #    shutil.copyfile(first_file[1], dsm_file)
+    #    # copy a config file to main direc for initializing merge_folds.py
+    #    cfg_basename = "template_config.json"
+    #    cfg_file = os.path.join(data_dir, cfg_basename)
+    #    shutil.copyfile(os.path.join(first_fold_direc, "config.json"), cfg_file)
+    #    # append each following dms file's motifs to the main dms file
+    #    # this file will be read and split between seq/shape by merge_folds.py
+    #    for fname in dsm_files:
+    #        subprocess.run(
+    #            f"sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}",
+    #            shell=True,
+    #        )
+    #    MERGE_CMD = f"python {this_path}/merge_folds.py "\
+    #        f"--config_file {cfg_basename} "\
+    #        f"--seq_fasta {seq_fasta} "\
+    #        f"--shape_files {full_shape_fnames} "\
+    #        f"--shape_names {' '.join(shape_names)} "\
+    #        f"--motifs_file {dsm_file} "\
+    #        f"--direc {data_dir} "\
+    #        f"--score_file {in_fname} "\
+    #        f"--nprocs {args.nprocs} "\
+    #        f"--tmpdir {tmpdir} "\
+    #        f"--out_prefix {outdir_pre}"
 
-    else:
-        # for each motif name, append fold_n after its name
-        for (k,fname) in folds_with_motifs:
-            cmd = r"sed -i 's/^\(MOTIF.*\)/\1_fold_{}/g' {}".format(k,fname)
-            subprocess.run(
-                cmd,
-                shell=True,
-            )
-        # first_file will just be copied to the main job directory
-        first_file = folds_with_motifs.pop(0)
-        first_fold_direc = os.path.dirname(first_file[1])
-        dsm_files = [ fold[1] for fold in folds_with_motifs ]
-        dsm_file = os.path.join(data_dir, "fold_motifs.dsm")
-        # copy first dsm file to main data directory
-        shutil.copyfile(first_file[1], dsm_file)
-        # copy a config file to main direc for initializing merge_folds.py
-        cfg_basename = "template_config.json"
-        cfg_file = os.path.join(data_dir, cfg_basename)
-        shutil.copyfile(os.path.join(first_fold_direc, "config.json"), cfg_file)
-        # append each following dms file's motifs to the main dms file
-        # this file will be read and split between seq/shape by merge_folds.py
-        for fname in dsm_files:
-            subprocess.run(
-                f"sed -n -e '/MOTIF/,$p' {fname} >> {dsm_file}",
-                shell=True,
-            )
-
-        MERGE_CMD = f"python {this_path}/merge_folds.py "\
-            f"--config_file {cfg_basename} "\
-            f"--seq_fasta {seq_fasta} "\
-            f"--shape_files {full_shape_fnames} "\
-            f"--shape_names {' '.join(shape_names)} "\
-            f"--motifs_file {dsm_file} "\
-            f"--direc {data_dir} "\
-            f"--score_file {in_fname} "\
-            f"--nprocs {args.nprocs} "\
-            f"--tmpdir {tmpdir} "\
-            f"--out_prefix {outdir_pre}"
-
-        merge_result = subprocess.run(
-            MERGE_CMD,
-            shell=True,
-            capture_output=True,
-            #check=True,
-        )
-        if merge_result.returncode != 0:
-            logging.error(
-                f"ERROR: running the following command:\n\n"\
-                f"{MERGE_CMD}\n\n"\
-                f"resulted in the following stderr:\n\n"\
-                f"{merge_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{merge_result.stdout.decode()}"
-            )
-            sys.exit(1)
-        else:
-            logging.info(
-                f"Merging motifs across folds was performed by running "\
-                f"the following command:\n\n"\
-                f"{MERGE_CMD}\n\n"\
-                f"resulting in the following stderr:\n\n"\
-                f"{merge_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{merge_result.stdout.decode()}"
-            )
+    #    merge_result = subprocess.run(
+    #        MERGE_CMD,
+    #        shell=True,
+    #        capture_output=True,
+    #        #check=True,
+    #    )
+    #    if merge_result.returncode != 0:
+    #        logging.error(
+    #            f"ERROR: running the following command:\n\n"\
+    #            f"{MERGE_CMD}\n\n"\
+    #            f"resulted in the following stderr:\n\n"\
+    #            f"{merge_result.stderr.decode()}\n\n"
+    #            f"and the following stdout:\n\n"\
+    #            f"{merge_result.stdout.decode()}"
+    #        )
+    #        sys.exit(1)
+    #    else:
+    #        logging.info(
+    #            f"Merging motifs across folds was performed by running "\
+    #            f"the following command:\n\n"\
+    #            f"{MERGE_CMD}\n\n"\
+    #            f"resulting in the following stderr:\n\n"\
+    #            f"{merge_result.stderr.decode()}\n\n"
+    #            f"and the following stdout:\n\n"\
+    #            f"{merge_result.stdout.decode()}"
+    #        )
 
 
-        with open(status_fname, "r") as status_f:
-            status = json.load(status_f)
-        if status == "FinishedNoMotif":
-            logging.info("No motifs after running merge_folds.py. Exiting.")
-            sys.exit(0)
+    #    with open(status_fname, "r") as status_f:
+    #        status = json.load(status_f)
+    #    if status == "FinishedNoMotif":
+    #        logging.info("No motifs after running merge_folds.py. Exiting.")
+    #        sys.exit(0)
 
-        logging.info(f"Evaluating set of motifs merged from folds...")
-        MERGE_EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
-            f"--test_shape_files {full_shape_fnames} "\
-            f"--shape_names {' '.join(shape_names)} "\
-            f"--data_dir {data_dir} "\
-            f"--test_score_file {in_fname} "\
-            f"--out_dir {data_dir} "\
-            f"--nprocs {args.nprocs} "\
-            f"--out_prefix {outdir_pre}"
+    #    logging.info(f"Evaluating set of motifs merged from folds...")
+    #    MERGE_EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
+    #        f"--test_shape_files {full_shape_fnames} "\
+    #        f"--shape_names {' '.join(shape_names)} "\
+    #        f"--data_dir {data_dir} "\
+    #        f"--test_score_file {in_fname} "\
+    #        f"--out_dir {data_dir} "\
+    #        f"--nprocs {args.nprocs} "\
+    #        f"--out_prefix {outdir_pre}"
 
-        if args.continuous is not None:
-            MERGE_EVAL_EXE += f" --continuous {args.continuous}"
+    #    if args.continuous is not None:
+    #        MERGE_EVAL_EXE += f" --continuous {args.continuous}"
 
-        if find_seq_motifs:
-            MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "
+    #    if find_seq_motifs:
+    #        MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "
 
-        # workaround for potential security vulnerability of shell=True
-        MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
-        MERGE_EVAL_CMD = MERGE_EVAL_EXE
-        merge_eval_result = subprocess.run(
-            MERGE_EVAL_CMD,
-            shell=True,
-            capture_output=True,
-            #check=True,
-        )
-        if merge_eval_result.returncode != 0:
-            logging.error(
-                f"ERROR: running the following command:\n\n"\
-                f"{MERGE_EVAL_CMD}\n\n"\
-                f"resulted in the following stderr:\n\n"\
-                f"{merge_eval_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{merge_eval_result.stdout.decode()}"
-            )
-            sys.exit(1)
-        else:
-            logging.info(
-                f"Motif evaluation was performed by running the following command:\n\n"\
-                f"{MERGE_EVAL_CMD}\n\n"\
-                f"resulting in the following stderr:\n\n"\
-                f"{merge_eval_result.stderr.decode()}\n\n"
-                f"and the following stdout:\n\n"\
-                f"{merge_eval_result.stdout.decode()}"
-            )
+    #    # workaround for potential security vulnerability of shell=True
+    #    MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
+    #    MERGE_EVAL_CMD = MERGE_EVAL_EXE
+    #    merge_eval_result = subprocess.run(
+    #        MERGE_EVAL_CMD,
+    #        shell=True,
+    #        capture_output=True,
+    #        #check=True,
+    #    )
+    #    if merge_eval_result.returncode != 0:
+    #        logging.error(
+    #            f"ERROR: running the following command:\n\n"\
+    #            f"{MERGE_EVAL_CMD}\n\n"\
+    #            f"resulted in the following stderr:\n\n"\
+    #            f"{merge_eval_result.stderr.decode()}\n\n"
+    #            f"and the following stdout:\n\n"\
+    #            f"{merge_eval_result.stdout.decode()}"
+    #        )
+    #        sys.exit(1)
+    #    else:
+    #        logging.info(
+    #            f"Motif evaluation was performed by running the following command:\n\n"\
+    #            f"{MERGE_EVAL_CMD}\n\n"\
+    #            f"resulting in the following stderr:\n\n"\
+    #            f"{merge_eval_result.stderr.decode()}\n\n"
+    #            f"and the following stdout:\n\n"\
+    #            f"{merge_eval_result.stdout.decode()}"
+    #        )
 
-    ######################################
-    ## now save images for report and write html report file
-    ######################################
+    aupr_plot_fname = os.path.join(data_dir, "cv_aupr.png")
+    performance = Performance(fold_direcs)
+    performance.plot_performance(aupr_plot_fname)
+
+    with open(aupr_plot_fname, "rb") as image_file:
+        performance_plot = base64.b64encode(image_file.read()).decode()
+    performance_data = {
+        "plot": performance_plot,
+        "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
+    }
+    
+    report_data_fname = os.path.join(data_dir, "report_data.pkl")
+    with open(report_data_fname, "rb") as info_f:
+        report_info = pickle.load(info_f)
+    report_info["performance_data"] = performance_data
+
+    out_page_name = os.path.join(data_dir, "report.html")
+    write_report(
+        environ = jinja_env,
+        temp_base = "shapeme_report.html.temp",
+        info = report_info,
+        out_name = out_page_name,
+    )
+
     status = "FinishedWithMotifs"
     with open(status_fname, "w") as status_f:
         json.dump(status, status_f)
     logging.info("ShapeME finished")
+
+  
 
 
 def prep_data(args):

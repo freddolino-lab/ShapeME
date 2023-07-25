@@ -788,10 +788,12 @@ if __name__ == "__main__":
     #fit_search = os.path.join(out_direc, '*lasso_fit.pkl')
 
     out_motif_basename = os.path.join(out_direc, "final_motifs")
-    out_coefs_fname = out_motif_basename + "_coefficients.npy"
+    out_coefs_fname = out_motif_basename + "_coefficients.pkl"
 
-    with open(out_coefs_fname, "rb") as f:
-        motif_coefs = np.load(f)
+    with open(out_coefs_fname, "rb") as out_coef_f:
+        coef_dict = pickle.load(out_coef_f)
+    motif_coefs = coef_dict["coefs"]
+    motif_var_lut = coef_dict["var_lut"]
 
     #lasso_fit_fname = glob.glob(fit_search)[0]
     eval_out_fname = os.path.join(out_direc, 'precision_recall.json')
@@ -864,6 +866,9 @@ if __name__ == "__main__":
         motifs = inout.Motifs()
         motifs.read_file( motif_fname )
         seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+        # X is None for both at this point
+        #print(f"seq_motifs.X: {seq_motifs.X}")
+        #print(f"shape_motifs.X: {shape_motifs.X}")
 
         if len(shape_motifs) > 0:
 
@@ -896,6 +901,7 @@ if __name__ == "__main__":
 
                 all_train_motifs = train_shape_motifs
             all_test_motifs = test_shape_motifs
+            print(f"Shape of all_test_motifs.X in shape_motifs block: {all_test_motifs.X.shape}")
 
         if len(seq_motifs) > 0:
 
@@ -943,6 +949,7 @@ if __name__ == "__main__":
                     pval_thresh = streme_thresh,
                     nosort = True,
                 )
+                print(f"Shape of all_test_motifs.X in shape_and_seq_motifs block: {all_test_motifs.X.shape}")
                 #print("Merging training motifs")
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
                     all_train_motifs = train_shape_motifs.new_with_motifs(
@@ -955,6 +962,7 @@ if __name__ == "__main__":
                     )
             else:
                 all_test_motifs = test_seq_motifs
+                print(f"Shape of all_test_motifs.X in seq_motifs block: {all_test_motifs.X.shape}")
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
                     all_train_motifs = train_seq_motifs
 
@@ -984,6 +992,14 @@ if __name__ == "__main__":
         #    family=fam,
         #    alpha=1,
         #)
+
+###############################################################################################
+###############################################################################################
+# I need to write the motif_coefs WITH THEIR ASSOCIATED VARIABLE LOOKUP TABLE!!!!!!!
+# Then I need to construct the design matrix for testing using that lookup table!!!!
+# This is the way to ensure the correct coeficients are used for the correct motifs/categories.
+###############################################################################################
+###############################################################################################
 
         #coefs = fetch_coefficients(fam, fit, args.continuous)
         fit_eval = evaluate_fit2(

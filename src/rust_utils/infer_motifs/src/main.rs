@@ -115,7 +115,7 @@ fn main() {
     }
 
     if motifs.len() == 0 {
-        println!("No motifs found. Exiting now.");
+        println!("No shape motifs found by infer_motifs binary.");
         process::exit(0x0100);
     }
     println!("{} seeds collected during initial batched evaluation.", motifs.len());
