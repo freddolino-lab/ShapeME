@@ -430,11 +430,11 @@ mod tests {
     #[test]
     fn test_fold_merge_update() {
 
-        let mut motifs: Motifs = read_motifs("../test_data/test_motifs.json");
+        let mut motifs: Motifs = read_motifs("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_motifs.json");
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("../test_data/config.json"),
+            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/config.json"),
         ];
         let cfg = parse_config(&args).unwrap();
         let rec_db = RecordsDB::new_from_files(
@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn test_read_files() {
         // read in shapes
-        let fname = "../test_data/shapes.npy";
+        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/shapes.npy";
         let arr: Array4<f64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000, 5, 56, 2), arr.dim());
         assert!(AbsDiff::default().epsilon(1e-6).eq(&125522.42816848765, &arr.sum()));
@@ -494,7 +494,7 @@ mod tests {
         );
 
         // read in y-vals
-        let fname = "../test_data/y_vals.npy";
+        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/y_vals.npy";
         let y_vals: Array1<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000), y_vals.dim());
         assert_eq!(391, y_vals.sum());
@@ -502,13 +502,13 @@ mod tests {
         // read in hits for first record, first window, calculated in python
         // These values will be used to test whether our rust hit counting
         // yields the same results as our python hit counting.
-        let fname = "../test_data/hits.npy";
+        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/hits.npy";
         let hits: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000,2), hits.dim());
         assert_eq!(1323, hits.sum());
 
         // read in some other parameters we'll need
-        let fname = "../test_data/test_args.pkl";
+        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_args.pkl";
         let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
         let buf_reader = BufReader::new(file);
@@ -535,9 +535,9 @@ mod tests {
     #[test]
     fn test_db_from_file() {
         // read in shapes
-        let shape_fname = String::from("../test_data/shapes.npy");
+        let shape_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/shapes.npy");
         // read in y-vals
-        let y_fname = String::from("../test_data/y_vals.npy");
+        let y_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
             &shape_fname,
             &y_fname,
@@ -608,16 +608,16 @@ mod tests {
     #[test]
     fn test_db_operations() {
         // read in shapes
-        let shape_fname = String::from("../test_data/shapes.npy");
+        let shape_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/shapes.npy");
         // read in y-vals
-        let y_fname = String::from("../test_data/y_vals.npy");
+        let y_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
             &shape_fname,
             &y_fname,
         );
 
         // read in some other parameters we'll need
-        let fname = "../test_data/test_args.pkl";
+        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_args.pkl";
         let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
         let buf_reader = BufReader::new(file);
@@ -670,7 +670,7 @@ mod tests {
 
         // read in the distances output by python
         let dist_answer: Array2<f64> = ndarray_npy::read_npy(
-            String::from("../test_data/distances.npy")
+            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/distances.npy")
         ).unwrap();
         //println!("Dist answer: {:?}", dist_answer);
         //println!("Minus dists: {:?}", minus_dists);
@@ -735,7 +735,7 @@ mod tests {
         assert!(AbsDiff::default().epsilon(1e-6).eq(&test_seed.mi, &hash.get("mi").unwrap()));
 
         // yields the same results as our python hit counting.
-        let fname = "../test_data/hits.npy";
+        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/hits.npy";
         let hits_true: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!(hits_true.sum(), hits.sum());
         assert_eq!(hits_true, hits);
@@ -769,7 +769,7 @@ mod tests {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("../test_data/config.json"),
+            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/config.json"),
         ];
         let cfg = parse_config(&args).unwrap();
         let rec_db = RecordsDB::new_from_files(
@@ -801,9 +801,9 @@ mod tests {
 
     #[test]
     fn test_read_motifs () {
-        let motifs: Motifs = read_motifs("../test_data/test_motifs.json");
+        let motifs: Motifs = read_motifs("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_motifs.json");
         println!("{:?}", motifs.motifs[0].params.params);
-        let motifs: Motifs = read_motifs("../test_data/test_motifs_err.json");
+        let motifs: Motifs = read_motifs("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_motifs_err.json");
         println!("{:?}", motifs.motifs[0].params.params);
     }
 
@@ -812,7 +812,7 @@ mod tests {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("../test_data/config_init_thresh.json"),
+            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/config_init_thresh.json"),
         ];
 
         let cfg = parse_config(&args).unwrap();
