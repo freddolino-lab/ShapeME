@@ -2417,14 +2417,14 @@ impl<'a> Iterator for PermutedStrandedSequenceIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // start at the 0-th index of the randomly shuffled indices in self.indices
-        let this_start = self.indices[self.start];
         // add the window width, self.size, to the start to get the end position
-        let this_end = this_start + self.size;
         //println!("This start: {}\nThis end: {}", this_start, this_end);
         // if we've reached the sample size, return None, exiting the iterator
         if self.start == self.sample_size {
             None
         } else {
+            let this_start = self.indices[self.start];
+            let this_end = this_start + self.size;
             let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
             self.start += 1;
             Some(StrandedSequenceView::new(out))

@@ -50,14 +50,14 @@ def scale_image(img_arr, scale=1, frameon=False):
     img_cp[:,:,3] *= scale
     #img = OffsetImage(img_arr, zoom=scale*0.1)
     if frameon:
-        img_cp[:,0:10,0:3] = 0
-        img_cp[:,0:10,3] = 1
-        img_cp[0:10,:,0:3] = 0
-        img_cp[0:10,:,3] = 1
-        img_cp[:,-10:-1,0:3] = 0
-        img_cp[:,-10:-1,3] = 1
-        img_cp[-10:-1,:,0:3] = 0
-        img_cp[-10:-1,:,3] = 1
+        img_cp[:,0:20,0:3] = 0
+        img_cp[:,0:20,3] = 1
+        img_cp[0:20,:,0:3] = 0
+        img_cp[0:20,:,3] = 1
+        img_cp[:,-20:-1,0:3] = 0
+        img_cp[:,-20:-1,3] = 1
+        img_cp[-20:-1,:,0:3] = 0
+        img_cp[-20:-1,:,3] = 1
     img = OffsetImage(img_cp, zoom=1/30)
     return img
 
@@ -164,17 +164,20 @@ def plot_shape_logo(
 ):
     file_name = set_plot_fname(motif, suffix)
     fig,ax = plt.subplots(nrows=1, ncols=1, figsize=(8.5,2))
-    ax.axhline(y=0.0, color="black", linestyle="solid")
-    ax.axhline(y=2.0, color="gray", linestyle="dashed")
-    ax.axhline(y=4.0, color="gray", linestyle="dashed")
-    ax.axhline(y=-2.0, color="gray", linestyle="dashed")
-    ax.axhline(y=-4.0, color="gray", linestyle="dashed")
+    ax.axhline(y=0.0, color="black", linestyle="solid", linewidth=1)
+    ax.axhline(y=2.0, color="gray", linestyle="dashed", linewidth=1)
+    ax.axhline(y=4.0, color="gray", linestyle="dashed", linewidth=1)
+    ax.axhline(y=-2.0, color="gray", linestyle="dashed", linewidth=1)
+    ax.axhline(y=-4.0, color="gray", linestyle="dashed", linewidth=1)
     mi = round(motif.mi, 2)
     opt_y = motif.motif
     norm_weights = motif.weights / w_max
     
     x_vals = [i+1 for i in range(opt_y.shape[1])]
-    
+
+    legend_artists = []
+    legend_key = []
+
     for j in range(opt_y.shape[0]):
 
         shape_name = idx_shape_lut[j]
@@ -204,33 +207,24 @@ def plot_shape_logo(
                 boxcoords = "offset points",
                 frameon=False,
             )
-            #ab.patch.set_facecolor(None)
-            #print(f"x: {x_vals[k]}")
-            #print(f"y: {opt_y[j,k]}")
-            #print(f"dir-ab: {dir(ab)}")
-            #print(f"ab xycoords: {ab.xycoords}")
-            #print(f"dir-ab xycoords: {dir(ab.xycoords)}")
-            #print(f"ab xycoords.center: {ab.xycoords.center()}")
-            #print(f"ab boxcoords: {ab.boxcoords}")
             ax.add_artist( ab )
-            #wind_ext = ab.get_window_extent()
-            #tight_box = ab.get_tightbbox()
-            #print(f"window_ext: {wind_ext}")
-            #print(f"tight_bbox: {tight_box}")
             if j == 0:
                 if k % 2 == 0:
                     ax.axvspan(
                         x_vals[k]-0.5,
                         x_vals[k]+0.5,
                         facecolor = "0.2",
-                        alpha=0.5,
+                        alpha=0.2,
                     )
+        legend_artists.append(ab)
+        legend_key.append(shape_name)
 
     ax.set_ylim(bottom=-ylims, top=ylims)
     ax.text(1, 3, f"MI: {mi}")
     ax.set_ylabel(f"Shape value (z-score)")
     ax.set_xticks(x_vals)
-    ax.set_xlim(left=x_vals[0]-1, right=x_vals[-1]+1)
+    ax.set_xlim(left=x_vals[0]-0.5, right=x_vals[-1]+0.5)
+    ax.legend(legend_artists, legend_key, loc="right")
     #if i == 0:
     #    ax.set_title("Shape logo")
     #    ax.set_xticks(x_vals)

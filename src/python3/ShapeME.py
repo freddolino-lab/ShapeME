@@ -20,6 +20,7 @@ import seaborn as sns
 import pandas as pd
 import base64
 from matplotlib import pyplot as plt
+import pickle
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
@@ -32,10 +33,10 @@ jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templat
 
 class Performance():
 
-    def __init__(self, fold_direcs):
-        self.gather_performance_metrics(fold_direcs)
+    def __init__(self, main_direc, fold_direcs):
+        self.gather_performance_metrics(main_direc, fold_direcs)
 
-    def gather_performance_metrics(self, fold_direcs):
+    def gather_performance_metrics(self, main_direc, fold_direcs):
 
         self.fold_count = len(fold_direcs)
         self.fold_auprs = {}
@@ -64,7 +65,7 @@ class Performance():
 
             
 
-        joint_aupr_fname = os.path.join(fold_direc, "../precision_recall.json")
+        joint_aupr_fname = os.path.join(main_direc, "precision_recall.json")
         with open(joint_aupr_fname, "r") as aupr_file:
             aupr_data = json.load(aupr_file)
 
@@ -507,18 +508,36 @@ def infer(args):
         for shape_name in shape_names:
             full_shape_fnames += f"{seq_fasta}.{shape_name} "
 
-    tmpdir = os.path.join(data_dir, "tmp")
-    # if the output directory does not exist, make it
-    if not os.path.isdir(tmpdir):
-        os.makedirs(tmpdir)
+    out_dir = os.path.join(data_dir, f"{outdir_pre}_main_output")
+    tmpdir = os.path.join(out_dir, "tmp")
 
+    # if the output directory does not exist, make it
+    if not os.path.exists(out_dir):
+        #os.makedirs(out_dir)
+        os.makedirs(tmpdir)
+    else:
+        if not args.skip_inference:
+            if args.force:
+                # remove the current directory and all its contents
+                shutil.rmtree(out_dir)
+                # create empty directory
+                os.makedirs(tmpdir)
+            else:
+                raise Exception(
+                    f"The intended output directory, {out_dir}, already "\
+                    f"exists. We try not to clobber existing data. "\
+                    f"Either rename the existing directory or remove it. "\
+                    f"Nothing was done. Exiting now."
+                )
+
+ 
     INFER_EXE = f"python {this_path}/infer_motifs.py "\
         f"--score_file {in_fname} "\
         f"--shape_files {full_shape_fnames} "\
         f"--shape_names {' '.join(shape_names)} "\
         f"--out_prefix {outdir_pre} "\
         f"--data_dir {data_dir} "\
-        f"--out_dir {data_dir} "\
+        f"--out_dir {out_dir} "\
         f"--kmer {args.kmer} " \
         f"--max_count {args.max_count} "\
         f"--threshold_sd {args.threshold_sd} "\
@@ -561,6 +580,9 @@ def infer(args):
 
     INFER_CMD = shlex.quote(INFER_EXE)
     INFER_CMD = INFER_EXE
+    logging.info(f"Running motif inference on entire dataset. "\
+        f"If motifs are identified, will run on each of {kfold} "\
+        f"train/test splits for cross-validation.")
     infer_result = subprocess.run(
         INFER_CMD,
         shell=True,
@@ -586,19 +608,21 @@ def infer(args):
             f"and the following stdout:\n\n"\
             f"{infer_result.stdout.decode()}"
         )
-        # if no motifs in this fold, move on to next one
-        if "No shape or sequence motifs found" in infer_result.stdout.decode():
-            status = "FinishedWithMotifs"
-            with open(status_fname, "w") as status_f:
-                json.dump(status, status_f)
-            logging.info("ShapeME finished")
+        # if no motifs, exit
+        with open(os.path.join(out_dir, "job_status.json"), "r") as stat_f:
+            main_status = json.load(stat_f)
+            if main_status == "FinishedNoMotif":
+                with open(status_fname, "w") as status_f:
+                    json.dump(main_status, status_f)
+        logging.info("ShapeME finished")
+        sys.exit(0)
 
     MERGE_EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
         f"--test_shape_files {full_shape_fnames} "\
         f"--shape_names {' '.join(shape_names)} "\
         f"--data_dir {data_dir} "\
         f"--test_score_file {in_fname} "\
-        f"--out_dir {data_dir} "\
+        f"--out_dir {out_dir} "\
         f"--nprocs {args.nprocs} "\
         f"--out_prefix {outdir_pre}"
 
@@ -676,7 +700,7 @@ def infer(args):
         train_seqs = fold[0][0]
         train_scores = fold[0][1]
         test_seqs = fold[1][0]
-        test_scores = fold[0][1]
+        test_scores = fold[1][1]
 
         train_seq_fasta = f"{data_dir}/{train_base}.fa"
         test_seq_fasta = f"{data_dir}/{test_base}.fa"
@@ -1032,8 +1056,9 @@ def infer(args):
     #            f"{merge_eval_result.stdout.decode()}"
     #        )
 
-    aupr_plot_fname = os.path.join(data_dir, "cv_aupr.png")
-    performance = Performance(fold_direcs)
+    out_dir = os.path.join(data_dir, f"{outdir_pre}_main_output")
+    aupr_plot_fname = os.path.join(out_dir, "cv_aupr.png")
+    performance = Performance(out_dir, fold_direcs)
     performance.plot_performance(aupr_plot_fname)
 
     with open(aupr_plot_fname, "rb") as image_file:
@@ -1043,12 +1068,12 @@ def infer(args):
         "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
     }
     
-    report_data_fname = os.path.join(data_dir, "report_data.pkl")
+    report_data_fname = os.path.join(out_dir, "report_data.pkl")
     with open(report_data_fname, "rb") as info_f:
         report_info = pickle.load(info_f)
     report_info["performance_data"] = performance_data
 
-    out_page_name = os.path.join(data_dir, "report.html")
+    out_page_name = os.path.join(out_dir, "report.html")
     write_report(
         environ = jinja_env,
         temp_base = "shapeme_report.html.temp",

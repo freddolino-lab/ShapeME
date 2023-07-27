@@ -2201,6 +2201,7 @@ class FastaFile(object):
             rng_seed = int(time.time())
 
         total = len(self)
+        print(f"total: {total}")
         if total <= n:
             logging.error(
                 f"To sample from a FastaFile, n must be less than the "\
@@ -2210,13 +2211,20 @@ class FastaFile(object):
             sys.exit(1)
         inds = list(range(total))
         distinct_cats = np.unique(yvals)
-        strat_w = np.zeros_like(yvals)
+        #print(f"distinct_cats: {distinct_cats}")
+        strat_w = np.zeros_like(yvals, dtype="float")
+        #print(f"strat_w: {strat_w}")
         for cat in distinct_cats:
+            #print(f"cat: {cat}")
             mask = yvals == cat
             n_cat = np.sum(mask)
+            #print(f"n_cat: {n_cat}")
+            #print(f"n_cat / total: {n_cat / total}")
             strat_w[mask] = n_cat / total
 
+        #print(f"strat_w: {strat_w}")
         strat_w = strat_w / strat_w.sum()
+        #print(f"strat_w: {strat_w}")
 
         # stratified random sample of record indices
         rng = np.random.default_rng(rng_seed)
@@ -2457,6 +2465,14 @@ class RecordDatabase(object):
                 shift_params=shift_params,
                 exclude_na=exclude_na,
             )
+        if infile is not None:
+            if len(self) != self.X.shape[0]:
+                raise Exception(
+                    f"There are {len(self)} records in {infile} "\
+                    f"and {self.X.shape[0]} records in the shape files, "\
+                    f"but the number of records must be equal. Check your "\
+                    f"input files and try again."
+                )
 
     def __len__(self):
         """Length method returns the total number of records in the database
