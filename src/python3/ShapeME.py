@@ -614,8 +614,8 @@ def infer(args):
             if main_status == "FinishedNoMotif":
                 with open(status_fname, "w") as status_f:
                     json.dump(main_status, status_f)
-        logging.info("ShapeME finished")
-        sys.exit(0)
+                logging.info("ShapeME finished with no motifs identified.")
+                sys.exit(0)
 
     MERGE_EVAL_EXE = f"python {this_path}/evaluate_motifs.py "\
         f"--test_shape_files {full_shape_fnames} "\
