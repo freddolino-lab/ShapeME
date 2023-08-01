@@ -2042,7 +2042,8 @@ impl StrandedSequence {
         &self, start: usize, end: usize, size: usize, sample_size: usize
     ) -> PermutedStrandedSequenceIter {
         // create vector of indices
-        let mut indices: Vec<usize> = (0..self.seq_len()-size).collect();
+        let mut indices: Vec<usize> = (0..self.seq_len()-size+1).collect();
+        //println!("indices: {:?}", indices);
         // randomly shuffle the indices
         indices.shuffle(&mut thread_rng());
         if sample_size > self.seq_len()-size {

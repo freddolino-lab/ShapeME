@@ -5,8 +5,8 @@ Stage: build
 %setup
     mkdir ${SINGULARITY_ROOTFS}/src
     mkdir ${SINGULARITY_ROOTFS}/src/rust_utils
-    cp -r /home/jeremy/src/DNAshape_motif_finder/src/python3 ${SINGULARITY_ROOTFS}/src
-    cp -r /home/jeremy/src/DNAshape_motif_finder/src/rust_utils/target ${SINGULARITY_ROOTFS}/src/rust_utils
+    cp -r /corexfs/schroedj/src/DNAshape_motif_finder/src/python3 ${SINGULARITY_ROOTFS}/src
+    cp -r /corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/target ${SINGULARITY_ROOTFS}/src/rust_utils
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment
