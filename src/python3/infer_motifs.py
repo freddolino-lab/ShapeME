@@ -1176,10 +1176,10 @@ def main(args, status):
             logo_img,
             motif.alt_name,
             motif.identifier,
-            motif.mi,
-            motif.zscore,
+            np.round(motif.mi, 2),
+            np.round(motif.zscore, 1),
             motif.robustness,
-            motif.evalue,
+            np.round(motif.evalue, 2),
         ))
 
     # write motifs to meme-like file

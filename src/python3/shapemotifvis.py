@@ -78,7 +78,7 @@ def plot_seq_logo(motif, suffix):
     ro.r("""
         logo = function(mat, fname) {
             gp = ggseqlogo(mat) + lims(y=c(0,2)) + theme(axis.line=element_line(color="black"))
-            ggsave(fname, gp, width=4, height=2)
+            ggsave(fname, gp, width=3.5, height=1)
         }
     """)
     logo = ro.globalenv["logo"]
@@ -220,11 +220,12 @@ def plot_shape_logo(
         legend_key.append(shape_name)
 
     ax.set_ylim(bottom=-ylims, top=ylims)
-    ax.text(1, 3, f"MI: {mi}")
+    #ax.text(1, 3, f"MI: {mi}")
     ax.set_ylabel(f"Shape value (z-score)")
+    ax.set_xlabel(f"Motif position")
     ax.set_xticks(x_vals)
     ax.set_xlim(left=x_vals[0]-0.5, right=x_vals[-1]+0.5)
-    ax.legend(legend_artists, legend_key, loc="right")
+    ax.legend(legend_artists, legend_key, loc="upper left", bbox_to_anchor=(1.05, 1))
     #if i == 0:
     #    ax.set_title("Shape logo")
     #    ax.set_xticks(x_vals)
@@ -527,7 +528,7 @@ def plot_motif_enrichment_seaborn(
         center=0.0,
         robust=robust,
         annot=True,
-        fmt='.2g',
+        fmt='.1f',
         annot_kws=None,
         linewidths=0,
         linecolor='white',

@@ -63,8 +63,6 @@ class Performance():
             else:
                 continue
 
-            
-
         joint_aupr_fname = os.path.join(main_direc, "precision_recall.json")
         with open(joint_aupr_fname, "r") as aupr_file:
             aupr_data = json.load(aupr_file)
@@ -159,7 +157,7 @@ class Performance():
             y = "cat",
             #hue = "cat",
             s = 200,
-            marker = "|",
+            marker = "x",
             color = "red",
             legend = False,
             ax = ax,
@@ -177,7 +175,7 @@ class Performance():
             x = "aupr",
             y = "cat",
             hue = "cat", 
-            jitter = 0.05,
+            jitter = 0.02,
             dodge = True,
             marker = ".",
             legend = False,
@@ -286,6 +284,8 @@ def parse_args():
             f"This is useful if you've already run inference on all folds.")
     infer.add_argument('--skip_evaluation', action="store_true", default=False,
         help=f"Include this flag at the command line to skip evaluation of motifs.")
+    infer.add_argument('--out_prefix', action="store", default=None,
+        help=f"Optional. Sets the prefix to place on output directories. If None (the default), infers the appropriate prefix based on whether you set either or both of --find_seq_motifs or --no_shape_motifs") 
     infer.add_argument('--force', action="store_true", default=False,
         help=f"Forces each fold to run, clobbering any extant output directories.")
     infer.add_argument('--crossval_folds', action="store", type=int, required=True,
@@ -456,7 +456,11 @@ def infer(args):
     )
 
     # assemble the prefix for output direc name
-    outdir_pre = set_outdir_pref(no_shape_motifs, find_seq_motifs)
+    if args.out_prefix is None:
+        outdir_pre = set_outdir_pref(no_shape_motifs, find_seq_motifs)
+    else:
+        outdir_pre = args.out_prefix
+    
     with open(seq_fasta,"r") as seq_f:
         seqs = inout.FastaFile()
         seqs.read_whole_file(seq_f)
@@ -635,6 +639,7 @@ def infer(args):
     # workaround for potential security vulnerability of shell=True
     MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
     MERGE_EVAL_CMD = MERGE_EVAL_EXE
+    logging.info(f"Evaluationg motif model performance on entire dataset.")
     merge_eval_result = subprocess.run(
         MERGE_EVAL_CMD,
         shell=True,
