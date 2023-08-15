@@ -441,6 +441,7 @@ def infer(args):
     motifs_rust_file = os.path.join(data_dir, "fold_motifs.json")
     status_fname = os.path.join(data_dir, "job_status.json")
     max_n = args.max_n
+    seq_meme_file = args.seq_meme_file
 
     status = "Running"
     with open(status_fname, "w") as status_f:
@@ -534,7 +535,13 @@ def infer(args):
                     f"Nothing was done. Exiting now."
                 )
 
- 
+    # copy provided meme file from the absolute path given to the expected location
+    if args.seq_meme_file is not None:
+        seq_meme_file = "seq_motifs.meme"
+        shutil.copyfile(os.path.join(data_dir, args.seq_meme_file), os.path.join(data_dir, seq_meme_file))
+    else:
+        seq_meme_file = None
+
     INFER_EXE = f"python {this_path}/infer_motifs.py "\
         f"--score_file {in_fname} "\
         f"--shape_files {full_shape_fnames} "\
@@ -581,6 +588,16 @@ def infer(args):
             f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
             f"--streme_thresh {args.streme_thresh} " \
             f"--find_seq_motifs "
+
+    if seq_meme_file is not None:
+
+        if find_seq_motifs:
+            raise inout.SeqMotifOptionException(seq_meme_file)
+
+        INFER_EXE += f" --seq_fasta {seq_fasta} "\
+            f"--seq_meme_file {seq_meme_file} "\
+            f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
+            f"--streme_thresh {args.streme_thresh} " \
 
     INFER_CMD = shlex.quote(INFER_EXE)
     INFER_CMD = INFER_EXE
@@ -634,7 +651,12 @@ def infer(args):
         MERGE_EVAL_EXE += f" --continuous {args.continuous}"
 
     if find_seq_motifs:
-        MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "
+        MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "\
+            f"--streme_thresh {args.streme_thresh} "
+
+    if seq_meme_file is not None:
+        MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "\
+            f"--streme_thresh {args.streme_thresh} "
 
     # workaround for potential security vulnerability of shell=True
     MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
@@ -676,6 +698,7 @@ def infer(args):
     for k,fold in enumerate(folds):
 
         out_dir = os.path.join(data_dir, f"{outdir_pre}_fold_{k}_output")
+
         tmpdir = os.path.join(out_dir, "tmp")
         fold_direcs.append(out_dir)
         # if the output directory does not exist, make it
@@ -843,6 +866,15 @@ def infer(args):
             EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "
                 #f"--train_seq_fasta {train_seq_fasta} "
                 #f"--find_seq_motifs "
+
+        if seq_meme_file is not None:
+
+            INFER_EXE += f" --seq_fasta {train_seq_fasta} "\
+                f"--seq_meme_file {seq_meme_file} "\
+                f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
+                f"--streme_thresh {args.streme_thresh} "
+            EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "\
+                f"--streme_thresh {args.streme_thresh} "
 
         if not args.skip_inference:
             logging.info(f"Inferring motifs for fold {k}...")

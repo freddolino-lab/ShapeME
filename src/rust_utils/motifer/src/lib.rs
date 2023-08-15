@@ -1938,7 +1938,7 @@ pub struct Seeds<'a> {
 /// * `values` - Stores associated values in a vector in 1D array
 #[derive(Debug)]
 pub struct RecordsDB {
-    seqs: Vec<StrandedSequence>,
+    pub seqs: Vec<StrandedSequence>,
     pub values: ndarray::Array1::<i64>,
     inds: Vec<usize>
 }
@@ -2869,6 +2869,15 @@ impl RecordsDB {
     pub fn new(seqs: Vec<StrandedSequence>, values: ndarray::Array1::<i64>) -> RecordsDB {
         let inds = (0..seqs.len()).collect();
         RecordsDB{seqs, values, inds}
+    }
+
+    /// Returns the number of records in RecordsDB as a usize
+    pub fn rec_num(&self) -> usize {
+        self.seqs.len()
+    }
+
+    pub fn seq_len(&self) -> usize {
+        self.seqs[0].seq_len()
     }
 
     /// randomly shuffles records in self, returns the permuted order so that

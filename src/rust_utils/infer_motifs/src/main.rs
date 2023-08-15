@@ -44,7 +44,21 @@ fn main() {
         println!("Making Seeds from batch {} of RecordsDB.", i+1);
         let mut seeds = batch.make_seed_vec(cfg.kmer, cfg.alpha);
 
+
         if i == 0 {
+
+            if seeds.len() < cfg.seed_sample_size {
+                println!(
+                    "With the current record width of {} and kmer length of {}, there are {} seeds in the first batch for initial threshold calculation. However, you chose a seed sample size of {} for initial threshold calculation. Either re-run with the --init_threshold_seed_num set to, at most, {}, or re-run with a lower batch size. Exiting with non-zero exit status now.",
+                    &batch.seq_len(),
+                    &cfg.kmer,
+                    &seeds.len(),
+                    &cfg.seed_sample_size,
+                    &seeds.len(),
+                );
+            }
+            process::exit(1);
+
             println!("Calculating initial threshold");
             threshold = motifer::set_initial_threshold(
                 &seeds,
