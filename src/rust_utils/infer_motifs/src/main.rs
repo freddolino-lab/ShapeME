@@ -56,8 +56,8 @@ fn main() {
                     &cfg.seed_sample_size,
                     &seeds.len(),
                 );
+                process::exit(1);
             }
-            process::exit(1);
 
             println!("Calculating initial threshold");
             threshold = motifer::set_initial_threshold(
