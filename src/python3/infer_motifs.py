@@ -1160,10 +1160,8 @@ def main(args, status):
         #top_n = np.Inf,
     )
 
-    print("wrote logos")
     # modify each motif's enrichments attribute
     best_motifs.get_enrichments(records)
-    print("got enrichments")
 
     #######################################################################
     #######################################################################
@@ -1174,6 +1172,7 @@ def main(args, status):
     for plot_fname,motif in plot_fnames:
         with open(plot_fname, "rb") as image_file:
             logo_img = base64.b64encode(image_file.read()).decode()
+        motif.set_evalue(len(best_motifs))
         logo_data.append((
             logo_img,
             motif.alt_name,
@@ -1183,7 +1182,6 @@ def main(args, status):
             motif.robustness,
             np.round(motif.evalue, 2),
         ))
-    print("set up logo_data")
 
     # write motifs to meme-like file
     best_motifs.write_file(out_motif_fname, records)
