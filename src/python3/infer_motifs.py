@@ -1160,8 +1160,10 @@ def main(args, status):
         #top_n = np.Inf,
     )
 
+    print("wrote logos")
     # modify each motif's enrichments attribute
     best_motifs.get_enrichments(records)
+    print("got enrichments")
 
     #######################################################################
     #######################################################################
@@ -1181,6 +1183,7 @@ def main(args, status):
             motif.robustness,
             np.round(motif.evalue, 2),
         ))
+    print("set up logo_data")
 
     # write motifs to meme-like file
     best_motifs.write_file(out_motif_fname, records)
