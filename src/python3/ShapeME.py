@@ -794,14 +794,14 @@ def infer(args):
         train_score_file = tempfile.NamedTemporaryFile(
             mode = "w",
             dir = data_dir,
-            suffix=train_base + ".txt",
-            delete=False,
+            suffix = "_" + train_base + ".txt",
+            delete = False,
         )
         test_score_file = tempfile.NamedTemporaryFile(
             mode = "w",
             dir = data_dir,
-            suffix=test_base + ".txt",
-            delete=False,
+            suffix = "_" + test_base + ".txt",
+            delete = False,
         )
 
         train_score_fname = train_score_file.name
@@ -897,7 +897,7 @@ def infer(args):
                 logging.info("Converting testing sequences to shapes ran without error")
 
             INFER_EXE = f"python {this_path}/infer_motifs.py "\
-                f"--score_file fold_{k}_train.txt "\
+                f"--score_file {train_score_fname} "\
                 f"--shape_files {train_shape_fnames} "\
                 f"--shape_names {' '.join(shape_names)} "\
                 f"--out_prefix {outdir_pre} "\
