@@ -433,11 +433,11 @@ def set_outdir_pref(no_shape_motifs, find_seq_motifs):
 def infer(args):
     data_dir = args.data_dir
     shape_names = ["EP", "HelT", "MGW", "ProT", "Roll"]
-    seq_fasta = os.path.join(data_dir, args.seq_fasta)
+    in_fasta = os.path.join(data_dir, args.seq_fasta)
     kfold = args.crossval_folds
     find_seq_motifs = args.find_seq_motifs
     no_shape_motifs = args.no_shape_motifs
-    in_fname = os.path.join(data_dir, args.score_file)
+    input_fname = os.path.join(data_dir, args.score_file)
     motifs_rust_file = os.path.join(data_dir, "fold_motifs.json")
     status_fname = os.path.join(data_dir, "job_status.json")
     max_n = args.max_n
@@ -462,11 +462,11 @@ def infer(args):
     else:
         outdir_pre = args.out_prefix
     
-    with open(seq_fasta,"r") as seq_f:
+    with open(in_fasta,"r") as seq_f:
         seqs = inout.FastaFile()
         seqs.read_whole_file(seq_f)
 
-    yvals = read_score_file(in_fname)
+    yvals = read_score_file(input_fname)
     ints = np.ones_like(yvals, dtype="bool")
     if args.continuous is not None:
         for i,val in enumerate(yvals):
@@ -480,20 +480,29 @@ def infer(args):
         if not category.is_integer():
             sys.exit(f"ERROR: At least one category in your input data is not an integer. Non-integer inputs can be used only if you set the --continuous <int> flag, substituting the desired number of bins into which to discretize your input data for '<int>'. Did you intend to use the --continuous flag, or did you intend to discretize your data prior to using the scores and inputs? If so, go back and do so. As things stand currently, however, we cannot work with the input data as is. Exiting now with an error.")
 
+    tmp_fasta_file = tempfile.NamedTemporaryFile(mode = "w")
+    tmp_in_file = tempfile.NamedTemporaryFile(mode = "w")
+    seq_fasta = tmp_fasta_file.name
+    in_fname = tmp_in_file.name
     # down-sample number of records if that's what we've chosen to do
+    seq_names = seqs.names
     if max_n < len(seqs):
         retained_indices,seqs,yvals = seqs.sample(max_n, yvals)
-        seq_fasta = os.path.splitext(seq_fasta)[0] + f"_downsampled.fa"
-        in_fname = os.path.splitext(in_fname)[0] + f"_downsampled.txt"
+        #seq_fasta = os.path.splitext(in_fasta)[0] + f"_downsampled.fa"
+        #in_fname = os.path.splitext(input_fname)[0] + f"_downsampled.txt"
         seq_names = seqs.names
         # write files with down-sampled records
-        with open(seq_fasta, "w") as of:
-            seqs.write(of)
-        with open(in_fname, "w") as of:
-            of.write("name\tscore")
-            for name,yval in zip(seq_names,yvals):
-                of.write(f"\n{name}\t{yval}")
+        #with open(seq_fasta, "w") as of:
+        #    seqs.write(of)
 
+    seqs.write(tmp_fasta_file)
+    #with open(in_fname, "w") as of:
+    #    of.write("name\tscore")
+    tmp_in_file.write("name\tscore")
+    #    for name,yval in zip(seq_names,yvals):
+    #        of.write(f"\n{name}\t{yval}")
+    for name,yval in zip(seq_names,yvals):
+        tmp_in_file.write(f"\n{name}\t{yval}")
     #############################################################
     #############################################################
     ## currently I do a bunch of redundant conversions, one set for each fold.
@@ -678,6 +687,10 @@ def infer(args):
         capture_output=True,
         #check=True,
     )
+
+    tmp_fasta_file.close()
+    tmp_in_file.close()
+
     if merge_eval_result.returncode != 0:
         logging.error(
             f"ERROR: running the following command:\n\n"\
@@ -733,18 +746,28 @@ def infer(args):
                     )
                     sys.exit(1)
 
-        train_base = f"fold_{k}_train"
-        test_base = f"fold_{k}_test"
+        #train_base = f"fold_{k}_train"
+        #test_base = f"fold_{k}_test"
         train_seqs = fold[0][0]
         train_scores = fold[0][1]
         test_seqs = fold[1][0]
         test_scores = fold[1][1]
 
-        train_seq_fasta = f"{data_dir}/{train_base}.fa"
-        test_seq_fasta = f"{data_dir}/{test_base}.fa"
+        train_seq_file = tempfile.NamedTemporaryFile(mode = "w")
+        test_seq_file = tempfile.NamedTemporaryFile(mode = "w")
 
-        train_score_fname = f"{data_dir}/{train_base}.txt"
-        test_score_fname = f"{data_dir}/{test_base}.txt"
+        train_seq_fasta = train_seq_file.name
+        test_seq_fasta = test_seq_file.name
+        #train_seq_fasta = f"{data_dir}/{train_base}.fa"
+        #test_seq_fasta = f"{data_dir}/{test_base}.fa"
+
+        train_score_file = tempfile.NamedTemporaryFile(mode = "w")
+        test_score_file = tempfile.NamedTemporaryFile(mode = "w")
+
+        train_score_fname = train_score_file.name
+        test_score_fname = test_score_file.name
+        #train_score_fname = f"{data_dir}/{train_base}.txt"
+        #test_score_fname = f"{data_dir}/{test_base}.txt"
 
         train_shape_fnames = ""
         test_shape_fnames = ""
@@ -756,24 +779,32 @@ def infer(args):
             print("========================================")
             print(f"Writing fasta sequences for k-fold crossvalidation on fold {k}")
             print(f"Writing {train_seq_fasta}")
-            with open(train_seq_fasta, "w") as train_seq_f:
-                train_seqs.write(train_seq_f)
+            #with open(train_seq_fasta, "w") as train_seq_f:
+                #train_seqs.write(train_seq_f)
+            train_seqs.write(train_seq_file)
 
             print(f"Writing {train_score_fname}")
-            with open(train_score_fname, "w") as train_score_f:
-                train_score_f.write("name\tscore")
-                for name,yval in zip(train_seqs.names,train_scores):
-                    train_score_f.write(f"\n{name}\t{yval}")
+            #with open(train_score_fname, "w") as train_score_f:
+            #    train_score_f.write("name\tscore")
+            #    for name,yval in zip(train_seqs.names,train_scores):
+            #        train_score_f.write(f"\n{name}\t{yval}")
+            train_score_file.write("name\tscore")
+            for name,yval in zip(train_seqs.names,train_scores):
+                train_score_file.write(f"\n{name}\t{yval}")
 
             print(f"Writing {test_seq_fasta}")
-            with open(test_seq_fasta, "w") as test_seq_f:
-                test_seqs.write(test_seq_f)
+            #with open(test_seq_fasta, "w") as test_seq_f:
+            #    test_seqs.write(test_seq_f)
+            test_seqs.write(test_seq_file)
 
             print(f"Writing {test_score_fname}")
-            with open(test_score_fname, "w") as test_score_f:
-                test_score_f.write("name\tscore")
-                for name,yval in zip(test_seqs.names,test_scores):
-                    test_score_f.write(f"\n{name}\t{yval}")
+            #with open(test_score_fname, "w") as test_score_f:
+            #    test_score_f.write("name\tscore")
+            #    for name,yval in zip(test_seqs.names,test_scores):
+            #        test_score_f.write(f"\n{name}\t{yval}")
+            test_score_file.write("name\tscore")
+            for name,yval in zip(test_seqs.names,test_scores):
+                test_score_file.write(f"\n{name}\t{yval}")
 
             convert = f"Rscript {this_path}/utils/calc_shape.R {train_seq_fasta}"
             #convert = shlex.quote(convert)
@@ -956,6 +987,11 @@ def infer(args):
             #print()
             #print(eval_result.stdout.decode())
             #sys.exit()
+
+        train_seq_file.close()
+        test_seq_file.close()
+        train_score_file.close()
+        test_score_file.close()
 
 #    folds_with_motifs = []
 #    for k,fold_direc in enumerate(fold_direcs):
