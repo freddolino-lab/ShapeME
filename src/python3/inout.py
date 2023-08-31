@@ -2480,6 +2480,8 @@ class RecordDatabase(object):
         """
         return len(self.y)
 
+    def __getitem__(self, item):
+        return self.X[item,:,:,0].T
 
     def write_to_files(self, out_direc, fname_base):
         """Writes shapes to fasta files and scores to txt file.

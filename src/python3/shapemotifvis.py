@@ -293,6 +293,21 @@ def plot_logos(
     #print(f"file names after shape logos: {fnames}")
     return fnames
 
+def plot_each_shape(rec_db, shape_names, rec_idx, file_name, take_complement=False):
+
+    shape_arr = rec_db.X[rec_idx,...]
+    idx_shape_lut = {v:k for k,v in rec_db.shape_name_lut.items()}
+    fig,ax = plt.subplots(nrows=shape_arr.shape[1], sharex=True)
+    for i in range(shape_arr.shape[1]):
+        ax[i].plot(
+            [j+1 for j in range(shape_arr.shape[0])],
+            shape_arr[:,i,0],
+            label = idx_shape_lut[i],
+        )
+        ax[i].set_ylabel(shape_names[i])
+    plt.tight_layout()
+    plt.savefig(file_name)
+    plt.close()
 
 def plot_shapes(rec_db, rec_idx, file_name, take_complement=False):
 

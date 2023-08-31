@@ -263,14 +263,25 @@ def main(args, status):
            
     # read in the values associated with each sequence and store them
     # in the sequence database
+    ints = np.ones_like(records.y, dtype="bool")
     if args.continuous is not None:
+        for i,val in enumerate(records.y):
+            ints[i] = val.is_integer()
+        all_int = np.all(ints)
+        if all_int:
+            logging.warning("WARNING: You have included the --continuous flag at the command line despite having input scores comprising entirely integers. Double-check whether this is really what you want before interpreting ShapeME resulgs.")
         records.quantize_quant(args.continuous)
+
+    for category in np.unique(records.y):
+        if not category.is_integer():
+            sys.exit(f"ERROR: At least one category in your input data is not an integer. Non-integer inputs can be used only if you set the --continuous <int> flag, substituting the desired number of bins into which to discretize your input data for '<int>'. Did you intend to use the --continuous flag, or did you intend to discretize your data prior to using the scores and inputs? If so, go back and do so. As things stand currently, however, we cannot work with the input data as is. Exiting now with an error.")
 
     fam,num_cats = evm.set_family(records.y)
     records.set_category_lut()
 
     logging.info("Distribution of sequences per class:")
-    logging.info(records.seqs_per_bin())
+    seq_bin_str = records.seqs_per_bin()
+    logging.info(seq_bin_str)
 
     logging.info("Normalizing parameters")
     #if args.nonormalize:

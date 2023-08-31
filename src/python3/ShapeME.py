@@ -467,8 +467,18 @@ def infer(args):
         seqs.read_whole_file(seq_f)
 
     yvals = read_score_file(in_fname)
+    ints = np.ones_like(yvals, dtype="bool")
     if args.continuous is not None:
+        for i,val in enumerate(yvals):
+            ints[i] = val.is_integer()
+        all_int = np.all(ints)
+        if all_int:
+            logging.warning("WARNING: You have included the --continuous flag at the command line despite having input scores comprising entirely integers. Double-check whether this is really what you want before interpreting ShapeME resulgs.")
         yvals = quantize_yvals(yvals, args.continuous)
+
+    for category in np.unique(yvals):
+        if not category.is_integer():
+            sys.exit(f"ERROR: At least one category in your input data is not an integer. Non-integer inputs can be used only if you set the --continuous <int> flag, substituting the desired number of bins into which to discretize your input data for '<int>'. Did you intend to use the --continuous flag, or did you intend to discretize your data prior to using the scores and inputs? If so, go back and do so. As things stand currently, however, we cannot work with the input data as is. Exiting now with an error.")
 
     # down-sample number of records if that's what we've chosen to do
     if max_n < len(seqs):
@@ -579,8 +589,8 @@ def infer(args):
         INFER_EXE += f" --write_all_files"
     if args.no_shape_motifs:
         INFER_EXE += f" --no_shape_motifs"
-    if args.continuous is not None:
-        INFER_EXE += f" --continuous {args.continuous}"
+    #if args.continuous is not None:
+    #    INFER_EXE += f" --continuous {args.continuous}"
 
     if find_seq_motifs:
 
@@ -647,8 +657,8 @@ def infer(args):
         f"--nprocs {args.nprocs} "\
         f"--out_prefix {outdir_pre}"
 
-    if args.continuous is not None:
-        MERGE_EVAL_EXE += f" --continuous {args.continuous}"
+    #if args.continuous is not None:
+    #    MERGE_EVAL_EXE += f" --continuous {args.continuous}"
 
     if find_seq_motifs:
         MERGE_EVAL_EXE += f" --test_seq_fasta {seq_fasta} "\
@@ -661,7 +671,7 @@ def infer(args):
     # workaround for potential security vulnerability of shell=True
     MERGE_EVAL_CMD = shlex.quote(MERGE_EVAL_EXE)
     MERGE_EVAL_CMD = MERGE_EVAL_EXE
-    logging.info(f"Evaluationg motif model performance on entire dataset.")
+    logging.info(f"Evaluating motif model performance on entire dataset.")
     merge_eval_result = subprocess.run(
         MERGE_EVAL_CMD,
         shell=True,
@@ -853,9 +863,9 @@ def infer(args):
             f"--nprocs {args.nprocs} "\
             f"--out_prefix {outdir_pre}"
 
-        if args.continuous is not None:
-            INFER_EXE += f" --continuous {args.continuous}"
-            EVAL_EXE += f" --continuous {args.continuous}"
+        #if args.continuous is not None:
+        #    INFER_EXE += f" --continuous {args.continuous}"
+        #    EVAL_EXE += f" --continuous {args.continuous}"
 
         if find_seq_motifs:
 

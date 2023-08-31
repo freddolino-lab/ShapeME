@@ -793,6 +793,8 @@ if __name__ == "__main__":
     with open(out_coefs_fname, "rb") as out_coef_f:
         coef_dict = pickle.load(out_coef_f)
     motif_coefs = coef_dict["coefs"]
+    #####################################################################
+    # I have the coef_lut here, but I never actually use it!!
     motif_var_lut = coef_dict["var_lut"]
 
     #lasso_fit_fname = glob.glob(fit_search)[0]
