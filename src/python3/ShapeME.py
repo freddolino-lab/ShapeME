@@ -21,6 +21,7 @@ import pandas as pd
 import base64
 from matplotlib import pyplot as plt
 import pickle
+import tempfile
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
@@ -480,10 +481,29 @@ def infer(args):
         if not category.is_integer():
             sys.exit(f"ERROR: At least one category in your input data is not an integer. Non-integer inputs can be used only if you set the --continuous <int> flag, substituting the desired number of bins into which to discretize your input data for '<int>'. Did you intend to use the --continuous flag, or did you intend to discretize your data prior to using the scores and inputs? If so, go back and do so. As things stand currently, however, we cannot work with the input data as is. Exiting now with an error.")
 
-    tmp_fasta_file = tempfile.NamedTemporaryFile(mode = "w")
-    tmp_in_file = tempfile.NamedTemporaryFile(mode = "w")
+    #temp_direc = tempfile.TemporaryDirectory(dir=data_dir)
+    #tmpfiledir = temp_direc.name
+    #print(tmpfiledir)
+    #print(os.listdir(data_dir))
+
+    cleanup_files = []
+
+    tmp_fasta_file = tempfile.NamedTemporaryFile(
+        mode = "w",
+        dir=data_dir,
+        suffix="_main.fa",
+        delete=False,
+    )
+    tmp_in_file = tempfile.NamedTemporaryFile(
+        mode = "w",
+        dir=data_dir,
+        suffix="_main.txt",
+        delete=False,
+    )
+    #print(os.listdir(data_dir))
     seq_fasta = tmp_fasta_file.name
     in_fname = tmp_in_file.name
+    cleanup_files.extend([seq_fasta, in_fname])
     # down-sample number of records if that's what we've chosen to do
     seq_names = seqs.names
     if max_n < len(seqs):
@@ -496,6 +516,7 @@ def infer(args):
         #    seqs.write(of)
 
     seqs.write(tmp_fasta_file)
+    tmp_fasta_file.close()
     #with open(in_fname, "w") as of:
     #    of.write("name\tscore")
     tmp_in_file.write("name\tscore")
@@ -503,6 +524,7 @@ def infer(args):
     #        of.write(f"\n{name}\t{yval}")
     for name,yval in zip(seq_names,yvals):
         tmp_in_file.write(f"\n{name}\t{yval}")
+    tmp_in_file.close()
     #############################################################
     #############################################################
     ## currently I do a bunch of redundant conversions, one set for each fold.
@@ -688,9 +710,6 @@ def infer(args):
         #check=True,
     )
 
-    tmp_fasta_file.close()
-    tmp_in_file.close()
-
     if merge_eval_result.returncode != 0:
         logging.error(
             f"ERROR: running the following command:\n\n"\
@@ -746,34 +765,59 @@ def infer(args):
                     )
                     sys.exit(1)
 
-        #train_base = f"fold_{k}_train"
-        #test_base = f"fold_{k}_test"
+        train_base = f"fold_{k}_train"
+        test_base = f"fold_{k}_test"
         train_seqs = fold[0][0]
         train_scores = fold[0][1]
         test_seqs = fold[1][0]
         test_scores = fold[1][1]
 
-        train_seq_file = tempfile.NamedTemporaryFile(mode = "w")
-        test_seq_file = tempfile.NamedTemporaryFile(mode = "w")
+        train_seq_file = tempfile.NamedTemporaryFile(
+            mode = "w",
+            dir = data_dir,
+            suffix=train_base + ".fa",
+            delete=False,
+        )
+        test_seq_file = tempfile.NamedTemporaryFile(
+            mode = "w",
+            dir = data_dir,
+            suffix=test_base + ".fa",
+            delete=False,
+        )
 
         train_seq_fasta = train_seq_file.name
         test_seq_fasta = test_seq_file.name
+        cleanup_files.extend([train_seq_fasta,test_seq_fasta])
         #train_seq_fasta = f"{data_dir}/{train_base}.fa"
         #test_seq_fasta = f"{data_dir}/{test_base}.fa"
 
-        train_score_file = tempfile.NamedTemporaryFile(mode = "w")
-        test_score_file = tempfile.NamedTemporaryFile(mode = "w")
+        train_score_file = tempfile.NamedTemporaryFile(
+            mode = "w",
+            dir = data_dir,
+            suffix=train_base + ".txt",
+            delete=False,
+        )
+        test_score_file = tempfile.NamedTemporaryFile(
+            mode = "w",
+            dir = data_dir,
+            suffix=test_base + ".txt",
+            delete=False,
+        )
 
         train_score_fname = train_score_file.name
         test_score_fname = test_score_file.name
+        cleanup_files.extend([train_score_fname,test_score_fname])
         #train_score_fname = f"{data_dir}/{train_base}.txt"
         #test_score_fname = f"{data_dir}/{test_base}.txt"
 
         train_shape_fnames = ""
         test_shape_fnames = ""
         for shape_name in shape_names:
-            train_shape_fnames += f"{train_seq_fasta}.{shape_name} "
-            test_shape_fnames += f"{test_seq_fasta}.{shape_name} "
+            fname_A = f"{train_seq_fasta}.{shape_name}"
+            train_shape_fnames += f"{fname_A} "
+            fname_B = f"{test_seq_fasta}.{shape_name}"
+            test_shape_fnames += f"{fname_B} "
+            cleanup_files.extend([fname_A,fname_B])
 
         if not args.skip_inference:
             print("========================================")
@@ -782,6 +826,7 @@ def infer(args):
             #with open(train_seq_fasta, "w") as train_seq_f:
                 #train_seqs.write(train_seq_f)
             train_seqs.write(train_seq_file)
+            train_seq_file.close()
 
             print(f"Writing {train_score_fname}")
             #with open(train_score_fname, "w") as train_score_f:
@@ -791,11 +836,13 @@ def infer(args):
             train_score_file.write("name\tscore")
             for name,yval in zip(train_seqs.names,train_scores):
                 train_score_file.write(f"\n{name}\t{yval}")
+            train_score_file.close()
 
             print(f"Writing {test_seq_fasta}")
             #with open(test_seq_fasta, "w") as test_seq_f:
             #    test_seqs.write(test_seq_f)
             test_seqs.write(test_seq_file)
+            test_seq_file.close()
 
             print(f"Writing {test_score_fname}")
             #with open(test_score_fname, "w") as test_score_f:
@@ -805,6 +852,7 @@ def infer(args):
             test_score_file.write("name\tscore")
             for name,yval in zip(test_seqs.names,test_scores):
                 test_score_file.write(f"\n{name}\t{yval}")
+            test_score_file.close()
 
             convert = f"Rscript {this_path}/utils/calc_shape.R {train_seq_fasta}"
             #convert = shlex.quote(convert)
@@ -983,15 +1031,14 @@ def infer(args):
                     f"{eval_result.stdout.decode()}"
                 )
 
+            for _ in range(len(cleanup_files)):
+                clean_fname = cleanup_files.pop()
+                os.remove(clean_fname)
+
             #print(eval_result.stderr.decode())
             #print()
             #print(eval_result.stdout.decode())
             #sys.exit()
-
-        train_seq_file.close()
-        test_seq_file.close()
-        train_score_file.close()
-        test_score_file.close()
 
 #    folds_with_motifs = []
 #    for k,fold_direc in enumerate(fold_direcs):
@@ -1139,6 +1186,7 @@ def infer(args):
     #            f"{merge_eval_result.stdout.decode()}"
     #        )
 
+    #temp_direc.cleanup()
     out_dir = os.path.join(data_dir, f"{outdir_pre}_main_output")
     aupr_plot_fname = os.path.join(out_dir, "cv_aupr.png")
     performance = Performance(out_dir, fold_direcs)
