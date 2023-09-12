@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg147"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="MGW.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview149"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.68328423"
+     inkscape:cx="397.34563"
+     inkscape:cy="561.9916"
+     inkscape:window-width="1920"
+     inkscape:window-height="939"
+     inkscape:window-x="1080"
+     inkscape:window-y="503"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs144">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37874">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37876"
+         width="11.836165"
+         height="20.534292"
+         x="41.725475"
+         y="66.274551" />
+    </clipPath>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g8420-1"
+       transform="translate(53.421631,34.978511)"
+       inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/MGW.png"
+       inkscape:export-xdpi="600"
+       inkscape:export-ydpi="600"
+       clip-path="url(#clipPath37874)">
+      <circle
+         style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.108;stroke-opacity:1"
+         id="path1171-9"
+         cx="47.633522"
+         cy="76.645065"
+         r="12.111778"
+         inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/MGW.png"
+         inkscape:export-xdpi="300"
+         inkscape:export-ydpi="300" />
+      <g
+         id="g2152-6"
+         transform="translate(-0.34281647,-0.06675169)"
+         inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/MGW.png"
+         inkscape:export-xdpi="300"
+         inkscape:export-ydpi="300">
+        <g
+           id="g32265"
+           transform="translate(-0.53043025)">
+          <text
+             xml:space="preserve"
+             style="font-size:6.35px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:none;stroke-width:0.264583"
+             x="45.494789"
+             y="79.026405"
+             id="text27021"><tspan
+               sodipodi:role="line"
+               id="tspan27019"
+               style="fill:#ffffff;fill-opacity:1;stroke-width:0.264583"
+               x="45.494789"
+               y="79.026405">W</tspan></text>
+        </g>
+        <path
+           style="fill:none;stroke:#ffffff;stroke-width:1.765;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="M 41.183927,67.735656 V 85.687978"
+           id="path6888-3"
+           sodipodi:nodetypes="cc" />
+        <path
+           style="fill:none;stroke:#ffffff;stroke-width:1.765;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="M 54.76875,67.735656 V 85.687978"
+           id="path6888-0-3"
+           sodipodi:nodetypes="cc" />
+      </g>
+    </g>
+  </g>
+</svg>

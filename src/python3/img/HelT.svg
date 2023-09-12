@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg147"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="HelT.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview149"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.68328423"
+     inkscape:cx="397.34563"
+     inkscape:cy="561.9916"
+     inkscape:window-width="1920"
+     inkscape:window-height="939"
+     inkscape:window-x="1080"
+     inkscape:window-y="503"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs144">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37874">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37876"
+         width="11.836165"
+         height="20.534292"
+         x="41.725475"
+         y="66.274551" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37870">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37872"
+         width="11.836165"
+         height="20.534292"
+         x="42.70718"
+         y="124.56451" />
+    </clipPath>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g6829-4"
+       clip-path="url(#clipPath37870)"
+       transform="translate(84.192208,18.895857)"
+       inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/HelT.png"
+       inkscape:export-xdpi="600"
+       inkscape:export-ydpi="600">
+      <circle
+         style="fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:0.108;stroke-opacity:1"
+         id="path1171-0-6"
+         cx="48.060455"
+         cy="134.80426"
+         r="12.111778"
+         inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/MGW.png"
+         inkscape:export-xdpi="300"
+         inkscape:export-ydpi="300" />
+      <g
+         id="g2152-3-2"
+         transform="translate(2.4480324,65.567262)"
+         inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/MGW.png"
+         inkscape:export-xdpi="300"
+         inkscape:export-ydpi="300">
+        <path
+           style="fill:none;stroke:#fffffe;stroke-width:1.165;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 42.682836,57.281789 c 0,0 8.265161,5.325144 8.265161,9.671999 0,4.346854 -8.709327,6.946514 -8.709327,11.293369 0,4.346854 8.709327,9.176697 8.709327,9.176697"
+           id="path3445-6"
+           sodipodi:nodetypes="czzc" />
+        <path
+           style="fill:none;stroke:#fffffe;stroke-width:1.165;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 42.682836,50.130353 c 0,0 8.265161,5.325144 8.265161,9.671998 0,4.346854 -8.709327,6.946515 -8.709327,11.293369 0,4.346854 8.709327,9.176702 8.709327,9.176702"
+           id="path3445-7-7"
+           sodipodi:nodetypes="czzc" />
+      </g>
+    </g>
+  </g>
+</svg>

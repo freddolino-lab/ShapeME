@@ -1,0 +1,37 @@
+name: motifer
+channels:
+  #- sssdgc
+    - bioconda
+    - conda-forge
+    - defaults
+dependencies:
+    - python
+    - scikit-learn
+    - R
+    - numpy
+      #- numba
+      #- ipython
+    - matplotlib
+    - bioconductor-dnashaper
+    - bioconductor-genomeinfodbdata
+    - bioconductor-genomeinfodb
+    - r-lazyeval
+    - r-prroc
+    - r-glmnet
+    - r-ggseqlogo
+      #- r-nnet
+    - r-bh
+      #- boost
+      #- jupyter
+    - rpy2
+    - seaborn
+    - meme
+    - seqlogo
+    - pip
+      #- openssl
+      #- sqlite
+      #- sqlcipher
+    - pip:
+        - jinja2
+        #- svgpath2mpl
+        #- svgpathtools

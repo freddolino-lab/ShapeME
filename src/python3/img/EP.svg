@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg147"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="EP.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview149"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.68328423"
+     inkscape:cx="24.148077"
+     inkscape:cy="561.9916"
+     inkscape:window-width="1920"
+     inkscape:window-height="939"
+     inkscape:window-x="1080"
+     inkscape:window-y="503"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g9302-9" />
+  <defs
+     id="defs144">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37874">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37876"
+         width="11.836165"
+         height="20.534292"
+         x="41.725475"
+         y="66.274551" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37870">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37872"
+         width="11.836165"
+         height="20.534292"
+         x="42.70718"
+         y="124.56451" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37866">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37868"
+         width="11.836165"
+         height="20.534292"
+         x="49.750195"
+         y="153.77293" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-5">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-6"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-6-9">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-2-8"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-72">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-82"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-7-9">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-5-9"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1739-38-6-9-6">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.06235"
+         id="rect1741-0-6-8-0"
+         width="12.8853"
+         height="3.1638458"
+         x="33.123394"
+         y="151.49292" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath37862">
+      <rect
+         style="fill:#ffffff;fill-opacity:0.659116;stroke:none;stroke-width:1.01138"
+         id="rect37864"
+         width="11.836165"
+         height="20.534292"
+         x="43.387917"
+         y="201.81023" />
+    </clipPath>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g9302-9"
+       inkscape:export-filename="/home/jeremy/src/DNAshape_motif_finder/src/python3/img/EP.png"
+       inkscape:export-xdpi="600"
+       inkscape:export-ydpi="600"
+       transform="translate(45.950846,-88.16603)"
+       clip-path="url(#clipPath37862)">
+      <path
+         id="path1171-21-1"
+         style="stroke-width:0.108"
+         d="m 61.512535,212.26137 c 0.102386,5.58107 -4.162398,10.82319 -9.647566,11.85845 -8.088486,2.02711 -16.297684,-6.11194 -14.343266,-14.22134 1.271605,-8.40891 12.233306,-12.58029 18.863679,-7.53207 3.181447,2.21465 5.152517,6.01842 5.127153,9.89496 z" />
+      <path
+         style="color:#000000;fill:#ffffff;-inkscape-stroke:none"
+         d="m 45.097656,211.59375 v 1.33594 h 8.605469 v -1.33594 z"
+         id="path8984-4" />
+    </g>
+  </g>
+</svg>
