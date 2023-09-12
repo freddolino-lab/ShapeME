@@ -3,7 +3,6 @@ TODO:
     [ ] place example files in directory
 2. add instructions for running examples
 3. add docs for every argument for every script\\
-    [x] find\_motifs.py\\
     [ ] evaluate\_motifs.py\\
     [ ] ShapeMe.py\\
 
