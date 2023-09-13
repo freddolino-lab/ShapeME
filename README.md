@@ -1,24 +1,27 @@
-TODO:
-1. add input file format specs (will add example\_files directory)
-    [ ] place example files in directory
-2. add instructions for running examples
-3. add docs for every argument for every script\\
-    [ ] evaluate\_motifs.py\\
-    [ ] ShapeMe.py\\
-
 # ShapeMe
 
 ShapeMe is a tool for identifying local structural motifs that inform
-protein/DNA interaction.
+protein/DNA interaction. In it's implementation, however, ShapeME is more flexible,
+and can be used to identify motifs predictive of RNA-seq scores, SELEX-seq scores, etc..
+Any score that can be binned into categories on a per-sequence basis can be used
+for motif inference using ShapeME.
+
+For users who would like to run ShapeME on their own hardward, we recommend they
+download our singularity container to run ShapeME on a linux operating system
+to which they have access. This will require the user to install singularity
+on their systems.
+
+The main script most users will run is `ShapeME.py`. See below for documentation
+on the required inputs to `ShapeME.py`.
 
 # Preparing input data
 
-The input files required by ShapeMe are:
+The input files required by ShapeME are:
 
 1. scores file
     + A tab-delimited file with one header line and two columns
-    + Column 1: "name" - the name of each sequence (in order) found in 
-        the fasta files.
+    + Column 1: "name" - the name of each sequence found in 
+        the fasta file, in the same order as sequences occur in fasta file.
     + Column 2: "score" - the score associated with each sequence in
         the fasta files. For identification of motifs that inform peaks vs
         non-peaks, the score column should contain 0 or 1, where 0 would indicate
@@ -28,15 +31,16 @@ The input files required by ShapeMe are:
         a tool such as [`bgtools`](https://github.com/jwschroeder3/bgtools.git).
     + For example scores files, see the txt files in the `examples/binary_example`,
         `examples/categorical_example`, and `examples/continuous_example`, directories.
-3. sequence fasta file
+2. sequence fasta file
     + For example sequence fasta files, see the `*.fa` files in the `examples/binary_example`,
         `examples/categorical_example`, and `examples/continuous_example`, directories.
 
 The sequence names in the fasta files and in the score
 file must be in the same order.
 
+<!--
 We provide utilities which should help to prepare, in most use cases,
-the score file and the shape fasta files.
+the score file and the shape fasta file.
 
 ## Generating input sequences and category assignments
 
@@ -84,6 +88,7 @@ Continuous inputs will be quantized into categories by the `ShapeME.py` script.
 The user must simply create the score file with the continuous scores of interest,
 keeping in mind that the file must have two, tab-separated columns and
 must have a header with column names "name" and "score".
+-->
 
 ## Calculating local shapes from sequences
 
@@ -97,7 +102,7 @@ each set of training and testing data generated for each fold.
 The files will have the following names,
 where "\*" will be replaced with your file prefix.
 
-1. \*.fa.EP - electrostatic potential
+1. \*.fa.EP - minor groove electrostatic potential
 2. \*.fa.HelT - helical twist
 3. \*.fa.MGW - minor groove width
 4. \*.fa.ProT - propeller twist
@@ -118,23 +123,28 @@ continuous scores into.
 # Running ShapeME
 
 ShapeME can be run to detect only shape motifs, only sequence motifs (in this
-case ShapeME is basically a wrapper for STREME), or to incorporate shape and
+case ShapeME is basically a wrapper for STREME with extra motif pruning steps
+to avoid reporting motifs with overlapping information), or to incorporate shape and
 sequence motifs into a single model.
 
 We distribute ShapeME as a singularity container, which can be run on any
 computer with a Linux environment that has singularity installed.
 
 The ShapeME container can be downloaded from our
-[google drive](https://drive.google.com/drive/folders/1e7N4iYO7BHuuZG4q-H7xBk1c6bE9GmOt?usp=share_link)
+[google drive](https://drive.google.com/drive/folders/1e7N4iYO7BHuuZG4q-H7xBk1c6bE9GmOt?usp=sharing)
 location.
 
 In all instructions below, you should substitute the characters `<version>` with
 the actual version number of the continer you're using in every instance of
-`shapeme_<version>.sif`.
+`shapeme_<version>.sif`. Of course, you will also need to substitute `/path/to`
+with the actual path to the location with the ShapeME singularity container.
 
 ## Infer only shape motifs
 
 ### Inference on provided example data
+
+For the following examples, we recommend the user download the example
+data provided with this repository.
 
 #### Binary input values
 
@@ -144,31 +154,18 @@ on which you are running ShapeME:
 
 ```bash
 nprocs=8
+data_dir=$(pwd)
 
-singularity exec -B $(pwd):$(pwd) \
-    shapeme_<version>.sif \
-    python /src/python3/find_motifs.py \
-        --score_file test_data_binary_plus_train_0.txt \
-        --shape_names EP HelT MGW ProT Roll \
-        --shape_files test_data_binary_plus_train_0.fa.EP test_data_binary_plus_train_0.fa.HelT test_data_binary_plus_train_0.fa.MGW test_data_binary_plus_train_0.fa.ProT test_data_binary_plus_train_0.fa.Roll \
-        --out_prefix binary_example \
-        --data_dir $(pwd) \
-        --out_dir shapeme_shape_output \
-        --kmer 10 \
-        --alpha 0.01 \
-        --max_count 1 \
-        --temperature 0.25 \
-        --t_adj 0.0002 \
-        --opt_niter 20000 \
-        --stepsize 0.25 \
-        --threshold_constraints "0 10" \
-        --shape_constraints "-4 4" \
-        --weights_constraints "-4 4" \
-        --batch_size 200 \
-        --max-batch-no-new-seed 10 \
+singularity exec -B ${data_dir} \
+    /path/to/shapeme_<verson>.sif \
+    python /src/python3/ShapeME.py infer \
+        --data_dir ${data_dir} \
+        --seq_fasta seqs.fa \
+        --score_file seqs.txt \
+        --crossval_folds 5 \
         --nprocs ${nprocs} \
-        > log.log \
-        2> log.err
+        > ${data_dir}/shapeme.log \
+        2> ${data_dir}/shapeme.err
 ```
 
 ### Using your own data
