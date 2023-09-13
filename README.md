@@ -417,148 +417,146 @@ running `python ShapeME.py infer --help`, which give the exhaustive list of
 arguments that can be passed to `ShapeME.py infer`, along with a brief
 description of each argument.
 
-```bash
-usage: ShapeME.py infer [-h] --data_dir DATA_DIR [--skip_inference]
-                        [--skip_evaluation] [--out_prefix OUT_PREFIX]
-                        [--force] --crossval_folds CROSSVAL_FOLDS --score_file
-                        SCORE_FILE [--kmer KMER] [--max_count MAX_COUNT]
-                        [--continuous CONTINUOUS]
-                        [--threshold_sd THRESHOLD_SD]
-                        [--init_threshold_seed_num INIT_THRESHOLD_SEED_NUM]
-                        [--init_threshold_recs_per_seed INIT_THRESHOLD_RECS_PER_SEED]
-                        [--init_threshold_windows_per_record INIT_THRESHOLD_WINDOWS_PER_RECORD]
-                        [--max_batch_no_new_seed MAX_BATCH_NO_NEW_SEED]
-                        [--nprocs NPROCS]
-                        [--threshold_constraints THRESHOLD_CONSTRAINTS THRESHOLD_CONSTRAINTS]
-                        [--shape_constraints SHAPE_CONSTRAINTS SHAPE_CONSTRAINTS]
-                        [--weights_constraints WEIGHTS_CONSTRAINTS WEIGHTS_CONSTRAINTS]
-                        [--temperature TEMPERATURE] [--t_adj T_ADJ]
-                        [--stepsize STEPSIZE] [--opt_niter OPT_NITER]
-                        [--alpha ALPHA] [--batch_size BATCH_SIZE]
-                        [--find_seq_motifs] [--no_shape_motifs]
-                        [--seq_fasta SEQ_FASTA]
-                        [--seq_motif_positive_cats SEQ_MOTIF_POSITIVE_CATS]
-                        [--streme_thresh STREME_THRESH]
-                        [--seq_meme_file SEQ_MEME_FILE] [--write_all_files]
-                        [--exhaustive] [--max_n MAX_N] [--log_level LOG_LEVEL]
+    usage: ShapeME.py infer [-h] --data_dir DATA_DIR [--skip_inference]
+                            [--skip_evaluation] [--out_prefix OUT_PREFIX]
+                            [--force] --crossval_folds CROSSVAL_FOLDS --score_file
+                            SCORE_FILE [--kmer KMER] [--max_count MAX_COUNT]
+                            [--continuous CONTINUOUS]
+                            [--threshold_sd THRESHOLD_SD]
+                            [--init_threshold_seed_num INIT_THRESHOLD_SEED_NUM]
+                            [--init_threshold_recs_per_seed INIT_THRESHOLD_RECS_PER_SEED]
+                            [--init_threshold_windows_per_record INIT_THRESHOLD_WINDOWS_PER_RECORD]
+                            [--max_batch_no_new_seed MAX_BATCH_NO_NEW_SEED]
+                            [--nprocs NPROCS]
+                            [--threshold_constraints THRESHOLD_CONSTRAINTS THRESHOLD_CONSTRAINTS]
+                            [--shape_constraints SHAPE_CONSTRAINTS SHAPE_CONSTRAINTS]
+                            [--weights_constraints WEIGHTS_CONSTRAINTS WEIGHTS_CONSTRAINTS]
+                            [--temperature TEMPERATURE] [--t_adj T_ADJ]
+                            [--stepsize STEPSIZE] [--opt_niter OPT_NITER]
+                            [--alpha ALPHA] [--batch_size BATCH_SIZE]
+                            [--find_seq_motifs] [--no_shape_motifs]
+                            [--seq_fasta SEQ_FASTA]
+                            [--seq_motif_positive_cats SEQ_MOTIF_POSITIVE_CATS]
+                            [--streme_thresh STREME_THRESH]
+                            [--seq_meme_file SEQ_MEME_FILE] [--write_all_files]
+                            [--exhaustive] [--max_n MAX_N] [--log_level LOG_LEVEL]
 
-options:
-  -h, --help            show this help message and exit
-  --data_dir DATA_DIR   Directory from which input files will be read.
-  --skip_inference      Include this flag at the command line to skip motif
-                        inference. This is useful if you've already run
-                        inference on all folds.
-  --skip_evaluation     Include this flag at the command line to skip
-                        evaluation of motifs.
-  --out_prefix OUT_PREFIX
-                        Optional. Sets the prefix to place on output
-                        directories. If None (the default), infers the
-                        appropriate prefix based on whether you set either or
-                        both of --find_seq_motifs or --no_shape_motifs
-  --force               Forces each fold to run, clobbering any extant output
-                        directories.
-  --crossval_folds CROSSVAL_FOLDS
-                        Number of folds into which to split data for k-fold
-                        cross-validation
-  --score_file SCORE_FILE
-                        input text file with names and scores for training
-                        data
-  --kmer KMER           kmer size to search for shape motifs. Default=15
-  --max_count MAX_COUNT
-                        Maximum number of times a motif can match each of the
-                        forward and reverse strands in a reference. Default: 1
-  --continuous CONTINUOUS
-                        number of bins to discretize continuous input data
-                        with
-  --threshold_sd THRESHOLD_SD
-                        std deviations below mean for seed finding. Only
-                        matters for greedy search. Default=2.000000
-  --init_threshold_seed_num INIT_THRESHOLD_SEED_NUM
-                        Number of randomly selected seeds to compare to
-                        records in the database during initial threshold
-                        setting. Default=500
-  --init_threshold_recs_per_seed INIT_THRESHOLD_RECS_PER_SEED
-                        Number of randomly selected records to compare to each
-                        seed during initial threshold setting. Default=20
-  --init_threshold_windows_per_record INIT_THRESHOLD_WINDOWS_PER_RECORD
-                        Number of randomly selected windows within a given
-                        record to compare to each seed during initial
-                        threshold setting. Default=2
-  --max_batch_no_new_seed MAX_BATCH_NO_NEW_SEED
-                        Sets the number of batches of seed evaluation with no
-                        new motifs added to the set of motifs to be optimized
-                        prior to truncating the initial search for motifs.
-  --nprocs NPROCS       number of processors. Default: 1
-  --threshold_constraints THRESHOLD_CONSTRAINTS THRESHOLD_CONSTRAINTS
-                        Sets the upper and lower limits on the match threshold
-                        during optimization. Defaults to 0 for the lower limit
-                        and 10 for the upper limit.
-  --shape_constraints SHAPE_CONSTRAINTS SHAPE_CONSTRAINTS
-                        Sets the upper and lower limits on the shapes'
-                        z-scores during optimization. Defaults to -4 for the
-                        lower limit and 4 for the upper limit.
-  --weights_constraints WEIGHTS_CONSTRAINTS WEIGHTS_CONSTRAINTS
-                        Sets the upper and lower limits on the pre-
-                        transformed, pre-normalized weights during
-                        optimization. Defaults to -4 for the lower limit and 4
-                        for the upper limit.
-  --temperature TEMPERATURE
-                        Sets the temperature argument for simulated annealing.
-                        Default: 0.400000
-  --t_adj T_ADJ         Fraction by which temperature decreases each iteration
-                        of simulated annealing. Default: 0.001000
-  --stepsize STEPSIZE   Sets the stepsize argument simulated annealing. This
-                        defines how far a given value can be modified for
-                        iteration i from its value at iteration i-1. A higher
-                        value will allow farther hops. Default: 0.250000
-  --opt_niter OPT_NITER
-                        Sets the number of simulated annealing iterations to
-                        undergo during optimization. Default: 10000.
-  --alpha ALPHA         Lower limit on transformed weight values prior to
-                        normalization to sum to 1. Default: 0.000000
-  --batch_size BATCH_SIZE
-                        Number of records to process seeds from at a time. Set
-                        lower to avoid out-of-memory errors. Default: 2000
-  --find_seq_motifs     Add this flag to call sequence motifs using streme in
-                        addition to calling shape motifs.
-  --no_shape_motifs     Add this flag to turn off shape motif inference. This
-                        is useful if you basically want to use this script as
-                        a wrapper for streme to just find sequence motifs.
-  --seq_fasta SEQ_FASTA
-                        Name of fasta file (located within data_dir, do not
-                        include the directory, just the file name) containing
-                        sequences in which to search for motifs
-  --seq_motif_positive_cats SEQ_MOTIF_POSITIVE_CATS
-                        Denotes which categories in `--infile` (or after
-                        quantization for a continous signal in the number of
-                        bins denoted by the `--continuous` argument) to use as
-                        the positive set for sequence motif calling using
-                        streme. Example: "4" would use category 4 as the
-                        positive set, whereas "3,4" would use categories 3 and
-                        4 as the positive set.
-  --streme_thresh STREME_THRESH
-                        Threshold for including motifs identified by streme.
-                        Default: 0.050000
-  --seq_meme_file SEQ_MEME_FILE
-                        Name of meme-formatted file (file must be located in
-                        data_dir) to be used for searching for known sequence
-                        motifs of interest in seq_fasta
-  --write_all_files     Add this flag to write all motif meme files,
-                        regardless of whether the model with shape motifs,
-                        sequence motifs, or both types of motifs was most
-                        performant.
-  --exhaustive          Add this flag to perform and exhaustive initial search
-                        for seeds. This can take a very long time for datasets
-                        with more than a few-thousand binding sites. Setting
-                        this option will override the --max_rounds_no_new_seed
-                        option.
-  --max_n MAX_N         Sets the maximum number of fasta records to use for
-                        motif inference. This is useful when runs are taking
-                        prohibitively long.
-  --log_level LOG_LEVEL
-                        Sets log level for logging module. Valid values are
-                        DEBUG, INFO, WARNING, ERROR, CRITICAL.
-```
+    options:
+      -h, --help            show this help message and exit
+      --data_dir DATA_DIR   Directory from which input files will be read.
+      --skip_inference      Include this flag at the command line to skip motif
+                            inference. This is useful if you've already run
+                            inference on all folds.
+      --skip_evaluation     Include this flag at the command line to skip
+                            evaluation of motifs.
+      --out_prefix OUT_PREFIX
+                            Optional. Sets the prefix to place on output
+                            directories. If None (the default), infers the
+                            appropriate prefix based on whether you set either or
+                            both of --find_seq_motifs or --no_shape_motifs
+      --force               Forces each fold to run, clobbering any extant output
+                            directories.
+      --crossval_folds CROSSVAL_FOLDS
+                            Number of folds into which to split data for k-fold
+                            cross-validation
+      --score_file SCORE_FILE
+                            input text file with names and scores for training
+                            data
+      --kmer KMER           kmer size to search for shape motifs. Default=15
+      --max_count MAX_COUNT
+                            Maximum number of times a motif can match each of the
+                            forward and reverse strands in a reference. Default: 1
+      --continuous CONTINUOUS
+                            number of bins to discretize continuous input data
+                            with
+      --threshold_sd THRESHOLD_SD
+                            std deviations below mean for seed finding. Only
+                            matters for greedy search. Default=2.000000
+      --init_threshold_seed_num INIT_THRESHOLD_SEED_NUM
+                            Number of randomly selected seeds to compare to
+                            records in the database during initial threshold
+                            setting. Default=500
+      --init_threshold_recs_per_seed INIT_THRESHOLD_RECS_PER_SEED
+                            Number of randomly selected records to compare to each
+                            seed during initial threshold setting. Default=20
+      --init_threshold_windows_per_record INIT_THRESHOLD_WINDOWS_PER_RECORD
+                            Number of randomly selected windows within a given
+                            record to compare to each seed during initial
+                            threshold setting. Default=2
+      --max_batch_no_new_seed MAX_BATCH_NO_NEW_SEED
+                            Sets the number of batches of seed evaluation with no
+                            new motifs added to the set of motifs to be optimized
+                            prior to truncating the initial search for motifs.
+      --nprocs NPROCS       number of processors. Default: 1
+      --threshold_constraints THRESHOLD_CONSTRAINTS THRESHOLD_CONSTRAINTS
+                            Sets the upper and lower limits on the match threshold
+                            during optimization. Defaults to 0 for the lower limit
+                            and 10 for the upper limit.
+      --shape_constraints SHAPE_CONSTRAINTS SHAPE_CONSTRAINTS
+                            Sets the upper and lower limits on the shapes'
+                            z-scores during optimization. Defaults to -4 for the
+                            lower limit and 4 for the upper limit.
+      --weights_constraints WEIGHTS_CONSTRAINTS WEIGHTS_CONSTRAINTS
+                            Sets the upper and lower limits on the pre-
+                            transformed, pre-normalized weights during
+                            optimization. Defaults to -4 for the lower limit and 4
+                            for the upper limit.
+      --temperature TEMPERATURE
+                            Sets the temperature argument for simulated annealing.
+                            Default: 0.400000
+      --t_adj T_ADJ         Fraction by which temperature decreases each iteration
+                            of simulated annealing. Default: 0.001000
+      --stepsize STEPSIZE   Sets the stepsize argument simulated annealing. This
+                            defines how far a given value can be modified for
+                            iteration i from its value at iteration i-1. A higher
+                            value will allow farther hops. Default: 0.250000
+      --opt_niter OPT_NITER
+                            Sets the number of simulated annealing iterations to
+                            undergo during optimization. Default: 10000.
+      --alpha ALPHA         Lower limit on transformed weight values prior to
+                            normalization to sum to 1. Default: 0.000000
+      --batch_size BATCH_SIZE
+                            Number of records to process seeds from at a time. Set
+                            lower to avoid out-of-memory errors. Default: 2000
+      --find_seq_motifs     Add this flag to call sequence motifs using streme in
+                            addition to calling shape motifs.
+      --no_shape_motifs     Add this flag to turn off shape motif inference. This
+                            is useful if you basically want to use this script as
+                            a wrapper for streme to just find sequence motifs.
+      --seq_fasta SEQ_FASTA
+                            Name of fasta file (located within data_dir, do not
+                            include the directory, just the file name) containing
+                            sequences in which to search for motifs
+      --seq_motif_positive_cats SEQ_MOTIF_POSITIVE_CATS
+                            Denotes which categories in `--infile` (or after
+                            quantization for a continous signal in the number of
+                            bins denoted by the `--continuous` argument) to use as
+                            the positive set for sequence motif calling using
+                            streme. Example: "4" would use category 4 as the
+                            positive set, whereas "3,4" would use categories 3 and
+                            4 as the positive set.
+      --streme_thresh STREME_THRESH
+                            Threshold for including motifs identified by streme.
+                            Default: 0.050000
+      --seq_meme_file SEQ_MEME_FILE
+                            Name of meme-formatted file (file must be located in
+                            data_dir) to be used for searching for known sequence
+                            motifs of interest in seq_fasta
+      --write_all_files     Add this flag to write all motif meme files,
+                            regardless of whether the model with shape motifs,
+                            sequence motifs, or both types of motifs was most
+                            performant.
+      --exhaustive          Add this flag to perform and exhaustive initial search
+                            for seeds. This can take a very long time for datasets
+                            with more than a few-thousand binding sites. Setting
+                            this option will override the --max_rounds_no_new_seed
+                            option.
+      --max_n MAX_N         Sets the maximum number of fasta records to use for
+                            motif inference. This is useful when runs are taking
+                            prohibitively long.
+      --log_level LOG_LEVEL
+                            Sets log level for logging module. Valid values are
+                            DEBUG, INFO, WARNING, ERROR, CRITICAL.
  
 <!--
 ```bash
