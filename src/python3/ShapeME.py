@@ -572,7 +572,8 @@ def infer(args):
                 raise Exception(
                     f"The intended output directory, {out_dir}, already "\
                     f"exists. We try not to clobber existing data. "\
-                    f"Either rename the existing directory or remove it. "\
+                    f"You can rename the existing directory, remove the existing directory, "\
+                    f"or re-run with the --force flag included, which will clobber the prior results. "\
                     f"Nothing was done. Exiting now."
                 )
 
@@ -760,7 +761,8 @@ def infer(args):
                     logging.error(
                         f"The intended output directory, {out_dir}, already "\
                         f"exists. We try not to clobber existing data. "\
-                        f"Either rename the existing directory or remove it. "\
+                        f"You can rename the existing directory, remove the existing directory, "\
+                        f"or re-run with the --force flag included, which will clobber the prior results. "\
                         f"Nothing was done for fold {k}. Exiting now."
                     )
                     sys.exit(1)
