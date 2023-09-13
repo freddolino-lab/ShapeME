@@ -631,7 +631,8 @@ overall motif model arrived at by ShapeME. For categorical data, AUPRs are shown
 for each category. The open circle is the AUPR for inference on the entire dataset,
 small dots are AUPRs for each fold of k-fold crossvalidation, and the large dot
 is the mean cross-validated AUPR. The horizontal bar is the standard deviation
-of the cross-validated AUPR.
+of the cross-validated AUPR. Note that the AUPR plot is a work in progress,
+especially for sequence motif reporting and mixed shape/sequence motif reporting.
 
 If an error was encountered during the ShapeME run, then the report will simply
 be a web page containing the text of the error message.
