@@ -1,8 +1,8 @@
-# ShapeMe
+# ShapeME
 
-ShapeMe is a tool for identifying local structural motifs that inform
-protein/DNA interaction. In it's implementation, however, ShapeME is more flexible,
-and can be used to identify motifs predictive of RNA-seq scores, SELEX-seq scores, etc..
+ShapeME is a tool for identifying local structural motifs that inform
+protein/DNA interaction. In its implementation, however, ShapeME is more flexible,
+and can be used to identify motifs predictive of RNA-seq scores, SELEX-seq scores, etc.
 Any score that can be binned into categories on a per-sequence basis can be used
 for motif inference using ShapeME.
 
