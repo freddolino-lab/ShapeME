@@ -633,6 +633,7 @@ indicate for that motif, how enriched that hit category was in each
 score category (score categories are columns in the heatmap). For sequence motifs
 a single row will be present in the heatmap, as the hits categories for sequence
 motifs can only be 0 or 1.
+<!-- TODO: AUPR reporting for seq, and seq_and_shape models is under development
 3. A plot showing the area under the precision recall curve (AUPR) for the
 overall motif model arrived at by ShapeME. For categorical data, AUPRs are shown
 for each category. The open circle is the AUPR for inference on the entire dataset,
@@ -640,6 +641,7 @@ small dots are AUPRs for each fold of k-fold crossvalidation, and the large dot
 is the mean cross-validated AUPR. The horizontal bar is the standard deviation
 of the cross-validated AUPR. Note that the AUPR plot is a work in progress,
 especially for sequence motif reporting and mixed shape/sequence motif reporting.
+-->
 
 If an error was encountered during the ShapeME run, then the report will simply
 be a web page containing the text of the error message.
