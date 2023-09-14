@@ -388,23 +388,30 @@ singularity exec -B ${data_dir} \
 ## Using your own data
 
 Enter the directory containing your sequence files, shape files,
-and input score files. Run the code beloe, with the
-following substitutions:
+and input score files. The following required arguments must be present, but
+read below further for a comprehensive list of arguments that can
+be accepted by ShapeME:
 
++ \<data_dir\>
+    + The location containing your input fasta file and scores file.
 + \<seq\_fasta\>
-    + The name of the file containing the fasta records. Use only the basename.
-    The file must be in `--data_dir`.
+    + The name of the file containing the fasta records. *Use only the basename.
+    The file must be in `--data_dir`.*
 + \<score\_file\>
-    + The file containing input scores, which could be binary, categorical, or
-        continuous. If they are continuous, you MUST set the `--continuous` flag
+    + The file containing input scores, which could be binary scores, categorical scores, or
+        continuous values. If they are continuous, you MUST set the `--continuous` flag
         at the command line to set the number of bins into which to discretize
         the input scores. For instance, `--continuous 10` would create 10 approximately
-        evenly populated bins into which to allocate the input data.
+        evenly populated bins into which to allocate the input data. *Use only the basename.
+        The file must be in `--data_dir`.*
 + \<crossval\_folds\>
-    + A required argument. We usually set this to 5, indicating that in addition
+    + We usually set this to 5, indicating that in addition
     to a round of motif inference on the entire dataset, 5-fold crossvalidation
     will be performed to assess the reproducibility of motif inference on your
     data.
+
+In addition to the required arguments above, one additional argument to be aware of is `--nprocs`:
+
 + \<nprocs\>
     + Sets the number of parallel processes to use for shape motif inference.
     + The value you use will depend on the available resources of your system.
