@@ -1,14 +1,29 @@
-# ShapeME
+# ShapeME - Shape-based Motif Elicitation
 
-ShapeME is a tool for identifying local structural motifs that inform
-protein/DNA interaction. In its implementation, however, ShapeME is more flexible,
-and can be used to identify motifs predictive of RNA-seq scores, SELEX-seq scores, etc.
-Any score that can be binned into categories on a per-sequence basis can be used
-for motif inference using ShapeME.
+ShapeME is a tool for finding informative motifs in DNA structure. 
 
-For users who would like to run ShapeME on their own hardward, we recommend they
+In contrast to conventional motif finders which search for motifs in sequence
+space, ShapeME instead identifies motifs in local DNA structure space using
+sequence-based predictions of DNA structure parameters including minor groove
+width, electrostatic potential, helical twist, propeller twist, and roll. DNA
+structural parameters are predicted from input sequences using `DNAshapeR`
+([Chiu et al. 2016](10.1093/bioinformatics/btv735)).
+
+ShapeME excels at discovering DNA structural motifs that explain
+binary data such as bound and unbound regions on a chromosome for a given
+factor, however, ShapeME is also more flexible than a typical motif finder and
+can be used to identify motifs predictive of data with more than two categories
+including RNA-seq expression levels, SELEX-seq enrichment scores, experiments
+with more than one condition being tested etc.  Any score that can be binned
+into categories on a per-sequence basis can be used for motif inference using
+ShapeME. This powerful mutual information-based approach is inspired by the `FIRE`
+algorithm developed for sequence motif inference ([Elemento et al.
+2007](10.1016/j.molcel.2007.09.027)).
+
+For users who would like to run ShapeME on their own hardware, we recommend they
 download our singularity container to run ShapeME on a linux operating system
-to which they have access. This will require the user to install singularity
+to which they have access. This will require the user to install
+[`singularity`](https://docs.sylabs.io/guides/3.0/user-guide/quick_start.html)
 on their systems.
 
 The main script most users will run is `ShapeME.py`. See below for documentation
@@ -36,7 +51,7 @@ The input files required by ShapeME are:
         `examples/categorical_example`, and `examples/continuous_example`, directories.
 
 The sequence names in the fasta files and in the score
-file must be in the same order.
+file *must* be in the same order.
 
 <!--
 We provide utilities which should help to prepare, in most use cases,
@@ -92,7 +107,7 @@ must have a header with column names "name" and "score".
 
 ## Calculating local shapes from sequences
 
-Local shapes will be calculated for each sequence in your fasta file
+Local shape files will be calculated for each sequence in your fasta file
 when the `ShapeME.py` script is run.
 
 `ShapeME.py` will split your input data into the desired number of
@@ -119,15 +134,16 @@ then manually create the required input file with paired sequence names
 and scores.
 
 Then, when running `ShapeME.py`, set `--continuous <n>` at the command line,
-where `<n>` must be replaced with the number of binds to quantize the
-continuous scores into.
+where `<n>` must be replaced with the number of equally populated bins to
+quantize the continuous scores into.
 
 # Running ShapeME
 
 ShapeME can be run to detect only shape motifs, only sequence motifs (in this
-case ShapeME is basically a wrapper for STREME with extra motif pruning steps
-to avoid reporting motifs with overlapping information), or to incorporate shape and
-sequence motifs into a single model.
+case ShapeME is basically a wrapper for
+[`STREME`](https://meme-suite.org/meme/doc/streme.html) with extra motif pruning
+steps to avoid reporting motifs with overlapping information), or to incorporate
+shape and sequence motifs into a single model.
 
 We distribute ShapeME as a singularity container, which can be run on any
 computer with a Linux environment that has singularity installed.
@@ -137,9 +153,12 @@ The ShapeME container can be downloaded from our
 location.
 
 In all instructions below, you should substitute the characters `<version>` with
-the actual version number of the continer you're using in every instance of
+the actual version number of the container you're using in every instance of
 `shapeme_<version>.sif`. Of course, you will also need to substitute `/path/to`
 with the actual path to the location with the ShapeME singularity container.
+
+For more information on how to use `singularity` for your system please follow
+the `singularity` documentation [here](10.1016/j.molcel.2007.09.027).
 
 ## Inference on provided example data
 
@@ -150,8 +169,8 @@ data provided with this repository.
 
 #### Only shape motifs
 
-From within the `examples/binary_example` directory, run the following,
-updating the value of `nprocs` to something that is suitable to the system
+From within the `examples/binary_example` directory, run the following, updating
+the number of processors (`nprocs`) to something that is suitable to the system
 on which you are running ShapeME:
 
 ```bash
@@ -173,15 +192,15 @@ singularity exec -B ${data_dir} \
 #### Only sequence motifs
 
 From within the `examples/binary_example` directory, run the code below,
-updating the value of `nprocs` to something that is suitable to the system
-on which you are running ShapeME.
+updating the value of the number of processors (`nprocs`) to something that is
+suitable to the system on which you are running ShapeME.
 
 In the below code, `--seq_motif_positive_cats 1` is set. The `--seq_motif_positive_cats`
 argument sets which categories in the `--score_file` will be assigned to the "positive set"
-for STEME. We've set it to 1 here because this example is simple, binary, data,
+for `STREME`. We've set it to 1 here because this example is simple binary data,
 with 0 as the negative set and 1 as the positive set. For categorical
 data, we would set the positive set with a comma-separated
-list of the categories to be considered as the "positive" set by STREME
+list of the categories to be considered as the "positive" set by `STREME`
 during sequence motif finding. For instance, if you are using
 scores with 10 bins (values of 0 through 9) and if want to identify
 motifs in bins 8 and 9, set `--seq_motif_positive_cats 8,9` at the
@@ -237,8 +256,8 @@ singularity exec -B ${data_dir} \
 #### Only shape motifs
 
 From within the `examples/categorical_example` directory, run the following,
-updating the value of `nprocs` to something that is suitable to the system
-on which you are running ShapeME:
+updating the value of the number of processors (`nprocs`) to something that is
+suitable to the system on which you are running ShapeME:
 
 ```bash
 nprocs=8
@@ -259,8 +278,8 @@ singularity exec -B ${data_dir} \
 #### Only sequence motifs
 
 From within the `examples/categorical_example` directory, run the following,
-updating the value of `nprocs` to something that is suitable to the system
-on which you are running ShapeME:
+updating the value of the number of processors (`nprocs`) to something that is
+suitable to the system on which you are running ShapeME:
 
 ```bash
 nprocs=8
@@ -312,8 +331,8 @@ singularity exec -B ${data_dir} \
 #### Only shape motifs
 
 From within the `examples/continuous_example` directory, run the following,
-updating the value of `nprocs` to something that is suitable to the system
-on which you are running ShapeME:
+updating the value of the number of processors (`nprocs`) to something that is
+suitable to the system on which you are running ShapeME:
 
 ```bash
 nprocs=8
@@ -335,8 +354,8 @@ singularity exec -B ${data_dir} \
 #### Only sequence motifs
 
 From within the `examples/continuous_example` directory, run the following,
-updating the value of `nprocs` to something that is suitable to the system
-on which you are running ShapeME:
+updating the value of the number of processors (`nprocs`) to something that is
+suitable to the system on which you are running ShapeME:
 
 ```bash
 nprocs=8
