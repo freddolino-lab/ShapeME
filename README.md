@@ -7,7 +7,7 @@ space, ShapeME instead identifies motifs in local DNA structure space using
 sequence-based predictions of DNA structure parameters including minor groove
 width, electrostatic potential, helical twist, propeller twist, and roll. DNA
 structural parameters are predicted from input sequences using `DNAshapeR`
-([Chiu et al. 2016](10.1093/bioinformatics/btv735)).
+([Chiu et al. 2016](https://doi.org/10.1093/bioinformatics/btv735)).
 
 ShapeME excels at discovering DNA structural motifs that explain
 binary data such as bound and unbound regions on a chromosome for a given
@@ -18,7 +18,7 @@ with more than one condition being tested etc.  Any score that can be binned
 into categories on a per-sequence basis can be used for motif inference using
 ShapeME. This powerful mutual information-based approach is inspired by the `FIRE`
 algorithm developed for sequence motif inference ([Elemento et al.
-2007](10.1016/j.molcel.2007.09.027)).
+2007](https://doi.org/10.1016/j.molcel.2007.09.027)).
 
 For users who would like to run ShapeME on their own hardware, we recommend they
 download our singularity container to run ShapeME on a linux operating system
