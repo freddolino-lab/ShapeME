@@ -996,8 +996,12 @@ def infer(args):
                     f"{infer_result.stdout.decode()}"
                 )
                 # if no motifs in this fold, move on to next one
-                if "No shape or sequence motifs found" in infer_result.stdout.decode():
-                    continue
+                with open(f"{out_dir}/job_status.json", "r") as status_f:
+                    fold_status = status_f.readlines()
+                    if "FinishedNoMotif" in fold_status:
+                        logging.info(f"No motifs identified in fold {k}. Moving on to next fold.")
+                        continue
+
 
 
         if not args.skip_evaluation:
