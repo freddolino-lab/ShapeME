@@ -46,7 +46,7 @@ class Performance():
         self.cv_aupr = {}
         self.cv_aupr_sd = {}
         randoms = {}
-        any_motif = False
+        self.any_motif = False
         for k,fold_direc in enumerate(fold_direcs):
             motifs_file = os.path.join(fold_direc, "final_motifs.dsm")
             if os.path.isfile(motifs_file):
@@ -572,8 +572,7 @@ def infer(args):
                 raise Exception(
                     f"The intended output directory, {out_dir}, already "\
                     f"exists. We try not to clobber existing data. "\
-                    f"You can rename the existing directory, remove the existing directory, "\
-                    f"or re-run with the --force flag included, which will clobber the prior results. "\
+                    f"Either rename the existing directory or remove it. "\
                     f"Nothing was done. Exiting now."
                 )
 
@@ -761,8 +760,7 @@ def infer(args):
                     logging.error(
                         f"The intended output directory, {out_dir}, already "\
                         f"exists. We try not to clobber existing data. "\
-                        f"You can rename the existing directory, remove the existing directory, "\
-                        f"or re-run with the --force flag included, which will clobber the prior results. "\
+                        f"Either rename the existing directory or remove it. "\
                         f"Nothing was done for fold {k}. Exiting now."
                     )
                     sys.exit(1)
@@ -998,8 +996,12 @@ def infer(args):
                     f"{infer_result.stdout.decode()}"
                 )
                 # if no motifs in this fold, move on to next one
-                if "No shape or sequence motifs found" in infer_result.stdout.decode():
-                    continue
+                with open(f"{out_dir}/job_status.json", "r") as status_f:
+                    fold_status = status_f.readlines()
+                    if "FinishedNoMotif" in fold_status:
+                        logging.info(f"No motifs identified in fold {k}. Moving on to next fold.")
+                        continue
+
 
 
         if not args.skip_evaluation:
@@ -1191,25 +1193,20 @@ def infer(args):
     #temp_direc.cleanup()
     out_dir = os.path.join(data_dir, f"{outdir_pre}_main_output")
     aupr_plot_fname = os.path.join(out_dir, "cv_aupr.png")
-    ##########################################################
-    ##########################################################
-    ## TODO: get AUPR reporting working for seq, seq_and_shape
-    ##########################################################
-    ##########################################################
-    #performance = Performance(out_dir, fold_direcs)
-    #performance.plot_performance(aupr_plot_fname)
+    performance = Performance(out_dir, fold_direcs)
+    performance.plot_performance(aupr_plot_fname)
 
-    #with open(aupr_plot_fname, "rb") as image_file:
-    #    performance_plot = base64.b64encode(image_file.read()).decode()
-    #performance_data = {
-    #    "plot": performance_plot,
-    #    "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
-    #}
+    with open(aupr_plot_fname, "rb") as image_file:
+        performance_plot = base64.b64encode(image_file.read()).decode()
+    performance_data = {
+        "plot": performance_plot,
+        "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
+    }
     
     report_data_fname = os.path.join(out_dir, "report_data.pkl")
     with open(report_data_fname, "rb") as info_f:
         report_info = pickle.load(info_f)
-    #report_info["performance_data"] = performance_data
+    report_info["performance_data"] = performance_data
 
     out_page_name = os.path.join(out_dir, "report.html")
     write_report(
