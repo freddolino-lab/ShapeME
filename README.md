@@ -119,7 +119,7 @@ then manually create the required input file with paired sequence names
 and scores.
 
 Then, when running `ShapeME.py`, set `--continuous <n>` at the command line,
-where `<n>` must be replaced with the number of binds to quantize the
+where `<n>` must be replaced with the number of bins to quantize the
 continuous scores into.
 
 # Running ShapeME
