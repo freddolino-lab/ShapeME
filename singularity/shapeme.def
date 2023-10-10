@@ -4,9 +4,13 @@ Stage: build
 
 %setup
     mkdir ${SINGULARITY_ROOTFS}/src
-    mkdir ${SINGULARITY_ROOTFS}/src/rust_utils
+    mkdir -p ${SINGULARITY_ROOTFS}/src/rust_utils/target/release
     cp -r ../src/python3 ${SINGULARITY_ROOTFS}/src/
-    cp -r ../src/rust_utils/target ${SINGULARITY_ROOTFS}/src/rust_utils
+    cp ../src/rust_utils/target/release/evaluate_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/release/filter_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/release/get_robustness ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/release/infer_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/release/merge_folds ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment

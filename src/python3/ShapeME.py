@@ -996,12 +996,14 @@ def infer(args):
                     f"{infer_result.stdout.decode()}"
                 )
                 # if no motifs in this fold, move on to next one
-                with open(f"{out_dir}/job_status.json", "r") as status_f:
-                    fold_status = status_f.readlines()
+                stat_fname = f"{out_dir}/job_status.json"
+                print(f"stat_fname: {stat_fname}")
+                with open(stat_fname, "r") as status_f:
+                    fold_status = status_f.readlines()[0]
+                    print(f"fold_status: {fold_status}")
                     if "FinishedNoMotif" in fold_status:
                         logging.info(f"No motifs identified in fold {k}. Moving on to next fold.")
                         continue
-
 
 
         if not args.skip_evaluation:
@@ -1193,20 +1195,20 @@ def infer(args):
     #temp_direc.cleanup()
     out_dir = os.path.join(data_dir, f"{outdir_pre}_main_output")
     aupr_plot_fname = os.path.join(out_dir, "cv_aupr.png")
-    performance = Performance(out_dir, fold_direcs)
-    performance.plot_performance(aupr_plot_fname)
+    #performance = Performance(out_dir, fold_direcs)
+    #performance.plot_performance(aupr_plot_fname)
 
-    with open(aupr_plot_fname, "rb") as image_file:
-        performance_plot = base64.b64encode(image_file.read()).decode()
-    performance_data = {
-        "plot": performance_plot,
-        "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
-    }
+    #with open(aupr_plot_fname, "rb") as image_file:
+    #    performance_plot = base64.b64encode(image_file.read()).decode()
+    #performance_data = {
+    #    "plot": performance_plot,
+    #    "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
+    #}
     
     report_data_fname = os.path.join(out_dir, "report_data.pkl")
     with open(report_data_fname, "rb") as info_f:
         report_info = pickle.load(info_f)
-    report_info["performance_data"] = performance_data
+    #report_info["performance_data"] = performance_data
 
     out_page_name = os.path.join(out_dir, "report.html")
     write_report(

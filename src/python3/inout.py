@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 import cvlogistic
 import dnashapeparams as dsp
 #import shapemotifvis as smv
@@ -164,7 +165,7 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
     threshold_pat = re.compile(r'(?<=threshold\= )\S+')
     ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
     robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
-    zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
+    zscore_pat = re.compile(r'(?<=z-score\= )\S+\.\d+')
 
     # start not in_motif
     in_motif = False
@@ -217,16 +218,16 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
                 # next line is matrix description
                 description_line = f.readline()
                 # gather info from the description line
-                print("Fetching alength")
+                #print("Fetching alength")
                 alen = int(alphabet_len_pat.search(description_line).group())
-                print("Fetching mwidth")
+                #print("Fetching mwidth")
                 mwidth = int(motif_width_pat.search(description_line).group())
                 pos_left = mwidth
-                print(description_line)
+                #print(description_line)
                 eval_match = eval_pat.search(description_line)
-                print("Fetching evalue")
+                #print("Fetching evalue")
                 evalue = float(eval_match.group())
-                print("Fetching nsites")
+                #print("Fetching nsites")
 
                 mo = nsites_pat.search(description_line)
                 if mo is not None:
@@ -676,7 +677,8 @@ class Motif:
             alt_name=None, mi=None, hits=None, dists=None,
             weights=None, threshold=None, positions=None,
             zscore=None, robustness=None, evalue=None,
-            motif_type=None, enrichments=None, nsites=None, X=None
+            motif_type=None, enrichments=None, nsites=None, X=None,
+            transforms=None,
     ):
         self.identifier = identifier
         self.alt_name = alt_name
@@ -695,6 +697,7 @@ class Motif:
         self.enrichments = enrichments
         self.nsites = nsites
         self.X = X
+        self.transforms = transforms
 
     def __str__(self):
         outstr = self.create_data_header_line()
@@ -704,6 +707,53 @@ class Motif:
             outstr += self.create_weights_lines()
         outstr += "\n"
         return outstr
+
+    def __len__(self):
+        return self.motif.shape[1]
+
+    def shape(self):
+        return self.motif.shape
+
+    def make_sliding_window_view(self, shape_arr, rec_name):
+        # shape (R,P,S,2), where P is the number of positions (the length of)
+        window_shape = (1, self.shape()[1], self.shape()[0],1)
+        if shape_arr.shape[1] < window_shape[1]:
+            raise Exception(f"Record {rec_name} is too short. It is only {shape_arr.shape[1]} base pairs long after trimming two basepairs of NA values from each end of the shape values. The motif is {window_shape[1]} long. Exiting without returning motif hits. Consider running again without record {rec_name} in the fasta file.")
+        rec_windows = sliding_window_view(
+            shape_arr,
+            window_shape,
+        )[0,:,0,:,0,:,:,0]
+        return rec_windows
+
+    def scan(self, ragged_rec_db):
+        """Scans this motif for occurrences in target
+
+        Args:
+        -----
+        ragged_rec_db: RaggedRecordDatabase
+        """
+
+        motif_vals = np.transpose(self.motif)
+        motif_weights = np.transpose(self.weights)
+        threshold = self.threshold
+        hits_dict = {}
+        for rec_name,rec_shapes in ragged_rec_db.X.items():
+            plus_hits = None
+            minus_hits = None
+            # iterate over rec_shapes in len(self) length windows
+            # windows is shape (W,S,MW,SN), where
+            # W is window number,
+            # S is strand number,
+            # MW is motif width,
+            # SN is shape number
+            windows = self.make_sliding_window_view(rec_shapes, rec_name)
+            weighted_abs_diff = np.abs(windows - motif_vals[None,None,:,:]) * motif_weights[None,None,:,:]
+            weighted_manhattan = np.sum(weighted_abs_diff, axis=(0,1))
+            plus_hits = np.where(weighted_manhattan[:,0] < threshold)[0]
+            minus_hits = np.where(weighted_manhattan[:,1] < threshold)[0]
+            hits_dict[rec_name] = (plus_hits+2, minus_hits+2)
+            
+        return hits_dict
 
     def set_evalue(self, motif_num):
         if self.zscore is None:
@@ -914,6 +964,8 @@ class Motif:
                 string += f" nsites= {int(np.sum(self.hits))}"
         if self.threshold is not None:
             string += f" threshold= {self.threshold:.3f}"
+        if self.nsites is not None:
+            string += f" nsites= {self.nsites}"
         if self.mi is not None:
             string += f" adj_mi= {self.mi:.3f}"
         if self.zscore is not None:
@@ -998,6 +1050,17 @@ class Motif:
 
         return motif_dict
 
+    def unnormalize(self):
+        
+        shape_names = list(self.transforms.keys())
+        shape_names.sort()
+        
+        for i,shape_name in enumerate(shape_names):
+            shape_center,shape_spread = self.transforms[shape_name]
+            self.motif[i,:] = self.motif[i,:] * shape_spread + shape_center
+
+        self.normalized = False
+
 
 class Motifs:
 
@@ -1012,7 +1075,7 @@ class Motifs:
         self.max_count = max_count
         self.bic = None
         self.motifs = []
-        self.transform = {}
+        self.transforms = {}
         self.shape_row_lut = {}
         self.seq_row_lut = {}
 
@@ -1055,6 +1118,20 @@ class Motifs:
             outstr += "\n"
         return outstr
 
+    def identify(self, ragged_rec_db):
+        """Identifies instances of motifs in target shapes.
+
+        Args:
+        -----
+        ragged_rec_db : RaggedRecordDatabase
+        """
+
+        hits_info = []
+        for motif in self:
+            hits = motif.scan(ragged_rec_db)
+            hits_info.extend(hits)
+        return hits_info
+
     def sort_motifs_by_mi(self):
         self.motifs.sort(key=lambda x: x.mi, reverse=True)
 
@@ -1091,7 +1168,7 @@ class Motifs:
 
     def set_transforms_from_meme_line(self, line):
         """Method to place shape centers and spreads
-        into self.transform
+        into self.transforms
 
         Args:
         -----
@@ -1102,7 +1179,7 @@ class Motifs:
 
     def set_transforms_from_db(self, rec_db):
         """Method to place shape centers and spreads
-        into self.transform
+        into self.transforms
 
         Args:
         -----
@@ -1114,7 +1191,7 @@ class Motifs:
         for name,idx in sorted_shapes:
             center = rec_db.shape_centers[idx]
             spread = rec_db.shape_spreads[idx]
-            self.transform[name] = (center,spread)
+            self.transforms[name] = (center,spread)
 
     def read_file(self, fname):
         """Reads a MEME-like file, potentially with mixed
@@ -1126,6 +1203,8 @@ class Motifs:
             Name of meme-like file containing motifs
         """
 
+        self.normalized = True
+
         motif_list = []
 
         alphabet_len_pat = re.compile(r'(?<=alength\= )\d+')
@@ -1134,7 +1213,7 @@ class Motifs:
         nsites_pat = re.compile(r'(?<=nsites\= )\d+')
         threshold_pat = re.compile(r'(?<=threshold\= )\S+')
         ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
-        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
+        zscore_pat = re.compile(r'(?<=z-score\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
 
         # start not in_motif
@@ -1163,7 +1242,7 @@ class Motifs:
                         shape_info = e.split(":")
                         center,spread = shape_info[1].split(",")
                         transforms[shape_info[0]] = (float(center), float(spread))
-                    self.transform = transforms
+                    self.transforms = transforms
 
                 ##################################################################
                 ##################################################################
@@ -1225,6 +1304,7 @@ class Motifs:
                                     robustness = robustness,
                                     nsites = nsites,
                                     threshold = threshold,
+                                    transforms = self.transforms,
                                 )
                                 motif_list.append(this_motif)
                         
@@ -1256,6 +1336,8 @@ class Motifs:
 
                     mo = nsites_pat.search(description_line)
                     nsites = evaluate_match_object(mo)
+                    if nsites is not None:
+                        nsites = int(nsites)
 
                     mo = threshold_pat.search(description_line)
                     threshold = evaluate_match_object(mo)
@@ -1268,7 +1350,6 @@ class Motifs:
 
                     mo = robustness_pat.search(description_line)
                     if mo is not None:
-                        print("Fetching robustness")
                         robustness = [int(val) for val in mo.group(1,2)]
                     else:
                         robustness = None
@@ -1322,7 +1403,7 @@ class Motifs:
                 f.write(motif.create_data_lines())
                 f.write("\n")
 
-    def write_file(self, fname, rec_db):
+    def write_file(self, fname, rec_db=None):
         """ Method to write a file from Motifs object
 
         Args:
@@ -1341,7 +1422,8 @@ class Motifs:
             f.write("strands: + -\n\n")
             f.write("Background letter frequencies\n")
             f.write("A 0.25 C 0.25 G 0.25 T 0.25 \n\n")
-            f.write(rec_db.create_transform_lines())
+            if rec_db is not None:
+                f.write(rec_db.create_transform_lines())
 
             for i, motif in enumerate(self.motifs):
                 f.write(motif.create_data_header_line())
@@ -1366,7 +1448,7 @@ class Motifs:
 
         ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
-        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
+        zscore_pat = re.compile(r'(?<=z-score\= )\S+\.\d+')
 
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
@@ -1430,7 +1512,14 @@ class Motifs:
     #            string += ",".join(["%f"%val for val in col])
     #            string += ",%d,%s\n"%(i,motif["name"])
     #            f.write(string)
- 
+
+    def unnormalize(self):
+        
+        for motif in self:
+            motif.unnormalize()
+
+        self.normalized = False
+
     def get_enrichments(self, rec_db):
         '''
         Args:
@@ -1795,7 +1884,7 @@ class Motifs:
                 f"ERROR: {result.stderr.decode()}\n"\
             ))
 
-        output = result.stdout.decode()
+        output = result.stdout.decode().strip()
         if output == "No motifs are informative":
             retained_indices = []
         else:
@@ -1805,7 +1894,7 @@ class Motifs:
             except:
                 raise(Exception(
                     f"\nSomething went wrong in filtering motifs by cmi:\n"\
-                    f"STDOUT: {result.stdout.decode()}\n"\
+                    f"STDOUT: {result.stdout.decode()}"\
                     f"ERROR: {result.stderr.decode()}"\
                 ))
 
@@ -2859,7 +2948,6 @@ class RecordDatabase(object):
                 shape_idx += 1
 
             this_shape_dict = parse_shape_fasta(shape_infname)
-            #print(this_shape_dict)
 
             if self.X is None:
 
@@ -2870,19 +2958,29 @@ class RecordDatabase(object):
                     record_length = len(rec_data)
 
                 self.X = np.zeros((record_count,record_length,shape_count,2))
-                #print(self.X.shape)
 
-            for rec_name,rec_data in this_shape_dict.items():
+            for i,(rec_name,rec_data) in enumerate(this_shape_dict.items()):
                 #print(rec_name)
+                populate_rnlut = False
+                if len(self.record_name_lut) == 0:
+                    populate_rnlut = True
+                if populate_rnlut:
+                    self.record_name_lut[rec_name] = i
+                    
                 r_idx = self.record_name_lut[rec_name]
 
                 if shape_name in shift_params:
                     #while len(rec_data) < self.X.shape[1]:
+                    #print(f"rec_data: {rec_data}")
                     rec_data = np.append(rec_data, np.nan)
+                    #print(f"rec_data: {rec_data}")
                     rec_data = np.append(np.nan, rec_data)
+                    #print(f"rec_data: {rec_data}")
                     fwd_data = rec_data[1:]
+                    #print(f"fwd_data: {fwd_data}")
                     rev_data = rec_data[1:]
                     rev_data = rev_data[::-1]
+                    #print(f"rev_data: {rev_data}")
                     #if (
                     #    (len(fwd_data) != record_length)
                     #    | (len(rev_data) != record_length)
@@ -2987,6 +3085,12 @@ class RecordDatabase(object):
 
         self.shape_centers = np.array([x[0] for x in shape_cent_spreads])
         self.shape_spreads = np.array([x[1] for x in shape_cent_spreads])
+
+    def normalize_shapes_from_values(self, centers, spreads):
+        self.normalized = False
+        self.shape_centers = np.array([_ for _ in centers])
+        self.shape_spreads = np.array([_ for _ in spreads])
+        self.normalize_shape_values()
 
     def normalize_shape_values(self):
         """Method to normalize each parameter based on self.center_spread
@@ -3195,6 +3299,185 @@ class RecordDatabase(object):
                 )
 
         return results
+
+class RaggedRecordDatabase(RecordDatabase):
+    """Class to store shapes from records of varying lengths
+
+    Attributes:
+    -----------
+    shape_name_lut : dict
+        A dictionary with shape names as keys and indices of the S
+        axis of data as values.
+    rec_name_lut : dict
+        A dictionary with record names as keys and indices of the R
+        axis of data as values.
+    y : np.array
+        A vector. Binary if looking at peak presence/absence,
+        categorical if looking at signal magnitude.
+    X : np.array
+        Array of shape (R,P,S,2), where R is the number of records in
+        the input data, P is the number of positions (the length of)
+        each record, and S is the number of shape parameters present.
+        The final axis is of length 2, one index for each strand.
+    windows : np.array
+        Array of shape (R,L,S,W,2), where R and S are described above
+        for the data attribute, L is the length of each window,
+        and W is the number of windows each record was chunked into.
+        The final axis is of length 2, one index for each strand.
+    weights : np.array
+        Array of shape (R,L,S,W), where the axis lengths are described
+        above for the windows attribute. Values are weights applied
+        during calculation of distance between a pair of sequences.
+    thresholds : np.array
+        Array of shape (R,W), where R is the number of records in the
+        database and W is the number of windows each record was
+        chuncked into.
+    """
+
+    def __init__(self, infile=None, shape_dict=None, y=None, X=None,
+                 shape_names=None, record_names=None, weights=None,
+                 shift_params=["HelT", "Roll"],
+                 exclude_na=True):
+
+        self.record_name_list = []
+        self.record_name_lut = {}
+        self.shape_name_lut = {}
+        self.normalized = False
+        if X is None:
+            self.X = None
+        else:
+            if shape_names is None:
+                raise SetNamesException(
+                    f"ERROR: X values were given without names for the shapes. "\
+                    f"Reinitialize, setting the shape_names argument."
+                )
+            self.X = X
+            self.shape_name_lut = {name:i for i,name in enumerate(shape_names)}
+        if y is not None:
+            if record_names is None:
+                raise SetNamesException(
+                    "ERROR: y values were given without names for the records. "\
+                    f"Reinitialize, setting the record_names argument"
+                )
+            self.y = y
+            self.record_name_lut = {name:i for i,name in enumerate(record_names)}
+        if weights is not None:
+            self.weights = weights
+        if infile is not None:
+            self.read_infile(infile)
+        if shape_dict is not None:
+            self.read_shapes(
+                shape_dict,
+                shift_params=shift_params,
+                exclude_na=exclude_na,
+            )
+        if infile is not None:
+            if len(self) != len(self.X):
+                raise Exception(
+                    f"There are {len(self)} records in {infile} "\
+                    f"and {len(self.X)} records in the shape files, "\
+                    f"but the number of records must be equal. Check your "\
+                    f"input files and try again."
+                )
+
+    def read_shapes(self, shape_dict, shift_params=["HelT","Roll"], exclude_na=True):
+        """Parses info in shapefiles and inserts into database
+
+        Args:
+        -----
+        shape_dict: dict
+            Dictionary, values of which are shape parameter names,
+            keys of which are shape parameter fasta files.
+
+        Modifies:
+        ---------
+        shape_name_lut
+        X
+        """
+
+        self.normalized = False
+        shape_idx = 0
+        shape_count = len(shape_dict)
+
+        for i,rec_name in enumerate(self.record_name_list):
+            self.record_name_lut[rec_name] = i
+
+        self.X = {}
+
+        for shape_name,shape_infname in shape_dict.items():
+
+            #print(shape_infname)
+            #print(shape_name)
+
+            if not shape_name in self.shape_name_lut:
+                self.shape_name_lut[shape_name] = shape_idx
+                s_idx = shape_idx
+                shape_idx += 1
+
+            # this_shape_dict contains all records for this shape
+            this_shape_dict = parse_shape_fasta(shape_infname)
+
+            for i,(rec_name,rec_data) in enumerate(this_shape_dict.items()):
+                record_length = len(rec_data)
+                #print(rec_name)
+                populate_rnlut = False
+                if len(self.record_name_lut) == 0:
+                    populate_rnlut = True
+                if populate_rnlut:
+                    self.record_name_lut[rec_name] = i
+                    
+                if not rec_name in self.X:
+                    # here I insert the first axis of length 1 just to make it easier to have these
+                    # arrays work with the other records X values
+                    self.X[rec_name] = np.zeros((1,record_length,shape_count,2))
+
+                if shape_name in shift_params:
+                    #while len(rec_data) < self.X.shape[1]:
+                    #print(f"rec_data: {rec_data}")
+                    rec_data = np.append(rec_data, np.nan)
+                    #print(f"rec_data: {rec_data}")
+                    rec_data = np.append(np.nan, rec_data)
+                    #print(f"rec_data: {rec_data}")
+                    fwd_data = rec_data[1:]
+                    #print(f"fwd_data: {fwd_data}")
+                    rev_data = rec_data[1:]
+                    rev_data = rev_data[::-1]
+                    #print(f"rev_data: {rev_data}")
+                    self.X[rec_name][0,:,s_idx,0] = fwd_data
+                    self.X[rec_name][0,:,s_idx,1] = rev_data
+                else:
+                    self.X[rec_name][0,:,s_idx,0] = rec_data
+                    self.X[rec_name][0,:,s_idx,1] = rec_data[::-1]
+
+        # trim first and final two bp from each record
+        for rec_name in self.X.keys():
+            self.X[rec_name] = self.X[rec_name][:,2:-2,:,:]
+
+    def normalize_shapes_from_values(self, centers, spreads):
+        self.normalized = False
+        self.shape_centers = np.array([_ for _ in centers])
+        self.shape_spreads = np.array([_ for _ in spreads])
+        self.normalize_shape_values()
+
+    def normalize_shape_values(self):
+        """Method to normalize each parameter based on self.center_spread
+
+        Modifies:
+            X - makes each index of the S axis a robust z score 
+        """
+
+        # normalize shape values
+        if not self.normalized:
+            for rec_name,rec_shapes in self.X.items():
+                self.X[rec_name] = (
+                    ( self.X[rec_name]
+                    - self.shape_centers[:,np.newaxis] )
+                    / self.shape_spreads[:,np.newaxis]
+                )
+            self.normalized = True
+        else:
+            print("X vals are already normalized. Doing nothing.")
+
 
 class SeqDatabase(object):
     """Class to store input information from tab seperated value with
