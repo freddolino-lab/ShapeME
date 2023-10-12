@@ -715,14 +715,13 @@ class Motif:
         return self.motif.shape
 
     def make_sliding_window_view(self, shape_arr, rec_name):
-        # shape (R,P,S,2), where P is the number of positions (the length of)
-        window_shape = (1, self.shape()[1], self.shape()[0],1)
-        if shape_arr.shape[1] < window_shape[1]:
-            raise Exception(f"Record {rec_name} is too short. It is only {shape_arr.shape[1]} base pairs long after trimming two basepairs of NA values from each end of the shape values. The motif is {window_shape[1]} long. Exiting without returning motif hits. Consider running again without record {rec_name} in the fasta file.")
+        window_shape = (self.shape()[1], self.shape()[0])
+        if shape_arr.shape[0] < window_shape[0]:
+            raise Exception(f"Record {rec_name} is too short. It is only {shape_arr.shape[0]} base pairs long after trimming two basepairs of NA values from each end of the shape values. The motif is {window_shape[0]} long. Exiting without returning motif hits. Consider running again without record {rec_name} in the fasta file.")
         rec_windows = sliding_window_view(
             shape_arr,
             window_shape,
-        )[0,:,0,:,0,:,:,0]
+        )[:,0,:,:]
         return rec_windows
 
     def scan(self, ragged_rec_db):
@@ -733,13 +732,16 @@ class Motif:
         ragged_rec_db: RaggedRecordDatabase
         """
 
+        if not ragged_rec_db.normalized:
+            raise Exception(f"RaggedRecordsDatabase reports that its shape values are not standardized.")
         motif_vals = np.transpose(self.motif)
+        #print(f"motif_vals.shape: {motif_vals.shape}")
         motif_weights = np.transpose(self.weights)
+        #print(f"motif_weights.shape: {motif_weights.shape}")
         threshold = self.threshold
-        hits_dict = {}
+        hits = []
         for rec_name,rec_shapes in ragged_rec_db.X.items():
-            plus_hits = None
-            minus_hits = None
+            #print(rec_name)
             # iterate over rec_shapes in len(self) length windows
             # windows is shape (W,S,MW,SN), where
             # W is window number,
@@ -747,13 +749,40 @@ class Motif:
             # MW is motif width,
             # SN is shape number
             windows = self.make_sliding_window_view(rec_shapes, rec_name)
-            weighted_abs_diff = np.abs(windows - motif_vals[None,None,:,:]) * motif_weights[None,None,:,:]
-            weighted_manhattan = np.sum(weighted_abs_diff, axis=(0,1))
-            plus_hits = np.where(weighted_manhattan[:,0] < threshold)[0]
-            minus_hits = np.where(weighted_manhattan[:,1] < threshold)[0]
-            hits_dict[rec_name] = (plus_hits+2, minus_hits+2)
-            
-        return hits_dict
+            #print(f"windows.shape: {windows.shape}")
+            #print(f"match_window 1, 0: {windows[1,0,:,:]}")
+            #print(f"match_window 0, 1: {windows[0,1,:,:]}")
+            #print(f"motif: {motif_vals}")
+            #print(f"motif shape: {motif_vals.shape}")
+            plus_weighted_abs_diff = np.abs(windows - motif_vals[None,:,:]) * motif_weights[None,:,:]
+            minus_weighted_abs_diff = np.abs(windows - motif_vals[None,::-1,:]) * motif_weights[None,::-1,:]
+            #print(f"plus_weighted_abs_diff.shape, {plus_weighted_abs_diff.shape}")
+            plus_weighted_manhattan = np.sum(plus_weighted_abs_diff, axis=(1,2))
+            minus_weighted_manhattan = np.sum(minus_weighted_abs_diff, axis=(1,2))
+            #print(f"plus_weighted_manhattan.shape, {plus_weighted_manhattan.shape}")
+            #print(f"plus_weighted_manhattan, {plus_weighted_manhattan}")
+            plus_hits = np.where(plus_weighted_manhattan < threshold)[0]
+            #print(f"plus_hits: {plus_hits}")
+            minus_hits = np.where(minus_weighted_manhattan < threshold)[0]
+            #print(f"minus_hits: {minus_hits}")
+            # add 2 to get removed NAs back, then add one more to get to one-indexed start position
+            plus_starts = plus_hits+2+1
+            # minus one because coords are inclusive here
+            plus_ends = plus_starts + len(self) - 1
+            minus_starts = minus_hits+2+1
+            minus_ends = minus_starts + len(self) - 1
+
+            if plus_hits.size > 0:
+                for i,start in enumerate(plus_starts):
+                    hits.append((
+                        self.identifier, self.alt_name, rec_name, start, plus_ends[i], "+", 0, 1, 1, ""
+                    ))
+            if minus_hits.size > 0:
+                for i,start in enumerate(minus_starts):
+                    hits.append((
+                        self.identifier, self.alt_name, rec_name, start, minus_ends[i], "-", 0, 1, 1, ""
+                    ))
+        return hits
 
     def set_evalue(self, motif_num):
         if self.zscore is None:
@@ -2135,6 +2164,9 @@ class FastaEntry(object):
         else:
             return(len(self.seq))
 
+    def complement(self):
+        pass
+
     def pull_seq(self, start, end, circ=False, rc=False):
         """ 
         Obtain a subsequence from the fasta entry sequence
@@ -2498,15 +2530,13 @@ class RecordDatabase(object):
         A vector. Binary if looking at peak presence/absence,
         categorical if looking at signal magnitude.
     X : np.array
-        Array of shape (R,P,S,2), where R is the number of records in
+        Array of shape (R,P,S), where R is the number of records in
         the input data, P is the number of positions (the length of)
         each record, and S is the number of shape parameters present.
-        The final axis is of length 2, one index for each strand.
     windows : np.array
-        Array of shape (R,L,S,W,2), where R and S are described above
+        Array of shape (R,L,S,W), where R and S are described above
         for the data attribute, L is the length of each window,
         and W is the number of windows each record was chunked into.
-        The final axis is of length 2, one index for each strand.
     weights : np.array
         Array of shape (R,L,S,W), where the axis lengths are described
         above for the windows attribute. Values are weights applied
@@ -2603,7 +2633,7 @@ class RecordDatabase(object):
                     else:
                         record_str = f"\n>{rec_name}\n"
 
-                    seq = self.X[rec_idx,:,shape_idx,0]
+                    seq = self.X[rec_idx,:,shape_idx]
                     seq_str = ",".join([f"{val:.2f}" for val in seq])
 
                     record_str += seq_str
@@ -2957,7 +2987,8 @@ class RecordDatabase(object):
                         break
                     record_length = len(rec_data)
 
-                self.X = np.zeros((record_count,record_length,shape_count,2))
+                #self.X = np.zeros((record_count,record_length,shape_count,2))
+                self.X = np.zeros((record_count,record_length,shape_count))
 
             for i,(rec_name,rec_data) in enumerate(this_shape_dict.items()):
                 #print(rec_name)
@@ -2978,8 +3009,9 @@ class RecordDatabase(object):
                     #print(f"rec_data: {rec_data}")
                     fwd_data = rec_data[1:]
                     #print(f"fwd_data: {fwd_data}")
-                    rev_data = rec_data[1:]
-                    rev_data = rev_data[::-1]
+                    #rev_data = rec_data[1:]
+                    #rev_data = rev_data[::-1]
+
                     #print(f"rev_data: {rev_data}")
                     #if (
                     #    (len(fwd_data) != record_length)
@@ -2996,8 +3028,9 @@ class RecordDatabase(object):
                     #    )
                     #    sys.exit(1)
 
-                    self.X[r_idx,:,s_idx,0] = fwd_data
-                    self.X[r_idx,:,s_idx,1] = rev_data
+                    #self.X[r_idx,:,s_idx,0] = fwd_data
+                    #self.X[r_idx,:,s_idx,1] = rev_data
+                    self.X[r_idx,:,s_idx] = fwd_data
                 else:
                     if len(rec_data) != record_length:
                         logging.error(
@@ -3010,15 +3043,16 @@ class RecordDatabase(object):
                             f"the same length. Exiting without inferring motifs."
                         )
                         sys.exit(1)
-                    self.X[r_idx,:,s_idx,0] = rec_data
-                    self.X[r_idx,:,s_idx,1] = rec_data[::-1]
+                    #self.X[r_idx,:,s_idx,0] = rec_data
+                    #self.X[r_idx,:,s_idx,1] = rec_data[::-1]
+                    self.X[r_idx,:,s_idx] = rec_data
 
         if exclude_na:
 
             # remove the first- and final two bases from each shape/record
-            self.X = self.X[:,2:-2,:,:]
+            self.X = self.X[:,2:-2,:]
             # identifies which positions have at least one NA for any record
-            complete_records = ~np.any(np.isnan(self.X), axis=(1,2,3))
+            complete_records = ~np.any(np.isnan(self.X), axis=(1,2))
             incomplete_records = ~complete_records
             # remove na-containing records from X and y
             self.X = self.X[complete_records, ...]
@@ -3103,8 +3137,8 @@ class RecordDatabase(object):
         if not self.normalized:
             self.X = (
                 ( self.X
-                - self.shape_centers[:,np.newaxis] )
-                / self.shape_spreads[:,np.newaxis]
+                - self.shape_centers[None,None,:] )
+                / self.shape_spreads[None,None,:]
             )
             self.normalized = True
         else:
@@ -3315,10 +3349,9 @@ class RaggedRecordDatabase(RecordDatabase):
         A vector. Binary if looking at peak presence/absence,
         categorical if looking at signal magnitude.
     X : np.array
-        Array of shape (R,P,S,2), where R is the number of records in
+        Array of shape (P,S), where R is the number of records in
         the input data, P is the number of positions (the length of)
-        each record, and S is the number of shape parameters present.
-        The final axis is of length 2, one index for each strand.
+        each record.
     windows : np.array
         Array of shape (R,L,S,W,2), where R and S are described above
         for the data attribute, L is the length of each window,
@@ -3429,7 +3462,7 @@ class RaggedRecordDatabase(RecordDatabase):
                 if not rec_name in self.X:
                     # here I insert the first axis of length 1 just to make it easier to have these
                     # arrays work with the other records X values
-                    self.X[rec_name] = np.zeros((1,record_length,shape_count,2))
+                    self.X[rec_name] = np.zeros((record_length,shape_count))
 
                 if shape_name in shift_params:
                     #while len(rec_data) < self.X.shape[1]:
@@ -3440,18 +3473,20 @@ class RaggedRecordDatabase(RecordDatabase):
                     #print(f"rec_data: {rec_data}")
                     fwd_data = rec_data[1:]
                     #print(f"fwd_data: {fwd_data}")
-                    rev_data = rec_data[1:]
-                    rev_data = rev_data[::-1]
+                    #rev_data = rec_data[1:]
+                    #rev_data = rev_data[::-1]
                     #print(f"rev_data: {rev_data}")
-                    self.X[rec_name][0,:,s_idx,0] = fwd_data
-                    self.X[rec_name][0,:,s_idx,1] = rev_data
+                    self.X[rec_name][:,s_idx] = fwd_data
+                    #self.X[rec_name][0,:,s_idx,0] = fwd_data
+                    #self.X[rec_name][0,:,s_idx,1] = rev_data
                 else:
-                    self.X[rec_name][0,:,s_idx,0] = rec_data
-                    self.X[rec_name][0,:,s_idx,1] = rec_data[::-1]
+                    self.X[rec_name][:,s_idx] = rec_data
+                    #self.X[rec_name][0,:,s_idx,0] = rec_data
+                    #self.X[rec_name][0,:,s_idx,1] = rec_data[::-1]
 
         # trim first and final two bp from each record
         for rec_name in self.X.keys():
-            self.X[rec_name] = self.X[rec_name][:,2:-2,:,:]
+            self.X[rec_name] = self.X[rec_name][2:-2,:]
 
     def normalize_shapes_from_values(self, centers, spreads):
         self.normalized = False
@@ -3471,8 +3506,8 @@ class RaggedRecordDatabase(RecordDatabase):
             for rec_name,rec_shapes in self.X.items():
                 self.X[rec_name] = (
                     ( self.X[rec_name]
-                    - self.shape_centers[:,np.newaxis] )
-                    / self.shape_spreads[:,np.newaxis]
+                    - self.shape_centers[None,:] )
+                    / self.shape_spreads[None,:]
                 )
             self.normalized = True
         else:

@@ -44,32 +44,32 @@ mod tests {
         let helt_param = Param::new(ParamType::HelT, Array::from_vec(vec![val; size])).unwrap();
         let roll_param = Param::new(ParamType::Roll, Array::from_vec(vec![val; size])).unwrap();
         let mgw_param = Param::new(ParamType::MGW, Array::from_vec(vec![val; size])).unwrap();
-        let mut seq_vec = Vec::new();
-        seq_vec.push(ep_param);
-        seq_vec.push(prot_param);
-        seq_vec.push(helt_param);
-        seq_vec.push(roll_param);
-        seq_vec.push(mgw_param);
 
-        // make the Motif struct
-        let this_sequence = Sequence::new(seq_vec);
-        
-        this_sequence.unwrap()
-    }
-
-    fn set_up_stranded_sequence(val: f64, size: usize) -> StrandedSequence {
-        let fwd_seq = set_up_sequence(val, size);
-        let rev_seq = set_up_sequence(val, size);
-
-        let mut arr = ndarray::Array3::zeros(
-            (fwd_seq.params.dim().0, fwd_seq.params.dim().1,0)
+        let mut arr = ndarray::Array2::zeros(
+            (0, ep_param.vals.dim())
         );
-        arr.append(Axis(2), fwd_seq.params.insert_axis(Axis(2)).view()).unwrap();
-        arr.append(Axis(2), rev_seq.params.insert_axis(Axis(2)).view()).unwrap();
-        
-        let this_sequence = StrandedSequence::new(arr);
-        this_sequence
+        arr.append(Axis(0), ep_param.vals.insert_axis(Axis(0)).view()).unwrap();
+        arr.append(Axis(0), helt_param.vals.insert_axis(Axis(0)).view()).unwrap();
+        arr.append(Axis(0), mgw_param.vals.insert_axis(Axis(0)).view()).unwrap();
+        arr.append(Axis(0), prot_param.vals.insert_axis(Axis(0)).view()).unwrap();
+        arr.append(Axis(0), roll_param.vals.insert_axis(Axis(0)).view()).unwrap();
+
+        Sequence::new(arr)
     }
+
+    //fn set_up_stranded_sequence(val: f64, size: usize) -> StrandedSequence {
+    //    let fwd_seq = set_up_sequence(val, size);
+    //    let rev_seq = set_up_sequence(val, size);
+
+    //    let mut arr = ndarray::Array3::zeros(
+    //        (fwd_seq.params.dim().0, fwd_seq.params.dim().1,0)
+    //    );
+    //    arr.append(Axis(2), fwd_seq.params.insert_axis(Axis(2)).view()).unwrap();
+    //    arr.append(Axis(2), rev_seq.params.insert_axis(Axis(2)).view()).unwrap();
+    //    
+    //    let this_sequence = StrandedSequence::new(arr);
+    //    this_sequence
+    //}
 
     #[test]
     #[should_panic]
@@ -186,8 +186,10 @@ mod tests {
     fn test_window_over_seq(){
         let this_seq = set_up_sequence(2.0, 30);
         for window in this_seq.window_iter(0, 10, 3) {
-            assert_eq!(ndarray::Array2::from_elem((5, 3), 2.0),
-                       window.params)
+            assert_eq!(
+                ndarray::Array2::from_elem((5, 3), 2.0),
+                window.params,
+            )
         }
     }
     
@@ -249,8 +251,8 @@ mod tests {
 
     #[test]
     fn test_RecordsDB_seq_iter(){
-        let this_seq = set_up_stranded_sequence(2.0, 32);
-        let this_seq2 = set_up_stranded_sequence(3.0, 20);
+        let this_seq = set_up_sequence(2.0, 32);
+        let this_seq2 = set_up_sequence(3.0, 20);
         let seq_vec = vec![this_seq, this_seq2];
         let this_db = RecordsDB::new(seq_vec, array![0,1]);
         for (i,entry) in this_db.iter().enumerate() {
@@ -259,9 +261,9 @@ mod tests {
     }
 
     fn set_up_recdb(nrecs: usize) -> RecordsDB {
-        let mut seq_vec: Vec<StrandedSequence> = Vec::new();
+        let mut seq_vec: Vec<Sequence> = Vec::new();
         for i in 0..nrecs {
-            seq_vec.push(set_up_stranded_sequence(i as f64, 1));
+            seq_vec.push(set_up_sequence(i as f64, 1));
         }
         let y_vals: Array<i64, Ix1> = Array::from_vec(
             (0..nrecs)
@@ -319,8 +321,8 @@ mod tests {
     #[test]
     fn test_get_seeds() {
         let kmer = 15;
-        let this_seq = set_up_stranded_sequence(2.0, 30);
-        let that_seq = set_up_stranded_sequence(2.0, 60);
+        let this_seq = set_up_sequence(2.0, 30);
+        let that_seq = set_up_sequence(2.0, 60);
         let rec_db = RecordsDB::new(vec![this_seq, that_seq], array![0,1]);
         let seeds = rec_db.make_seed_vec(kmer, 0.01);
         assert_eq!(seeds.seeds.len(), 62)
@@ -362,13 +364,13 @@ mod tests {
             &max_count,
         );
         assert_eq!(hits[0], 2);
-        assert_eq!(hits[1], 0);
+        assert_eq!(hits[1], 2);
 
-        // a_stranded_seq matches seed exactly
-        let a_stranded_seq = set_up_stranded_sequence(2.0, length);
-        // another_stranded_seq is off of seed by 0.1 at every position
-        let another_stranded_seq = set_up_stranded_sequence(2.1, length);
-        let hits = a_stranded_seq.count_hits_in_seq(
+        // a_seq matches seed exactly
+        let a_seq = set_up_sequence(2.0, length);
+        // another_seq is off of seed by 0.1 at every position
+        let another_seq = set_up_sequence(2.1, length);
+        let hits = a_seq.count_hits_in_seq(
             &seed.params.params,
             &wv,
             &threshold2,
@@ -381,7 +383,7 @@ mod tests {
         let mut seqs = Vec::new();
         let mut vals = Vec::new();
         for i in 0..num_seqs{
-            seqs.push(set_up_stranded_sequence(1.0 + i as f64, length_seqs));
+            seqs.push(set_up_sequence(1.0 + i as f64, length_seqs));
             if i % 3 == 0 {
                 vals.push(1);
             } else {
@@ -396,7 +398,7 @@ mod tests {
         let db = setup_RecordsDB(30, 30);
         let seeds = db.make_seed_vec(15, 0.01);
         let test_seed = &seeds.seeds[100];
-        let hits = db.get_hits(
+        let (hits,positions,dists) = db.get_hits_and_positions(
             &test_seed.params.params,
             &seeds.weights.weights_norm.view(),
             &1.0,
@@ -411,7 +413,7 @@ mod tests {
         let db = setup_RecordsDB(30, 30);
         let seeds = db.make_seed_vec(15, 0.01);
         let test_seed = &seeds.seeds[100];
-        let hits = db.get_hits(
+        let (hits,positions,dists) = db.get_hits_and_positions(
             &test_seed.params.params,
             &seeds.weights.weights_norm.view(),
             &1.0,
@@ -430,11 +432,11 @@ mod tests {
     #[test]
     fn test_fold_merge_update() {
 
-        let mut motifs: Motifs = read_motifs("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_motifs.json");
+        let mut motifs: Motifs = read_motifs("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_motifs.json");
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/config.json"),
+            String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/config.json"),
         ];
         let cfg = parse_config(&args).unwrap();
         let rec_db = RecordsDB::new_from_files(
@@ -460,10 +462,11 @@ mod tests {
     #[test]
     fn test_read_files() {
         // read in shapes
-        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/shapes.npy";
-        let arr: Array4<f64> = ndarray_npy::read_npy(fname).unwrap();
-        assert_eq!((2000, 5, 56, 2), arr.dim());
-        assert!(AbsDiff::default().epsilon(1e-6).eq(&125522.42816848765, &arr.sum()));
+        let fname = "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/shapes.npy";
+        let arr: Array3<f64> = ndarray_npy::read_npy(fname).unwrap();
+        assert_eq!((2000, 5, 56), arr.dim());
+        assert!(AbsDiff::default().epsilon(1e-6).eq(&62761.2140842438, &arr.sum()));
+        println!("arr.dim: {:?}", arr.dim());
 
         // make a test array for comparing. I looked in python at the values
         // in my test records database at records.X[0,0:3,0:2,:] (note the shape and
@@ -471,30 +474,21 @@ mod tests {
         // and copied them here. So we know this is what the values in our records
         // database at slice s![0, 0..2, 0..3, ..] should be.
         let test_arr = ndarray::array![
-            [ // first strand
-                // first shape | second shape
-                [0.14024065, -0.83476579], // first value
-                [-0.95497207, -2.22381607], // second value
-                [-0.54092823, -1.30891276] // third value
-            ],
-            [ // second strand
-                // first shape | second shape
-                [-0.91056253, -0.10117361], // first value
-                [ 0.40469446,  0.60029678], // second value
-                [ 0.03372454,  1.85484959] // third value
-            ]
+            // first value | second value | third value
+            [0.14024065, -0.95497207, -0.54092823], // first shape
+            [-0.91056253,  0.40469446,  0.03372454], // second shape
         ];
         // check that when I slice as below, I get the values in test_arr
         assert!(
             test_arr
             .abs_diff_eq(
-                &arr.slice(s![0,0..2,0..3,..]),
+                &arr.slice(s![0,0..2,0..3]),
                 1e-6,
             )
         );
 
         // read in y-vals
-        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/y_vals.npy";
+        let fname = "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/y_vals.npy";
         let y_vals: Array1<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000), y_vals.dim());
         assert_eq!(391, y_vals.sum());
@@ -502,13 +496,13 @@ mod tests {
         // read in hits for first record, first window, calculated in python
         // These values will be used to test whether our rust hit counting
         // yields the same results as our python hit counting.
-        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/hits.npy";
+        let fname = "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/hits.npy";
         let hits: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!((2000,2), hits.dim());
         assert_eq!(1323, hits.sum());
 
         // read in some other parameters we'll need
-        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_args.pkl";
+        let fname = "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_args.pkl";
         let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
         let buf_reader = BufReader::new(file);
@@ -535,9 +529,9 @@ mod tests {
     #[test]
     fn test_db_from_file() {
         // read in shapes
-        let shape_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/shapes.npy");
+        let shape_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/shapes.npy");
         // read in y-vals
-        let y_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/y_vals.npy");
+        let y_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
             &shape_fname,
             &y_fname,
@@ -547,27 +541,18 @@ mod tests {
                 break
             }
             let test_arr = ndarray::array![
-                [ // first strand
-                    // first shape | second shape
-                    [0.14024065, -0.83476579], // first value
-                    [-0.95497207, -2.22381607], // second value
-                    [-0.54092823, -1.30891276] // third value
-                ],
-                [ // second strand
-                    // first shape | second shape
-                    [-0.91056253, -0.10117361], // first value
-                    [ 0.40469446,  0.60029678], // second value
-                    [ 0.03372454,  1.85484959] // third value
-                ]
+                // first position | second position | third position
+                [ 0.14024065, -0.95497207, -0.54092823], // first shape
+                [-0.91056253,  0.40469446,  0.03372454], // second shape
             ];
  
             println!("test arr: {:?}", test_arr);
-            println!("stranded seq arr: {:?}", rec.seq.params.slice(s![0..2,0..3,..]));
+            println!("seq arr: {:?}", rec.seq.params.slice(s![0..2,0..3]));
             // check that when I slice as below, I get the values in test_arr
             assert!(
                 test_arr
                 .abs_diff_eq(
-                    &rec.seq.params.slice(s![0..2,0..3,..]),
+                    &rec.seq.params.slice(s![0..2,0..3]),
                     1e-6,
                 )
             );
@@ -580,26 +565,37 @@ mod tests {
 
         // a is 2x5 and all 0.0
         let a = Array::zeros((2,5));
-        // b is 2x5 and all 1.0
         let b = Array::ones((2,5));
-        // test_arr1 is 2x5x2
-        let test_arr1 = ndarray::stack![Axis(2), a, b];
         // test_arr2 is 2x5 and all 0.5
         let test_arr2 = Array::from_elem((2, 5), 0.5);
         // weights are 0.5 to keep things simple
         let test_weights = Array::from_elem((2, 5), 0.5);
         // each distance should be 2.5
         let answer_arr = Array::from_elem(2, 2.5);
-        
-        let test_res = stranded_weighted_manhattan_distance(
-            &test_arr1.view(), 
+
+        let fwd_test_res = weighted_manhattan_distance(
+            &a.view(), 
             &test_arr2.view(),
             &test_weights.view(),
+            false,
+        );
+        let rev_test_res = weighted_manhattan_distance(
+            &b.view(), 
+            &test_arr2.view(),
+            &test_weights.view(),
+            true,
         );
         assert!(
-            test_res
+            fwd_test_res
             .abs_diff_eq(
-                &answer_arr,
+                &answer_arr[0],
+                1e-6,
+            )
+        );
+        assert!(
+            rev_test_res
+            .abs_diff_eq(
+                &answer_arr[1],
                 1e-6,
             )
         );
@@ -608,16 +604,16 @@ mod tests {
     #[test]
     fn test_db_operations() {
         // read in shapes
-        let shape_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/shapes.npy");
+        let shape_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/shapes.npy");
         // read in y-vals
-        let y_fname = String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/y_vals.npy");
+        let y_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/y_vals.npy");
         let rec_db = RecordsDB::new_from_files(
             &shape_fname,
             &y_fname,
         );
 
         // read in some other parameters we'll need
-        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_args.pkl";
+        let fname = "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_args.pkl";
         let file = fs::File::open(fname).unwrap();
         // open a buffered reader to open the pickle file
         let buf_reader = BufReader::new(file);
@@ -636,7 +632,6 @@ mod tests {
         let test_seed = &mut seeds.seeds[1];
 
         let mut dists: ndarray::Array2<f64> = ndarray::Array2::zeros((42, 2));
-        let mut minus_dists = ndarray::Array1::zeros(42);
         //////////////////////////////////////////////////////////////////////////////
         // The second record in the database was compared to the second seed in python.
         // So look at second record in rec_db and second seed, just like I did in python
@@ -648,32 +643,33 @@ mod tests {
                 continue
             }
             for (j,window) in rec.seq.window_iter(0, rec.seq.params.raw_dim()[1]+1, kmer).enumerate() {
-                // calculate just some minus strand distances
-                let this_minus_dist = weighted_manhattan_distance(
-                    &window.params.slice(s![..,..,1]),
-                    &test_seed.params.params,
-                    &seeds.weights.weights_norm.view(),
-                );
-                // calculate stranded distances
-                let these_dists = stranded_weighted_manhattan_distance(
+                // calculate distances
+                let fwd_dist = weighted_manhattan_distance(
                     &window.params,
                     &test_seed.params.params,
                     &seeds.weights.weights_norm.view(),
+                    false,
+                );
+                let rev_dist = weighted_manhattan_distance(
+                    &window.params,
+                    &test_seed.params.params,
+                    &seeds.weights.weights_norm.view(),
+                    true,
                 );
                 // place the respective distances into their appropriate containers
-                dists.row_mut(j).assign(
-                    &these_dists
-                );
-                minus_dists[j] = this_minus_dist;
+                dists.row_mut(j)[0] = fwd_dist;
+                dists.row_mut(j)[1] = rev_dist;
             }
         }
 
         // read in the distances output by python
         let dist_answer: Array2<f64> = ndarray_npy::read_npy(
-            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/distances.npy")
+            String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/distances_new.npy")
         ).unwrap();
+        //let dist_answer: Array2<f64> = ndarray_npy::read_npy(
+        //    String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/distances.npy")
+        //).unwrap();
         //println!("Dist answer: {:?}", dist_answer);
-        //println!("Minus dists: {:?}", minus_dists);
         //println!("Distances: {:?}", dists);
 
         // assert that all but the final 5 plus strand distances are the same
@@ -689,28 +685,9 @@ mod tests {
                 1e-6,
             )
         );
-        // assert that the minus strand distances are equal when
-        // calculated for just the minus strand, or when sliced from the
-        // stranded distance calc results
-        assert!(
-            minus_dists
-            .abs_diff_eq(
-                &dists.slice(s![..,1]),
-                1e-6,
-            )
-        );
-        // assert that the minus strand distances calculated in rust
-        // are equal to those calculated in python.
-        assert!(
-            minus_dists
-            .abs_diff_eq(
-                &dist_answer.slice(s![..,1]),
-                1e-6,
-            )
-        );
-
+        
         // get the test_seed hits in all elements of rec_db
-        let mut hits = rec_db.get_hits(
+        let (mut hits, positions, dists) = rec_db.get_hits_and_positions(
             &test_seed.params.params,
             &seeds.weights.weights_norm.view(),
             &threshold,
@@ -735,14 +712,14 @@ mod tests {
         assert!(AbsDiff::default().epsilon(1e-6).eq(&test_seed.mi, &hash.get("mi").unwrap()));
 
         // yields the same results as our python hit counting.
-        let fname = "/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/hits.npy";
+        let fname = "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/hits.npy";
         let hits_true: Array2<i64> = ndarray_npy::read_npy(fname).unwrap();
         assert_eq!(hits_true.sum(), hits.sum());
         assert_eq!(hits_true, hits);
 
         // get hits for the very first seed
         let other_seed = &mut seeds.seeds[0];
-        let hits2 = rec_db.get_hits(
+        let (hits2, positions, dists) = rec_db.get_hits_and_positions(
             &other_seed.params.params,
             &seeds.weights.weights_norm.view(),
             &threshold,
@@ -762,6 +739,52 @@ mod tests {
 
         assert!(AbsDiff::default().epsilon(1e-6).eq(&ami, &hash.get("mi").unwrap()));
         assert!(AbsDiff::default().epsilon(1e-6).eq(&cmi, &hash.get("cmi").unwrap()));
+
+    }
+
+    #[test]
+    fn test_get_hits_and_positions() {
+        // read in shapes
+        let shape_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/shapes.npy");
+        let seed_param_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_seed_params.npy");
+        let seed_weights_norm_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_seed_weights_norm.npy");
+
+        // read in y-vals
+        let y_fname = String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/y_vals.npy");
+        let rec_db = RecordsDB::new_from_files(
+            &shape_fname,
+            &y_fname,
+        );
+
+        // read in some other parameters we'll need
+        let fname = "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_args.pkl";
+        let file = fs::File::open(fname).unwrap();
+        // open a buffered reader to open the pickle file
+        let buf_reader = BufReader::new(file);
+        // create a hashmap from the pickle file's contents
+        let hash: HashMap<String, f64> = de::from_reader(
+            buf_reader,
+            de::DeOptions::new()
+        ).unwrap();
+    
+        let kmer = *hash.get("kmer").unwrap() as usize;
+        let alpha = *hash.get("alpha").unwrap();
+        let max_count = *hash.get("max_count").unwrap() as i64;
+        let threshold = *hash.get("threshold").unwrap();
+        println!("{}", &threshold);
+
+        let mut seeds = rec_db.make_seed_vec(kmer, alpha);
+        let test_seed = &mut seeds.seeds[1];
+
+        // positions will be vec of 2-tuples, first element in plus strand, second is minus strand
+        // for each 2-tuple
+        let (hits,positions,dists) = rec_db.get_hits_and_positions(
+            &test_seed.params.params,
+            &seeds.weights.weights_norm.view(),
+            &threshold,
+            &max_count,
+        );
+        println!("{:?}", positions);
     }
 
     #[test]
@@ -769,9 +792,11 @@ mod tests {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/config.json"),
+            String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/config.json"),
         ];
         let cfg = parse_config(&args).unwrap();
+        println!("{:?}", cfg.shape_fname);
+        println!("{:?}", cfg.yvals_fname);
         let rec_db = RecordsDB::new_from_files(
             &cfg.shape_fname,
             &cfg.yvals_fname,
@@ -801,9 +826,13 @@ mod tests {
 
     #[test]
     fn test_read_motifs () {
-        let motifs: Motifs = read_motifs("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_motifs.json");
+        let motifs: Motifs = read_motifs(
+            "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_motifs.json"
+        );
         println!("{:?}", motifs.motifs[0].params.params);
-        let motifs: Motifs = read_motifs("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/test_motifs_err.json");
+        let motifs: Motifs = read_motifs(
+            "/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/test_motifs_err.json"
+        );
         println!("{:?}", motifs.motifs[0].params.params);
     }
 
@@ -812,7 +841,7 @@ mod tests {
         // simulates args as they'll come from env::args in main.rs
         let args = [
             String::from("motifer"),
-            String::from("/corexfs/schroedj/src/DNAshape_motif_finder/src/rust_utils/test_data/config_init_thresh.json"),
+            String::from("/corexfs/schroedj/src/ShapeME/src/rust_utils/test_data/config_init_thresh.json"),
         ];
 
         let cfg = parse_config(&args).unwrap();
@@ -1096,7 +1125,7 @@ pub fn optim_objective(
     motif_weights.set_weights(weights_arr.view(), &alpha);
 
     // get the hits
-    let hits = rec_db.get_hits(
+    let (hits, positions, dists) = rec_db.get_hits_and_positions(
         &shape_view,
         &motif_weights.weights_norm.view(),
         &threshold,
@@ -1441,83 +1470,103 @@ pub struct Sequence {
     params: ndarray::Array2<f64>
 }
 
-/// Represents a single stranded sequence as a combination of [Param] objects
-///
-/// # Fields
-///
-/// * `params` - Stores the full set of params in a single 3d Array
-#[derive(Debug)]
-pub struct StrandedSequence {
-    params: ndarray::Array3<f64>
-}
+///// Represents a single stranded sequence as a combination of [Param] objects
+/////
+///// # Fields
+/////
+///// * `params` - Stores the full set of params in a single 3d Array
+//#[derive(Debug)]
+//pub struct StrandedSequence {
+//    params: ndarray::Array3<f64>
+//}
 
-/// Represents the state needed for windowed iteration over a [StrandedSequence]
-///
-/// # Fields
-///
-/// * `start` - start position of the iteration
-/// * `end` - exclusive end of the iteration
-/// * `size` - size of the window to iterate over
-/// * `sequence` - reference to the [StrandedSequence] to iterate over
-#[derive(Debug)]
-pub struct StrandedSequenceIter<'a>{
-    start: usize,
-    end: usize,
-    size: usize,
-    sequence: &'a StrandedSequence
-}
+///// Represents the state needed for windowed iteration over a [StrandedSequence]
+/////
+///// # Fields
+/////
+///// * `start` - start position of the iteration
+///// * `end` - exclusive end of the iteration
+///// * `size` - size of the window to iterate over
+///// * `sequence` - reference to the [StrandedSequence] to iterate over
+//#[derive(Debug)]
+//pub struct StrandedSequenceIter<'a>{
+//    start: usize,
+//    end: usize,
+//    size: usize,
+//    sequence: &'a StrandedSequence
+//}
 
 /// Represents the state needed for random,
-/// windowed iteration over a [StrandedSequence]
+/// windowed iteration over a [Sequence]
 ///
 /// # Fields
 ///
 /// * `start` - start position of the iteration
 /// * `end` - exclusive end of the iteration
 /// * `size` - size of the window to iterate over
-/// * `sequence` - reference to the [StrandedSequence] to iterate over
+/// * `sequence` - reference to the [Sequence] to iterate over
 /// * `indices` - the randomized indices that will be iterated over
 #[derive(Debug)]
-pub struct PermutedStrandedSequenceIter<'a>{
+pub struct PermutedSequenceIter<'a>{
     start: usize,
     end: usize,
     size: usize,
     sample_size: usize,
-    sequence: &'a StrandedSequence,
+    sequence: &'a Sequence,
     indices: Vec<usize>,
 }
 
-/// Represents the state needed for windowed iteration over a [StrandedSequence],
-/// but to return only the forward strand.
-///
-/// # Fields
-///
-/// * `start` - start position of the iteration
-/// * `end` - exclusive end of the iteration
-/// * `size` - size of the window to iterate over
-/// * `sequence` - reference to the [StrandedSequence] to iterate over
-#[derive(Debug)]
-pub struct FwdStrandedSequenceIter<'a>{
-    start: usize,
-    end: usize,
-    size: usize,
-    ////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
-    // We can probably save a lot by making this a StrandedSequenceView, but I honestly haven't thought about it in a while.
-    ////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
-    sequence: &'a StrandedSequence
-}
+///// Represents the state needed for random,
+///// windowed iteration over a [StrandedSequence]
+/////
+///// # Fields
+/////
+///// * `start` - start position of the iteration
+///// * `end` - exclusive end of the iteration
+///// * `size` - size of the window to iterate over
+///// * `sequence` - reference to the [StrandedSequence] to iterate over
+///// * `indices` - the randomized indices that will be iterated over
+//#[derive(Debug)]
+//pub struct PermutedStrandedSequenceIter<'a>{
+//    start: usize,
+//    end: usize,
+//    size: usize,
+//    sample_size: usize,
+//    sequence: &'a StrandedSequence,
+//    indices: Vec<usize>,
+//}
 
-/// Represents an immutable windowed view to a [StrandedSequence]
-///
-/// # Fields
-///
-/// * `params` - The view is stored as a 3d ndarray
-#[derive(Debug)]
-pub struct StrandedSequenceView<'a> {
-    params: ndarray::ArrayView::<'a, f64, Ix3>
-}
+///// Represents the state needed for windowed iteration over a [StrandedSequence],
+///// but to return only the forward strand.
+/////
+///// # Fields
+/////
+///// * `start` - start position of the iteration
+///// * `end` - exclusive end of the iteration
+///// * `size` - size of the window to iterate over
+///// * `sequence` - reference to the [StrandedSequence] to iterate over
+//#[derive(Debug)]
+//pub struct FwdStrandedSequenceIter<'a>{
+//    start: usize,
+//    end: usize,
+//    size: usize,
+//    ////////////////////////////////////////////////////////////////////////////
+//    ////////////////////////////////////////////////////////////////////////////
+//    // We can probably save a lot by making this a StrandedSequenceView, but I honestly haven't thought about it in a while.
+//    ////////////////////////////////////////////////////////////////////////////
+//    ////////////////////////////////////////////////////////////////////////////
+//    sequence: &'a StrandedSequence
+//}
+
+///// Represents an immutable windowed view to a [StrandedSequence]
+/////
+///// # Fields
+/////
+///// * `params` - The view is stored as a 3d ndarray
+//#[derive(Debug)]
+//pub struct StrandedSequenceView<'a> {
+//    params: ndarray::ArrayView::<'a, f64, Ix3>
+//}
 
 /// Represents the state needed for windowed iteration over a [Sequence]
 ///
@@ -1562,7 +1611,7 @@ pub struct Motif {
     pub hits: ndarray::Array2::<i64>,
     pub mi: f64,
     pub dists: ndarray::Array2::<f64>,
-    positions: Vec<HashMap<String,Vec<usize>>>,
+    pub positions: Vec<(Vec<usize>, Vec<usize>)>,
     zscore: Option<f64>,
     robustness: Option<(u8,u8)>,
 }
@@ -1600,7 +1649,7 @@ pub struct MotifReader {
     hits: Option<ArrayDeser<i64>>,
     mi: Option<f64>,
     dists: Option<ArrayDeser<f64>>,
-    positions: Option<Vec<HashMap<String, Vec<usize>>>>,
+    positions: Option<Vec<(Vec<usize>, Vec<usize>)>>,
     zscore: Option<f64>,
     robustness: Option<(u8,u8)>,
 }
@@ -1673,9 +1722,7 @@ impl Motifs {
                 if let Some(positions) = &motif_reader.positions {
                     positions.to_vec()
                 } else {
-                    vec![HashMap::from([
-                        (String::from("placeholder"), vec![usize::MAX])
-                    ])]
+                    vec![(vec![usize::MAX], vec![usize::MAX])]
                 };
             let zscore = motif_reader.zscore;
             let robustness = motif_reader.robustness;
@@ -1712,7 +1759,7 @@ impl Motifs {
     pub fn post_optim_update(&mut self, rec_db: &RecordsDB, max_count: &i64) {
         for (i,motif) in self.motifs.iter_mut().enumerate() {
             println!("Calculating final distances, mutual information, robustness, and z-score for motif {}", i);
-            motif.update_min_dists(rec_db);
+            //motif.update_min_dists(rec_db);
             motif.update_hit_positions(rec_db, max_count);
             motif.update_robustness(rec_db, max_count);
             motif.update_zscore(rec_db, max_count);
@@ -1727,7 +1774,7 @@ impl Motifs {
     ) {
         for (i,motif) in self.motifs.iter_mut().enumerate() {
             motif.normalize_weights(alpha);
-            let hits = rec_db.get_hits(
+            let (hits, positions, dists) = rec_db.get_hits_and_positions(
                 &motif.params.params.view(),
                 &motif.weights.weights_norm.view(),
                 &motif.threshold,
@@ -1735,7 +1782,7 @@ impl Motifs {
             );
             //println!("hits shape: {:?}", &hits.shape());
             motif.hits = hits;
-            motif.update_min_dists(rec_db);
+            //motif.update_min_dists(rec_db);
             motif.update_hit_positions(rec_db, max_count);
             motif.update_robustness(rec_db, max_count);
             motif.update_zscore(rec_db, max_count);
@@ -1936,9 +1983,11 @@ pub struct Seeds<'a> {
 ///
 /// * `seqs` - Stores [Sequence] classes in a vector
 /// * `values` - Stores associated values in a vector in 1D array
+/// * `inds` - allows random permutation of seqeunces and values to be tracked for later
+/// un-shuffling
 #[derive(Debug)]
 pub struct RecordsDB {
-    pub seqs: Vec<StrandedSequence>,
+    pub seqs: Vec<Sequence>,
     pub values: ndarray::Array1::<i64>,
     inds: Vec<usize>
 }
@@ -1995,239 +2044,236 @@ pub struct BatchedRecordsDBIter<'a> {
 /// * `value` - The associated value for the sequence
 #[derive(Debug)]
 pub struct RecordsDBEntry<'a> {
-    seq: &'a StrandedSequence,
+    seq: &'a Sequence,
     value: i64
 }
 
-impl StrandedSequence {
-    /// Returns a Result containing a new stranded sequence or any errors that 
-    /// occur in attempting to create it.
-    ///
-    /// # Arguments
-    ///
-    /// * `array` - a 3D array of shapes
-    ///
-    /// This is volatile code and likely to change based on how we read
-    /// in the initial parameters
-    pub fn new(array: ndarray::Array3<f64>) -> StrandedSequence {
-        StrandedSequence{ params: array }
-    }
+//impl StrandedSequence {
+    ///// Returns a Result containing a new stranded sequence or any errors that 
+    ///// occur in attempting to create it.
+    /////
+    ///// # Arguments
+    /////
+    ///// * `array` - a 3D array of shapes
+    /////
+    ///// This is volatile code and likely to change based on how we read
+    ///// in the initial parameters
+    //pub fn new(array: ndarray::Array3<f64>) -> StrandedSequence {
+    //    StrandedSequence{ params: array }
+    //}
 
-    fn empty() -> StrandedSequence {
-        let params = ndarray::Array3::zeros((1,1,1));
-        StrandedSequence{ params }
-    }
+    //fn empty() -> StrandedSequence {
+    //    let params = ndarray::Array3::zeros((1,1,1));
+    //    StrandedSequence{ params }
+    //}
 
-    /// Creates a read-only windowed iterator over the sequence. Automatically
-    /// slides by 1 unit.
-    ///
-    /// # Arguments
-    ///
-    /// * `start` - the starting position in the sequence to begin iteration
-    /// * `end` - the ending position in the sequence to stop iteration. End is excluded
-    /// * `size` - the size of the window to slide over
-    pub fn window_iter(
-        &self, start: usize, end: usize, size: usize
-    ) -> StrandedSequenceIter {
-        StrandedSequenceIter{start, end, size, sequence: self}
-    }
+    ///// Creates a read-only windowed iterator over the sequence. Automatically
+    ///// slides by 1 unit.
+    /////
+    ///// # Arguments
+    /////
+    ///// * `start` - the starting position in the sequence to begin iteration
+    ///// * `end` - the ending position in the sequence to stop iteration. End is excluded
+    ///// * `size` - the size of the window to slide over
+    //pub fn window_iter(
+    //    &self, start: usize, end: usize, size: usize
+    //) -> StrandedSequenceIter {
+    //    StrandedSequenceIter{start, end, size, sequence: self}
+    //}
 
-    pub fn fwd_strand_window_iter(
-        &self, start: usize, end: usize, size: usize
-    ) -> FwdStrandedSequenceIter {
-        FwdStrandedSequenceIter{start, end, size, sequence: self}
-    }
+    //pub fn fwd_strand_window_iter(
+    //    &self, start: usize, end: usize, size: usize
+    //) -> FwdStrandedSequenceIter {
+    //    FwdStrandedSequenceIter{start, end, size, sequence: self}
+    //}
 
-    pub fn random_window_iter(
-        &self, start: usize, end: usize, size: usize, sample_size: usize
-    ) -> PermutedStrandedSequenceIter {
-        // create vector of indices
-        let mut indices: Vec<usize> = (0..self.seq_len()-size+1).collect();
-        //println!("indices: {:?}", indices);
-        // randomly shuffle the indices
-        indices.shuffle(&mut thread_rng());
-        if sample_size > self.seq_len()-size {
-            let sample_size = self.seq_len()-size;
-        }
-        PermutedStrandedSequenceIter{
-            start,
-            end,
-            size,
-            sample_size,
-            sequence: self,
-            indices,
-        }
-    }
+    //pub fn random_window_iter(
+    //    &self, start: usize, end: usize, size: usize, sample_size: usize
+    //) -> PermutedStrandedSequenceIter {
+    //    // create vector of indices
+    //    let mut indices: Vec<usize> = (0..self.seq_len()-size+1).collect();
+    //    //println!("indices: {:?}", indices);
+    //    // randomly shuffle the indices
+    //    indices.shuffle(&mut thread_rng());
+    //    if sample_size > self.seq_len()-size {
+    //        let sample_size = self.seq_len()-size;
+    //    }
+    //    PermutedStrandedSequenceIter{
+    //        start,
+    //        end,
+    //        size,
+    //        sample_size,
+    //        sequence: self,
+    //        indices,
+    //    }
+    //}
 
-    /// Returns a read-only StrandedSequenceView pointing to the data in Sequence
-    pub fn view(&self) -> StrandedSequenceView {
-        StrandedSequenceView::new(self.params.view())
-    }
+    ///// Returns a read-only StrandedSequenceView pointing to the data in Sequence
+    //pub fn view(&self) -> StrandedSequenceView {
+    //    StrandedSequenceView::new(self.params.view())
+    //}
 
-    pub fn seq_len(&self) -> usize {
-        self.params.raw_dim()[1]
-    }
-    pub fn param_num(&self) -> usize{
-        self.params.raw_dim()[0]
-    }
+    //pub fn seq_len(&self) -> usize {
+    //    self.params.raw_dim()[1]
+    //}
+    //pub fn param_num(&self) -> usize{
+    //    self.params.raw_dim()[0]
+    //}
 
-    /// For a single Motif, count the number of times its distance to a window
-    /// of a Sequence falls below the specified threshold, i.e., matches the
-    /// Sequence.
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - an array which will be compared to each window in self.
-    /// * `weights` - an array of weights to be applied for the distance calc
-    /// * `threshold` - distance between the query and seq below which a hit is called
-    /// * `max_count` - maximum number of times a hit will be counted on each strand
-    pub fn count_hits_in_seq(
-            &self,
-            query: &ndarray::ArrayView<f64,Ix2>,
-            weights: &ndarray::ArrayView<f64, Ix2>,
-            threshold: &f64,
-            max_count: &i64,
-    ) -> Array<i64, Ix1> {
-    
-        // set maxed to false for each strand
-        let mut f_maxed = false;
-        let mut r_maxed = false;
-        let mut hits = ndarray::Array::zeros(2);
-    
-        // iterate through windows of seq
-        for window in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]) {
-    
-            // once both strands are maxed out, stop doing comparisons
-            if f_maxed & r_maxed {
-                break
-            }
-            // get the distances.
-            let dist = stranded_weighted_manhattan_distance(
-                &window.params,
-                query,
-                weights,
-            );
+    ///// For a single Motif, count the number of times its distance to a window
+    ///// of a Sequence falls below the specified threshold, i.e., matches the
+    ///// Sequence.
+    /////
+    ///// # Arguments
+    /////
+    ///// * `query` - an array which will be compared to each window in self.
+    ///// * `weights` - an array of weights to be applied for the distance calc
+    ///// * `threshold` - distance between the query and seq below which a hit is called
+    ///// * `max_count` - maximum number of times a hit will be counted on each strand
+    //pub fn count_hits_in_seq(
+    //        &self,
+    //        query: &ndarray::ArrayView<f64,Ix2>,
+    //        weights: &ndarray::ArrayView<f64, Ix2>,
+    //        threshold: &f64,
+    //        max_count: &i64,
+    //) -> Array<i64, Ix1> {
+    //
+    //    // set maxed to false for each strand
+    //    let mut f_maxed = false;
+    //    let mut r_maxed = false;
+    //    let mut hits = ndarray::Array::zeros(2);
+    //
+    //    // iterate through windows of seq
+    //    for window in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]) {
+    //
+    //        // once both strands are maxed out, stop doing comparisons
+    //        if f_maxed & r_maxed {
+    //            break
+    //        }
+    //        // get the distances.
+    //        let dist = stranded_weighted_manhattan_distance(
+    //            &window.params,
+    //            query,
+    //            weights,
+    //        );
 
-            if (dist[0] < *threshold) & (!f_maxed) {
-                hits[0] += 1;
-                if hits[0] == *max_count {
-                    f_maxed = true;
-                }
-            } 
+    //        if (dist[0] < *threshold) & (!f_maxed) {
+    //            hits[0] += 1;
+    //            if hits[0] == *max_count {
+    //                f_maxed = true;
+    //            }
+    //        } 
 
-            if (dist[1] < *threshold) & (!r_maxed) {
-                hits[1] += 1;
-                if hits[1] == *max_count {
-                    r_maxed = true;
-                }
-            } 
-    
-        }
-        // return the hits
-        hits
-    }
-    
-    /// For a single Motif, get the positions at which we have hits
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - an array which will be compared to each window in self.
-    /// * `weights` - an array of weights to be applied for the distance calc
-    /// * `threshold` - distance between the query and seq below which a hit is called
-    /// * `max_count` - maximum number of times a hit will be counted on each strand
-    pub fn get_hit_positions(
-            &self,
-            query: &ndarray::ArrayView<f64,Ix2>,
-            weights: &ndarray::ArrayView<f64, Ix2>,
-            threshold: &f64,
-            max_count: &i64,
-    ) -> HashMap<String, Vec<usize>> {
-    
-        // set maxed to false for each strand
-        let mut f_maxed = false;
-        let mut r_maxed = false;
-        let mut positions = HashMap::from([
-            (String::from("fwd"), Vec::new()),
-            (String::from("rev"), Vec::new()),
-        ]);
-        let mut hits = Array1::<i64>::zeros(2);
-    
-        // iterate through windows of seq
-        for (i,window) in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]).enumerate() {
-    
-            // once both strands are maxed out, stop doing comparisons
-            if f_maxed & r_maxed {
-                break
-            }
-            // get the distances.
-            let dist = stranded_weighted_manhattan_distance(
-                &window.params,
-                query,
-                weights,
-            );
+    //        if (dist[1] < *threshold) & (!r_maxed) {
+    //            hits[1] += 1;
+    //            if hits[1] == *max_count {
+    //                r_maxed = true;
+    //            }
+    //        } 
+    //
+    //    }
+    //    // return the hits
+    //    hits
+    //}
+    //
+    ///// For a single Motif, get the positions at which we have hits
+    /////
+    ///// # Arguments
+    /////
+    ///// * `query` - an array which will be compared to each window in self.
+    ///// * `weights` - an array of weights to be applied for the distance calc
+    ///// * `threshold` - distance between the query and seq below which a hit is called
+    ///// * `max_count` - maximum number of times a hit will be counted on each strand
+    //pub fn get_hits_and_positions(
+    //        &self,
+    //        query: &ndarray::ArrayView<f64,Ix2>,
+    //        weights: &ndarray::ArrayView<f64, Ix2>,
+    //        threshold: &f64,
+    //        max_count: &i64,
+    //) -> (Vec<usize>, Vec<usize>) {
+    //
+    //    // set maxed to false for each strand
+    //    let mut f_maxed = false;
+    //    let mut r_maxed = false;
+    //    let mut positions = (Vec::new()), Vec::new());
+    //    let mut hits = Array1::<i64>::zeros(2);
+    //
+    //    // iterate through windows of seq
+    //    for (i,window) in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]).enumerate() {
+    //
+    //        // once both strands are maxed out, stop doing comparisons
+    //        if f_maxed & r_maxed {
+    //            break
+    //        }
+    //        // get the distances.
+    //        let dist = stranded_weighted_manhattan_distance(
+    //            &window.params,
+    //            query,
+    //            weights,
+    //        );
 
-            if (dist[0] < *threshold) & (!f_maxed) {
-                hits[0] += 1;
-                if hits[0] == *max_count {
-                    f_maxed = true;
-                }
-                positions.get_mut("fwd").unwrap().push(i);
-            } 
+    //        if (dist[0] < *threshold) & (!f_maxed) {
+    //            hits[0] += 1;
+    //            if hits[0] == *max_count {
+    //                f_maxed = true;
+    //            }
+    //            positions.get_mut("fwd").unwrap().push(i);
+    //        } 
 
-            if (dist[1] < *threshold) & (!r_maxed) {
-                hits[1] += 1;
-                if hits[1] == *max_count {
-                    r_maxed = true;
-                }
-                positions.get_mut("rev").unwrap().push(i);
-            } 
-    
-        }
-        // return the positions
-        positions
-    }
+    //        if (dist[1] < *threshold) & (!r_maxed) {
+    //            hits[1] += 1;
+    //            if hits[1] == *max_count {
+    //                r_maxed = true;
+    //            }
+    //            positions.get_mut("rev").unwrap().push(i);
+    //        } 
+    //
+    //    }
+    //    // return the positions
+    //    positions
+    //}
 
 
-    /// For a single Motif, get the minimum distance to each strand
-    /// on the StrandedSequence.
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - an array which will be compared to each window in self.
-    /// * `weights` - an array of weights to be applied for the distance calc
-    pub fn get_min_dists_in_seq(
-            &self,
-            query: &ndarray::ArrayView<f64,Ix2>,
-            weights: &ndarray::ArrayView<f64, Ix2>,
-    ) -> Array<f64, Ix1> {
-    
-        // initialize minimum distances at infinity
-        let mut min_plus_dist = f64::INFINITY;
-        let mut min_minus_dist = f64::INFINITY;
-    
-        // iterate through windows of seq
-        for window in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]) {
-    
-            // get the distances.
-            let dist = stranded_weighted_manhattan_distance(
-                &window.params,
-                query,
-                weights,
-            );
+    ///// For a single Motif, get the minimum distance to each strand
+    ///// on the StrandedSequence.
+    /////
+    ///// # Arguments
+    /////
+    ///// * `query` - an array which will be compared to each window in self.
+    ///// * `weights` - an array of weights to be applied for the distance calc
+    //pub fn get_min_dists_in_seq(
+    //        &self,
+    //        query: &ndarray::ArrayView<f64,Ix2>,
+    //        weights: &ndarray::ArrayView<f64, Ix2>,
+    //) -> Array<f64, Ix1> {
+    //
+    //    // initialize minimum distances at infinity
+    //    let mut min_plus_dist = f64::INFINITY;
+    //    let mut min_minus_dist = f64::INFINITY;
+    //
+    //    // iterate through windows of seq
+    //    for window in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]) {
+    //
+    //        // get the distances.
+    //        let dist = stranded_weighted_manhattan_distance(
+    //            &window.params,
+    //            query,
+    //            weights,
+    //        );
 
-            if dist[0] < min_plus_dist {
-                min_plus_dist = dist[0];
-            }
+    //        if dist[0] < min_plus_dist {
+    //            min_plus_dist = dist[0];
+    //        }
 
-            if dist[1] < min_minus_dist {
-                min_minus_dist = dist[1];
-            }
-    
-        }
-        // return the minimum distances
-        array![min_plus_dist, min_minus_dist]
-    }
-}
+    //        if dist[1] < min_minus_dist {
+    //            min_minus_dist = dist[1];
+    //        }
+    //
+    //    }
+    //    // return the minimum distances
+    //    array![min_plus_dist, min_minus_dist]
+    //}
+//}
 
 impl Sequence {
     /// Returns a Result containing a new sequence or any errors that 
@@ -2239,20 +2285,13 @@ impl Sequence {
     ///
     /// This is volatile code and likely to change based on how we read
     /// in the initial parameters
-    pub fn new(params: Vec<Param>) -> Result<Sequence, Box<dyn Error>> {
-        // figure out how many rows and columns we will need
-        let nrows = params.len();
-        let ncols = params[0].vals.len();
-        // Allocate an array to store the whole sequence
-        let mut arr = ndarray::Array2::zeros((nrows, ncols));
-        // iterate over the row axis pull each row (from ndarray docs)
-        for (i, mut row) in arr.axis_iter_mut(Axis(0)).enumerate() {
-            // get a pointer to the inner array for the param
-            let this_param = &params[i].vals;
-            // copy the data into the new array
-            row.assign(this_param);
-        }
-        Ok(Sequence{ params: arr })
+    pub fn new(array: ndarray::Array2<f64>) -> Sequence {
+        Sequence{ params: array }
+    }
+
+    fn empty() -> Sequence {
+        let params = ndarray::Array2::zeros((1,1));
+        Sequence{ params }
     }
 
     /// Creates a read-only windowed iterator over the sequence. Automatically
@@ -2267,7 +2306,26 @@ impl Sequence {
         SequenceIter{start, end, size, sequence: self}
     }
 
-    // Insert method here to do the comparisons. this way 
+    pub fn random_window_iter(
+        &self, start: usize, end: usize, size: usize, sample_size: usize
+    ) -> PermutedSequenceIter {
+        // create vector of indices
+        let mut indices: Vec<usize> = (0..self.seq_len()-size+1).collect();
+        //println!("indices: {:?}", indices);
+        // randomly shuffle the indices
+        indices.shuffle(&mut thread_rng());
+        if sample_size > self.seq_len()-size {
+            let sample_size = self.seq_len()-size;
+        }
+        PermutedSequenceIter{
+            start,
+            end,
+            size,
+            sample_size,
+            sequence: self,
+            indices,
+        }
+    }
 
     /// Returns a read-only SequenceView pointing to the data in Sequence
     pub fn view(&self) -> SequenceView {
@@ -2277,6 +2335,7 @@ impl Sequence {
     pub fn seq_len(&self) -> usize {
         self.params.raw_dim()[1]
     }
+
     pub fn param_num(&self) -> usize{
         self.params.raw_dim()[0]
     }
@@ -2291,16 +2350,17 @@ impl Sequence {
     /// * `weights` - an array of weights to be applied for the distance calc
     /// * `threshold` - distance between the query and seq below which a hit is called
     /// * `max_count` - maximum number of times a hit will be counted on each strand
-    pub fn count_hits_in_seq(&self, query: &ndarray::ArrayView<f64,Ix2>,
-                             weights: &ndarray::ArrayView<f64, Ix2>,
-                             threshold: &f64, max_count: &i64) -> Array<i64, Ix1> {
+    pub fn count_hits_in_seq(
+        &self,
+        query: &ndarray::ArrayView<f64,Ix2>,
+        weights: &ndarray::ArrayView<f64, Ix2>,
+        threshold: &f64,
+        max_count: &i64,
+    ) -> Array<i64, Ix1> {
     
         // set maxed to false for each strand
         let mut f_maxed = false;
-        //////////////////////////////////
-        // SET TO TRUE FOR REVERSE UNTIL WE ACTUALLY START USING STRANDEDNESS
-        //////////////////////////////////
-        let r_maxed = true;
+        let mut r_maxed = false;
         let mut hits = ndarray::Array::zeros(2);
     
         // iterate through windows of seq
@@ -2310,54 +2370,196 @@ impl Sequence {
             if f_maxed & r_maxed {
                 break
             }
-            // get the distance.
-            /////////////////////////////////////////////////
-            // IN THE FUTURE, WE'LL BROADCAST TO BOTH STRANDS
-            /////////////////////////////////////////////////
-            let dist = weighted_manhattan_distance(&window.params,
-                                                   query,
-                                                   weights);
-            /////////////////////////////////////////////////
-            // ONCE WE'VE IMPLEMENTED STRANDEDNESS, SLICE APPROPRIATE STRAND'S DISTANCE HERE
-            /////////////////////////////////////////////////
-            if (dist < *threshold) & (!f_maxed) {
+            // get the plus strand distance.
+            let rev = false;
+            let fwd_dist = weighted_manhattan_distance(
+                &window.params,
+                query,
+                weights,
+                rev,
+            );
+            // get the minus strand distance.
+            let rev = true;
+            let rev_dist = weighted_manhattan_distance(
+                &window.params,
+                query,
+                weights,
+                rev,
+            );
+
+            if (fwd_dist < *threshold) & (!f_maxed) {
                 hits[0] += 1;
                 if hits[0] == *max_count {
                     f_maxed = true;
                 }
             } 
-            /////////////////////////////////////////////////
-            /////////////////////////////////////////////////
-            /////////////////////////////////////////////////
-            //if (dist[1] < threshold) & (!r_maxed) {
-            //    hits[1] += 1;
-            //    if hits[1] == max_count {
-            //        r_maxed = true;
-            //    }
-            //} 
+            if (rev_dist < *threshold) & (!r_maxed) {
+                hits[1] += 1;
+                if hits[1] == *max_count {
+                    r_maxed = true;
+                }
+            } 
     
         }
         // return the hits
         hits
     }
 
-}
-
-impl<'a> StrandedSequenceView<'a> {
-    /// Creates a immutable view from a subset of a [Sequence]
+    /// For a single Motif, get the positions at which we have hits
     ///
     /// # Arguments
     ///
-    /// * `params` - a vector of ndarray slices representing a subset of the given sequence
-    pub fn new(params: ndarray::ArrayView::<'a,f64, Ix3>) -> StrandedSequenceView<'a> {
-        StrandedSequenceView { params }
+    /// * `query` - an array which will be compared to each window in self.
+    /// * `weights` - an array of weights to be applied for the distance calc
+    /// * `threshold` - distance between the query and seq below which a hit is called
+    /// * `max_count` - maximum number of times a hit will be counted on each strand
+    pub fn get_hits_and_positions(
+            &self,
+            query: &ndarray::ArrayView<f64,Ix2>,
+            weights: &ndarray::ArrayView<f64, Ix2>,
+            threshold: &f64,
+            max_count: &i64,
+    ) -> (Array<i64, Ix1>, (Vec<usize>, Vec<usize>), Array<f64, Ix1>) {
+    
+        // set maxed to false for each strand
+        let mut f_maxed = false;
+        let mut r_maxed = false;
+        let mut positions = (Vec::new(), Vec::new());
+        let mut hits = Array1::<i64>::zeros(2);
+    
+        // initialize minimum distances at infinity
+        let mut min_plus_dist = f64::INFINITY;
+        let mut min_minus_dist = f64::INFINITY;
+
+        // iterate through windows of seq
+        for (i,window) in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]).enumerate() {
+    
+            // once both strands are maxed out, stop doing comparisons
+            if f_maxed & r_maxed {
+                break
+            }
+            // get the plus strand distance.
+            let fwd_dist = weighted_manhattan_distance(
+                &window.params,
+                query,
+                weights,
+                false,
+            );
+            let rev_dist = weighted_manhattan_distance(
+                &window.params,
+                query,
+                weights,
+                true,
+            );
+
+            if fwd_dist < min_plus_dist {
+                min_plus_dist = fwd_dist;
+            }
+            if (fwd_dist < *threshold) & (!f_maxed) {
+                hits[0] += 1;
+                if hits[0] == *max_count {
+                    f_maxed = true;
+                }
+                positions.0.push(i);
+            } 
+
+            if rev_dist < min_minus_dist {
+                min_minus_dist = rev_dist;
+            }
+            if (rev_dist < *threshold) & (!r_maxed) {
+                hits[1] += 1;
+                if hits[1] == *max_count {
+                    r_maxed = true;
+                }
+                positions.1.push(i);
+            } 
+        }
+        // return the hits and positions
+        let dists = array![min_plus_dist, min_minus_dist];
+
+        (hits,positions,dists)
     }
     
-    /// Returns an iterator over the views of each [Param]
-    pub fn iter(&self) -> ndarray::iter::AxisIter<f64, Ix2>{
-        self.params.axis_iter(Axis(2))
-    }
+    ///// For a single Motif, get the positions at which we have hits at the minimum distance(s)
+    /////
+    ///// # Arguments
+    /////
+    ///// * `query` - an array which will be compared to each window in self.
+    ///// * `weights` - an array of weights to be applied for the distance calc
+    ///// * `threshold` - distance between the query and seq below which a hit is called
+    ///// * `max_count` - maximum number of times a hit will be counted on each strand
+    //pub fn get_min_dist_hits_and_positions(
+    //        &self,
+    //        query: &ndarray::ArrayView<f64,Ix2>,
+    //        weights: &ndarray::ArrayView<f64, Ix2>,
+    //        threshold: &f64,
+    //        max_count: &i64,
+    //) -> (Array<i64, Ix1>, (Vec<usize>, Vec<usize>)) {
+    //
+    //    // set maxed to false for each strand
+    //    let mut positions = (Vec::new()), Vec::new());
+    //    let mut hits = Array1::<i64>::zeros(2);
+
+
+    //
+    //    // iterate through windows of seq
+    //    for (i,window) in self.window_iter(0, self.seq_len()+1, query.raw_dim()[1]).enumerate() {
+    //
+    //        // once both strands are maxed out, stop doing comparisons
+    //        if f_maxed & r_maxed {
+    //            break
+    //        }
+    //        // get the plus strand distance.
+    //        let fwd_dist = weighted_manhattan_distance(
+    //            &window.params,
+    //            query,
+    //            weights,
+    //            false,
+    //        );
+    //        let rev_dist = weighted_manhattan_distance(
+    //            &window.params,
+    //            query,
+    //            weights,
+    //            true,
+    //        );
+
+    //        if (fwd_dist < *threshold) & (!f_maxed) {
+    //            hits[0] += 1;
+    //            if hits[0] == *max_count {
+    //                f_maxed = true;
+    //            }
+    //            positions.0.push(i);
+    //        } 
+
+    //        if (rev_dist < *threshold) & (!r_maxed) {
+    //            hits[1] += 1;
+    //            if hits[1] == *max_count {
+    //                r_maxed = true;
+    //            }
+    //            positions.1.push(i);
+    //        } 
+    //    }
+    //    // return the hits and positions
+    //    (hits,positions)
+    //}
+
 }
+
+//impl<'a> StrandedSequenceView<'a> {
+//    /// Creates a immutable view from a subset of a [Sequence]
+//    ///
+//    /// # Arguments
+//    ///
+//    /// * `params` - a vector of ndarray slices representing a subset of the given sequence
+//    pub fn new(params: ndarray::ArrayView::<'a,f64, Ix3>) -> StrandedSequenceView<'a> {
+//        StrandedSequenceView { params }
+//    }
+//    
+//    /// Returns an iterator over the views of each [Param]
+//    pub fn iter(&self) -> ndarray::iter::AxisIter<f64, Ix2>{
+//        self.params.axis_iter(Axis(2))
+//    }
+//}
 
 impl<'a> SequenceView<'a> {
     /// Creates a immutable view from a subset of a [Sequence]
@@ -2375,63 +2577,63 @@ impl<'a> SequenceView<'a> {
     }
 }
 
-/// Enables iteration over a given sequence. Returns a [SequenceView] at each
-/// iteration
-impl<'a> Iterator for FwdStrandedSequenceIter<'a> {
-    type Item = SequenceView<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let this_start = self.start;
-        let this_end = self.start + self.size;
-        if this_end == self.end {
-            None
-        } else {
-            let out = self.sequence.params.slice(s![..,this_start..this_end,0]);
-            self.start += 1;
-            Some(SequenceView::new(out))
-        }
-    }
-}
-
-/// Enables iteration over a given StrandedSequence.
-/// Returns a [StrandedSequenceView] at each iteration.
-impl<'a> Iterator for StrandedSequenceIter<'a> {
-    type Item = StrandedSequenceView<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let this_start = self.start;
-        let this_end = self.start + self.size;
-        if this_end == self.end {
-            None
-        } else {
-            let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
-            self.start += 1;
-            Some(StrandedSequenceView::new(out))
-        }
-    }
-}
-
-/// Enables random iteration over a given StrandedSequence.
-/// Returns a [StrandedSequenceView] at each iteration.
-impl<'a> Iterator for PermutedStrandedSequenceIter<'a> {
-    type Item = StrandedSequenceView<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // start at the 0-th index of the randomly shuffled indices in self.indices
-        // add the window width, self.size, to the start to get the end position
-        //println!("This start: {}\nThis end: {}", this_start, this_end);
-        // if we've reached the sample size, return None, exiting the iterator
-        if self.start == self.sample_size {
-            None
-        } else {
-            let this_start = self.indices[self.start];
-            let this_end = this_start + self.size;
-            let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
-            self.start += 1;
-            Some(StrandedSequenceView::new(out))
-        }
-    }
-}
+///// Enables iteration over a given sequence. Returns a [SequenceView] at each
+///// iteration
+//impl<'a> Iterator for FwdStrandedSequenceIter<'a> {
+//    type Item = SequenceView<'a>;
+//
+//    fn next(&mut self) -> Option<Self::Item> {
+//        let this_start = self.start;
+//        let this_end = self.start + self.size;
+//        if this_end == self.end {
+//            None
+//        } else {
+//            let out = self.sequence.params.slice(s![..,this_start..this_end,0]);
+//            self.start += 1;
+//            Some(SequenceView::new(out))
+//        }
+//    }
+//}
+//
+///// Enables iteration over a given StrandedSequence.
+///// Returns a [StrandedSequenceView] at each iteration.
+//impl<'a> Iterator for StrandedSequenceIter<'a> {
+//    type Item = StrandedSequenceView<'a>;
+//
+//    fn next(&mut self) -> Option<Self::Item> {
+//        let this_start = self.start;
+//        let this_end = self.start + self.size;
+//        if this_end == self.end {
+//            None
+//        } else {
+//            let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
+//            self.start += 1;
+//            Some(StrandedSequenceView::new(out))
+//        }
+//    }
+//}
+//
+///// Enables random iteration over a given StrandedSequence.
+///// Returns a [StrandedSequenceView] at each iteration.
+//impl<'a> Iterator for PermutedStrandedSequenceIter<'a> {
+//    type Item = StrandedSequenceView<'a>;
+//
+//    fn next(&mut self) -> Option<Self::Item> {
+//        // start at the 0-th index of the randomly shuffled indices in self.indices
+//        // add the window width, self.size, to the start to get the end position
+//        //println!("This start: {}\nThis end: {}", this_start, this_end);
+//        // if we've reached the sample size, return None, exiting the iterator
+//        if self.start == self.sample_size {
+//            None
+//        } else {
+//            let this_start = self.indices[self.start];
+//            let this_end = this_start + self.size;
+//            let out = self.sequence.params.slice(s![..,this_start..this_end,..]);
+//            self.start += 1;
+//            Some(StrandedSequenceView::new(out))
+//        }
+//    }
+//}
 
 /// Enables iteration over a given sequence. Returns a [SequenceView] at each
 /// iteration
@@ -2451,6 +2653,27 @@ impl<'a> Iterator for SequenceIter<'a> {
     }
 }
 
+/// Enables random iteration over a given Sequence.
+/// Returns a [SequenceView] at each iteration.
+impl<'a> Iterator for PermutedSequenceIter<'a> {
+    type Item = SequenceView<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // start at the 0-th index of the randomly shuffled indices in self.indices
+        // add the window width, self.size, to the start to get the end position
+        //println!("This start: {}\nThis end: {}", this_start, this_end);
+        // if we've reached the sample size, return None, exiting the iterator
+        if self.start == self.sample_size {
+            None
+        } else {
+            let this_start = self.indices[self.start];
+            let this_end = this_start + self.size;
+            let out = self.sequence.params.slice(s![..,this_start..this_end]);
+            self.start += 1;
+            Some(SequenceView::new(out))
+        }
+    }
+}
 
 impl Param {
 
@@ -2513,7 +2736,7 @@ impl Motif {
         let weights = MotifWeights::new(&params.view());
         let hits = ndarray::Array2::zeros((record_num, 2));
         let dists = Array::from_elem((record_num,2), f64::INFINITY);
-        let positions = vec![HashMap::from([(String::from("placeholder"), vec![usize::MAX])])];
+        let positions = vec![(vec![usize::MAX], vec![usize::MAX])];
         let mi = 0.0;
         let zscore = None;
         let robustness = None;
@@ -2582,7 +2805,7 @@ impl Motif {
                        weights: &ndarray::ArrayView<f64, Ix2>,
                        threshold: &f64,
                        max_count: &i64) {
-        self.hits = db.get_hits(
+        (self.hits, self.positions, self.dists) = db.get_hits_and_positions(
             &self.params.params.view(),
             weights,
             threshold,
@@ -2614,28 +2837,22 @@ impl Motif {
         );
     }
 
-    pub fn update_min_dists(
-        &mut self,
-        db: &RecordsDB,
-    ) {
-        self.dists = db.get_min_dists(
-            &self.params.params.view(),
-            &self.weights.weights_norm.view(),
-        )
-    }
+    //pub fn update_min_dists(
+    //    &mut self,
+    //    db: &RecordsDB,
+    //) {
+    //    self.dists = db.get_min_dists(
+    //        &self.params.params.view(),
+    //        &self.weights.weights_norm.view(),
+    //    )
+    //}
 
     pub fn update_hit_positions(
         &mut self,
         db: &RecordsDB,
         max_count: &i64
     ) {
-        self.positions = db.get_hit_positions(
-            &self.params.params.view(),
-            &self.weights.weights_norm.view(),
-            &self.threshold,
-            max_count,
-        );
-        self.hits = db.get_hits(
+        (self.hits, self.positions, self.dists) = db.get_hits_and_positions(
             &self.params.params.view(),
             &self.weights.weights_norm.view(),
             &self.threshold,
@@ -2672,12 +2889,13 @@ impl<'a> Seed<'a> {
                        threshold: &f64,
                        max_count: &i64) {
         //println!("Updating some hits");
-        self.hits = db.get_hits(
+        let (hits, _, _) = db.get_hits_and_positions(
             &self.params.params,
             weights,
             threshold,
             max_count,
-        )
+        );
+        self.hits = hits;
     }
 
     fn update_mi(&mut self, db: &RecordsDB, max_count: &i64) {
@@ -2712,7 +2930,7 @@ impl<'a> Seed<'a> {
         let weights = MotifWeights::new(&self.params);
         let hits = self.hits.to_owned();
         let dists = Array::from_elem(hits.raw_dim(), f64::INFINITY);
-        let positions = vec![HashMap::from([(String::from("placeholder"), vec![usize::MAX])])];
+        let positions = vec![(vec![usize::MAX], vec![usize::MAX])];
         let arr = self.params.params.to_owned();
         let params = Sequence{ params: arr };
         let mi = self.mi;
@@ -2866,7 +3084,7 @@ impl RecordsDB {
     ///
     /// * `seqs` - a vector of [Sequence]
     /// * `values` - a vector of values for each sequence
-    pub fn new(seqs: Vec<StrandedSequence>, values: ndarray::Array1::<i64>) -> RecordsDB {
+    pub fn new(seqs: Vec<Sequence>, values: ndarray::Array1::<i64>) -> RecordsDB {
         let inds = (0..seqs.len()).collect();
         RecordsDB{seqs, values, inds}
     }
@@ -2885,11 +3103,11 @@ impl RecordsDB {
     pub fn permute_records(&mut self) {
         // get the vec of random indices
         let rand_inds: Vec<usize> = self.random_inds();
-        let mut permuted_seqs: Vec<StrandedSequence> = Vec::with_capacity(self.len());
+        let mut permuted_seqs: Vec<Sequence> = Vec::with_capacity(self.len());
         let mut permuted_vals: ndarray::Array1::<i64> = Array1::zeros(self.len());
         for (i,rand_ind) in rand_inds.iter().enumerate() {
             let owned_params = self.seqs[*rand_ind].params.to_owned();
-            permuted_seqs.push(StrandedSequence{ params: owned_params });
+            permuted_seqs.push(Sequence{ params: owned_params });
             permuted_vals[i] = self.values[*rand_ind];
         }
         self.seqs = permuted_seqs;
@@ -2898,15 +3116,15 @@ impl RecordsDB {
     }
 
     pub fn undo_record_permutation(&mut self) {
-        let mut orig_seqs: Vec<StrandedSequence> = Vec::with_capacity(self.len());
+        let mut orig_seqs: Vec<Sequence> = Vec::with_capacity(self.len());
         for _ in 0..self.len() {
-            orig_seqs.push(StrandedSequence::empty());
+            orig_seqs.push(Sequence::empty());
         }
         let mut orig_vals: ndarray::Array1::<i64> = Array1::zeros(self.len());
         let mut used_indices: Vec<usize> = Vec::with_capacity(self.len());
         for (i, ind) in self.inds.iter().enumerate() {
             let params = self.seqs[i].params.to_owned();
-            orig_seqs[*ind] = StrandedSequence::new(params);
+            orig_seqs[*ind] = Sequence::new(params);
             orig_vals[*ind] = self.values[i];
         }
         self.seqs = orig_seqs;
@@ -2926,17 +3144,17 @@ impl RecordsDB {
     ///      element of the array contains the given record's category.
     pub fn new_from_files(shape_file: &str, y_val_file: &str) -> RecordsDB {
         // read in the shape values and permute axes so that,
-        //   instead of being shape (R,L,S,strand), arr is of
-        //   shape (R,S,L,strand)
-        let arr: Array4<f64> = ndarray_npy::read_npy(shape_file).unwrap();
+        //   instead of being shape (R,L,S), arr is of
+        //   shape (R,S,L)
+        let arr: Array3<f64> = ndarray_npy::read_npy(shape_file).unwrap();
         //let arr = input.permuted_axes([0,2,1,3]);
         
-        // iterate over records, creating StrandedSequnce structs from them,
+        // iterate over records, creating Sequence structs from them,
         //   and push them into a vector
         let mut seq_vec = Vec::new();
         for r in 0..arr.raw_dim()[0] {
-            let seq_arr = arr.slice(s![r,..,..,..]).to_owned();
-            let seq = StrandedSequence::new(seq_arr);
+            let seq_arr = arr.slice(s![r,..,..]).to_owned();
+            let seq = Sequence::new(seq_arr);
             seq_vec.push(seq);
         }
 
@@ -2969,7 +3187,7 @@ impl RecordsDB {
         seed_weights.constrain_normalize(&alpha);
 
         for entry in self.iter() {
-            for window in entry.seq.fwd_strand_window_iter(0, entry.seq.seq_len()+1, kmer) {
+            for window in entry.seq.window_iter(0, entry.seq.seq_len()+1, kmer) {
                 seed_vec.push(Seed::new(window, self.len()));
             }
         }
@@ -2981,7 +3199,7 @@ impl RecordsDB {
         Seeds{seeds: seed_vec, weights: seed_weights}
     }
 
-    /// Iterate over each record in the database as a [StrandedSequence] value pair
+    /// Iterate over each record in the database as a [Sequence] value pair
     pub fn iter(&self) -> RecordsDBIter{
         RecordsDBIter{loc: 0, db: &self, size: self.seqs.len()}
     }
@@ -3020,43 +3238,43 @@ impl RecordsDB {
         }
     }
 
-    /// Iterate over each record in the database and count number of times
-    /// `query` matches each record. Return a 2D array of hits, where each
-    /// row represents a record in the database, and each column is the number
-    /// of hits counted on each strand for a given record.
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - A 2D arrayview, typically coming from a Seed's or Motif's params
-    /// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
-    /// * `threshold` - The threshold distance below which a hit is called
-    /// * `max_count` - The maximum number of hits to call for each strand
-    pub fn get_hits(
-        &self,
-        query: &ndarray::ArrayView<f64, Ix2>,
-        weights: &ndarray::ArrayView<f64, Ix2>,
-        threshold: &f64,
-        max_count: &i64
-    ) -> Array<i64, Ix2> {
+    ///// Iterate over each record in the database and count number of times
+    ///// `query` matches each record. Return a 2D array of hits, where each
+    ///// row represents a record in the database, and each column is the number
+    ///// of hits counted on each strand for a given record.
+    /////
+    ///// # Arguments
+    /////
+    ///// * `query` - A 2D arrayview, typically coming from a Seed's or Motif's params
+    ///// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
+    ///// * `threshold` - The threshold distance below which a hit is called
+    ///// * `max_count` - The maximum number of hits to call for each strand
+    //pub fn get_hits(
+    //    &self,
+    //    query: &ndarray::ArrayView<f64, Ix2>,
+    //    weights: &ndarray::ArrayView<f64, Ix2>,
+    //    threshold: &f64,
+    //    max_count: &i64
+    //) -> Array<i64, Ix2> {
 
-        let mut hits = ndarray::Array2::zeros((self.len(), 2));
-        hits.axis_iter_mut(Axis(0))
-            .into_par_iter()
-            .zip(&self.seqs)
-            .for_each(|(mut row, seq)| {
-                let this_hit = seq.count_hits_in_seq(
-                    query,
-                    weights,
-                    threshold,
-                    max_count,
-                );
-                row.assign(&this_hit);
-            });
+    //    let mut hits = ndarray::Array2::zeros((self.len(), 2));
+    //    hits.axis_iter_mut(Axis(0))
+    //        .into_par_iter()
+    //        .zip(&self.seqs)
+    //        .for_each(|(mut row, seq)| {
+    //            let this_hit = seq.count_hits_in_seq(
+    //                query,
+    //                weights,
+    //                threshold,
+    //                max_count,
+    //            );
+    //            row.assign(&this_hit);
+    //        });
 
-        sort_hits(&mut hits);
+    //    sort_hits(&mut hits);
 
-        hits
-    }
+    //    hits
+    //}
     
     /// Iterate over each record in the database and record the indices where
     /// `query` matches each record.
@@ -3067,57 +3285,63 @@ impl RecordsDB {
     /// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
     /// * `threshold` - The threshold distance below which a hit is called
     /// * `max_count` - The maximum number of hits to call for each strand
-    pub fn get_hit_positions(
+    pub fn get_hits_and_positions(
         &self,
         query: &ndarray::ArrayView<f64, Ix2>,
         weights: &ndarray::ArrayView<f64, Ix2>,
         threshold: &f64,
         max_count: &i64
-    ) -> Vec<HashMap<String, Vec<usize>>> {
+    ) -> (Array<i64, Ix2>, Vec<(Vec<usize>, Vec<usize>)>, Array<f64, Ix2>) {
 
+        let mut hits = ndarray::Array2::zeros((self.len(), 2));
         let mut positions = Vec::new();
-        self.seqs.iter().for_each(|seq| {
-            let these_pos = seq.get_hit_positions(
+        let mut dists = ndarray::Array2::zeros((self.len(), 2));
+        self.seqs.iter().enumerate().for_each(|(i,seq)| {
+            let (these_hits,these_pos,these_dists) = seq.get_hits_and_positions(
                 query,
                 weights,
                 threshold,
                 max_count,
             );
             positions.push(these_pos);
+            hits.row_mut(i).assign(&these_hits);
+            dists.row_mut(i).assign(&these_dists);
         });
 
-        positions
+        sort_hits(&mut hits);
+
+        (hits, positions, dists)
     }
 
-    /// Iterate over each record in the database and count number of times
-    /// `query` matches each record. Return a 2D array of hits, where each
-    /// row represents a record in the database, and each column is the number
-    /// of hits counted on each strand for a given record.
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - A 2D arrayview, typically coming from a Seed's or Motif's params
-    /// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
-    pub fn get_min_dists(
-        &self,
-        query: &ndarray::ArrayView<f64, Ix2>,
-        weights: &ndarray::ArrayView<f64, Ix2>,
-    ) -> Array<f64, Ix2> {
+    ///// Iterate over each record in the database and count number of times
+    ///// `query` matches each record. Return a 2D array of hits, where each
+    ///// row represents a record in the database, and each column is the number
+    ///// of hits counted on each strand for a given record.
+    /////
+    ///// # Arguments
+    /////
+    ///// * `query` - A 2D arrayview, typically coming from a Seed's or Motif's params
+    ///// * `weights` - A 2D arrayview, typically coming from a Motif or a Seeds struct
+    //pub fn get_min_dists(
+    //    &self,
+    //    query: &ndarray::ArrayView<f64, Ix2>,
+    //    weights: &ndarray::ArrayView<f64, Ix2>,
+    //) -> Array<f64, Ix2> {
 
-        let mut dists = ndarray::Array2::zeros((self.len(), 2));
-        dists.axis_iter_mut(Axis(0))
-            .into_par_iter()
-            .zip(&self.seqs)
-            .for_each(|(mut row, seq)| {
-                let this_dist = seq.get_min_dists_in_seq(
-                    query,
-                    weights,
-                );
-                row.assign(&this_dist);
-            });
+    //    let mut dists = ndarray::Array2::zeros((self.len(), 2));
+    //    dists.axis_iter_mut(Axis(0))
+    //        .into_par_iter()
+    //        .zip(&self.seqs)
+    //        .for_each(|(mut row, seq)| {
+    //            let this_dist = seq.get_min_dists_in_seq(
+    //                query,
+    //                weights,
+    //            );
+    //            row.assign(&this_dist);
+    //        });
 
-        dists
-    }
+    //    dists
+    //}
 }
 
 impl<'a> RecordsDBEntry<'a> {
@@ -3127,7 +3351,7 @@ impl<'a> RecordsDBEntry<'a> {
     /// # Arguments
     /// * `seq` - a reference to a [Sequence]
     /// * `value` - the sequences paired value
-    pub fn new(seq: &StrandedSequence, value: i64) -> RecordsDBEntry {
+    pub fn new(seq: &Sequence, value: i64) -> RecordsDBEntry {
         RecordsDBEntry{seq, value}
     }
 }
@@ -3188,7 +3412,7 @@ impl<'a> Iterator for BatchedRecordsDBIter<'a> {
             let out_seqs = self.db.seqs.iter()
                 .enumerate()
                 .filter(|(i,_)| (i >= &self.loc) & (i < &end_idx))
-                .map(|(_,seq)| StrandedSequence::new(seq.params.to_owned()))
+                .map(|(_,seq)| Sequence::new(seq.params.to_owned()))
                 .collect();
                 
             let out_vals = self.db.values.slice(s![self.loc..end_idx]).to_owned();
@@ -3239,13 +3463,20 @@ pub fn set_initial_threshold(
                 let seq = entry.seq;
                 for window in seq.random_window_iter(0, seq.seq_len()+1, *kmer, *windows_per_record) {
                     // get the distances.
-                    let dist = stranded_weighted_manhattan_distance(
+                    let fwd_dist = weighted_manhattan_distance(
                         &window.params,
                         &seed.params.params,
                         &mw.weights_norm.view(),
+                        false,
                     );
-                    distances.push(dist[0]);
-                    distances.push(dist[1]);
+                    let rev_dist = weighted_manhattan_distance(
+                        &window.params,
+                        &seed.params.params,
+                        &mw.weights_norm.view(),
+                        true,
+                    );
+                    distances.push(fwd_dist);
+                    distances.push(rev_dist);
                 }
             }
         }
@@ -3352,45 +3583,60 @@ pub fn manhattan_distance(arr1: &ndarray::ArrayView::<f64, Ix2>,
         fold(0.0, |acc, a, b| acc + (a-b).abs())
 }
 
-/// Function to compute a constrained manhattan distance between two 2D array 
-/// views with a single associated set of weights. Views are used so that this
-/// can eventually be parallelized if needed.
-///
-/// # Arguments
-///
-/// - `arr1` - a reference to a view of a 2D array, typically a window on a sequence to be compared
-/// - `arr2` - a reference to a view of a 3D array, typically a [Motif] `param` field
-/// - `weights` - a reference to a  view of a 2D array, typically a [Motif] `weights` field
-pub fn stranded_weighted_manhattan_distance(
-    arr1: &ndarray::ArrayView::<f64, Ix3>, 
-    arr2: &ndarray::ArrayView::<f64, Ix2>,
-    weights: &ndarray::ArrayView::<f64, Ix2>,
-) -> ndarray::Array1<f64> {
-    // This approach is much, much faster than the broadcasted ndarray
-    // approach I used to have here. The old way was allocating new
-    // arrays, so I'm guessing that's where the time was being spent.
-    let fwd_diff = ndarray::Zip::from(arr1.slice(s![..,..,0]))
-        .and(arr2)
-        .and(weights)
-        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
-
-    let rev_diff = ndarray::Zip::from(arr1.slice(s![..,..,1]))
-        .and(arr2)
-        .and(weights)
-        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
-
-    ndarray::array![fwd_diff, rev_diff]
-}
+///// Function to compute a constrained manhattan distance between two 2D array 
+///// views with a single associated set of weights. Views are used so that this
+///// can eventually be parallelized if needed.
+/////
+///// # Arguments
+/////
+///// - `arr1` - a reference to a view of a 2D array, typically a window on a sequence to be compared
+///// - `arr2` - a reference to a view of a 3D array, typically a [Motif] `param` field
+///// - `weights` - a reference to a  view of a 2D array, typically a [Motif] `weights` field
+//pub fn stranded_weighted_manhattan_distance(
+//    arr1: &ndarray::ArrayView::<f64, Ix3>, 
+//    arr2: &ndarray::ArrayView::<f64, Ix2>,
+//    weights: &ndarray::ArrayView::<f64, Ix2>,
+//) -> ndarray::Array1<f64> {
+//    // This approach is much, much faster than the broadcasted ndarray
+//    // approach I used to have here. The old way was allocating new
+//    // arrays, so I'm guessing that's where the time was being spent.
+//    let fwd_diff = ndarray::Zip::from(arr1.slice(s![..,..,0]))
+//        .and(arr2)
+//        .and(weights)
+//        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
+//
+/////////////////////////////////////////////////////////////////////
+//    let rev_diff = ndarray::Zip::from(arr1.slice(s![..,..,0]))
+//        .and(arr2.slice(s![.., ..;-1]))
+//        .and(weights.slice(s![.., ..;-1]))
+//        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
+//
+//    //let rev_diff = ndarray::Zip::from(arr1.slice(s![..,..,1]))
+//    //    .and(arr2)
+//    //    .and(weights)
+//    //    .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c);
+//
+//    ndarray::array![fwd_diff, rev_diff]
+//}
 
 pub fn weighted_manhattan_distance(
     arr1: &ndarray::ArrayView::<f64, Ix2>, 
     arr2: &ndarray::ArrayView::<f64, Ix2>,
-    weights: &ndarray::ArrayView::<f64, Ix2>
+    weights: &ndarray::ArrayView::<f64, Ix2>,
+    rev: bool,
 ) -> f64 {
-    ndarray::Zip::from(arr1)
-        .and(arr2)
-        .and(weights)
-        .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+    let dist = if rev {
+        ndarray::Zip::from(arr1)
+            .and(arr2.slice(s![.., ..;-1]))
+            .and(weights.slice(s![.., ..;-1]))
+            .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+    } else {
+        ndarray::Zip::from(arr1)
+            .and(arr2)
+            .and(weights)
+            .fold(0.0, |acc, a, b, c| acc + (a-b).abs()*c)
+    };
+    dist
 }
 
 /// Function to compute inverse-logit element-wise for an array

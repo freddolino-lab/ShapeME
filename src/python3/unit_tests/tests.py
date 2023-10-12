@@ -19,8 +19,8 @@ class TestFastaMethods(unittest.TestCase):
                 "peak_00002": np.array([ np.NaN,np.NaN,-6.99,-5.23,-7.65,-6.00,np.NaN,np.NaN ]),
             },
             "HelT": {
-                "peak_00001": np.array([ np.NaN,33.01,34.56,31.80,35.73,33.98,35.06,np.NaN ]),
-                "peak_00002": np.array([ np.NaN,35.38,31.08,34.22,35.34,34.84,35.04,np.NaN ]),
+                "peak_00001": np.array([ np.NaN,33.01,34.56,31.80,35.73,33.98,np.NaN ]),
+                "peak_00002": np.array([ np.NaN,35.38,31.08,34.22,35.34,34.84,np.NaN ]),
             },
             "MGW": {
                 "peak_00001": np.array([ np.NaN,np.NaN,5.34,4.99,5.27,5.74,np.NaN,np.NaN ]),
@@ -31,8 +31,8 @@ class TestFastaMethods(unittest.TestCase):
                 "peak_00002": np.array([ np.NaN,np.NaN,-5.31,-6.43,-7.96,-5.67,np.NaN,np.NaN ]),
             },
             "Roll": {
-                "peak_00001": np.array([ np.NaN,2.56,4.14,-4.35,5.65,-2.69,3.24,np.NaN ]),
-                "peak_00002": np.array([ np.NaN,-2.31,-2.96,4.10,-1.65,-3.71,-2.46,np.NaN ]),
+                "peak_00001": np.array([ np.NaN,2.56,4.14,-4.35,5.65,-2.69,np.NaN ]),
+                "peak_00002": np.array([ np.NaN,-2.31,-2.96,4.10,-1.65,-3.71,np.NaN ]),
             },
         }
         self.EP_name = "test_data/small_test_data.fa.EP"
@@ -79,57 +79,57 @@ class TestFastaMethods(unittest.TestCase):
                 # pos1
                 [
                     # EP
-                    [ -6.81, -6.73 ],
+                    -6.81, #, -6.73 ],
                     # HelT
-                    [ 34.56, 33.98 ], 
+                    34.56, #, 33.98 ], 
                     # MGW
-                    [ 5.34, 5.74 ],
+                    5.34, #, 5.74 ],
                     # ProT
-                    [ -9.01, -8.6 ],
+                    -9.01, #, -8.6 ],
                     # Roll
-                    [ 4.14, -2.69 ],
+                    4.14, #, -2.69 ],
                 ],
 
                 # pos2
                 [
                     # EP
-                    [ -7.2, -5.43 ],
+                    -7.2, #, -5.43 ],
                     # HelT
-                    [ 31.80, 35.73 ],
+                    31.80,  #, 35.73 ],
                     # MGW
-                    [ 4.99, 5.27 ],
+                    4.99,  #, 5.27 ],
                     # ProT
-                    [ -10.15,  -7.4 ],
+                    -10.15, # -7.4 ],
                     # Roll
-                    [ -4.35, 5.65 ],
+                    -4.35, # 5.65 ],
                 ],
 
                 # pos3
                 [
                     # EP
-                    [ -5.43, -7.2 ],
-                    # HelT
-                    [ 35.73, 31.80 ],
+                    -5.43,# -7.2 ],
+                    # HelT#
+                    35.73,# 31.80 ],
                     # MGW
-                    [ 5.27, 4.99 ],
-                    # ProT
-                    [ -7.4,  -10.15 ],
-                    # Roll
-                    [ 5.65, -4.35 ],
+                    5.27, #4.99 ],
+                    # ProT#
+                    -7.4, # -10.15 ],
+                    # Roll#
+                    5.65, #-4.35 ],
                 ],
 
                 # pos4
                 [
                     # EP
-                    [ -6.73, -6.81 ],
-                    # HelT
-                    [ 33.98, 34.56 ], 
+                    -6.73,# -6.81 ],
+                    # HelT#
+                    33.98,# 34.56 ], 
                     # MGW
-                    [ 5.74, 5.34 ],
-                    # ProT
-                    [ -8.6,  -9.01 ],
-                    # Roll
-                    [ -2.69, 4.14 ],
+                    5.74, #5.34 ],
+                    # ProT#
+                    -8.6, # -9.01 ],
+                    # Roll#
+                    -2.69,# 4.14 ],
                 ],
             ],
 
@@ -138,57 +138,57 @@ class TestFastaMethods(unittest.TestCase):
                 # pos1
                 [
                     # EP
-                    [ -6.99, -6.0 ],
-                    # HelT
-                    [ 31.08, 34.84 ],
+                    -6.99,# -6.0 ],
+                    # HelT#
+                    31.08,# 34.84 ],
                     # MGW
-                    [ 5.47, 4.18 ],
-                    # ProT
-                    [ -5.31, -5.67 ],
-                    # Roll
-                    [ -2.96, -3.71 ],
+                    5.47, #4.18 ],
+                    # ProT#
+                    -5.31,# -5.67 ],
+                    # Roll#
+                    -2.96,# -3.71 ],
                 ],
 
                 # pos2
                 [
                     # EP
-                    [ -5.23, -7.65 ],
-                    # HelT
-                    [ 34.22, 35.34 ],
+                    -5.23,# -7.65 ],
+                    # HelT#
+                    34.22,# 35.34 ],
                     # MGW
-                    [ 5.67, 4.94 ],
-                    # ProT
-                    [ -6.43, -7.96 ],
-                    # Roll
-                    [ 4.10, -1.65 ],
+                    5.67, #4.94 ],
+                    # ProT#
+                    -6.43,# -7.96 ],
+                    # Roll#
+                    4.10, #-1.65 ],
                 ],
 
                 # pos3
                 [
                     # EP
-                    [ -7.65, -5.23 ],
-                    # HelT
-                    [ 35.34, 34.22 ],
+                    -7.65,# -5.23 ],
+                    # HelT#
+                    35.34,# 34.22 ],
                     # MGW
-                    [ 4.94, 5.67 ],
-                    # ProT
-                    [ -7.96, -6.43 ],
-                    # Roll
-                    [ -1.65, 4.10 ],
+                    4.94, #5.67 ],
+                    # ProT#
+                    -7.96,# -6.43 ],
+                    # Roll#
+                    -1.65,# 4.10 ],
                 ],
 
                 # pos4
                 [
                     # EP
-                    [ -6.0, -6.99 ],
-                    # HelT
-                    [ 34.84, 31.08 ],
+                    -6.0, #-6.99 ],
+                    # HelT#
+                    34.84,# 31.08 ],
                     # MGW
-                    [ 4.18, 5.47 ],
-                    # ProT
-                    [ -5.67, -5.31 ],
-                    # Roll
-                    [ -3.71, -2.96 ],
+                    4.18, #5.47 ],
+                    # ProT#
+                    -5.67,# -5.31 ],
+                    # Roll#
+                    -3.71,# -2.96 ],
                 ],
             ],
         ])
@@ -276,10 +276,6 @@ class TestMotifMethods(unittest.TestCase):
         self.small_motifs = inout.Motifs()
         self.small_motifs.read_file( small_motifs_dsm_name )
 
-    def test_unnormalize(self):
-        self.small_motifs.unnormalize()
-        self.assertEqual(1,2)
-
     def test_motif_shape(self):
         self.assertEqual(self.motifs[0].shape()[0], 5)
         self.assertEqual(self.motifs[0].shape()[1], 10)
@@ -357,8 +353,8 @@ class TestMotifMethods(unittest.TestCase):
         transforms = self.motifs.transforms
 
         result.normalize_shapes_from_values(
-            centers = (transforms["EP"][0], transforms["HelT"][0], transformt["MGW"][0], transforms["ProT"][0], transforms["Roll"][0]), 
-            spreads = (transforms["EP"][1], transforms["HelT"][1], transformt["MGW"][1], transforms["ProT"][1], transforms["Roll"][1]), 
+            centers = (transforms["EP"][0], transforms["HelT"][0], transforms["MGW"][0], transforms["ProT"][0], transforms["Roll"][0]), 
+            spreads = (transforms["EP"][1], transforms["HelT"][1], transforms["MGW"][1], transforms["ProT"][1], transforms["Roll"][1]), 
         )
         arr = result.X
 
@@ -375,16 +371,38 @@ class TestMotifMethods(unittest.TestCase):
             shift_params = ["HelT", "Roll"],
             exclude_na = True,
         )
-        slide_windows = motif.make_sliding_window_view(records.X["peak_00001"])
+        rec_name = "peak_00001"
+        slide_windows = motif.make_sliding_window_view(records.X[rec_name], rec_name)
         # target_shape ends up having 47, 10x5 windows for each of 2 strands
-        target_shape = (1,47,1,2,1,10,5,1)
-        final_shape = (47,2,10,5)
+        target_shape = (47,10,5)
+        final_shape = (47,10,5)
 
         self.assertEqual(len(final_shape), len(slide_windows.shape))
         for i,dim_size in enumerate(final_shape):
             self.assertEqual(dim_size, slide_windows.shape[i])
 
-    def test_scan_exception(self):
+    def test_scan_length_exception(self):
+        "Test whether we identify hits for a single motif in target sequence."
+
+        records = inout.RaggedRecordDatabase(
+            shape_dict = {"EP": "test_data/ragged_small_test_data.fa.EP", "HelT": "test_data/ragged_small_test_data.fa.HelT", "MGW": "test_data/ragged_small_test_data.fa.MGW", "ProT": "test_data/ragged_small_test_data.fa.ProT", "Roll": "test_data/ragged_small_test_data.fa.Roll"},
+            infile = "test_data/ragged_small_test_data.txt",
+            shift_params = ["HelT", "Roll"],
+            exclude_na = True,
+        )
+        transforms = self.motifs.transforms
+        records.normalize_shapes_from_values(
+            centers = (transforms["EP"][0], transforms["HelT"][0], transforms["MGW"][0], transforms["ProT"][0], transforms["Roll"][0]), 
+            spreads = (transforms["EP"][1], transforms["HelT"][1], transforms["MGW"][1], transforms["ProT"][1], transforms["Roll"][1]), 
+        )
+
+        motif = self.motifs[0]
+        with self.assertRaises(Exception) as context:
+            motif.scan(records)
+        
+        self.assertEqual("Record peak_00001 is too short. It is only 5 base pairs long after trimming two basepairs of NA values from each end of the shape values. The motif is 10 long. Exiting without returning motif hits. Consider running again without record peak_00001 in the fasta file.", str(context.exception))
+
+    def test_scan_unnormed_exception(self):
         "Test whether we identify hits for a single motif in target sequence."
 
         records = inout.RaggedRecordDatabase(
@@ -397,37 +415,66 @@ class TestMotifMethods(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             motif.scan(records)
         
-        self.assertTrue("Record peak_00001 is too short. It is only 5 base pairs long after trimming two basepairs of NA values from each end of the shape values. The motif is 10 long. Exiting without returning motif hits. Consider running again without record peak_00001 in the fasta file." in str(context.exception))
+        self.assertTrue("RaggedRecordsDatabase reports that its shape values are not standardized." == str(context.exception))
 
     def test_scan(self):
-        "Test whether we identify hits for a single motif in target sequence."
+        "Test whether we format hits correctly for a motif."
 
         records = inout.RaggedRecordDatabase(
-            shape_dict = {"EP": "test_data/ragged_small_test_data.fa.EP", "HelT": "test_data/ragged_small_test_data.fa.HelT", "MGW": "test_data/ragged_small_test_data.fa.MGW", "ProT": "test_data/ragged_small_test_data.fa.ProT", "Roll": "test_data/ragged_small_test_data.fa.Roll"},
-            infile = "test_data/ragged_small_test_data.txt",
+            shape_dict = {"EP": "test_data/scan_target_ragged_small_test_data.fa.EP", "HelT": "test_data/scan_target_ragged_small_test_data.fa.HelT", "MGW": "test_data/scan_target_ragged_small_test_data.fa.MGW", "ProT": "test_data/scan_target_ragged_small_test_data.fa.ProT", "Roll": "test_data/scan_target_ragged_small_test_data.fa.Roll"},
+            infile = "test_data/scan_target_ragged_small_test_data.txt",
             shift_params = ["HelT", "Roll"],
             exclude_na = True,
         )
-        motif = self.motifs[0]
-        motif.scan(records)
- 
+        transforms = self.small_motifs.transforms
+        #print(f"records X shape: {[_.shape for _ in records.X.values()]}")
+        records.normalize_shapes_from_values(
+            centers = (transforms["EP"][0], transforms["HelT"][0], transforms["MGW"][0], transforms["ProT"][0], transforms["Roll"][0]), 
+            spreads = (transforms["EP"][1], transforms["HelT"][1], transforms["MGW"][1], transforms["ProT"][1], transforms["Roll"][1]), 
+        )
+
+        motif = self.small_motifs[0]
+        #print(f"motif width: {len(motif)}")
+        motif.threshold = 0.01
+        hits = motif.scan(records)
+        motif = self.small_motifs[1]
+        hits.extend(motif.scan(records))
+
+        target_hits = [
+            ("SHAPE-1", "None", "peak_00001", 4, 7, "+", 0, 1, 1, ""),
+            ("SHAPE-2", "None", "peak_00003", 7, 10, "-", 0, 1, 1, ""),
+        ]
+
+        self.assertEqual(len(target_hits), len(hits))
+        for i,hit in enumerate(target_hits):
+            for j,elem in enumerate(hit):
+                self.assertEqual(elem, hits[i][j])
+
     def test_identify(self):
         "Test whether we identify motifs at correct positions."
 
         records = inout.RaggedRecordDatabase(
-            shape_dict = {"EP": "test_data/ragged_small_test_data.fa.EP", "HelT": "test_data/ragged_small_test_data.fa.HelT", "MGW": "test_data/ragged_small_test_data.fa.MGW", "ProT": "test_data/ragged_small_test_data.fa.ProT", "Roll": "test_data/ragged_small_test_data.fa.Roll"},
-            infile = "test_data/ragged_small_test_data.txt",
+            shape_dict = {"EP": "test_data/scan_target_ragged_small_test_data.fa.EP", "HelT": "test_data/scan_target_ragged_small_test_data.fa.HelT", "MGW": "test_data/scan_target_ragged_small_test_data.fa.MGW", "ProT": "test_data/scan_target_ragged_small_test_data.fa.ProT", "Roll": "test_data/scan_target_ragged_small_test_data.fa.Roll"},
+            infile = "test_data/scan_target_ragged_small_test_data.txt",
             shift_params = ["HelT", "Roll"],
             exclude_na = True,
         )
-
-        hits = self.motifs.identify(records)
+        
+        transforms = self.small_motifs.transforms
+        records.normalize_shapes_from_values(
+            centers = (transforms["EP"][0], transforms["HelT"][0], transforms["MGW"][0], transforms["ProT"][0], transforms["Roll"][0]), 
+            spreads = (transforms["EP"][1], transforms["HelT"][1], transforms["MGW"][1], transforms["ProT"][1], transforms["Roll"][1]), 
+        )
+ 
+        hits = self.small_motifs.identify(records)
         ###########################################################
         ## note: figure out score and p-value/q-value
         ###########################################################
+        # output should match fimo.tsv columns:
+        # id alt_id seq_name sequence_name start end strand score p-value q-value matched_sequence
         truth = [
-            ("SHAPE-1", "None", "peak_00001", 1, 4, "+", 10, 0, 0, ""),
-            ("SHAPE-2", "None", "peak_00002", 1, 4, "-", 10, 0, 0, ""),
+            ("SHAPE-1", "None", "peak_00001", 4, 7, "+", 0, 1, 1, ""),
+            ("SHAPE-2", "None", "peak_00003", 7, 10, "-", 0, 1, 1, ""),
         ]
 
         self.assertEqual(hits, truth)
@@ -449,7 +496,7 @@ class TestMotifMethods(unittest.TestCase):
 class TestUtilies(unittest.TestCase):
 
     def test_parse_cmi_filter_result(self):
-        self.assertEqual(1,2)
+        self.assertTrue(False)
 
 
 class TestRecordsMethods(unittest.TestCase):
@@ -680,142 +727,137 @@ class TestRaggedRecordsMethods(unittest.TestCase):
     def test_read_ragged_records(self):
         # should have two keys, "peak_00001" and "peak_00002"
         # each key's value should be array of
-        # shape (1,P,S,2), where P is the number of positions (the length of)
+        # shape (P,S), where P is the number of positions (the length of)
         #each record, and S is the number of shape parameters present.
-        #The final axis is of length 2, one index for each strand.
-        # so dim should be (2,4,5,2)
+        # so dim should be (4,5)
         target_shapes = {
             "peak_00001": np.array([
-                [
                     # pos1
                     [
                         # EP
-                        [ -6.81, -6.73 ],
-                        # HelT
-                        [ 34.56, 33.98 ], 
+                        -6.81,# -6.73 ],
+                        # HelT#
+                        34.56,# 33.98 ], 
                         # MGW
-                        [ 5.34, 5.74 ],
-                        # ProT
-                        [ -9.01, -8.6 ],
-                        # Roll
-                        [ 4.14, -2.69 ],
+                        5.34, #5.74 ],
+                        # ProT#
+                        -9.01,# -8.6 ],
+                        # Roll#
+                        4.14, #-2.69 ],
                     ],
 
                     # pos2
                     [
                         # EP
-                        [ -7.2, -5.43 ],
-                        # HelT
-                        [ 31.80, 35.73 ],
+                        -7.2, #-5.43 ],
+                        # HelT#
+                        31.80,# 35.73 ],
                         # MGW
-                        [ 4.99, 5.27 ],
-                        # ProT
-                        [ -10.15,  -7.4 ],
-                        # Roll
-                        [ -4.35, 5.65 ],
+                        4.99, #5.27 ],
+                        # ProT#
+                        -10.15,#  -7.4 ],
+                        # Roll#
+                        -4.35,# 5.65 ],
                     ],
 
                     # pos3
                     [
                         # EP
-                        [ -6.00, -6.00 ],
-                        # HelT
-                        [ 33.00, 33.00 ],
+                        -6.00,# -6.00 ],
+                        # HelT#
+                        33.00,# 33.00 ],
                         # MGW
-                        [ 4.50, 4.50 ],
-                        # ProT
-                        [ -8.00 , -8.00 ],
-                        # Roll
-                        [ 0.00, 0.00 ],
+                        4.50, #4.50 ],
+                        # ProT#
+                        -8.00, #, -8.00 ],
+                        # Roll#
+                        0.00, #0.00 ],
                     ],
 
                     # pos4
                     [
                         # EP
-                        [ -5.43, -7.2 ],
-                        # HelT
-                        [ 35.73, 31.80 ],
+                        -5.43,# -7.2 ],
+                        # HelT#
+                        35.73,# 31.80 ],
                         # MGW
-                        [ 5.27, 4.99 ],
-                        # ProT
-                        [ -7.4,  -10.15 ],
-                        # Roll
-                        [ 5.65, -4.35 ],
+                        5.27, #4.99 ],
+                        # ProT#
+                        -7.4, # -10.15 ],
+                        # Roll#
+                        5.65, #-4.35 ],
                     ],
 
                     # pos5
                     [
                         # EP
-                        [ -6.73, -6.81 ],
-                        # HelT
-                        [ 33.98, 34.56 ], 
+                        -6.73,# -6.81 ],
+                        # HelT#
+                        33.98,# 34.56 ], 
                         # MGW
-                        [ 5.74, 5.34 ],
-                        # ProT
-                        [ -8.6,  -9.01 ],
-                        # Roll
-                        [ -2.69, 4.14 ],
+                        5.74, #5.34 ],
+                        # ProT#
+                        -8.6, # -9.01 ],
+                        # Roll#
+                        -2.69,# 4.14 ],
                     ],
-                ],
             ]),
             "peak_00002": np.array([
-                [
                     # pos1
                     [
                         # EP
-                        [ -6.99, -6.0 ],
+                        -6.99,# -6.0 ],
                         # HelT
-                        [ 31.08, 34.84 ],
+                        31.08,# 34.84 ],
                         # MGW
-                        [ 5.47, 4.18 ],
+                        5.47, #4.18 ],
                         # ProT
-                        [ -5.31, -5.67 ],
+                        -5.31,# -5.67 ],
                         # Roll
-                        [ -2.96, -3.71 ],
+                        -2.96,# -3.71 ],
                     ],
 
                     # pos2
                     [
                         # EP
-                        [ -5.23, -7.65 ],
-                        # HelT
-                        [ 34.22, 35.34 ],
+                        -5.23,# -7.65 ],
+                        # HelT#
+                        34.22,# 35.34 ],
                         # MGW
-                        [ 5.67, 4.94 ],
-                        # ProT
-                        [ -6.43, -7.96 ],
-                        # Roll
-                        [ 4.10, -1.65 ],
+                        5.67, #4.94 ],
+                        # ProT#
+                        -6.43,# -7.96 ],
+                        # Roll#
+                        4.10, #-1.65 ],
                     ],
 
                     # pos3
                     [
                         # EP
-                        [ -7.65, -5.23 ],
+                        -7.65,# -5.23 ],
                         # HelT
-                        [ 35.34, 34.22 ],
+                        35.34,# 34.22 ],
                         # MGW
-                        [ 4.94, 5.67 ],
+                        4.94, #5.67 ],
                         # ProT
-                        [ -7.96, -6.43 ],
+                        -7.96,# -6.43 ],
                         # Roll
-                        [ -1.65, 4.10 ],
+                        -1.65,# 4.10 ],
                     ],
 
                     # pos4
                     [
                         # EP
-                        [ -6.0, -6.99 ],
-                        # HelT
-                        [ 34.84, 31.08 ],
+                        -6.0, #-6.99 ],
+                        # HelT#
+                        34.84,# 31.08 ],
                         # MGW
-                        [ 4.18, 5.47 ],
-                        # ProT
-                        [ -5.67, -5.31 ],
-                        # Roll
-                        [ -3.71, -2.96 ],
+                        4.18, #5.47 ],
+                        # ProT#
+                        -5.67,# -5.31 ],
+                        # Roll#
+                        -3.71,# -2.96 ],
                     ],
-                ],
             ]),
         }
 
