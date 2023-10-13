@@ -1090,6 +1090,15 @@ class Motif:
 
         self.normalized = False
 
+def parse_transforms_line(line):
+    transforms = {}
+    # split elements
+    elements = line.strip().split(" ")
+    for e in elements:
+        shape_info = e.split(":")
+        center,spread = shape_info[1].split(",")
+        transforms[shape_info[0]] = (float(center), float(spread))
+    return transforms
 
 class Motifs:
 
@@ -1195,17 +1204,6 @@ class Motifs:
         with open(out_fname, "w") as f:
             json.dump(rust_dicts, f, indent=4)
 
-    def set_transforms_from_meme_line(self, line):
-        """Method to place shape centers and spreads
-        into self.transforms
-
-        Args:
-        -----
-        line : str
-            Line after "Shape transformations"
-        """
-        pass
-
     def set_transforms_from_db(self, rec_db):
         """Method to place shape centers and spreads
         into self.transforms
@@ -1265,19 +1263,8 @@ class Motifs:
                 if line.startswith("Shape transformations"):
                     # go to next line
                     line = f.readline()
-                    transforms = {}
-                    elements = line.strip().split(" ")
-                    for e in elements:
-                        shape_info = e.split(":")
-                        center,spread = shape_info[1].split(",")
-                        transforms[shape_info[0]] = (float(center), float(spread))
-                    self.transforms = transforms
+                    self.transforms = parse_transforms_line(line)
 
-                ##################################################################
-                ##################################################################
-                ## needs updated to read meme files with both seq AND shape ######
-                ##################################################################
-                ##################################################################
                 if not line.startswith("MOTIF"):
                     # if the line doesn't start with MOTIF and
                     # if we're not currently parsing a motif, move on
@@ -1294,6 +1281,7 @@ class Motifs:
 
                         if in_data:
                             # update data_arr with this position's motif data
+                            #print(line)
                             data_arr[:,col_idx] = [
                                 float(num) for num in line.strip().split()
                             ]

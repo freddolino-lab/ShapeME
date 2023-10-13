@@ -74,7 +74,26 @@ def parse_fasta(fasta_file):
         if sequence_id is not None:
             sequences.append((sequence_id, sequence))
     return sequences
-    
+
+def get_fimo_results(seq_motifs, seq_fasta, this_path):
+    with tempfile.TemporaryDirectory() as td:
+        evm.run_fimo(
+            seq_motifs,
+            seq_fasta,
+            "seq_motifs.meme",
+            td,
+            this_path,
+            recs=None,
+        )
+        with open(f"{td}/fimo.tsv", "r") as ff:
+            header = ff.readline().strip()
+            fimo_res = []
+            for line in ff:
+                if not line.startswith("#"):
+                    if not line == "\n":
+                        fimo_res.append(line.strip())
+    return fimo_res
+   
 def identify(args):
 
     seq_fasta = args.seq_fasta
@@ -82,9 +101,11 @@ def identify(args):
 
     motifs = inout.Motifs()
     motifs.read_file( motifs_file )
+    transforms = self.motifs.transforms
     seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
 
     # if there are shape motifs in the motifs file, find them
+    ident_res = []
     if shape_motifs:
 
         seqs = parse_fasta(seq_fasta)
@@ -106,49 +127,41 @@ def identify(args):
             n:fname for n,fname
             in zip(shape_names, full_shape_fnames.split(" "))
         }
-        records = io.RecordDatabase(
+        records = io.RaggedRecordDatabase(
             shape_dict = shape_fname_dict,
             shift_params = ["Roll", "HelT"],
             exclude_na = True,
             y = np.zeros(len(seqs)),
             record_names = [_[0] for _ in seqs],
         )
-        records.determine_center_spread()
-        records.normalize_shape_values()
-        print(records)
+        transforms = shape_motifs.transforms
+        records.normalize_shapes_from_values(
+            centers = (
+                transforms["EP"][0],
+                transforms["HelT"][0],
+                transforms["MGW"][0],
+                transforms["ProT"][0],
+                transforms["Roll"][0],
+            ),
+            spreads = (
+                transforms["EP"][1],
+                transforms["HelT"][1],
+                transforms["MGW"][1],
+                transforms["ProT"][1],
+                transforms["Roll"][1], 
+            )
+        )
 
-        ##################################################################################
-        ##################################################################################
-        ##################################################################################
-        ## I need to get new way to build recorddb in motifer and motifs in motifer for this use
-        ##################################################################################
-        ##################################################################################
-        ##################################################################################
-        with open(shape_fname, 'wb') as shape_f:
-            np.save(shape_fname, records.X.transpose((0,2,1,3)))
-        FIND_CMD = f"{identify_bin} {shape_fname} {shape_motif_fname}"
-        result = subprocess.run(FIND_CMD, shell=True, env=my_env, capture_output=True)
+        #with open(shape_fname, 'wb') as shape_f:
+        #    np.save(shape_fname, records.X.transpose((0,2,1)))
+        hits = shape_motifs.identify(records)
+        
 
     # if there are sequence motifs in the file, just run fimo and collect results
     if seq_motifs:
 
-        with tempfile.TemporaryDirectory() as td:
-            evm.run_fimo(
-                seq_motifs,
-                seq_fasta,
-                "seq_motifs.meme",
-                td,
-                this_path,
-                recs=None,
-            )
-            with open(f"{td}/fimo.tsv", "r") as ff:
-                header = ff.readline().strip()
-                fimo_res = []
-                for line in ff:
-                    if not line.startswith("#"):
-                        if not line == "\n":
-                            fimo_res.append(line.strip())
-        print(fimo_res)
+        fimo_hits = get_fimo_results(seq_motifs, seq_fasta, this_path)
+        print(fimo_hits)
         
 
 

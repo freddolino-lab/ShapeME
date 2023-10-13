@@ -1,0 +1,54 @@
+********************************************************************************
+STREME - Sensitive, Thorough, Rapid, Enriched Motif Elicitation
+********************************************************************************
+MEME version 5.5.4 (Release date: Fri Jun 16 12:19:08 2023 -0700)
+
+For further information on how to interpret these results please access https://meme-suite.org/meme.
+To get a copy of the MEME Suite software please access https://meme-suite.org.
+
+********************************************************************************
+
+
+********************************************************************************
+REFERENCE
+********************************************************************************
+If you use this program in your research, please cite:
+
+Timothy L. Bailey,
+"STREME: accurate and versatile sequence motif discovery",
+Bioinformatics, Mar. 24, 2021.
+********************************************************************************
+
+
+ALPHABET= ACGT
+
+strands: + -
+
+Background letter frequencies
+A 0.258 C 0.242 G 0.242 T 0.258 
+
+MOTIF 1-AAATA STREME-1
+letter-probability matrix: alength= 4 w= 11 nsites= 65 E= 1.7e-001
+ 0.99 0.0034 0.0033 0.0033
+ 0.99 0.0034 0.0033 0.0033
+ 0.99 0.0034 0.0033 0.0033
+ 0.0034 0.0033 0.0033 0.99
+ 0.99 0.0034 0.0033 0.0033
+
+MOTIF 2-AATAA STREME-2
+letter-probability matrix: alength= 4 w= 12 nsites= 46 E= 2.3e+000
+ 0.99 0.0034 0.0033 0.0033
+ 0.99 0.0034 0.0033 0.0033
+ 0.0034 0.0033 0.0033 0.99
+ 0.99 0.0034 0.0033 0.0033
+ 0.99 0.0034 0.0033 0.0033
+
+********************************************************************************
+Stopped because 3 consecutive motifs exceeded the E-value threshold (0.05).
+********************************************************************************
+COMMAND:	streme --evalue --thresh 0.05 --p /corexfs/yulduz/PeterassembledKDS1_VC_ipodhr_rnaseq/NAPs_paper_newrefgenome/shapeME/shape_and_seq_main_output/tmp/tmp_pos.fa --n /corexfs/yulduz/PeterassembledKDS1_VC_ipodhr_rnaseq/NAPs_paper_newrefgenome/shapeME/shape_and_seq_main_output/tmp/tmp_neg.fa --dna --oc /corexfs/yulduz/PeterassembledKDS1_VC_ipodhr_rnaseq/NAPs_paper_newrefgenome/shapeME/shape_and_seq_main_output/streme_out
+********************************************************************************
+CPU:		pfred-ap-ps1a.med.umich.edu
+********************************************************************************
+FINALTIME:	7.39 seconds
+********************************************************************************

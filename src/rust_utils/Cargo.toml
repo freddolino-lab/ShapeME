@@ -8,7 +8,7 @@ members = [
     "evaluate_motifs",
     "get_robustness",
     "merge_folds",
-    "ShapeIT",
+    #"ShapeIT",
     #"locate_motifs",
 ]
 

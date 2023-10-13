@@ -1,8 +1,8 @@
-name: motifer
+name: motifer2
 channels:
   #- sssdgc
     - bioconda
-    - conda-forge
+    #- conda-forge
     - defaults
 dependencies:
     - python

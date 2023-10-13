@@ -4,11 +4,14 @@ import os
 import numpy as np
 from pathlib import Path
 import pickle
+import tempfile
 
 this_path = os.path.join(Path(__file__).parent.absolute(), "../")
 sys.path.insert(0, this_path)
 
 import inout
+import evaluate_motifs as evm
+import ShapeIT as shapeit
 
 class TestFastaMethods(unittest.TestCase):
 
@@ -253,6 +256,10 @@ class TestMotifMethods(unittest.TestCase):
         motif_fname = "test_data/test_motifs.dsm"
         self.out_dsm_name = "test_outs/test_write_motifs.dsm"
 
+        self.seq_motif_fname = "test_data/cmi_test_data/streme.txt"
+        self.seq_motifs = inout.Motifs()
+        self.seq_motifs.read_file( self.seq_motif_fname )
+
         self.motifs = inout.Motifs()
         self.motifs.read_file( motif_fname )
 
@@ -449,6 +456,55 @@ class TestMotifMethods(unittest.TestCase):
         for i,hit in enumerate(target_hits):
             for j,elem in enumerate(hit):
                 self.assertEqual(elem, hits[i][j])
+
+    def test_read_streme_meme_file(self):
+        true_str = "ALPHABET= ACGT\nSHAPES= \nMOTIF 1-AAATATGAAGA STREME-1\nletter-probability matrix: alength= 4 w= 11 nsites= 65 E= 0.17\n\nMOTIF 2-AATAAAAGTTRA STREME-2\nletter-probability matrix: alength= 4 w= 12 nsites= 46 E= 2.3\n\nMOTIF 3-AATATTATAKWGA STREME-3\nletter-probability matrix: alength= 4 w= 13 nsites= 57 E= 3.3\n\nMOTIF 4-AMAAACWTWWYA STREME-4\nletter-probability matrix: alength= 4 w= 12 nsites= 39 E= 4.0\n\n"
+        seq_motifs = inout.Motifs()
+        seq_motifs.read_file(self.seq_motif_fname)
+        self.assertEqual(str(seq_motifs), true_str)
+        self.assertEqual(len(seq_motifs.transforms), 0)
+
+    def test_parse_transforms_line(self):
+        transforms_line = "EP:-6.0,1.0 HelT:34.0,1.5 MGW:5.0,0.5 ProT:-7.0,4.0 Roll:-2.0,1.0\n"
+        target = {"EP": (-6.0,1.0), "HelT":(34.0,1.5), "MGW":(5.0,0.5), "ProT": (-7.0,4.0), "Roll": (-2.0,1.0)}
+        result = inout.parse_transforms_line(transforms_line)
+        self.assertEqual(target, result)
+
+        bad_target = {"P": (-6.0,1.0), "HelT":(34.0,1.5), "MGW":(5.0,0.5), "ProT": (-7.0,4.0), "Roll": (-2.0,1.0)}
+        self.assertNotEqual(bad_target, result)
+
+    def test_get_transforms_from_file(self):
+
+        shape_transforms = self.small_motifs.transforms
+        seq_transforms = self.seq_motifs.transforms
+
+        self.assertTrue(len(shape_transforms) == 5)
+        self.assertTrue(len(seq_transforms) == 0)
+
+    def test_get_fimo_hits(self):
+
+        seq_motifs = inout.Motifs()
+        seq_motifs.read_file("test_data/small_seq_motifs.meme")
+        fimo_res = shapeit.get_fimo_results(
+            seq_motifs,
+            "test_data/small_seq_motif_test_fimo.fa",
+            "../",
+        )
+        header = "motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence\n"
+        hit1 = "1-AAATA\tSTREME-1\tseq1\t2\t6\t+\t\t\t\t\n"
+        hit2 = "2-AATAA\tSTREME-2\tseq2\t4\t8\t+\t\t\t\t\n"
+        hit3 = "1-AAATA\tSTREME-1\tseq3\t2\t6\t-\t\t\t\t\n"
+        hit4 = "1-AATAA\tSTREME-2\tseq4\t2\t6\t-\t\t\t\t\n"
+        truth = header + hit1 + hit2 + hit3 + hit4
+        self.assertEqual(fimo_res, truth)
+
+    def test_print_hits(self):
+        hits = [
+            ("SHAPE-1", "None", "peak_00001", 4, 7, "+", 0, 1, 1, ""),
+            ("SHAPE-2", "None", "peak_00003", 7, 10, "-", 0, 1, 1, ""),
+        ]
+        output = "motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence\nSHAPE-1\tNone\tpeak_00001\t4\t7\t+\t0\t1\t1\t\nSHAPE-2\tNone\tpeak_00003\t7\t10\t-\t0\t1\t1\t\n"
+        self.assertTrue(False)
 
     def test_identify(self):
         "Test whether we identify motifs at correct positions."

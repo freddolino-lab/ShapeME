@@ -53,7 +53,7 @@ mod tests {
 
     fn set_up_recdb() -> motifer::RecordsDB {
         motifer::RecordsDB::new(
-            vec![motifer::StrandedSequence::new(Array3::zeros((2,2,2)))],
+            vec![motifer::Sequence::new(Array2::zeros((2,2)))],
             array![0],
         )
     }
