@@ -98,7 +98,7 @@ def shape_run(
     )
     return new_motifs
 
-def run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs=None):
+def run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs=None, thresh=None):
 
     seq_motifs.write_file(seq_meme_fname, recs)
     new_motifs = copy.deepcopy(seq_motifs)
@@ -106,6 +106,7 @@ def run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs=
     fimo_exec = os.path.join(this_path, "run_fimo.py")
     FIMO = f"python {fimo_exec} "\
         f"--seq_fname {seq_fasta} "\
+        f"--thresh {thresh} "\
         f"--meme_file {seq_meme_fname} "\
         f"--out_direc {fimo_direc}"
 
@@ -137,9 +138,10 @@ def fimo_run(
         recs,
         streme_thresh,
         tmpdir,
+        thresh = None
 ):
 
-    run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs)
+    run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs, thresh)
 
     new_motifs.set_X(
         fimo_fname = f"{fimo_direc}/fimo.tsv",

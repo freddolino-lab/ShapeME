@@ -28,7 +28,7 @@ Background letter frequencies
 A 0.258 C 0.242 G 0.242 T 0.258 
 
 MOTIF 1-AAATA STREME-1
-letter-probability matrix: alength= 4 w= 11 nsites= 65 E= 1.7e-001
+letter-probability matrix: alength= 4 w= 5 nsites= 65 E= 1.7e-001
  0.99 0.0034 0.0033 0.0033
  0.99 0.0034 0.0033 0.0033
  0.99 0.0034 0.0033 0.0033
@@ -36,12 +36,13 @@ letter-probability matrix: alength= 4 w= 11 nsites= 65 E= 1.7e-001
  0.99 0.0034 0.0033 0.0033
 
 MOTIF 2-AATAA STREME-2
-letter-probability matrix: alength= 4 w= 12 nsites= 46 E= 2.3e+000
+letter-probability matrix: alength= 4 w= 5 nsites= 46 E= 2.3e+000
  0.99 0.0034 0.0033 0.0033
  0.99 0.0034 0.0033 0.0033
  0.0034 0.0033 0.0033 0.99
  0.99 0.0034 0.0033 0.0033
  0.99 0.0034 0.0033 0.0033
+
 
 ********************************************************************************
 Stopped because 3 consecutive motifs exceeded the E-value threshold (0.05).

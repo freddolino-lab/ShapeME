@@ -258,6 +258,7 @@ def main(args, status):
         shape_files,
         in_fname,
     )
+    logging.info("Finished reading input data and shape info.")
 
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
            
