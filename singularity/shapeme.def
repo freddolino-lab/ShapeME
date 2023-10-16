@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ubuntu
+From: continuumio/miniconda3:4.8.2-alpine
 Stage: build
 
 %setup
@@ -14,8 +14,8 @@ Stage: build
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment
-    export SHAPEME_VER=0.0.2
-    export PATH="/conda/envs/motifer/bin:${PATH}"
+    export SHAPEME_VER=0.0.3
+    export PATH="/opt/conda/envs/motifer/bin:/opt/conda/bin:${PATH}"
 
 %files
     conda_environment.yaml
@@ -24,24 +24,25 @@ Stage: build
 %runscript
     /bin/bash -rcfile /shapeme.bashrc
 
-%post -c /bin/bash
-    apt -y update \
-    && apt -y install vim wget build-essential libsqlite3-dev libarchive-dev \
-    && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh \
-    && bash miniconda.sh -b -p conda \
-    && source /conda/etc/profile.d/conda.sh \
+%post
+    export PATH="/conda/envs/motifer/bin:/opt/conda/bin:${PATH}" \
+    && apk update \
+    && apk upgrade \
+    && apk add bash libffi libffi-dev libarchive \
     && conda update -y -n base conda \
-    && conda activate base \
     && conda install -c conda-forge mamba \
     && mamba env create -f conda_environment.yaml \
-    && rm miniconda.sh -f \
     && cd
 
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh
     cat >$CUSTOM_ENV <<EOF
 #!/bin/bash
-PS1="[shapeme_0.0.2]\w \$"
+PS1="[shapeme_0.0.3]\w \$"
 EOF
     chmod 755 $CUSTOM_ENV
 
 %test
+    which python
+    source /opt/conda/etc/profile.d/conda.sh
+    conda activate motifer
+    python -c "import numpy; print(numpy.__file__)"
