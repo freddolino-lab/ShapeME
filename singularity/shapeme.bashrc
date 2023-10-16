@@ -1,4 +1,4 @@
-source /conda/etc/profile.d/conda.sh
+source /opt/conda/etc/profile.d/conda.sh
 conda activate motifer
 
 #export PATH="${PATH}:${PARDIR}"
