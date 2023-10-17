@@ -315,10 +315,7 @@ def wrangle_rust_motif(motif, shape_lut, identifier, alt_name=None):
         motif['dists']['data']
     ).reshape(motif['dists']['dim'])
 
-    positions = {'fwd':{}, 'rev':{}}
-    for i,vals in enumerate(motif['positions']):
-        positions['fwd'][i] = vals['fwd']
-        positions['rev'][i] = vals['rev']
+    positions = motif["positions"]
 
     return Motif(
         alt_name = alt_name,
