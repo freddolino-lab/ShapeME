@@ -1165,7 +1165,11 @@ class Motifs:
         for motif in self:
             hits = motif.scan(ragged_rec_db)
             hits_info.extend(hits)
-        return hits_info
+        hit_str = ""
+        for hit in hits_info:
+            hit_str += "\t".join([str(_) for _ in hit])
+            hit_str += "\n"
+        return hit_str
 
     def sort_motifs_by_mi(self):
         self.motifs.sort(key=lambda x: x.mi, reverse=True)

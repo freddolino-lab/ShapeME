@@ -558,12 +558,13 @@ class TestMotifMethods(unittest.TestCase):
         ###########################################################
         # output should match fimo.tsv columns:
         # id alt_id seq_name sequence_name start end strand score p-value q-value matched_sequence
-        truth = [
-            ("SHAPE-1", "None", "peak_00001", 4, 7, "+", 0, 1, 1, ""),
-            ("SHAPE-2", "None", "peak_00003", 7, 10, "-", 0, 1, 1, ""),
-        ]
-
+        truth = "SHAPE-1\tNone\tpeak_00001\t4\t7\t+\t0\t1\t1\t\nSHAPE-2\tNone\tpeak_00003\t7\t10\t-\t0\t1\t1\t\n"
         self.assertEqual(hits, truth)
+
+        truth_no_hits = ""
+        records.normalize_shapes_from_values(centers = (1000,1000,1000,1000,1000), spreads = (5,5,5,5,5))
+        no_hits = self.small_motifs.identify(records)
+        self.assertEqual(no_hits, truth_no_hits)
 
     def test_read_dsm(self):
         "Test whether we correctly parse a dsm file"

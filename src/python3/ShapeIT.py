@@ -14,7 +14,6 @@ import logging
 import shlex
 import shutil
 import json
-from jinja2 import Environment,FileSystemLoader
 import seaborn as sns
 import pandas as pd
 import base64
@@ -28,25 +27,14 @@ sys.path.insert(0, this_path)
 import evaluate_motifs as evm
 import inout as io
 
-from convert_narrowpeak_to_fire import make_kfold_datasets
-import inout
-
-jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
-
-def write_report(environ, temp_base, info, out_name):
-    print("writing report")
-    print(f"base template: {temp_base}")
-    template = environ.get_template(temp_base)
-    print(f"out_name: {out_name}")
-    content = template.render(**info)
-    with open(out_name, "w", encoding="utf-8") as report:
-        report.write(content)
 
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--seq_fasta", type=str, default=None,
+    parser.add_argument("--seq_fasta", type=str, default=None, required = True,
         help=f"Fasta file in which to search for motifs")
+    parser.add_argument("--out_direc", type=str, default=None, required = True,
+        help=f"Name of output directory. If it does not exist, it will be created. Must be a location in the current directory.")
     parser.add_argument("--fimo_thresh", type=float, default=None,
         help=f"Fimo threshold")
     parser.add_argument("--motifs_file", type=str, default=None,
@@ -110,13 +98,13 @@ def identify(args):
     seq_fasta = args.seq_fasta
     motifs_file = args.motifs_file
 
-    motifs = inout.Motifs()
+    motifs = io.Motifs()
     motifs.read_file( motifs_file )
     transforms = self.motifs.transforms
     seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
 
     # if there are shape motifs in the motifs file, find them
-    ident_res = []
+    ident_res = ""
     if shape_motifs:
 
         seqs = parse_fasta(seq_fasta)
@@ -166,13 +154,20 @@ def identify(args):
         #with open(shape_fname, 'wb') as shape_f:
         #    np.save(shape_fname, records.X.transpose((0,2,1)))
         hits = shape_motifs.identify(records)
+        ident_res += hits
         
 
     # if there are sequence motifs in the file, just run fimo and collect results
     if seq_motifs:
 
         fimo_hits = get_fimo_results(seq_motifs, seq_fasta, this_path, args.fimo_thresh)
-        print(fimo_hits)
+        ident_res += fimo_hits
+
+    if not os.path.isdir(args.out_direc):
+        os.mkdir(args.out_direc)
+        
+    with open(f"{args.out_direc}/ShapeIT_results.tsv", "w") as f:
+        f.write(ident_res)
         
 
 
