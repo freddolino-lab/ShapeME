@@ -100,7 +100,7 @@ def identify(args):
 
     motifs = io.Motifs()
     motifs.read_file( motifs_file )
-    transforms = self.motifs.transforms
+    transforms = motifs.transforms
     seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
 
     # if there are shape motifs in the motifs file, find them
@@ -133,7 +133,6 @@ def identify(args):
             y = np.zeros(len(seqs)),
             record_names = [_[0] for _ in seqs],
         )
-        transforms = shape_motifs.transforms
         records.normalize_shapes_from_values(
             centers = (
                 transforms["EP"][0],
@@ -167,6 +166,7 @@ def identify(args):
         os.mkdir(args.out_direc)
         
     with open(f"{args.out_direc}/ShapeIT_results.tsv", "w") as f:
+        f.write("motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence\n")
         f.write(ident_res)
         
 
