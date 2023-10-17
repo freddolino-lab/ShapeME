@@ -14,3 +14,7 @@ singularity/current
 singularity/def
 singularity/*.sif
 *.sif
+
+# Ignore everything except seqs.* in example data
+examples/*/*.*
+!examples/*/seqs.*

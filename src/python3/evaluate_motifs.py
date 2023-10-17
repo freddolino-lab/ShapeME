@@ -512,7 +512,6 @@ def evaluate_fit2(
     if num_cats > 1:
         for row_i in range(num_seqs):
             yhat[row_i,:] = softmax(yhat[row_i,:])
-
     else:
         yhat = inv_logit(yhat)
         

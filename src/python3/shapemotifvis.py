@@ -533,6 +533,13 @@ def plot_motif_enrichment_seaborn(
     abs_min = np.abs(hm_data.min())
     lim = np.array([abs_min, abs_max]).max()
 
+    if lim > 6:
+        vmax = 6
+        vmin = -6
+    else:
+        vmax = None
+        vmin = None
+
     nrow = len(row_labs)
     ncol = len(col_labs)
     fig, ax = plt.subplots(figsize=(ncol+5, nrow+1))
@@ -541,6 +548,8 @@ def plot_motif_enrichment_seaborn(
         hm_data,
         cmap="bwr",
         center=0.0,
+        vmin = vmin,
+        vmax = vmax,
         robust=robust,
         annot=True,
         fmt='.1f',

@@ -548,7 +548,7 @@ def main(args, status):
 
             # make sure yvalues are binary for this initial seq motif fit
             fit_y = np.zeros_like(records.y)
-            pos_cats = [ int(_) for _ in args.seq_motif_positive_cats ]
+            pos_cats = [ int(_) for _ in args.seq_motif_positive_cats.split(",") ]
             for (i,yval) in enumerate(records.y):
                 if yval in pos_cats:
                     fit_y[i] = 1
