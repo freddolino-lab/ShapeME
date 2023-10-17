@@ -6,11 +6,11 @@ Stage: build
     mkdir ${SINGULARITY_ROOTFS}/src
     mkdir -p ${SINGULARITY_ROOTFS}/src/rust_utils/target/release
     cp -r ../src/python3 ${SINGULARITY_ROOTFS}/src/
-    cp ../src/rust_utils/target/release/evaluate_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
-    cp ../src/rust_utils/target/release/filter_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
-    cp ../src/rust_utils/target/release/get_robustness ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
-    cp ../src/rust_utils/target/release/infer_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
-    cp ../src/rust_utils/target/release/merge_folds ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    #cp -r ../src/rust_utils ${SINGULARITY_ROOTFS}/src/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/evaluate_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/filter_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/infer_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment
@@ -32,7 +32,7 @@ Stage: build
     && conda update -y -n base conda \
     && conda install -c conda-forge mamba \
     && mamba env create -f conda_environment.yaml \
-    && cd
+    && cd 
 
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh
     cat >$CUSTOM_ENV <<EOF
