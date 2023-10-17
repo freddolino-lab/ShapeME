@@ -577,14 +577,16 @@ def main(args, status):
                     records.y,
                     #fit_y,
                     folds=10,
-                    family="binomial",
+                    family = fam,
+                    #family="binomial",
                     alpha=1,
                 )
 
                 with open(seq_fit_fname, "wb") as f:
                     pickle.dump(seq_fit, f)
 
-                seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
+                #seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
+                seq_coefs = evm.fetch_coefficients(fam, seq_fit, num_cats)
 
                 print()
                 logging.info(f"Sequence motif coefficients:\n{seq_coefs}")

@@ -1195,20 +1195,20 @@ def infer(args):
     #temp_direc.cleanup()
     out_dir = os.path.join(data_dir, f"{outdir_pre}_main_output")
     aupr_plot_fname = os.path.join(out_dir, "cv_aupr.png")
-    #performance = Performance(out_dir, fold_direcs)
-    #performance.plot_performance(aupr_plot_fname)
+    performance = Performance(out_dir, fold_direcs)
+    performance.plot_performance(aupr_plot_fname)
 
-    #with open(aupr_plot_fname, "rb") as image_file:
-    #    performance_plot = base64.b64encode(image_file.read()).decode()
-    #performance_data = {
-    #    "plot": performance_plot,
-    #    "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
-    #}
+    with open(aupr_plot_fname, "rb") as image_file:
+        performance_plot = base64.b64encode(image_file.read()).decode()
+    performance_data = {
+        "plot": performance_plot,
+        "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
+    }
     
     report_data_fname = os.path.join(out_dir, "report_data.pkl")
     with open(report_data_fname, "rb") as info_f:
         report_info = pickle.load(info_f)
-    #report_info["performance_data"] = performance_data
+    report_info["performance_data"] = performance_data
 
     out_page_name = os.path.join(out_dir, "report.html")
     write_report(
