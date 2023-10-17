@@ -767,7 +767,7 @@ def main(args, status):
     if not no_shape_motifs:
         # write shapes to npy file. Permute axes 1 and 2.
         with open(shape_fname, 'wb') as shape_f:
-            np.save(shape_fname, records.X.transpose((0,2,1,3)))
+            np.save(shape_fname, records.X.transpose((0,2,1)))
 
         print()
         if args.shape_rust_file is None:
