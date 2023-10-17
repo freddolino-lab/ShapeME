@@ -1,17 +1,21 @@
 Bootstrap: docker
-From: ubuntu
+From: continuumio/miniconda3:4.8.2-alpine
 Stage: build
 
 %setup
     mkdir ${SINGULARITY_ROOTFS}/src
-    mkdir ${SINGULARITY_ROOTFS}/src/rust_utils
+    mkdir -p ${SINGULARITY_ROOTFS}/src/rust_utils/target/release
     cp -r ../src/python3 ${SINGULARITY_ROOTFS}/src/
-    cp -r ../src/rust_utils/target ${SINGULARITY_ROOTFS}/src/rust_utils
+    #cp -r ../src/rust_utils ${SINGULARITY_ROOTFS}/src/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/evaluate_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/filter_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/infer_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment
-    export SHAPEME_VER=0.0.1
-    export PATH="/conda/envs/motifer/bin:${PATH}"
+    export SHAPEME_VER=0.0.3
+    export PATH="/opt/conda/envs/motifer/bin:/opt/conda/bin:${PATH}"
 
 %files
     conda_environment.yaml
@@ -20,24 +24,25 @@ Stage: build
 %runscript
     /bin/bash -rcfile /shapeme.bashrc
 
-%post -c /bin/bash
-    apt -y update \
-    && apt -y install vim wget build-essential libsqlite3-dev libarchive-dev \
-    && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh \
-    && bash miniconda.sh -b -p conda \
-    && source /conda/etc/profile.d/conda.sh \
+%post
+    export PATH="/conda/envs/motifer/bin:/opt/conda/bin:${PATH}" \
+    && apk update \
+    && apk upgrade \
+    && apk add bash libffi libffi-dev libarchive \
     && conda update -y -n base conda \
-    && conda activate base \
     && conda install -c conda-forge mamba \
     && mamba env create -f conda_environment.yaml \
-    && rm miniconda.sh -f \
-    && cd
+    && cd 
 
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh
     cat >$CUSTOM_ENV <<EOF
 #!/bin/bash
-PS1="[shapeme_0.0.1]\w \$"
+PS1="[shapeme_0.0.3]\w \$"
 EOF
     chmod 755 $CUSTOM_ENV
 
 %test
+    which python
+    source /opt/conda/etc/profile.d/conda.sh
+    conda activate motifer
+    python -c "import numpy; print(numpy.__file__)"

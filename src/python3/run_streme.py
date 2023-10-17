@@ -46,7 +46,7 @@ def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc, tmpd
     neg_fa_file = inout.FastaFile()
     pos_cats = [ int(_) for _ in positive_cats.split(",") ]
 
-    print(f"pos_cats: {pos_cats}")
+    #print(f"pos_cats: {pos_cats}")
 
     with open(seq_fname, "r") as f:
         fa_file.read_whole_file(f)
@@ -57,10 +57,10 @@ def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc, tmpd
         name = fa_file.names[i]
         entry = fa_file.pull_entry(name)
         if yval in pos_cats:
-            print("Found a hit")
+            #print("Found a hit")
             pos_fa_file.add_entry(entry)
         else:
-            print("Not a hit")
+            #print("Not a hit")
             neg_fa_file.add_entry(entry)
 
     tmp_pos = os.path.join(tmpdir, "tmp_pos.fa")

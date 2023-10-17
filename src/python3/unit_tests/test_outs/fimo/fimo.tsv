@@ -1,0 +1,9 @@
+motif_id	motif_alt_id	sequence_name	start	stop	strand	score	p-value	q-value	matched_sequence
+2-AATAA	STREME-2	seq2	4	8	+	9.24107	0.00156	0.0125	AATAA
+2-AATAA	STREME-2	seq4	2	6	-	9.24107	0.00156	0.0125	AATAA
+1-AAATA	STREME-1	seq1	2	6	+	9.24107	0.00156	0.0125	AAATA
+1-AAATA	STREME-1	seq3	2	6	-	9.24107	0.00156	0.0125	AAATA
+
+# FIMO (Find Individual Motif Occurrences): Version 5.5.3 compiled on Jun 29 2023 at 20:31:35
+# The format of this file is described at https://meme-suite.org/meme/doc/fimo-output-format.html.
+# fimo --max-strand --motif-pseudo 0.0 --oc test_outs/fimo --thresh 0.005 seq_motifs.meme test_data/small_seq_motif_test_fimo.fa

@@ -225,6 +225,12 @@ def plot_shape_logo(
     ax.set_xlabel(f"Motif position")
     ax.set_xticks(x_vals)
     ax.set_xlim(left=x_vals[0]-0.5, right=x_vals[-1]+0.5)
+    ###############################################################################
+    ###############################################################################
+    ## Here I need to figure out how to actually get a proxy artist for these images placed in the report
+    ## Another possibility is to place them on the web page to the plots' right, not in the rendered plot per se.
+    ###############################################################################
+    ###############################################################################
     ax.legend(legend_artists, legend_key, loc="upper left", bbox_to_anchor=(1.05, 1))
     #if i == 0:
     #    ax.set_title("Shape logo")
