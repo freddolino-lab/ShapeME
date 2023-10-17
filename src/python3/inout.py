@@ -1467,7 +1467,7 @@ class Motifs:
 
         ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
-        zscore_pat = re.compile(r'(?<=z-score\= )\S+\.\d+')
+        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
 
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
@@ -2569,13 +2569,13 @@ class RecordDatabase(object):
         if infile is not None:
             self.read_infile(infile)
         if shape_dict is not None:
-            print("reading shapes")
+            #print("reading shapes")
             self.read_shapes(
                 shape_dict,
                 shift_params=shift_params,
                 exclude_na=exclude_na,
             )
-            print("done reading shapes")
+            #print("done reading shapes")
         if infile is not None:
             if len(self) != self.X.shape[0]:
                 raise Exception(
@@ -2981,7 +2981,7 @@ class RecordDatabase(object):
 
                 #self.X = np.zeros((record_count,record_length,shape_count,2))
                 self.X = np.zeros((record_count,record_length,shape_count))
-                print(f"self.X.shape: {self.X.shape}")
+                #print(f"self.X.shape: {self.X.shape}")
 
             for i,(rec_name,rec_data) in enumerate(this_shape_dict.items()):
                 #print(rec_name)
