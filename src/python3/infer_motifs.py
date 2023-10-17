@@ -258,6 +258,7 @@ def main(args, status):
         shape_files,
         in_fname,
     )
+    logging.info("Finished reading input data and shape info.")
 
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
            
@@ -556,14 +557,25 @@ def main(args, status):
             else:
 
                 # make sure yvalues are binary for this initial seq motif fit
-                fit_y = np.zeros_like(records.y)
-                pos_cats = [ int(_) for _ in args.seq_motif_positive_cats.split(",") ]
-                for (i,yval) in enumerate(records.y):
-                    if yval in pos_cats:
-                        fit_y[i] = 1
+###########################################################################
+###########################################################################
+###########################################################################
+###########################################################################
+# is this actually the desired behavior? I don't think so. I think I don't want to binarise here
+## switching to just using records.y on 2023-10-17
+###########################################################################
+###########################################################################
+###########################################################################
+###########################################################################
+                #fit_y = np.zeros_like(records.y)
+                #pos_cats = [ int(_) for _ in args.seq_motif_positive_cats.split(",") ]
+                #for (i,yval) in enumerate(records.y):
+                #    if yval in pos_cats:
+                #        fit_y[i] = 1
                 seq_fit = evm.train_glmnet(
                     seq_motifs.X,
-                    fit_y,
+                    records.y,
+                    #fit_y,
                     folds=10,
                     family="binomial",
                     alpha=1,

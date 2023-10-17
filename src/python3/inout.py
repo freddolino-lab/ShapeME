@@ -1326,6 +1326,8 @@ class Motifs:
                                 motif_list.append(this_motif)
                         
                 else:
+                    # If the line starts with "MOTIF" and we were not in one,
+                    #  switch in_motif to True and in_data to True
                     if not in_motif:
                         in_motif = True
                         in_data = True
@@ -1465,7 +1467,7 @@ class Motifs:
 
         ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
-        zscore_pat = re.compile(r'(?<=z-score\= )\S+\.\d+')
+        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
 
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
@@ -2567,11 +2569,13 @@ class RecordDatabase(object):
         if infile is not None:
             self.read_infile(infile)
         if shape_dict is not None:
+            #print("reading shapes")
             self.read_shapes(
                 shape_dict,
                 shift_params=shift_params,
                 exclude_na=exclude_na,
             )
+            #print("done reading shapes")
         if infile is not None:
             if len(self) != self.X.shape[0]:
                 raise Exception(
@@ -2977,6 +2981,7 @@ class RecordDatabase(object):
 
                 #self.X = np.zeros((record_count,record_length,shape_count,2))
                 self.X = np.zeros((record_count,record_length,shape_count))
+                #print(f"self.X.shape: {self.X.shape}")
 
             for i,(rec_name,rec_data) in enumerate(this_shape_dict.items()):
                 #print(rec_name)
@@ -2988,6 +2993,7 @@ class RecordDatabase(object):
                     
                 r_idx = self.record_name_lut[rec_name]
 
+                #print(f"shape name: {shape_name}")
                 if shape_name in shift_params:
                     #while len(rec_data) < self.X.shape[1]:
                     #print(f"rec_data: {rec_data}")
@@ -3018,6 +3024,7 @@ class RecordDatabase(object):
 
                     #self.X[r_idx,:,s_idx,0] = fwd_data
                     #self.X[r_idx,:,s_idx,1] = rev_data
+                    #print(f"fwd_data shape: {fwd_data.shape}")
                     self.X[r_idx,:,s_idx] = fwd_data
                 else:
                     if len(rec_data) != record_length:
@@ -3033,6 +3040,7 @@ class RecordDatabase(object):
                         sys.exit(1)
                     #self.X[r_idx,:,s_idx,0] = rec_data
                     #self.X[r_idx,:,s_idx,1] = rec_data[::-1]
+                    #print(f"rec_data shape: {rec_data.shape}")
                     self.X[r_idx,:,s_idx] = rec_data
 
         if exclude_na:

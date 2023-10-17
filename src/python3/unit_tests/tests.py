@@ -485,17 +485,21 @@ class TestMotifMethods(unittest.TestCase):
 
         seq_motifs = inout.Motifs()
         seq_motifs.read_file("test_data/small_seq_motifs.meme")
+        #print(seq_motifs)
         fimo_res = shapeit.get_fimo_results(
             seq_motifs,
             "test_data/small_seq_motif_test_fimo.fa",
             "../",
+            thresh = 0.005,
+            testing = True,
         )
         header = "motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence\n"
-        hit1 = "1-AAATA\tSTREME-1\tseq1\t2\t6\t+\t\t\t\t\n"
-        hit2 = "2-AATAA\tSTREME-2\tseq2\t4\t8\t+\t\t\t\t\n"
-        hit3 = "1-AAATA\tSTREME-1\tseq3\t2\t6\t-\t\t\t\t\n"
-        hit4 = "1-AATAA\tSTREME-2\tseq4\t2\t6\t-\t\t\t\t\n"
-        truth = header + hit1 + hit2 + hit3 + hit4
+        hit1 = "2-AATAA\tSTREME-2\tseq2\t4\t8\t+\t9.24107\t0.00156\t0.0125\tAATAA\n"
+        hit2 = "2-AATAA\tSTREME-2\tseq4\t2\t6\t-\t9.24107\t0.00156\t0.0125\tAATAA\n"
+        hit3 = "1-AAATA\tSTREME-1\tseq1\t2\t6\t+\t9.24107\t0.00156\t0.0125\tAAATA\n"
+        hit4 = "1-AAATA\tSTREME-1\tseq3\t2\t6\t-\t9.24107\t0.00156\t0.0125\tAAATA"
+        #truth = header + 
+        truth = hit1 + hit2 + hit3 + hit4
         self.assertEqual(fimo_res, truth)
 
     def test_print_hits(self):

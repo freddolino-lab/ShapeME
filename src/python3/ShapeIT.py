@@ -47,6 +47,8 @@ def parse_args():
 
     parser.add_argument("--seq_fasta", type=str, default=None,
         help=f"Fasta file in which to search for motifs")
+    parser.add_argument("--fimo_thresh", type=float, default=None,
+        help=f"Fimo threshold")
     parser.add_argument("--motifs_file", type=str, default=None,
         help=f"Meme or dsm file with motif definitions. The instances of the motifs in this file "\
         "present in --seq_fasta will be returned in a format similar to fimo output.")
@@ -75,24 +77,33 @@ def parse_fasta(fasta_file):
             sequences.append((sequence_id, sequence))
     return sequences
 
-def get_fimo_results(seq_motifs, seq_fasta, this_path):
-    with tempfile.TemporaryDirectory() as td:
-        evm.run_fimo(
-            seq_motifs,
-            seq_fasta,
-            "seq_motifs.meme",
-            td,
-            this_path,
-            recs=None,
-        )
-        with open(f"{td}/fimo.tsv", "r") as ff:
-            header = ff.readline().strip()
-            fimo_res = []
-            for line in ff:
-                if not line.startswith("#"):
-                    if not line == "\n":
-                        fimo_res.append(line.strip())
-    return fimo_res
+def get_fimo_results(seq_motifs, seq_fasta, this_path, thresh=None, testing=False):
+
+    if testing:
+        td = "test_outs/fimo"
+        print(td)
+    else:
+        tempdir = tempfile.TemporaryDirectory()
+        td = tempdir.name
+
+    evm.run_fimo(
+        seq_motifs,
+        seq_fasta,
+        "seq_motifs.meme",
+        td,
+        this_path,
+        recs=None,
+        thresh=thresh,
+    )
+    with open(f"{td}/fimo.tsv", "r") as ff:
+        header = ff.readline().strip()
+        fimo_res = []
+        for line in ff:
+            if not line.startswith("#"):
+                if not line == "\n":
+                    fimo_res.append(line.strip())
+    fimo_lines = '\n'.join(fimo_res)
+    return fimo_lines
    
 def identify(args):
 
@@ -160,7 +171,7 @@ def identify(args):
     # if there are sequence motifs in the file, just run fimo and collect results
     if seq_motifs:
 
-        fimo_hits = get_fimo_results(seq_motifs, seq_fasta, this_path)
+        fimo_hits = get_fimo_results(seq_motifs, seq_fasta, this_path, args.fimo_thresh)
         print(fimo_hits)
         
 
