@@ -8,7 +8,7 @@ import argparse
 import subprocess
 import sys
 
-def run_fimo(seq_fa, meme_file, out_dir):
+def run_fimo(seq_fa, meme_file, out_dir, thresh=None):
     '''Runs fimo.
 
     Args:
@@ -30,8 +30,10 @@ def run_fimo(seq_fa, meme_file, out_dir):
     )
 
     FIMO = f"fimo --max-strand --motif-pseudo 0.0 "\
-        f"--oc {out_dir} "\
-        f"{meme_file} {seq_fa}"
+        f"--oc {out_dir} "
+    if thresh is not None:
+        FIMO += f"--thresh {thresh} "
+    FIMO += f"{meme_file} {seq_fa}"
     print("Running fimo command:")
     print(FIMO)
     result = subprocess.run(
@@ -46,6 +48,8 @@ def run_fimo(seq_fa, meme_file, out_dir):
 def main():
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--thresh', action='store', type=float, required=False,
+        help=f"Fimo threshold.")
     parser.add_argument('--seq_fname', action='store', type=str, required=True,
         help=f"Absolute path to file containing sequences in which to search "\
             f"for motifs defined in meme_file")
@@ -60,6 +64,7 @@ def main():
         args.seq_fname,
         args.meme_file,
         args.out_direc,
+        args.thresh,
     )
     print(result.stdout)
     print(result.stderr, file=sys.stderr)

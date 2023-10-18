@@ -258,6 +258,7 @@ def main(args, status):
         shape_files,
         in_fname,
     )
+    logging.info("Finished reading input data and shape info.")
 
     assert len(records.y) == records.X.shape[0], "Number of y values does not equal number of shape records!!"
            
@@ -516,149 +517,171 @@ def main(args, status):
             my_env = my_env,
             tmpdir = tmpdir,
         )
-
-        logging.info("\nSorting sequence motifs by z-score")
-       
-        logging.info("\nFitting regression model to sequence motifs")
-        seq_motifs.set_X(
-            max_count = max_count,
-            fimo_fname = f"{fimo_direc}/fimo.tsv",
-            rec_db = records,
-            pval_thresh = streme_thresh,
-        )
-
-        print("Done getting X for seq motifs")
-        one_seq_motif = False
-
-        if len(seq_motifs) == 1:
-
+        if len(seq_motifs) == 0:
             print()
             logging.info(
-                f"Only one sequence motif present. "\
-                f"Performing model selection using CV-F1 to determine whether "\
-                f"the motif is informative over intercept alone."
+                f"No sequence motifs left after CMI filter.\n"\
+                f"Therefore, no informatife sequence motif exists."
             )
-            # toggle one_seq_motif to True for later use in building combined
-            # seq and shape motif design matrix
-            ######################################################################
-            one_seq_motif = True # comment for debugging to force seq inclusion
-            #seq_motif_exists = True # uncomment for debugging to force seq inclusion
+            seq_motif_exists = False
 
         else:
 
-            # make sure yvalues are binary for this initial seq motif fit
-            fit_y = np.zeros_like(records.y)
-            pos_cats = [ int(_) for _ in args.seq_motif_positive_cats.split(",") ]
-            for (i,yval) in enumerate(records.y):
-                if yval in pos_cats:
-                    fit_y[i] = 1
-            seq_fit = evm.train_glmnet(
-                seq_motifs.X,
-                fit_y,
-                folds=10,
-                family="binomial",
-                alpha=1,
-            )
-
-            with open(seq_fit_fname, "wb") as f:
-                pickle.dump(seq_fit, f)
-
-            seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
-
-            print()
-            logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
-            logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
-
-            filtered_seq_coefs = seq_motifs.filter_motifs(
-                seq_coefs,
+            logging.info("\nSorting sequence motifs by z-score")
+       
+            logging.info("\nFitting regression model to sequence motifs")
+            seq_motifs.set_X(
+                max_count = max_count,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
                 pval_thresh = streme_thresh,
             )
 
-            print()
-            logging.info(
-                f"Number of sequence motifs left after LASSO regression: "\
-                f"{len(seq_motifs)}"
-            )
+            print("Done getting X for seq motifs")
+            one_seq_motif = False
 
-            if len(seq_motifs) == 0:
+            if len(seq_motifs) == 1:
+
                 print()
                 logging.info(
-                    f"Only intercept term left after LASSO regression.\n"\
-                    f"Therefore, no informatife sequence motif exists."
-                )
-                seq_motif_exists = False
-
-            elif len(seq_motifs) == 1:
-                print()
-                logging.info(
-                    f"Only one sequence motif left after LASSO regression.\n"\
+                    f"Only one sequence motif present. "\
                     f"Performing model selection using CV-F1 to determine whether "\
-                    f"the remaining motif is informative over intercept alone."
+                    f"the motif is informative over intercept alone."
+                )
+                # toggle one_seq_motif to True for later use in building combined
+                # seq and shape motif design matrix
+                ######################################################################
+                one_seq_motif = True # comment for debugging to force seq inclusion
+                #seq_motif_exists = True # uncomment for debugging to force seq inclusion
+
+            else:
+
+                # make sure yvalues are binary for this initial seq motif fit
+###########################################################################
+###########################################################################
+###########################################################################
+###########################################################################
+# is this actually the desired behavior? I don't think so. I think I don't want to binarise here
+## switching to just using records.y on 2023-10-17
+###########################################################################
+###########################################################################
+###########################################################################
+###########################################################################
+                #fit_y = np.zeros_like(records.y)
+                #pos_cats = [ int(_) for _ in args.seq_motif_positive_cats.split(",") ]
+                #for (i,yval) in enumerate(records.y):
+                #    if yval in pos_cats:
+                #        fit_y[i] = 1
+                seq_fit = evm.train_glmnet(
+                    seq_motifs.X,
+                    records.y,
+                    #fit_y,
+                    folds=10,
+                    family = fam,
+                    #family="binomial",
+                    alpha=1,
                 )
 
-                one_seq_motif = True
+                with open(seq_fit_fname, "wb") as f:
+                    pickle.dump(seq_fit, f)
 
-            # if more than one left after LASSO, seq seq_motif_exists to True
-            else:
-                seq_motif_exists = True
+                #seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
+                seq_coefs = evm.fetch_coefficients(fam, seq_fit, num_cats)
+
+                print()
+                logging.info(f"Sequence motif coefficients:\n{seq_coefs}")
+                logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
+
+                filtered_seq_coefs = seq_motifs.filter_motifs(
+                    seq_coefs,
+                    fimo_fname = f"{fimo_direc}/fimo.tsv",
+                    rec_db = records,
+                    pval_thresh = streme_thresh,
+                )
+
+                print()
+                logging.info(
+                    f"Number of sequence motifs left after LASSO regression: "\
+                    f"{len(seq_motifs)}"
+                )
+
+                if len(seq_motifs) == 0:
+                    print()
+                    logging.info(
+                        f"Only intercept term left after LASSO regression.\n"\
+                        f"Therefore, no informatife sequence motif exists."
+                    )
+                    seq_motif_exists = False
+
+                elif len(seq_motifs) == 1:
+                    print()
+                    logging.info(
+                        f"Only one sequence motif left after LASSO regression.\n"\
+                        f"Performing model selection using CV-F1 to determine whether "\
+                        f"the remaining motif is informative over intercept alone."
+                    )
+
+                    one_seq_motif = True
+
+                # if more than one left after LASSO, seq seq_motif_exists to True
+                else:
+                    seq_motif_exists = True
  
-        # supplement motifs object with CV-F1 score
-        intercept_and_motif_X = np.append(intercept_X, seq_motifs.X, axis=1)
+            # supplement motifs object with CV-F1 score
+            intercept_and_motif_X = np.append(intercept_X, seq_motifs.X, axis=1)
 
-        motif_fit = evm.train_sklearn_glm(
-            intercept_and_motif_X,
-            records.y,
-            family = fam,
-            fit_intercept = False, # intercept already in design mat
-        )
-
-        seq_motifs.metric = evm.CV_F1(
-            intercept_and_motif_X,
-            records.y,
-            folds = 5,
-            family = fam,
-            fit_intercept = False, # intercept already in design mat
-            cores = args.nprocs,
-        )
-
-        # if there's only one covariate, compare CV-F1 from intercept+motif
-        # and intercept only
-        if one_seq_motif:
-            metric_list = [ intercept_metric, seq_motifs.metric ]
-            model_list = [ intercept_fit, motif_fit ]
-
-            best_mod_idx = evm.choose_model(
-                metric_list,
-                model_list,
-                return_index = True,
+            motif_fit = evm.train_sklearn_glm(
+                intercept_and_motif_X,
+                records.y,
+                family = fam,
+                fit_intercept = False, # intercept already in design mat
             )
 
-            if best_mod_idx == 0:
-                print()
-                logging.info(
-                    f"Intercept-only model had better score than model fit using "\
-                    f"intercept and one sequence motif.\nTherefore, there is no "\
-                    f"informative "\
-                    f"sequence motif. Not writing a sequence motif to output."
-                )
-                seq_motif_exists = False
-            # if our one seq motif is better than intercept, set seq_motif_exits to True
-            else:
-                print()
-                logging.info(
-                    f"Sequence-motif-containing model performed better "\
-                    f"than intercept-only model. Therefore, at least one "\
-                    f"informative sequence motif exists."
+            seq_motifs.metric = evm.CV_F1(
+                intercept_and_motif_X,
+                records.y,
+                folds = 5,
+                family = fam,
+                fit_intercept = False, # intercept already in design mat
+                cores = args.nprocs,
+            )
+
+            # if there's only one covariate, compare CV-F1 from intercept+motif
+            # and intercept only
+            if one_seq_motif:
+                metric_list = [ intercept_metric, seq_motifs.metric ]
+                model_list = [ intercept_fit, motif_fit ]
+
+                best_mod_idx = evm.choose_model(
+                    metric_list,
+                    model_list,
+                    return_index = True,
                 )
 
-                filtered_seq_coefs = motif_fit.coef_
-                seq_coefs = motif_fit.coef_
-                print()
-                logging.info(f"Sequence motif coefficients:\n{filtered_seq_coefs}")
-                logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
-                seq_motif_exists = True
+                if best_mod_idx == 0:
+                    print()
+                    logging.info(
+                        f"Intercept-only model had better score than model fit using "\
+                        f"intercept and one sequence motif.\nTherefore, there is no "\
+                        f"informative "\
+                        f"sequence motif. Not writing a sequence motif to output."
+                    )
+                    seq_motif_exists = False
+                # if our one seq motif is better than intercept, set seq_motif_exits to True
+                else:
+                    print()
+                    logging.info(
+                        f"Sequence-motif-containing model performed better "\
+                        f"than intercept-only model. Therefore, at least one "\
+                        f"informative sequence motif exists."
+                    )
+
+                    filtered_seq_coefs = motif_fit.coef_
+                    seq_coefs = motif_fit.coef_
+                    print()
+                    logging.info(f"Sequence motif coefficients:\n{filtered_seq_coefs}")
+                    logging.info(f"Sequence coefficient lookup table:\n{seq_motifs.var_lut}")
+                    seq_motif_exists = True
 
     good_motif_out_fname = os.path.join(
         out_direc,
@@ -746,7 +769,7 @@ def main(args, status):
     if not no_shape_motifs:
         # write shapes to npy file. Permute axes 1 and 2.
         with open(shape_fname, 'wb') as shape_f:
-            np.save(shape_fname, records.X.transpose((0,2,1,3)))
+            np.save(shape_fname, records.X.transpose((0,2,1)))
 
         print()
         if args.shape_rust_file is None:

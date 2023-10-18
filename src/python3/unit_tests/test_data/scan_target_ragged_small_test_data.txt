@@ -1,0 +1,4 @@
+name	score
+peak_00001	0
+peak_00002	1
+peak_00003	0

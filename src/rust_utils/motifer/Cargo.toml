@@ -17,5 +17,5 @@ serde = { version = "1.0", features = ["derive"] }
 ordered-float = "2.8.0"
 rayon = "1.5.1"
 rand = "0.8.4"
-info_theory = { git = "https://github.com/jwschroeder3/info_theory.git" }
+info_theory = { git = "https://github.com/jwschroeder3/info_theory.git", branch = "main" }
 

@@ -176,6 +176,7 @@ fn main() {
     let result = motif_data.get_good_motif_indices();
     if result.is_empty() {
         println!("No motifs are informative");
+    } else {
+        println!("{result}");
     }
-    println!("{result}");
 }

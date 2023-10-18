@@ -26,6 +26,8 @@ fn main() {
     ///////////////////////////////////////////////////////////////////
 
     motifs.filter_by_zscore();
+    // instead of post_optim_update, write new method that doesn't rely on the cheching that
+    // post_optim_update does for max_count.
     motifs.post_optim_update(&rec_db, &cfg.max_count);
 
     // so at this point I need to write a table that looks just like fimo output

@@ -98,17 +98,7 @@ def shape_run(
     )
     return new_motifs
 
-
-def fimo_run(
-        seq_motifs,
-        seq_fasta,
-        seq_meme_fname,
-        fimo_direc,
-        this_path,
-        recs,
-        streme_thresh,
-        tmpdir,
-):
+def run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs=None, thresh=None):
 
     seq_motifs.write_file(seq_meme_fname, recs)
     new_motifs = copy.deepcopy(seq_motifs)
@@ -116,6 +106,7 @@ def fimo_run(
     fimo_exec = os.path.join(this_path, "run_fimo.py")
     FIMO = f"python {fimo_exec} "\
         f"--seq_fname {seq_fasta} "\
+        f"--thresh {thresh} "\
         f"--meme_file {seq_meme_fname} "\
         f"--out_direc {fimo_direc}"
 
@@ -136,6 +127,21 @@ def fimo_run(
         fimo_out.write(fimo_result.stdout.decode())
     with open(fimo_err_fname, "w") as fimo_err:
         fimo_err.write(fimo_result.stderr.decode())
+
+
+def fimo_run(
+        seq_motifs,
+        seq_fasta,
+        seq_meme_fname,
+        fimo_direc,
+        this_path,
+        recs,
+        streme_thresh,
+        tmpdir,
+        thresh = None
+):
+
+    run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs, thresh)
 
     new_motifs.set_X(
         fimo_fname = f"{fimo_direc}/fimo.tsv",
@@ -633,9 +639,9 @@ def fetch_coefficients_multinomial(fit, n_classes):
     ncoefs = fit.rx2["glmnet.fit"].rx2["dim"][0] + 1
     coefs = glmnet.coef_cv_glmnet(fit, s="lambda.1se")
     coefs_arr = np.zeros((n_classes, ncoefs))
-    with open("debug.pkl", "wb") as f:
-        info = {'fit': fit, 'nclass': n_classes}
-        pickle.dump(info, f)
+    #with open("debug.pkl", "wb") as f:
+    #    info = {'fit': fit, 'nclass': n_classes}
+    #    pickle.dump(info, f)
     for i in range(n_classes):
         coefs_arr[i,:] = base.as_matrix(coefs.rx2[str(i)])[:,0]
         
@@ -819,7 +825,7 @@ if __name__ == "__main__":
 
         # write shapes to npy file. Permute axes 1 and 2.
         with open(train_shape_fname, 'wb') as shape_f:
-            np.save(shape_f, train_records.X.transpose((0,2,1,3)))
+            np.save(shape_f, train_records.X.transpose((0,2,1)))
         # write y-vals to npy file.
         with open(train_yval_fname, 'wb') as f:
             np.save(f, train_records.y.astype(np.int64))
@@ -847,7 +853,7 @@ if __name__ == "__main__":
 
     # write shapes to npy file. Permute axes 1 and 2.
     with open(test_shape_fname, 'wb') as shape_f:
-        np.save(shape_f, test_records.X.transpose((0,2,1,3)))
+        np.save(shape_f, test_records.X.transpose((0,2,1)))
     # write y-vals to npy file.
     with open(test_yval_fname, 'wb') as f:
         np.save(f, test_records.y.astype(np.int64))

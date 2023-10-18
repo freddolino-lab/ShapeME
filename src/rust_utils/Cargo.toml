@@ -7,8 +7,8 @@ members = [
     "filter_motifs",
     "evaluate_motifs",
     "get_robustness",
-    "merge_folds",
+    #"merge_folds",
+    #"ShapeIT",
     #"locate_motifs",
-    #"ShapeME",
 ]
 
