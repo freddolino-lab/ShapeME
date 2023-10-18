@@ -792,31 +792,33 @@ class Motif:
         motif_name = self.alt_name
         print(f"Getting hits from fimo file for motif {motif_name}")
         #print(f"seq_motif_hits keys: {seq_motif_hits.keys()}")
-        rec_name_list = seq_motif_hits[motif_name]
-        #print(f"rec_name_list:\n{rec_name_list}")
-        # set up nx1 array to store design matrix for self
-        self.X = np.zeros((len(rec_db), 1))
-        self.hits = np.zeros((len(rec_db), 1))
-        # basically sets a placeholder lookup table for being able
-        # to easily merge sequence and shape motifs
-        self.var_lut = {0: {'hits': 1}}
-        for rec_name,rec_idx in rec_db.record_name_lut.items():
-            # if this record's name is in the fimo hits, set its index in X to 1
-            if rec_name in rec_name_list:
-                #print(f"Record {rec_name} is a hit. Setting index {rec_idx} to 1.")
-                self.X[rec_idx] = 1
-                self.hits[rec_idx] = 1
+        #from IPython import embed; embed()
+        if not motif_name in seq_motif_hits:
+            self.X = np.zeros((len(rec_db), 1))
+            self.hits = np.zeros((len(rec_db), 1))
+            self.var_lut = {0: {'hits': 1}}
+        else:
+            rec_name_list = seq_motif_hits[motif_name]
+            #print(f"rec_name_list:\n{rec_name_list}")
+            # set up nx1 array to store design matrix for self
+            self.X = np.zeros((len(rec_db), 1))
+            self.hits = np.zeros((len(rec_db), 1))
+            # basically sets a placeholder lookup table for being able
+            # to easily merge sequence and shape motifs
+            self.var_lut = {0: {'hits': 1}}
+            for rec_name,rec_idx in rec_db.record_name_lut.items():
+                # if this record's name is in the fimo hits, set its index in X to 1
+                if rec_name in rec_name_list:
+                    #print(f"Record {rec_name} is a hit. Setting index {rec_idx} to 1.")
+                    self.X[rec_idx] = 1
+                    self.hits[rec_idx] = 1
         #print(f"max val in self.X: {self.X.max()}")
         #print(f"min val in self.X: {self.X.min()}")
 
         if np.all(self.X == 0, axis=0):
-            print(f"No records were identified as hits for motif {motif_name}. "\
-                    "Something is likely wrong. Exiting with error.")
-            sys.exit(1)
+            print(f"WARNING: No records were identified as hits for motif {motif_name}.")
         if np.all(self.X == 1, axis=0):
-            print(f"All records were identified as hits for motif {motif_name}. "\
-                    "Something is likely wrong. Exiting with error.")
-            sys.exit(1)
+            print(f"WARNING: All records were identified as hits for motif {motif_name}.")
 
     def set_shape_X(self, rec_db, max_count, motif_hit_list=None):
 
@@ -1096,6 +1098,24 @@ def parse_transforms_line(line):
         center,spread = shape_info[1].split(",")
         transforms[shape_info[0]] = (float(center), float(spread))
     return transforms
+
+def parse_robustness_output(output):
+
+    ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+    robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
+    #zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
+    zscore_pat = re.compile(r'(?<=zscore\= )\S+')
+
+    mi = float(ami_pat.search(output).group())
+    passes = int(robustness_pat.search(output).group(1))
+    attempts = int(robustness_pat.search(output).group(2))
+    robustness = (passes, attempts)
+    zscore = float(zscore_pat.search(output).group())
+    if zscore == "inf":
+        zscore = np.Inf
+
+    return (mi, robustness, zscore)
+
 
 class Motifs:
 
@@ -1466,10 +1486,6 @@ class Motifs:
             ))
 
 
-        ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
-        robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
-        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
-
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         y_name = os.path.join(tmp_direc, "tmp_y.npy")
@@ -1499,13 +1515,14 @@ class Motifs:
                     f"STDOUT: {result.stdout.decode()}\n"
                     f"ERROR: {result.stderr.decode()}\n"\
                 ))
+
             output = result.stdout.decode()
+            #import ipdb; ipdb.set_trace()
             try:
-                motif.mi = float(ami_pat.search(output).group())
-                passes = int(robustness_pat.search(output).group(1))
-                attempts = int(robustness_pat.search(output).group(2))
-                motif.robustness = (passes, attempts)
-                motif.zscore = float(zscore_pat.search(output).group())
+                mi,robustness,zscore = parse_robustness_output(output)
+                motif.mi = mi
+                motif.robustness = robustness
+                motif.zscore = zscore
             except:
                 raise(Exception(
                     f"Something went wrong in supplementing robustness:\n\n"\
@@ -1734,8 +1751,11 @@ class Motifs:
         if not nosort:
             #print("\nSorting shape motifs by z-score")
             self.sort_motifs()
-        # get idices of hits for seq motifs
+        # get indices of hits for seq motifs
         #print("iterating over motifs")
+
+        #import ipdb; ipdb.set_trace()
+
         motif_types = [motif.motif_type for motif in self]
         # if any are sequence motifs, read fimo_file
         if "sequence" in motif_types:

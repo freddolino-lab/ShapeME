@@ -493,6 +493,7 @@ def main(args, status):
         logging.info("\nPlacing each motif's robustness into motifs")
         # set_X is called with nosort=True here just to get the hits array required
         # for supplement_robustness and sorting later
+        #import ipdb; ipdb.set_trace()
         seq_motifs.set_X(
             max_count = max_count,
             fimo_fname = f"{fimo_direc}/fimo.tsv",

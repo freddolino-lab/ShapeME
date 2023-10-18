@@ -283,6 +283,14 @@ class TestMotifMethods(unittest.TestCase):
         self.small_motifs = inout.Motifs()
         self.small_motifs.read_file( small_motifs_dsm_name )
 
+    def test_set_motifs_X(self):
+        self.assertTrue(False)
+
+    def test_set_motif_X(self):
+        self.assertTrue(False)
+
+    def test_seq_seq_X(self):
+        self.assertTrue(False)
         
     def test_read_rust_motifs(self):
         true_vals = np.array([1.2773111194451234,1.1180652261474313,1.013006059147333,1.127655239412062,0.7629026691324009,0.5432454456239426,2.7421093793782325,2.3773687694067434,-0.04295526996191982,-3.6919303189407024,-3.991392205961111,-1.2535928653464052,-3.8058503813818367,0.8127795518431163,-1.3426905642543492,-3.0980229039839857,4.0,-0.6709187768810462,0.3969566117871946,-0.7994539080803214,0.29510191226363697,2.5814353961228633,0.4338070325970177,-0.8136997151222107,0.48106490558119164,3.9927933088697922,-4.0,3.534429584186872,-2.0853180559715536,0.9850228290309825,-0.06932976698993176,-0.3889939363013855,1.1504453667879029,2.5416541250127156,2.5843873092003466,2.302556570897386,-1.2363800964478013,-2.4080015092947953,0.7053859201593731,1.6678869177429936,3.6921541524982255,3.2519660845498506,0.2932956922574255,-0.03809626705635591,-1.314249778964454,-3.17141849006105,2.9509085852514594,2.1989834453740134,-2.7111076702309616,-0.212721127225040]).reshape((5,10))
@@ -588,6 +596,21 @@ class TestMotifMethods(unittest.TestCase):
         written_motifs.read_file( self.out_dsm_name )
         written_str = str(written_motifs)
         self.assertEqual(written_str, self.true_str)
+
+    def test_parse_robustness_line(self):
+        line="adj_mi= -0.00000000000000011990391686347508, robustness= (0, 10), zscore= inf\n"
+        mi,rob,z = inout.parse_robustness_output(line)
+        self.assertEqual(mi, -0.00000000000000011990391686347508)
+        self.assertEqual(rob[0], 0)
+        self.assertEqual(rob[1], 10)
+        self.assertTrue(np.isinf(z))
+
+        line="adj_mi= 1.0, robustness= (10, 10), zscore= 200.35\n"
+        mi,rob,z = inout.parse_robustness_output(line)
+        self.assertEqual(mi, 1.0)
+        self.assertEqual(rob[0], 10)
+        self.assertEqual(rob[1], 10)
+        self.assertEqual(z, 200.35)
 
 
 class TestUtilities(unittest.TestCase):
