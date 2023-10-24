@@ -39,6 +39,7 @@ class Performance():
 
     def gather_performance_metrics(self, main_direc, fold_direcs):
 
+        #import ipdb; ipdb.set_trace()
         self.fold_count = len(fold_direcs)
         self.fold_auprs = {}
         self.random_aupr = {}
@@ -474,7 +475,7 @@ def infer(args):
             ints[i] = val.is_integer()
         all_int = np.all(ints)
         if all_int:
-            logging.warning("WARNING: You have included the --continuous flag at the command line despite having input scores comprising entirely integers. Double-check whether this is really what you want before interpreting ShapeME resulgs.")
+            logging.warning("WARNING: You have included the --continuous flag at the command line despite having input scores comprising entirely integers. Double-check whether this is really what you want before interpreting ShapeME results.")
         yvals = quantize_yvals(yvals, args.continuous)
 
     for category in np.unique(yvals):

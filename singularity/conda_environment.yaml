@@ -25,7 +25,7 @@ dependencies:
       #- jupyter
     - rpy2
     - seaborn
-    - meme
+    - meme=5.5.3
     - seqlogo
     - pip
       #- openssl

@@ -759,8 +759,10 @@ class Motif:
             #print(f"plus_weighted_manhattan.shape, {plus_weighted_manhattan.shape}")
             #print(f"plus_weighted_manhattan, {plus_weighted_manhattan}")
             plus_hits = np.where(plus_weighted_manhattan < threshold)[0]
+            plus_dists = plus_weighted_manhattan[plus_hits]
             #print(f"plus_hits: {plus_hits}")
             minus_hits = np.where(minus_weighted_manhattan < threshold)[0]
+            minus_dists = minus_weighted_manhattan[minus_hits]
             #print(f"minus_hits: {minus_hits}")
             # add 2 to get removed NAs back, then add one more to get to one-indexed start position
             plus_starts = plus_hits+2+1
@@ -772,12 +774,12 @@ class Motif:
             if plus_hits.size > 0:
                 for i,start in enumerate(plus_starts):
                     hits.append((
-                        self.identifier, self.alt_name, rec_name, start, plus_ends[i], "+", 0, 1, 1, ""
+                        self.identifier, self.alt_name, rec_name, start, plus_ends[i], "+", plus_dists[i], 1, 1, ""
                     ))
             if minus_hits.size > 0:
                 for i,start in enumerate(minus_starts):
                     hits.append((
-                        self.identifier, self.alt_name, rec_name, start, minus_ends[i], "-", 0, 1, 1, ""
+                        self.identifier, self.alt_name, rec_name, start, minus_ends[i], "-", minus_dists[i], 1, 1, ""
                     ))
         return hits
 
@@ -1185,6 +1187,10 @@ class Motifs:
         for motif in self:
             hits = motif.scan(ragged_rec_db)
             hits_info.extend(hits)
+
+        # sort by ("seqname", "start")
+        hits_info.sort(key=lambda x: (x[2], x[3]))
+
         hit_str = ""
         for hit in hits_info:
             hit_str += "\t".join([str(_) for _ in hit])
@@ -2057,14 +2063,6 @@ class Motifs:
         for (new_i,filt_i) in enumerate(retain_coefs):
             retained_coefs[:,new_i] = coefs[:,filt_i]
 
-        #####################################################################
-        #####################################################################
-        #####################################################################
-        ## note: this is where I must change approach to use new set_X
-        #####################################################################
-        #####################################################################
-        #####################################################################
-        #####################################################################
         self.motifs = retained_motifs
         self.set_X(
             max_count = max_count,
@@ -2072,8 +2070,6 @@ class Motifs:
             rec_db = rec_db,
             pval_thresh = pval_thresh,
         )
-        #self.X = retained_X
-        #self.var_lut = new_lut
 
         return(retained_coefs)
 
