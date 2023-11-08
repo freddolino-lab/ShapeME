@@ -1,1 +1,14 @@
-b'Using motif +1-AAATA of width 5.\nUsing motif -1-AAATA of width 5.\nComputing q-values.\n# Computing q-values.\n# Warning: Cannot estimate pi_0 accurately from fewer\n#          than 100 sampled p-values.\n#          Only 16 p-values were sampled. Using pi_zero = 1.0.\nUsing motif +2-AATAA of width 5.\nUsing motif -2-AATAA of width 5.\nComputing q-values.\n# Computing q-values.\n# Warning: Cannot estimate pi_0 accurately from fewer\n#          than 100 sampled p-values.\n#          Only 16 p-values were sampled. Using pi_zero = 1.0.\n'
+Using motif +1-AAATA of width 5.
+Using motif -1-AAATA of width 5.
+Computing q-values.
+# Computing q-values.
+# Warning: Cannot estimate pi_0 accurately from fewer
+#          than 100 sampled p-values.
+#          Only 16 p-values were sampled. Using pi_zero = 1.0.
+Using motif +2-AATAA of width 5.
+Using motif -2-AATAA of width 5.
+Computing q-values.
+# Computing q-values.
+# Warning: Cannot estimate pi_0 accurately from fewer
+#          than 100 sampled p-values.
+#          Only 16 p-values were sampled. Using pi_zero = 1.0.

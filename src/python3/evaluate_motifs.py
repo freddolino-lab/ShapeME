@@ -98,35 +98,52 @@ def shape_run(
     )
     return new_motifs
 
-def run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs=None, thresh=None):
+def run_fimo(
+        seq_motifs,
+        seq_fasta,
+        seq_meme_fname,
+        fimo_direc,
+        this_path,
+        recs=None,
+        thresh=None,
+):
 
     seq_motifs.write_file(seq_meme_fname, recs)
-    new_motifs = copy.deepcopy(seq_motifs)
+    #new_motifs = copy.deepcopy(seq_motifs)
+
+    fimo_log_fname = f"{fimo_direc}/fimo_run.log"
+    fimo_err_fname = f"{fimo_direc}/fimo_run.err"
 
     fimo_exec = os.path.join(this_path, "run_fimo.py")
     FIMO = f"python {fimo_exec} "\
         f"--seq_fname {seq_fasta} "\
-        f"--thresh {thresh} "\
         f"--meme_file {seq_meme_fname} "\
-        f"--out_direc {fimo_direc}"
+        f"--out_direc {fimo_direc} "\
+        f"--log_file {fimo_log_fname} "\
+        f"--err_file {fimo_err_fname} "
+
+    if thresh is not None:
+        FIMO += f"--thresh {thresh} "
 
     fimo_result = subprocess.run(
         FIMO,
         shell=True,
         check=True,
-        capture_output=True,
+        capture_output=False,
     )
-    fimo_log_fname = f"{fimo_direc}/fimo_run.log"
-    fimo_err_fname = f"{fimo_direc}/fimo_run.err"
-    print()
-    logging.info(
-        f"Ran fimo: for details, see "\
-        f"{fimo_log_fname} and {fimo_err_fname}"
-    )
-    with open(fimo_log_fname, "w") as fimo_out:
-        fimo_out.write(fimo_result.stdout.decode())
-    with open(fimo_err_fname, "w") as fimo_err:
-        fimo_err.write(fimo_result.stderr.decode())
+
+    if fimo_result.returncode != 0:
+        raise Exception(f"FIMO run returned non-zero exit status. See {fimo_log_fname} and {fimo_err_fname} for details.")
+    else:
+        print()
+        logging.info(
+            f"Ran FIMO, process exited normally: for details, see "\
+            f"{fimo_log_fname} and {fimo_err_fname}"
+        )
+    #with open(fimo_log_fname, "w") as fimo_out:
+    #    fimo_out.write(fimo_result.stdout.decode())
+    #with open(fimo_err_fname, "w") as fimo_err:
+    #    fimo_err.write(fimo_result.stderr.decode())
 
 
 def fimo_run(
@@ -141,15 +158,23 @@ def fimo_run(
         thresh = None
 ):
 
-    run_fimo(seq_motifs, seq_fasta, seq_meme_fname, fimo_direc, this_path, recs, thresh)
+    run_fimo(
+        seq_motifs,
+        seq_fasta,
+        seq_meme_fname,
+        fimo_direc,
+        this_path,
+        recs,
+        streme_thresh,
+    )
 
-    new_motifs.set_X(
+    seq_motifs.set_X(
         fimo_fname = f"{fimo_direc}/fimo.tsv",
         pval_thresh = streme_thresh,
         rec_db = recs,
         nosort = True,
     )
-    return new_motifs
+    return seq_motifs
 
 
 def fetch_coefficients(family, fit, continuous):
@@ -911,7 +936,7 @@ if __name__ == "__main__":
 
                 all_train_motifs = train_shape_motifs
             all_test_motifs = test_shape_motifs
-            print(f"Shape of all_test_motifs.X in shape_motifs block: {all_test_motifs.X.shape}")
+            #print(f"Shape of all_test_motifs.X in shape_motifs block: {all_test_motifs.X.shape}")
 
         if len(seq_motifs) > 0:
 
@@ -959,7 +984,7 @@ if __name__ == "__main__":
                     pval_thresh = streme_thresh,
                     nosort = True,
                 )
-                print(f"Shape of all_test_motifs.X in shape_and_seq_motifs block: {all_test_motifs.X.shape}")
+                #print(f"Shape of all_test_motifs.X in shape_and_seq_motifs block: {all_test_motifs.X.shape}")
                 #print("Merging training motifs")
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
                     all_train_motifs = train_shape_motifs.new_with_motifs(
@@ -972,7 +997,7 @@ if __name__ == "__main__":
                     )
             else:
                 all_test_motifs = test_seq_motifs
-                print(f"Shape of all_test_motifs.X in seq_motifs block: {all_test_motifs.X.shape}")
+                #print(f"Shape of all_test_motifs.X in seq_motifs block: {all_test_motifs.X.shape}")
                 if (args.train_score_file is not None) and (args.train_shape_files is not None):
                     all_train_motifs = train_seq_motifs
 
