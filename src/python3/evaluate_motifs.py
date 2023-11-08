@@ -216,7 +216,8 @@ def save_prc_plot(prc_dict, plot_prefix, plot_label_prefix):
 
     label_str = plot_label_prefix + "_class: {}"
 
-    ylims = get_y_axis_limits(prc_dict)
+    #ylims = get_y_axis_limits(prc_dict)
+    ylims = (-0.02, 1.02)
 
     for class_name,class_info in prc_dict.items():
 
@@ -232,6 +233,7 @@ def save_prc_plot(prc_dict, plot_prefix, plot_label_prefix):
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.ylim(ylims)
+    plt.xlim((-0.02, 1.02))
     plt.savefig(plot_prefix + ".png")
     plt.savefig(plot_prefix + ".pdf")
     plt.close()
@@ -240,7 +242,8 @@ def save_combined_prc_plot(results, plot_prefix):
 
     ylim_vals = []
     for i,(data_type,type_results) in enumerate(results.items()):
-        ylim_vals.append(get_y_axis_limits(type_results))
+        #ylim_vals.append(get_y_axis_limits(type_results))
+        ylim_vals.append((-0.02, 1.02))
         #if i == 0:
         #    plt.plot(
         #        [0,1],
@@ -1013,31 +1016,6 @@ if __name__ == "__main__":
             while np.min(test_y) != 0:
                 test_y -= 1
 
-##############################################################################
-##############################################################################
-##############################################################################
-## check this as source of issue with seq and shape motif performance evaluation
-##############################################################################
-##############################################################################
-##############################################################################
-
-        #fit = train_glmnet(
-        #    all_train_motifs.X,
-        #    train_y,
-        #    folds = 10,
-        #    family=fam,
-        #    alpha=1,
-        #)
-
-###############################################################################################
-###############################################################################################
-# I need to write the motif_coefs WITH THEIR ASSOCIATED VARIABLE LOOKUP TABLE!!!!!!!
-# Then I need to construct the design matrix for testing using that lookup table!!!!
-# This is the way to ensure the correct coeficients are used for the correct motifs/categories.
-###############################################################################################
-###############################################################################################
-
-        #coefs = fetch_coefficients(fam, fit, args.continuous)
         fit_eval = evaluate_fit2(
             motif_coefs,
             all_test_motifs.X,
@@ -1046,22 +1024,8 @@ if __name__ == "__main__":
             plot=False,
         )
 
-        # predict on test data
-        #fit_eval = evaluate_fit(
-        #    fit,
-        #    all_test_motifs.X,
-        #    test_y,
-        #    fam,
-        #    lambda_cut="lambda.1se",
-        #    prefix=eval_dist_plot_prefix,
-        #    plot=True,
-        #)
-
         with open(eval_out_fname, 'w') as f:
             json.dump(fit_eval, f, indent=1)
-
-        #with open(logit_reg_fname, 'wb') as f:
-        #    pickle.dump(fit, f)
 
         save_prc_plot(
             fit_eval,
@@ -1085,5 +1049,4 @@ if __name__ == "__main__":
                 prc_prefix+".pdf",
             )
         )
-        #os.remove(seq_meme_fname)
 

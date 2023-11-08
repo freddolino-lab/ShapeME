@@ -31,65 +31,107 @@ import inout
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
+def logit(p):
+    x = np.log(p/(1-p))
+    return x
+
+def inv_logit(x):
+    p = np.exp(x)/(1+np.exp(x))
+    return p
 
 class Performance():
 
     def __init__(self, main_direc, fold_direcs):
         self.gather_performance_metrics(main_direc, fold_direcs)
 
+    def __str__(self):
+        string = f"\nJoint AUPR:\n{self.main_auprs}\n"\
+            f"Cross-validated AUPR:\n{self.cv_aupr}\n"\
+            f"Random AUPR expected:\n{self.main_random_auprs}\n"\
+            f"Of {self.fold_count} folds used for cross-validation, "\
+            f"{self.fold_count_with_motifs} had motifs.\n"
+        return string
+
     def gather_performance_metrics(self, main_direc, fold_direcs):
 
         #import ipdb; ipdb.set_trace()
         self.fold_count = len(fold_direcs)
+        self.main_auprs = []
         self.fold_auprs = {}
-        self.random_aupr = {}
-        self.aupr = {}
-        self.cv_aupr = {}
-        self.cv_aupr_sd = {}
-        randoms = {}
-        self.any_motif = False
+        self.main_random_auprs = []
+        self.fold_random_auprs = {}
+        self.cv_aupr = []
+        self.cv_aupr_sd = []
+        self.upper_limits = []
+        self.lower_limits = []
+        self.fold_count_with_motifs = 0
+
         for k,fold_direc in enumerate(fold_direcs):
             motifs_file = os.path.join(fold_direc, "final_motifs.dsm")
+            self.fold_auprs[k] = []
+            self.fold_random_auprs[k] = []
             if os.path.isfile(motifs_file):
-                any_motif = True
                 # place fold motifs into all_motifs
                 aupr_fname = os.path.join(fold_direc, "precision_recall.json")
                 with open(aupr_fname, "r") as aupr_file:
                     fold_data = json.load(aupr_file)
                 for category,aupr_data in fold_data.items():
-                    if not category in self.fold_auprs:
-                        self.fold_auprs[category] = []
-                        randoms[category] = []
-                    self.fold_auprs[category].append(aupr_data["auc"])
-                    randoms[category].append(aupr_data["random_auc"])
+                    self.fold_auprs[k].append(aupr_data["auc"])
+                    self.fold_random_auprs[k].append(aupr_data["random_auc"])
             else:
                 continue
 
-        joint_aupr_fname = os.path.join(main_direc, "precision_recall.json")
-        with open(joint_aupr_fname, "r") as aupr_file:
-            aupr_data = json.load(aupr_file)
+        main_aupr_fname = os.path.join(main_direc, "precision_recall.json")
+        with open(main_aupr_fname, "r") as aupr_file:
+            main_aupr_data = json.load(aupr_file)
 
-        for category in self.fold_auprs.keys():
-            self.random_aupr[category] = np.mean(randoms[category])
-            self.cv_aupr[category] = np.mean(self.fold_auprs[category])
-            self.cv_aupr_sd[category] = np.std(self.fold_auprs[category])
-            self.aupr[category] = aupr_data[category]["auc"]
+        for category,aupr_data in main_aupr_data.items():
+            self.main_random_auprs.append(aupr_data["random_auc"])
+            self.main_auprs.append(aupr_data["auc"])
 
-        if any_motif:
-            self.fold_count_with_motifs = len(randoms[category])
+        self.any_empty = False
+        self.cat_tracker = {}
+        for fold,category_auprs in self.fold_auprs.items():
+            if not category_auprs:
+                self.any_empty = True
+            else:
+                if len(category_auprs) == 1:
+                    if not 1 in self.cat_tracker:
+                        self.cat_tracker[1] = []
+                    self.cat_tracker[1].append(category_auprs[0])
+                else:
+                    if not 0 in self.cat_tracker:
+                        for cat in range(len(category_auprs)):
+                            self.cat_tracker[cat] = []
+                    for cat,val in enumerate(category_auprs):
+                        self.cat_tracker[cat].append(val)
+
+                self.fold_count_with_motifs += 1
+
+        if self.any_empty:
+            [self.cv_aupr.append(np.NaN) for _ in self.main_auprs]
+            [self.cv_aupr_sd.append(np.NaN) for _ in self.main_auprs]
         else:
-            self.fold_count_with_motifs = 0
+            for cat,data in self.cat_tracker.items():
 
+                logit_vals = [ logit(val) for val in data ]
+                mean_logit = np.mean(logit_vals)
+                sd_logit = np.std(logit_vals)
+                upper_logit = mean_logit + sd_logit
+                lower_logit = mean_logit - sd_logit
+                lower = inv_logit(lower_logit)
+                upper = inv_logit(upper_logit)
 
-    def __str__(self):
-        string = f"\nJoint AUPR:\n{self.aupr}\n"\
-            f"Cross-validated AUPR:\n{self.cv_aupr}\n"\
-            f"Cross-validated random AUPR expected:\n{self.random_aupr}\n"\
-            f"Of {self.fold_count} folds used for cross-validation, "\
-            f"{self.fold_count_with_motifs} had motifs.\n"
-        return string
+                mean_val = inv_logit(mean_logit)
+                self.cv_aupr.append(mean_val)
+                self.cv_aupr_sd.append(np.std(data))
+
+                self.upper_limits.append(upper)
+                self.lower_limits.append(lower)
 
     def plot_performance(self, plot_fname):
+
+        rng = np.random.default_rng()
         
         folds = []
         fold_categories = []
@@ -99,110 +141,99 @@ class Performance():
         cv_auprs = []
 
         std_categories = []
-        ranges = []
+        uppers = []
+        lowers = []
 
-        joint_categories = []
-        joint_auprs = []
+        main_categories = []
+        main_auprs = []
 
         rand_yvals = []
         randoms = []
         rand_categories = []
-        
-        for category in self.aupr.keys():
-            #cat = int(category)
-            for k in range(self.fold_count):
-                try:
+
+        cat_ylabs = []
+
+        for cat_idx in range(len(self.main_auprs)):
+
+            if len(self.main_auprs) == 1:
+                category = 1
+            else:
+                category = cat_idx
+
+            cat_ylabs.append(category)
+
+            for k,fold_info in self.fold_auprs.items():
+                if fold_info:
                     folds.append(k)
-                    fold_categories.append(category)
-                    fold_auprs.append(self.fold_auprs[category][k])
-                except IndexError:
-                    continue
+                    # add random jitter
+                    fold_categories.append(category + rng.normal(0.0, 0.15))
+                    fold_auprs.append(fold_info[cat_idx])
  
-            rand_yvals.append(float(category)-0.3)
-            rand_yvals.append(float(category)+0.3)
-            randoms.append(self.random_aupr[category])
-            randoms.append(self.random_aupr[category])
-            rand_categories.append(category)
+            randoms.append(self.main_random_auprs[cat_idx])
             rand_categories.append(category)
 
-            cv_aupr = self.cv_aupr[category]
-            stddev = self.cv_aupr_sd[category]
-            lower = cv_aupr - stddev
-            upper = cv_aupr + stddev
+            # will be empty if a single fold was missing results
+            if self.lower_limits:
+                lower = self.lower_limits[cat_idx]
+                upper = self.upper_limits[cat_idx]
+            else:
+                lower = np.NaN
+                upper = np.NaN
 
             std_categories.append(category)
-            std_categories.append(category)
-            ranges.append(lower)
-            ranges.append(upper)
+            lowers.append(lower)
+            uppers.append(upper)
 
             cv_categories.append(category)
-            cv_auprs.append(cv_aupr)
+            cv_auprs.append(self.cv_aupr[cat_idx])
 
-            joint_categories.append(category)
-            joint_auprs.append(self.aupr[category])
+            main_categories.append(category)
+            main_auprs.append(self.main_auprs[cat_idx])
 
-        fold_df = pd.DataFrame(data={"fold":folds, "aupr":fold_auprs, "cat":fold_categories})
-        print(f"fold_df:\n{fold_df}")
-        lims_df = pd.DataFrame(data={"xvals":ranges, "cat":std_categories})
-        print(f"lims_df:\n{lims_df}")
-        cv_df = pd.DataFrame(data={"aupr":cv_auprs, "cat":cv_categories})
-        print(f"cv_df:\n{cv_df}")
-        joint_df = pd.DataFrame(data={"aupr":joint_auprs, "cat":joint_categories})
-        print(f"joint_df:\n{joint_df}")
-        rand_df = pd.DataFrame(data={"randoms":randoms, "yvals":rand_yvals, "cat":rand_categories})
-        print(f"rand_df:\n{rand_df}")
+        #fold_df = pd.DataFrame(data={"fold":folds, "aupr":fold_auprs, "cat":fold_categories})
+        #print(f"fold_df:\n{fold_df}")
+        #lims_df = pd.DataFrame(data={"xvals":ranges, "cat":std_categories})
+        #print(f"lims_df:\n{lims_df}")
+        #cv_df = pd.DataFrame(data={"aupr":cv_auprs, "cat":cv_categories})
+        #print(f"cv_df:\n{cv_df}")
+        #main_df = pd.DataFrame(data={"aupr":main_auprs, "cat":main_categories})
+        #print(f"main_df:\n{main_df}")
+        #rand_df = pd.DataFrame(data={"randoms":randoms, "yvals":rand_yvals, "cat":rand_categories})
+        #print(f"rand_df:\n{rand_df}")
 
-        fig,ax = plt.subplots(figsize=(5,1.5*len(self.aupr)))
-        sns.scatterplot(
-            data = rand_df,
-            x = "randoms",
-            y = "cat",
-            #hue = "cat",
-            s = 200,
-            marker = "x",
-            color = "red",
-            legend = False,
-            ax = ax,
+        fig,ax = plt.subplots(figsize=(5,0.75*len(self.main_auprs)))
+        ax.plot(
+            randoms,
+            rand_categories,
+            "rx",
         )
-        sns.lineplot(
-            data = lims_df,
-            x = "xvals",
-            y = "cat",
-            hue = "cat",
-            legend = False,
-            ax = ax,
+        for i,lower in enumerate(lowers):
+            ax.plot(
+                [lower, uppers[i]],
+                [std_categories[i], std_categories[i]],
+                "b-",
+            )
+        ax.scatter(
+            fold_auprs,
+            fold_categories,
+            c = "b",
+            s = 10,
+            alpha = 0.4,
         )
-        sns.stripplot(
-            data = fold_df,
-            x = "aupr",
-            y = "cat",
-            hue = "cat", 
-            jitter = 0.02,
-            dodge = True,
-            marker = ".",
-            legend = False,
-            ax = ax,
+        ax.scatter(
+            cv_auprs,
+            cv_categories,
+            edgecolors="b",
+            facecolors="none"
         )
-        sns.scatterplot(
-            data = cv_df,
-            x = "aupr",
-            y = "cat",
-            hue = "cat", 
+        ax.scatter(
+            main_auprs,
+            main_categories,
+            c = "b",
             marker = "o",
-            legend = False,
-            ax = ax,
+            s = 30,
         )
-        sns.scatterplot(
-            data = joint_df,
-            x = "aupr",
-            y = "cat",
-            hue = "cat", 
-            marker = "$\circ$",
-            ec = "face",
-            s = 100,
-            legend = False,
-            ax = ax,
-        )
+        ax.set_yticks(cat_ylabs)
         plt.xlabel("AUPR")
         plt.ylabel("Category")
         plt.xlim((-0.05,1.05))

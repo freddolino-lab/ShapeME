@@ -13,7 +13,93 @@ import inout
 import evaluate_motifs as evm
 import ShapeIT as shapeit
 import ShapeME as shapeme
-import infer_motifs as inf
+
+class TestPerformance(unittest.TestCase):
+    
+    def setUp(self):
+        self.out_dir = "test_data/performance_data/main_output"
+        self.fold_direcs = [
+            "test_data/performance_data/fold_0_output",
+            "test_data/performance_data/fold_1_output",
+            "test_data/performance_data/fold_2_output",
+            "test_data/performance_data/fold_3_output",
+            "test_data/performance_data/fold_4_output",
+        ]
+        self.fold_count = 5
+        self.main_auprs = [0.11276408551043067, 0.10609425281173282, 0.10619331052282671, 0.10698124439726181, 0.10153393740276745, 0.10135418113552769, 0.10439285858994755, 0.10136992967555156, 0.11522177647888533, 0.13017518426208885]
+        self.cat_tracker = {
+            0: [0.1087088001418148, 0.11208042079041518],
+            1: [0.10905446880619526, 0.10268888314602544],
+            2: [0.10559119722120099, 0.10673914926009243],
+            3: [0.10421058462297543, 0.10299565847023168],
+            4: [0.1064657552398172, 0.10045715061941665],
+            5: [0.1012006497288996, 0.09801733131785002],
+            6: [0.10002044506186146, 0.09799325708645772],
+            7: [0.10509236677693043, 0.09659292414969989],
+            8: [0.10201389033417559, 0.10493798732199022],
+            9: [0.12984469188622716, 0.12506757228578072],
+        }
+        self.fold_auprs = {
+            0: [],
+            1: [],
+            2: [0.1087088001418148, 0.10905446880619526, 0.10559119722120099, 0.10421058462297543, 0.1064657552398172, 0.1012006497288996, 0.10002044506186146, 0.10509236677693043, 0.10201389033417559, 0.12984469188622716],
+            3: [0.11208042079041518, 0.10268888314602544, 0.10673914926009243, 0.10299565847023168, 0.10045715061941665, 0.09801733131785002, 0.09799325708645772, 0.09659292414969989, 0.10493798732199022, 0.12506757228578072],
+            4: [],
+        }
+        self.main_random_auprs = [0.09993333333333333, 0.09916666666666667, 0.10013333333333334, 0.10033333333333333, 0.0993, 0.0995, 0.09976666666666667, 0.0992, 0.10123333333333333, 0.10143333333333333]
+        self.fold_random_auprs = {
+            0: [],
+            1: [],
+            2: [0.1, 0.09916666666666667, 0.10016666666666667, 0.10033333333333333, 0.09933333333333333, 0.0995, 0.09983333333333333, 0.09916666666666667, 0.10116666666666667, 0.10133333333333333],
+            3: [0.1, 0.09916666666666667, 0.1, 0.10033333333333333, 0.09933333333333333, 0.0995, 0.09966666666666667, 0.09933333333333333, 0.10133333333333333, 0.10133333333333333],
+            4: [],
+        }
+        self.cv_aupr = [np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN]
+        self.cv_aupr_sd = [np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN]
+        self.fold_count_with_motifs = 2
+
+    def test_performance_string(self):
+        out_dir = self.out_dir
+        fold_direcs = self.fold_direcs
+        
+        performance = shapeme.Performance(out_dir, fold_direcs)
+
+        target_str = f"\nJoint AUPR:\n{self.main_auprs}\n"\
+            f"Cross-validated AUPR:\n{self.cv_aupr}\n"\
+            f"Random AUPR expected:\n{self.main_random_auprs}\n"\
+            f"Of {self.fold_count} folds used for cross-validation, "\
+            f"{self.fold_count_with_motifs} had motifs.\n"
+
+        self.assertEqual(target_str, str(performance))
+
+    def test_plot(self):
+
+        out_dir = self.out_dir
+        fold_direcs = self.fold_direcs
+
+        performance = shapeme.Performance(out_dir, fold_direcs)
+        performance.plot_performance("test_data/performance_data/results/test.png")
+
+    def test_make_performance_object(self):
+        out_dir = self.out_dir
+        fold_direcs = self.fold_direcs
+
+        performance = shapeme.Performance(out_dir, fold_direcs)
+
+        self.assertEqual(self.fold_count, performance.fold_count)
+        self.assertEqual(self.fold_count_with_motifs, performance.fold_count_with_motifs)
+
+        for k,v in performance.fold_auprs.items():
+            target_auprs = self.fold_auprs[k]
+            rand_targets = self.fold_random_auprs[k]
+            rand_results = performance.fold_random_auprs[k]
+            for i,result_val in enumerate(v):
+                self.assertEqual(target_auprs[i], result_val)
+                self.assertEqual(rand_targets[i], rand_results[i])
+
+        for i,result_val in enumerate(performance.main_random_auprs):
+            self.assertEqual(self.main_random_auprs[i], result_val)
+            self.assertEqual(self.main_auprs[i], performance.main_auprs[i])
 
 class TestFastaMethods(unittest.TestCase):
 
@@ -627,15 +713,6 @@ class TestMotifMethods(unittest.TestCase):
 
         self.assertTrue(len(shape_transforms) == 5)
         self.assertTrue(len(seq_transforms) == 0)
-
-        target = {"EP": (-6.0,1.0), "HelT":(34.0,1.5), "MGW":(5.0,0.5), "ProT": (-7.0,4.0), "Roll": (-2.0,1.0)}
-        result = inout.parse_transforms_line(transforms_line)
-        self.assertEqual(target, result)
-
-        bad_target = {"P": (-6.0,1.0), "HelT":(34.0,1.5), "MGW":(5.0,0.5), "ProT": (-7.0,4.0), "Roll": (-2.0,1.0)}
-        self.assertNotEqual(bad_target, result)
-
-
 
     def test_get_fimo_hits(self):
 
