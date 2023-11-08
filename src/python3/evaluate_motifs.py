@@ -114,16 +114,20 @@ def run_fimo(
     fimo_log_fname = f"{fimo_direc}/fimo_run.log"
     fimo_err_fname = f"{fimo_direc}/fimo_run.err"
 
+    if not os.path.isdir(fimo_direc):
+        os.makedirs(fimo_direc)
+
     fimo_exec = os.path.join(this_path, "run_fimo.py")
     FIMO = f"python {fimo_exec} "\
         f"--seq_fname {seq_fasta} "\
         f"--meme_file {seq_meme_fname} "\
-        f"--out_direc {fimo_direc} "\
-        f"--log_file {fimo_log_fname} "\
-        f"--err_file {fimo_err_fname} "
+        f"--out_direc {fimo_direc} "
 
     if thresh is not None:
         FIMO += f"--thresh {thresh} "
+
+    FIMO += f"> {fimo_log_fname} "\
+        f"2> {fimo_err_fname} "
 
     fimo_result = subprocess.run(
         FIMO,

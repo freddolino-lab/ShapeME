@@ -333,6 +333,10 @@ def main(args, status):
         #    seqs.write(tmp_f)
         streme_log_fname = f"{streme_direc}/streme_run.log"
         streme_err_fname = f"{streme_direc}/streme_run.err"
+
+        if not os.path.isdir(streme_direc):
+            os.makedirs(streme_direc)
+
         STREME = f"python {streme_exec} "\
             f"--seq_fname {tmp_seq_fname} "\
             f"--yvals_fname {yval_fname} "\
@@ -340,8 +344,8 @@ def main(args, status):
             f"--threshold {streme_thresh} "\
             f"--out_direc {streme_direc} "\
             f"--tmpdir {tmpdir} "\
-            f"--log_file {streme_log_fname} "\
-            f"--err_file {streme_err_fname} "
+            f"> {streme_log_fname} "\
+            f"2> {streme_err_fname} "
 
         print()
         logging.info(
@@ -417,13 +421,16 @@ def main(args, status):
         fimo_log_fname = f"{fimo_direc}/fimo_run.log"
         fimo_err_fname = f"{fimo_direc}/fimo_run.err"
 
+        if not os.path.isdir(fimo_direc):
+            os.makedirs(fimo_direc)
+
         fimo_exec = os.path.join(this_path, "run_fimo.py")
         FIMO = f"python {fimo_exec} "\
             f"--seq_fname {tmp_seq_fname} "\
             f"--meme_file {seq_meme_file} "\
             f"--out_direc {fimo_direc} "\
-            f"--log_file {fimo_log_fname} "\
-            f"--err_file {fimo_err_fname} "
+            f"> {fimo_log_fname} "\
+            f"2> {fimo_err_fname} "
 
         print()
         logging.info(

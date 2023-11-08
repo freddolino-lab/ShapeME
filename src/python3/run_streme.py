@@ -88,7 +88,6 @@ def run_streme(seq_fname, yvals_fname, positive_cats, threshold, out_direc, tmpd
         STREME,
         shell=True,
         check=True,
-        capture_output=True,
     )
 
     return result
@@ -118,10 +117,10 @@ def main():
     parser.add_argument('--tmpdir', action='store', type=str, default=None,
         help=f"Sets the location into which to write temporary files. If ommitted, will "\
                 f"use TMPDIR environment variable.")
-    parser.add_argument('--log_file', action='store', type=str, default=None,
-        help=f"Name of log file to write streme stdout to.")
-    parser.add_argument('--err_file', action='store', type=str, default=None,
-        help=f"Name of file to write streme stderr to.")
+    #parser.add_argument('--log_file', action='store', type=str, default=None,
+    #    help=f"Name of log file to write streme stdout to.")
+    #parser.add_argument('--err_file', action='store', type=str, default=None,
+    #    help=f"Name of file to write streme stderr to.")
     args = parser.parse_args()
 
     result = run_streme(
@@ -135,10 +134,10 @@ def main():
 
     #print(result.stdout.decode())
     #print(result.stderr.decode())
-    with open(args.log_file, "w") as outf:
-        outf.write(result.stdout.decode())
-    with open(args.err_file, "w") as errf:
-        errf.write(result.stderr.decode())
+    #with open(args.log_file, "w") as outf:
+    #    outf.write(result.stdout.decode())
+    #with open(args.err_file, "w") as errf:
+    #    errf.write(result.stderr.decode())
 
 if __name__ == '__main__':
     main()
