@@ -3,6 +3,9 @@ import os
 #mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+from matplotlib.transforms import TransformedBbox, Bbox
+from matplotlib.image import BboxImage
+from matplotlib.legend_handler import HandlerBase
 import seaborn as sns
 import infer_motifs as im
 import numpy as np
@@ -25,6 +28,38 @@ ggseqlogo = importr("ggseqlogo")
 this_path = Path(__file__).parent.absolute()
 
 #plt.rc('figure', titlesize=10)
+
+class ImageHandler(HandlerBase):
+    def __init__(self, img, image_stretch = (0,0)):
+        self.image_data = img
+        self.image_stretch = image_stretch
+
+    def legend_artist(self, legend, orig_handle, fontsize, handlebox):
+
+        sx, sy = self.image_stretch 
+
+        # create a bounding box to house the image
+        bb = Bbox.from_bounds(
+            0,
+            #xdescent - sx,
+            0,
+            #ydescent - sy,
+            self.image_data.shape[1],
+            #width + sx,
+            self.image_data.shape[0],
+            #height + sy,
+        )
+
+        #tbb = TransformedBbox(bb, trans)
+        #image = BboxImage(tbb)
+        image = BboxImage(bb)
+        image.set_data(self.image_data)
+
+        self.update_prop(image, orig_handle, legend)
+
+        return [image]
+
+
 
 def get_image(path):
     #print(f"reading image in file {path}")
@@ -175,8 +210,8 @@ def plot_shape_logo(
     
     x_vals = [i+1 for i in range(opt_y.shape[1])]
 
-    legend_artists = []
-    legend_key = []
+    #legend_artists = []
+    #legend_key = []
 
     for j in range(opt_y.shape[0]):
 
@@ -216,22 +251,69 @@ def plot_shape_logo(
                         facecolor = "0.2",
                         alpha=0.2,
                     )
-        legend_artists.append(ab)
-        legend_key.append(shape_name)
+        #legend_artists.append(ab)
+        #legend_key.append(shape_name)
 
     ax.set_ylim(bottom=-ylims, top=ylims)
     #ax.text(1, 3, f"MI: {mi}")
-    ax.set_ylabel(f"Shape value (z-score)")
-    ax.set_xlabel(f"Motif position")
+    ax.set_ylabel("Shape value (z-score)")
     ax.set_xticks(x_vals)
     ax.set_xlim(left=x_vals[0]-0.5, right=x_vals[-1]+0.5)
+    ax.set_xlabel("Motif position")
     ###############################################################################
     ###############################################################################
     ## Here I need to figure out how to actually get a proxy artist for these images placed in the report
     ## Another possibility is to place them on the web page to the plots' right, not in the rendered plot per se.
     ###############################################################################
     ###############################################################################
-    ax.legend(legend_artists, legend_key, loc="upper left", bbox_to_anchor=(1.05, 1))
+    for i,(k,img_arr) in enumerate(img_dict.items()):
+        img = scale_image( img_arr, scale=1.0, frameon=True )
+        img.image.axes = ax
+        ab = AnnotationBbox(
+            offsetbox = img,
+            xy = (1, 0),
+            xycoords = "data",
+            # xybox and boxcoords together shift relative to xy
+            xybox = (1.03, (1.0-0.2*i)-0.08),
+            boxcoords = "axes fraction",
+            frameon=False,
+        )
+        ax.add_artist( ab )
+        ax.annotate(k,
+            xy = (1.05, (1.0-0.2*i)-0.08),
+            xycoords='axes fraction',
+            verticalalignment='center',
+        )
+
+    ##legend_keys = [k for k in img_dict.keys()]
+    ##legend_keys = [k for k in img_dict.keys()]
+    #a = plt.scatter([],[])
+    #b = plt.scatter([],[])
+    #c = plt.scatter([],[])
+    #d = plt.scatter([],[])
+    #e = plt.scatter([],[])
+    #legend_map = {k:ImageHandler(v) for k,v in img_dict.items()}
+
+    ##plt.legend([s, s2],
+    ##       ['Scatters 1', 'Scatters 2'],
+    ##       handler_map={s: custom_handler, s2: custom_handler},
+    ##       labelspacing=2,
+    ##       frameon=False)
+
+    #ax.legend(
+    #    [a,b,c,d,e], #[v for v in legend_map.values()],
+    #    [k for k in legend_map.keys()],
+    #    handler_map = {
+    #        a: ImageHandler(img_dict["EP"]),
+    #        b: ImageHandler(img_dict["HelT"]),
+    #        c: ImageHandler(img_dict["MGW"]),
+    #        d: ImageHandler(img_dict["ProT"]),
+    #        e: ImageHandler(img_dict["Roll"]),
+    #    },
+    #    loc = "upper right",
+    #    #bbox_to_anchor=(1.05, 1),
+    #)
+    #ax.legend(legend_vals, legend_keys, loc="upper left", bbox_to_anchor=(1.05, 1))
     #if i == 0:
     #    ax.set_title("Shape logo")
     #    ax.set_xticks(x_vals)
@@ -252,6 +334,7 @@ def plot_shape_logo(
 
 def plot_shape_logos(motifs, suffix, shape_lut, top_n = 30, opacity=1, legend_loc="upper left"):
 
+    #import ipdb; ipdb.set_trace()
     #print(motifs)
     seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
     #print(f"seq_motifs:\n{seq_motifs}")
@@ -295,6 +378,7 @@ def plot_logos(
     # plot the sequence logos into pngs
     fnames = plot_seq_logos(motifs, suffix)
     #print(f"file names after seq logos: {fnames}")
+    #import ipdb; ipdb.set_trace()
     fnames.extend(plot_shape_logos(motifs, suffix, shape_lut, top_n, opacity, legend_loc))
     #print(f"file names after shape logos: {fnames}")
     return fnames
