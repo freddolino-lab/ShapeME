@@ -232,6 +232,8 @@ def main(args, status):
     streme_thresh = float(args.streme_thresh)
     no_shape_motifs = args.no_shape_motifs
     tmpdir = args.tmpdir
+    if tmpdir is None:
+        tmpdir = "/tmp"
 
     if not os.path.isdir(out_direc):
         os.mkdir(out_direc)
@@ -322,64 +324,79 @@ def main(args, status):
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
-        print(f"tmp_seq_fname: {tmp_seq_fname}")
+        #print(f"tmp_seq_fname: {tmp_seq_fname}")
         with open(tmp_seq_fname, "w") as tmp_f:
             seqs.write(tmp_f)
 
         #tmp_seq_fname = os.path.join(out_direc,"tmp_seq.fa")
         #with open(tmp_seq_fname, "w") as tmp_f:
         #    seqs.write(tmp_f)
+        streme_log_fname = f"{streme_direc}/streme_run.log"
+        streme_err_fname = f"{streme_direc}/streme_run.err"
+
+        if not os.path.isdir(streme_direc):
+            os.makedirs(streme_direc)
+
         STREME = f"python {streme_exec} "\
             f"--seq_fname {tmp_seq_fname} "\
             f"--yvals_fname {yval_fname} "\
             f"--pos_cats {args.seq_motif_positive_cats} "\
             f"--threshold {streme_thresh} "\
             f"--out_direc {streme_direc} "\
-            f"--tmpdir {tmpdir}"
+            f"--tmpdir {tmpdir} "\
+            f"> {streme_log_fname} "\
+            f"2> {streme_err_fname} "
 
+        print()
+        logging.info(
+            f"Running STREME using the following command:\n"\
+            f"{STREME}"
+        )
         streme_result = subprocess.run(
             STREME,
             shell=True,
-            capture_output=True,
+            capture_output=False,
         )
         if streme_result.returncode != 0:
+
+            status = "FinishedError"
+            with open(status_fname, "w") as status_f:
+                json.dump(status, status_f)
             raise(Exception(
                 f"run_streme.py returned non-zero exit status.\n"\
-                f"Stderr: {streme_result.stderr.decode()}\n"\
-                f"Stdout: {streme_result.stdout.decode()}"
+                f"Check files {streme_log_fname} and {streme_err_fname}."
             ))
 
-        streme_log_fname = f"{streme_direc}/streme_run.log"
-        streme_err_fname = f"{streme_direc}/streme_run.err"
         print()
         logging.info(
-            f"Ran streme: for details, see "\
+            f"STREME run finished: for details, see "\
             f"{streme_log_fname} and {streme_err_fname}"
         )
 
-        with open(streme_log_fname, "w") as streme_out:
-            # streme log gets captured as stderr, so write stderr to file
-            streme_out.write(streme_result.stdout.decode())
-        with open(streme_err_fname, "w") as streme_err:
-            # streme log gets captured as stderr, so write stderr to file
-            try:
-                streme_err.write(streme_result.stderr.decode())
-            except UnicodeDecodeError as e:
-                logging.warning("Problem writing to {streme_err_fname}:\n{e}")
+        #with open(streme_log_fname, "w") as streme_out:
+        #    # streme log gets captured as stderr, so write stderr to file
+        #    streme_out.write(streme_result.stdout.decode())
+        #with open(streme_err_fname, "w") as streme_err:
+        #    # streme log gets captured as stderr, so write stderr to file
+        #    try:
+        #        streme_err.write(streme_result.stderr.decode())
+        #    except UnicodeDecodeError as e:
+        #        logging.warning(f"Problem writing to {streme_err_fname}:\n{e}")
+        #        #import ipdb; ipdb.set_trace()
 
-                if not args.no_report:
-                    report_info = {"error": e}
-                    write_report(
-                        environ = jinja_env,
-                        temp_base = "streme_err_html.temp",
-                        info = report_info,
-                        out_name = out_page_name,
-                    )
+        #        if not args.no_report:
+        #            report_info = {"error": e}
+        #            write_report(
+        #                environ = jinja_env,
+        #                temp_base = "streme_err_html.temp",
+        #                info = report_info,
+        #                out_name = out_page_name,
+        #            )
 
-                status = "FinishedError"
-                with open(status_fname, "w") as status_f:
-                    json.dump(status, status_f)
-                sys.exit(1)
+        #        status = "FinishedError"
+        #        with open(status_fname, "w") as status_f:
+        #            json.dump(status, status_f)
+        #        sys.exit(1)
 
     # if user has a meme file (could be from streme above, or from input arg), run fimo
     if seq_meme_file is not None:
@@ -397,33 +414,54 @@ def main(args, status):
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         tmp_seq_fname = os.path.join(tmp_direc,"tmp_seq.fa")
-        print(f"tmp_seq_fname: {tmp_seq_fname}")
+        #print(f"tmp_seq_fname: {tmp_seq_fname}")
         with open(tmp_seq_fname, "w") as tmp_f:
             seqs.write(tmp_f)
+
+        fimo_log_fname = f"{fimo_direc}/fimo_run.log"
+        fimo_err_fname = f"{fimo_direc}/fimo_run.err"
+
+        if not os.path.isdir(fimo_direc):
+            os.makedirs(fimo_direc)
 
         fimo_exec = os.path.join(this_path, "run_fimo.py")
         FIMO = f"python {fimo_exec} "\
             f"--seq_fname {tmp_seq_fname} "\
             f"--meme_file {seq_meme_file} "\
-            f"--out_direc {fimo_direc}"
+            f"--out_direc {fimo_direc} "\
+            f"> {fimo_log_fname} "\
+            f"2> {fimo_err_fname} "
 
+        print()
+        logging.info(
+            f"Running FIMO using the following command:\n"\
+            f"{FIMO}"
+        )
         fimo_result = subprocess.run(
             FIMO,
             shell=True,
             check=True,
-            capture_output=True,
+            capture_output=False,
         )
-        fimo_log_fname = f"{fimo_direc}/fimo_run.log"
-        fimo_err_fname = f"{fimo_direc}/fimo_run.err"
+
+        if fimo_result.returncode != 0:
+            status = "FinishedError"
+            with open(status_fname, "w") as status_f:
+                json.dump(status, status_f)
+            raise(Exception(
+                f"run_fimo.py returned non-zero exit status.\n"\
+                f"Check files {fimo_log_fname} and {fimo_err_fname}."
+            ))
+
         print()
         logging.info(
-            f"Ran fimo: for details, see "\
+            f"FIMO run finished: for details, see "\
             f"{fimo_log_fname} and {fimo_err_fname}"
         )
-        with open(fimo_log_fname, "w") as fimo_out:
-            fimo_out.write(fimo_result.stdout.decode())
-        with open(fimo_err_fname, "w") as fimo_err:
-            fimo_err.write(fimo_result.stderr.decode())
+        #with open(fimo_log_fname, "w") as fimo_out:
+        #    fimo_out.write(fimo_result.stdout.decode())
+        #with open(fimo_err_fname, "w") as fimo_err:
+        #    fimo_err.write(fimo_result.stderr.decode())
 
     alpha = args.alpha
     max_count = args.max_count
@@ -493,6 +531,7 @@ def main(args, status):
         logging.info("\nPlacing each motif's robustness into motifs")
         # set_X is called with nosort=True here just to get the hits array required
         # for supplement_robustness and sorting later
+        #import ipdb; ipdb.set_trace()
         seq_motifs.set_X(
             max_count = max_count,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
@@ -536,6 +575,8 @@ def main(args, status):
                 rec_db = records,
                 pval_thresh = streme_thresh,
             )
+            print(f"X shape: {seq_motifs.X.shape}")
+            print(f"distinct y vals: {np.unique(records.y)}")
 
             print("Done getting X for seq motifs")
             one_seq_motif = False
@@ -556,36 +597,20 @@ def main(args, status):
 
             else:
 
-                # make sure yvalues are binary for this initial seq motif fit
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-# is this actually the desired behavior? I don't think so. I think I don't want to binarise here
-## switching to just using records.y on 2023-10-17
-###########################################################################
-###########################################################################
-###########################################################################
-###########################################################################
-                #fit_y = np.zeros_like(records.y)
-                #pos_cats = [ int(_) for _ in args.seq_motif_positive_cats.split(",") ]
-                #for (i,yval) in enumerate(records.y):
-                #    if yval in pos_cats:
-                #        fit_y[i] = 1
+                #import ipdb; ipdb.set_trace()
                 seq_fit = evm.train_glmnet(
                     seq_motifs.X,
                     records.y,
-                    #fit_y,
                     folds=10,
                     family = fam,
-                    #family="binomial",
                     alpha=1,
                 )
 
+                #print(f"X shape: {seq_motifs.X.shape}")
+                #print(f"distinct y vals: {np.unique(records.y)}")
                 with open(seq_fit_fname, "wb") as f:
                     pickle.dump(seq_fit, f)
 
-                #seq_coefs = evm.fetch_coefficients("binomial", seq_fit, 2)
                 seq_coefs = evm.fetch_coefficients(fam, seq_fit, num_cats)
 
                 print()
@@ -774,7 +799,12 @@ def main(args, status):
         print()
         if args.shape_rust_file is None:
             logging.info("Running shape motif selection and optimization.")
-            result = subprocess.run(FIND_CMD, shell=True, env=my_env, capture_output=True)
+            result = subprocess.run(
+                FIND_CMD,
+                shell=True,
+                env=my_env,
+                capture_output=True,
+            )
             if result.returncode != 0:
                 raise inout.RustBinaryException(FIND_CMD)
             if "No shape motifs found by infer_motifs binary." in result.stdout.decode():

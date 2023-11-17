@@ -18,7 +18,7 @@ Stage: build
     export PATH="/opt/conda/envs/motifer/bin:/opt/conda/bin:${PATH}"
 
 %files
-    conda_environment.yaml
+    env_spec.yaml
     shapeme.bashrc /shapeme.bashrc
 
 %runscript
@@ -31,7 +31,7 @@ Stage: build
     && apk add bash libffi libffi-dev libarchive \
     && conda update -y -n base conda \
     && conda install -c conda-forge mamba \
-    && mamba env create -f conda_environment.yaml \
+    && mamba env create -f env_spec.yaml \
     && cd 
 
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh

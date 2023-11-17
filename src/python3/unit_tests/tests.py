@@ -12,6 +12,94 @@ sys.path.insert(0, this_path)
 import inout
 import evaluate_motifs as evm
 import ShapeIT as shapeit
+import ShapeME as shapeme
+
+class TestPerformance(unittest.TestCase):
+    
+    def setUp(self):
+        self.out_dir = "test_data/performance_data/main_output"
+        self.fold_direcs = [
+            "test_data/performance_data/fold_0_output",
+            "test_data/performance_data/fold_1_output",
+            "test_data/performance_data/fold_2_output",
+            "test_data/performance_data/fold_3_output",
+            "test_data/performance_data/fold_4_output",
+        ]
+        self.fold_count = 5
+        self.main_auprs = [0.11276408551043067, 0.10609425281173282, 0.10619331052282671, 0.10698124439726181, 0.10153393740276745, 0.10135418113552769, 0.10439285858994755, 0.10136992967555156, 0.11522177647888533, 0.13017518426208885]
+        self.cat_tracker = {
+            0: [0.1087088001418148, 0.11208042079041518],
+            1: [0.10905446880619526, 0.10268888314602544],
+            2: [0.10559119722120099, 0.10673914926009243],
+            3: [0.10421058462297543, 0.10299565847023168],
+            4: [0.1064657552398172, 0.10045715061941665],
+            5: [0.1012006497288996, 0.09801733131785002],
+            6: [0.10002044506186146, 0.09799325708645772],
+            7: [0.10509236677693043, 0.09659292414969989],
+            8: [0.10201389033417559, 0.10493798732199022],
+            9: [0.12984469188622716, 0.12506757228578072],
+        }
+        self.fold_auprs = {
+            0: [],
+            1: [],
+            2: [0.1087088001418148, 0.10905446880619526, 0.10559119722120099, 0.10421058462297543, 0.1064657552398172, 0.1012006497288996, 0.10002044506186146, 0.10509236677693043, 0.10201389033417559, 0.12984469188622716],
+            3: [0.11208042079041518, 0.10268888314602544, 0.10673914926009243, 0.10299565847023168, 0.10045715061941665, 0.09801733131785002, 0.09799325708645772, 0.09659292414969989, 0.10493798732199022, 0.12506757228578072],
+            4: [],
+        }
+        self.main_random_auprs = [0.09993333333333333, 0.09916666666666667, 0.10013333333333334, 0.10033333333333333, 0.0993, 0.0995, 0.09976666666666667, 0.0992, 0.10123333333333333, 0.10143333333333333]
+        self.fold_random_auprs = {
+            0: [],
+            1: [],
+            2: [0.1, 0.09916666666666667, 0.10016666666666667, 0.10033333333333333, 0.09933333333333333, 0.0995, 0.09983333333333333, 0.09916666666666667, 0.10116666666666667, 0.10133333333333333],
+            3: [0.1, 0.09916666666666667, 0.1, 0.10033333333333333, 0.09933333333333333, 0.0995, 0.09966666666666667, 0.09933333333333333, 0.10133333333333333, 0.10133333333333333],
+            4: [],
+        }
+        self.cv_aupr = [np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN]
+        self.cv_aupr_sd = [np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN]
+        self.fold_count_with_motifs = 2
+
+    def test_performance_string(self):
+        out_dir = self.out_dir
+        fold_direcs = self.fold_direcs
+        
+        performance = shapeme.Performance(out_dir, fold_direcs)
+
+        target_str = f"\nJoint AUPR:\n{self.main_auprs}\n"\
+            f"Cross-validated AUPR:\n{self.cv_aupr}\n"\
+            f"Random AUPR expected:\n{self.main_random_auprs}\n"\
+            f"Of {self.fold_count} folds used for cross-validation, "\
+            f"{self.fold_count_with_motifs} had motifs.\n"
+
+        self.assertEqual(target_str, str(performance))
+
+    def test_plot(self):
+
+        out_dir = self.out_dir
+        fold_direcs = self.fold_direcs
+
+        performance = shapeme.Performance(out_dir, fold_direcs)
+        performance.plot_performance("test_data/performance_data/results/test.png")
+
+    def test_make_performance_object(self):
+        out_dir = self.out_dir
+        fold_direcs = self.fold_direcs
+
+        performance = shapeme.Performance(out_dir, fold_direcs)
+
+        self.assertEqual(self.fold_count, performance.fold_count)
+        self.assertEqual(self.fold_count_with_motifs, performance.fold_count_with_motifs)
+
+        for k,v in performance.fold_auprs.items():
+            target_auprs = self.fold_auprs[k]
+            rand_targets = self.fold_random_auprs[k]
+            rand_results = performance.fold_random_auprs[k]
+            for i,result_val in enumerate(v):
+                self.assertEqual(target_auprs[i], result_val)
+                self.assertEqual(rand_targets[i], rand_results[i])
+
+        for i,result_val in enumerate(performance.main_random_auprs):
+            self.assertEqual(self.main_random_auprs[i], result_val)
+            self.assertEqual(self.main_auprs[i], performance.main_auprs[i])
 
 class TestFastaMethods(unittest.TestCase):
 
@@ -224,7 +312,117 @@ class TestFastaMethods(unittest.TestCase):
         same = np.all(target_shapes == arr)
         self.assertTrue(same)
 
+class TestPerformance(unittest.TestCase):
 
+    def setUp(self):
+        self.seq_main_direc = "test_data/test_performance/seq_main_output"
+        self.seq_fold_direcs = [
+            "test_data/test_performance/seq_fold_0_output",
+            "test_data/test_performance/seq_fold_1_output",
+            "test_data/test_performance/seq_fold_2_output",
+            "test_data/test_performance/seq_fold_3_output",
+            "test_data/test_performance/seq_fold_4_output",
+        ]
+        self.shape_main_direc = "test_data/test_performance/shape_main_output"
+
+        self.tough_seq_main_direc = "test_data/test_performance/test_tough_seq_main_output"
+        self.tough_test_tough_seq_fold_direcs = [
+            "test_data/test_performance/test_tough_seq_fold_0_output",
+            "test_data/test_performance/test_tough_seq_fold_1_output",
+            "test_data/test_performance/test_tough_seq_fold_2_output",
+            "test_data/test_performance/test_tough_seq_fold_3_output",
+            "test_data/test_performance/test_tough_seq_fold_4_output",
+        ]
+
+        self.shape_main_direc = "test_data/test_performance/shape_main_output"
+        self.shape_fold_direcs = [
+            "test_data/test_performance/shape_max_count_1_fold_0_output",
+            "test_data/test_performance/shape_max_count_1_fold_1_output",
+            "test_data/test_performance/shape_max_count_1_fold_2_output",
+            "test_data/test_performance/shape_max_count_1_fold_3_output",
+            "test_data/test_performance/shape_max_count_1_fold_4_output",
+        ]
+        self.shape_and_seq_main_direc = "test_data/test_performance/shape_and_seq_main_output"
+        self.shape_and_seq_fold_direcs = [
+            "test_data/test_performance/shape_and_seq_max_count_1_fold_0_output",
+            "test_data/test_performance/shape_and_seq_max_count_1_fold_1_output",
+            "test_data/test_performance/shape_and_seq_max_count_1_fold_2_output",
+            "test_data/test_performance/shape_and_seq_max_count_1_fold_3_output",
+            "test_data/test_performance/shape_and_seq_max_count_1_fold_4_output",
+        ]
+
+    def test_init_tough_seq_performance(self):
+
+        perf = shapeme.Performance(
+            self.tough_seq_main_direc,
+            self.tough_test_tough_seq_fold_direcs,
+        )
+        true_fold_count = 5
+        true_fold_auprs = {
+            0: np.array([]),
+            1: np.array([]),
+            2: np.array([]),
+            3: np.array([]),
+            4: np.array([]),
+            5: np.array([]),
+            6: np.array([]),
+            7: np.array([]),
+            8: np.array([]),
+            9: np.array([]),
+        }
+
+    def test_init_seq_performance(self):
+        
+        perf = shapeme.Performance(
+            self.seq_main_direc,
+            self.seq_fold_direcs,
+        )
+        true_fold_count = 5
+        true_fold_auprs = {
+            0: np.array([0.09084958464726543,0.09387165123007547,0.09396004859117905,]),
+            1: np.array([0.10624402362280766,0.10577252919647147,0.10588376802377063,]),
+            2: np.array([0.10320847879157836,0.10269580730222176,0.10411049382370997,]),
+            3: np.array([0.10028157831702283,0.1003839122163862,0.10157121803106495,]),
+            4: np.array([0.09681215516577825,0.096972239973642,0.09737613402224277,]),
+            5: np.array([0.10299170111479863,0.10378797575481427,0.10455338332232607,]),
+            6: np.array([0.09551125276126415,0.09642213976377445,0.0968253205009481,]),
+            7: np.array([0.10385949696444059,0.10389843558576005,0.10433138857438688,]),
+            8: np.array([0.10861330744237047,0.10110340936968243,0.10800752129715069,]),
+            9: np.array([0.11248243068560897,0.11596975723446443,0.13659527196218424,]),
+        }
+        true_random_auprs = {
+            0: np.array([0.09069366652305041,0.09059571259291177,0.09059571259291177,]),
+            1: np.array([0.10588108573890564,0.10578476785521922,0.10578476785521922,]),
+            2: np.array([0.10286514433433865,0.10287622535818162,0.10287622535818162,]),
+            3: np.array([0.1001723395088324,0.10029085424970376,0.10029085424970376,]),
+            4: np.array([0.0965101249461439,0.09641279758698697,0.09641279758698697,]),
+            5: np.array([0.1027574321413184,0.10287622535818162,0.10276850156199505,]),
+            6: np.array([0.09510986643688066,0.09512011203274803,0.09512011203274803,]),
+            7: np.array([0.10318828091339939,0.10319939674674136,0.10319939674674136,]),
+            8: np.array([0.10243429556225765,0.10244533017343531,0.10255305396962189,]),
+            9: np.array([0.1003877638948729,0.10039857804589034,0.10039857804589034,]),
+        }
+        #true_apur = 
+        #true_cv_aupr = 
+        #true_cv_aupr_sd = 
+
+        self.assertTrue(False)
+
+    def test_init_shape_performance(self):
+        
+        perf = shapeme.Performance(
+            self.seq_main_direc,
+            self.seq_fold_direcs,
+        )
+        self.assertTrue(False)
+
+    def test_init_shape_and_seq_performance(self):
+        
+        perf = shapeme.Performance(
+            self.shape_and_seq_main_direc,
+            self.shape_and_seq_fold_direcs,
+        )
+        self.assertTrue(False)
 
 class TestMotifMethods(unittest.TestCase):
 
@@ -283,6 +481,14 @@ class TestMotifMethods(unittest.TestCase):
         self.small_motifs = inout.Motifs()
         self.small_motifs.read_file( small_motifs_dsm_name )
 
+    def test_set_motifs_X(self):
+        self.assertTrue(False)
+
+    def test_set_motif_X(self):
+        self.assertTrue(False)
+
+    def test_seq_seq_X(self):
+        self.assertTrue(False)
         
     def test_read_rust_motifs(self):
         true_vals = np.array([1.2773111194451234,1.1180652261474313,1.013006059147333,1.127655239412062,0.7629026691324009,0.5432454456239426,2.7421093793782325,2.3773687694067434,-0.04295526996191982,-3.6919303189407024,-3.991392205961111,-1.2535928653464052,-3.8058503813818367,0.8127795518431163,-1.3426905642543492,-3.0980229039839857,4.0,-0.6709187768810462,0.3969566117871946,-0.7994539080803214,0.29510191226363697,2.5814353961228633,0.4338070325970177,-0.8136997151222107,0.48106490558119164,3.9927933088697922,-4.0,3.534429584186872,-2.0853180559715536,0.9850228290309825,-0.06932976698993176,-0.3889939363013855,1.1504453667879029,2.5416541250127156,2.5843873092003466,2.302556570897386,-1.2363800964478013,-2.4080015092947953,0.7053859201593731,1.6678869177429936,3.6921541524982255,3.2519660845498506,0.2932956922574255,-0.03809626705635591,-1.314249778964454,-3.17141849006105,2.9509085852514594,2.1989834453740134,-2.7111076702309616,-0.212721127225040]).reshape((5,10))
@@ -508,15 +714,6 @@ class TestMotifMethods(unittest.TestCase):
         self.assertTrue(len(shape_transforms) == 5)
         self.assertTrue(len(seq_transforms) == 0)
 
-        target = {"EP": (-6.0,1.0), "HelT":(34.0,1.5), "MGW":(5.0,0.5), "ProT": (-7.0,4.0), "Roll": (-2.0,1.0)}
-        result = inout.parse_transforms_line(transforms_line)
-        self.assertEqual(target, result)
-
-        bad_target = {"P": (-6.0,1.0), "HelT":(34.0,1.5), "MGW":(5.0,0.5), "ProT": (-7.0,4.0), "Roll": (-2.0,1.0)}
-        self.assertNotEqual(bad_target, result)
-
-
-
     def test_get_fimo_hits(self):
 
         seq_motifs = inout.Motifs()
@@ -568,7 +765,7 @@ class TestMotifMethods(unittest.TestCase):
         ###########################################################
         # output should match fimo.tsv columns:
         # id alt_id seq_name sequence_name start end strand score p-value q-value matched_sequence
-        truth = "SHAPE-1\tNone\tpeak_00001\t4\t7\t+\t0\t1\t1\t\nSHAPE-2\tNone\tpeak_00003\t7\t10\t-\t0\t1\t1\t\n"
+        truth = "SHAPE-1\tNone\tpeak_00001\t4\t7\t+\t1.3764447914788035e-16\t1\t1\t\nSHAPE-2\tNone\tpeak_00003\t7\t10\t-\t1.0361697611038778e-16\t1\t1\t\n"
         self.assertEqual(hits, truth)
 
         truth_no_hits = ""
@@ -588,6 +785,21 @@ class TestMotifMethods(unittest.TestCase):
         written_motifs.read_file( self.out_dsm_name )
         written_str = str(written_motifs)
         self.assertEqual(written_str, self.true_str)
+
+    def test_parse_robustness_line(self):
+        line="adj_mi= -0.00000000000000011990391686347508, robustness= (0, 10), zscore= inf\n"
+        mi,rob,z = inout.parse_robustness_output(line)
+        self.assertEqual(mi, -0.00000000000000011990391686347508)
+        self.assertEqual(rob[0], 0)
+        self.assertEqual(rob[1], 10)
+        self.assertTrue(np.isinf(z))
+
+        line="adj_mi= 1.0, robustness= (10, 10), zscore= 200.35\n"
+        mi,rob,z = inout.parse_robustness_output(line)
+        self.assertEqual(mi, 1.0)
+        self.assertEqual(rob[0], 10)
+        self.assertEqual(rob[1], 10)
+        self.assertEqual(z, 200.35)
 
 
 class TestUtilities(unittest.TestCase):

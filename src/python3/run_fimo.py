@@ -26,7 +26,7 @@ def run_fimo(seq_fa, meme_file, out_dir, thresh=None):
     print()
     print(
         f"Running fimo on all sequences in {seq_fa} "\
-        f"using motifs in {meme_file}"
+        f"using motifs in {meme_file}\n"
     )
 
     FIMO = f"fimo --max-strand --motif-pseudo 0.0 "\
@@ -40,7 +40,6 @@ def run_fimo(seq_fa, meme_file, out_dir, thresh=None):
         FIMO,
         shell=True,
         check=True,
-        capture_output=True,
     )
     return result
 
@@ -58,6 +57,10 @@ def main():
     parser.add_argument('--out_direc', action='store', type=str, required=True,
         help=f"Absolute path to the directory to be created, or clobbered if it "\
             f"already exists, by fimo. Will contain fimo output.")
+    #parser.add_argument('--log_file', action='store', type=str, default=None,
+    #    help=f"Name of log file to write fimo stdout to.")
+    #parser.add_argument('--err_file', action='store', type=str, default=None,
+    #    help=f"Name of file to write fimo stderr to.")
     args = parser.parse_args()
 
     result = run_fimo(
@@ -66,8 +69,12 @@ def main():
         args.out_direc,
         args.thresh,
     )
-    print(result.stdout)
-    print(result.stderr, file=sys.stderr)
+    #print(result.stdout.decode())
+    #print(result.stderr.decode())
+    #with open(args.log_file, "w") as outf:
+    #    outf.write(result.stdout.decode())
+    #with open(args.err_file, "w") as errf:
+    #    errf.write(result.stderr.decode())
 
 if __name__ == '__main__':
     main()
