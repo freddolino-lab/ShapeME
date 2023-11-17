@@ -1069,9 +1069,9 @@ def infer(args):
                     f"{eval_result.stdout.decode()}"
                 )
 
-            for _ in range(len(cleanup_files)):
-                clean_fname = cleanup_files.pop()
-                os.remove(clean_fname)
+            #for _ in range(len(cleanup_files)):
+            #    clean_fname = cleanup_files.pop()
+            #    os.remove(clean_fname)
 
             #print(eval_result.stderr.decode())
             #print()

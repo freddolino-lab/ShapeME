@@ -75,13 +75,12 @@
         <legend>Motif enrichment</legend>
           <img src="data:image/jpg;base64, {{ heatmap_data }}">
       </fieldset>
-{#
+
       <fieldset>
         <legend>Cross-validated performance</legend>
           Folds with motifs: {{ performance_data.folds_with_motifs }}
           <img src="data:image/jpg;base64, {{ performance_data.plot }}">
       </fieldset>
-#}
 
     </div>
   </body>
