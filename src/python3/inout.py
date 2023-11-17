@@ -2329,7 +2329,7 @@ class FastaFile(object):
             rng_seed = int(time.time())
 
         total = len(self)
-        print(f"total: {total}")
+        #print(f"total: {total}")
         if total <= n:
             logging.error(
                 f"To sample from a FastaFile, n must be less than the "\
@@ -2356,7 +2356,7 @@ class FastaFile(object):
 
         # stratified random sample of record indices
         rng = np.random.default_rng(rng_seed)
-        samp_inds = rng.choice(inds, size=n, replace=False, p=strat_w)
+        samp_inds = rng.choice(inds, size=n, replace=False)#, p=strat_w)
 
         sampled_records = self[samp_inds]
         sampled_yvals = yvals[samp_inds]
