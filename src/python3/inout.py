@@ -759,8 +759,10 @@ class Motif:
             #print(f"plus_weighted_manhattan.shape, {plus_weighted_manhattan.shape}")
             #print(f"plus_weighted_manhattan, {plus_weighted_manhattan}")
             plus_hits = np.where(plus_weighted_manhattan < threshold)[0]
+            plus_dists = plus_weighted_manhattan[plus_hits]
             #print(f"plus_hits: {plus_hits}")
             minus_hits = np.where(minus_weighted_manhattan < threshold)[0]
+            minus_dists = minus_weighted_manhattan[minus_hits]
             #print(f"minus_hits: {minus_hits}")
             # add 2 to get removed NAs back, then add one more to get to one-indexed start position
             plus_starts = plus_hits+2+1
@@ -772,12 +774,12 @@ class Motif:
             if plus_hits.size > 0:
                 for i,start in enumerate(plus_starts):
                     hits.append((
-                        self.identifier, self.alt_name, rec_name, start, plus_ends[i], "+", 0, 1, 1, ""
+                        self.identifier, self.alt_name, rec_name, start, plus_ends[i], "+", plus_dists[i], 1, 1, ""
                     ))
             if minus_hits.size > 0:
                 for i,start in enumerate(minus_starts):
                     hits.append((
-                        self.identifier, self.alt_name, rec_name, start, minus_ends[i], "-", 0, 1, 1, ""
+                        self.identifier, self.alt_name, rec_name, start, minus_ends[i], "-", minus_dists[i], 1, 1, ""
                     ))
         return hits
 
@@ -792,31 +794,33 @@ class Motif:
         motif_name = self.alt_name
         print(f"Getting hits from fimo file for motif {motif_name}")
         #print(f"seq_motif_hits keys: {seq_motif_hits.keys()}")
-        rec_name_list = seq_motif_hits[motif_name]
-        #print(f"rec_name_list:\n{rec_name_list}")
-        # set up nx1 array to store design matrix for self
-        self.X = np.zeros((len(rec_db), 1))
-        self.hits = np.zeros((len(rec_db), 1))
-        # basically sets a placeholder lookup table for being able
-        # to easily merge sequence and shape motifs
-        self.var_lut = {0: {'hits': 1}}
-        for rec_name,rec_idx in rec_db.record_name_lut.items():
-            # if this record's name is in the fimo hits, set its index in X to 1
-            if rec_name in rec_name_list:
-                #print(f"Record {rec_name} is a hit. Setting index {rec_idx} to 1.")
-                self.X[rec_idx] = 1
-                self.hits[rec_idx] = 1
+        #from IPython import embed; embed()
+        if not motif_name in seq_motif_hits:
+            self.X = np.zeros((len(rec_db), 1))
+            self.hits = np.zeros((len(rec_db), 1))
+            self.var_lut = {0: {'hits': 1}}
+        else:
+            rec_name_list = seq_motif_hits[motif_name]
+            #print(f"rec_name_list:\n{rec_name_list}")
+            # set up nx1 array to store design matrix for self
+            self.X = np.zeros((len(rec_db), 1))
+            self.hits = np.zeros((len(rec_db), 1))
+            # basically sets a placeholder lookup table for being able
+            # to easily merge sequence and shape motifs
+            self.var_lut = {0: {'hits': 1}}
+            for rec_name,rec_idx in rec_db.record_name_lut.items():
+                # if this record's name is in the fimo hits, set its index in X to 1
+                if rec_name in rec_name_list:
+                    #print(f"Record {rec_name} is a hit. Setting index {rec_idx} to 1.")
+                    self.X[rec_idx] = 1
+                    self.hits[rec_idx] = 1
         #print(f"max val in self.X: {self.X.max()}")
         #print(f"min val in self.X: {self.X.min()}")
 
         if np.all(self.X == 0, axis=0):
-            print(f"No records were identified as hits for motif {motif_name}. "\
-                    "Something is likely wrong. Exiting with error.")
-            sys.exit(1)
+            print(f"WARNING: No records were identified as hits for motif {motif_name}.")
         if np.all(self.X == 1, axis=0):
-            print(f"All records were identified as hits for motif {motif_name}. "\
-                    "Something is likely wrong. Exiting with error.")
-            sys.exit(1)
+            print(f"WARNING: All records were identified as hits for motif {motif_name}.")
 
     def set_shape_X(self, rec_db, max_count, motif_hit_list=None):
 
@@ -1097,6 +1101,24 @@ def parse_transforms_line(line):
         transforms[shape_info[0]] = (float(center), float(spread))
     return transforms
 
+def parse_robustness_output(output):
+
+    ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+    robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
+    #zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
+    zscore_pat = re.compile(r'(?<=zscore\= )\S+')
+
+    mi = float(ami_pat.search(output).group())
+    passes = int(robustness_pat.search(output).group(1))
+    attempts = int(robustness_pat.search(output).group(2))
+    robustness = (passes, attempts)
+    zscore = float(zscore_pat.search(output).group())
+    if zscore == "inf":
+        zscore = np.Inf
+
+    return (mi, robustness, zscore)
+
+
 class Motifs:
 
     def __init__(
@@ -1165,7 +1187,15 @@ class Motifs:
         for motif in self:
             hits = motif.scan(ragged_rec_db)
             hits_info.extend(hits)
-        return hits_info
+
+        # sort by ("seqname", "start")
+        hits_info.sort(key=lambda x: (x[2], x[3]))
+
+        hit_str = ""
+        for hit in hits_info:
+            hit_str += "\t".join([str(_) for _ in hit])
+            hit_str += "\n"
+        return hit_str
 
     def sort_motifs_by_mi(self):
         self.motifs.sort(key=lambda x: x.mi, reverse=True)
@@ -1462,10 +1492,6 @@ class Motifs:
             ))
 
 
-        ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
-        robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
-        zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
-
         tmp_dir = tempfile.TemporaryDirectory(dir=tmpdir)
         tmp_direc = tmp_dir.name
         y_name = os.path.join(tmp_direc, "tmp_y.npy")
@@ -1495,13 +1521,14 @@ class Motifs:
                     f"STDOUT: {result.stdout.decode()}\n"
                     f"ERROR: {result.stderr.decode()}\n"\
                 ))
+
             output = result.stdout.decode()
+            #import ipdb; ipdb.set_trace()
             try:
-                motif.mi = float(ami_pat.search(output).group())
-                passes = int(robustness_pat.search(output).group(1))
-                attempts = int(robustness_pat.search(output).group(2))
-                motif.robustness = (passes, attempts)
-                motif.zscore = float(zscore_pat.search(output).group())
+                mi,robustness,zscore = parse_robustness_output(output)
+                motif.mi = mi
+                motif.robustness = robustness
+                motif.zscore = zscore
             except:
                 raise(Exception(
                     f"Something went wrong in supplementing robustness:\n\n"\
@@ -1730,8 +1757,11 @@ class Motifs:
         if not nosort:
             #print("\nSorting shape motifs by z-score")
             self.sort_motifs()
-        # get idices of hits for seq motifs
+        # get indices of hits for seq motifs
         #print("iterating over motifs")
+
+        #import ipdb; ipdb.set_trace()
+
         motif_types = [motif.motif_type for motif in self]
         # if any are sequence motifs, read fimo_file
         if "sequence" in motif_types:
@@ -2033,14 +2063,6 @@ class Motifs:
         for (new_i,filt_i) in enumerate(retain_coefs):
             retained_coefs[:,new_i] = coefs[:,filt_i]
 
-        #####################################################################
-        #####################################################################
-        #####################################################################
-        ## note: this is where I must change approach to use new set_X
-        #####################################################################
-        #####################################################################
-        #####################################################################
-        #####################################################################
         self.motifs = retained_motifs
         self.set_X(
             max_count = max_count,
@@ -2048,8 +2070,6 @@ class Motifs:
             rec_db = rec_db,
             pval_thresh = pval_thresh,
         )
-        #self.X = retained_X
-        #self.var_lut = new_lut
 
         return(retained_coefs)
 
@@ -2309,7 +2329,7 @@ class FastaFile(object):
             rng_seed = int(time.time())
 
         total = len(self)
-        print(f"total: {total}")
+        #print(f"total: {total}")
         if total <= n:
             logging.error(
                 f"To sample from a FastaFile, n must be less than the "\
@@ -2336,7 +2356,7 @@ class FastaFile(object):
 
         # stratified random sample of record indices
         rng = np.random.default_rng(rng_seed)
-        samp_inds = rng.choice(inds, size=n, replace=False, p=strat_w)
+        samp_inds = rng.choice(inds, size=n, replace=False)#, p=strat_w)
 
         sampled_records = self[samp_inds]
         sampled_yvals = yvals[samp_inds]
