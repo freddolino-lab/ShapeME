@@ -21,9 +21,9 @@ algorithm developed for sequence motif inference ([Elemento et al.
 2007](https://doi.org/10.1016/j.molcel.2007.09.027)).
 
 For users who would like to run ShapeME on their own hardware, we recommend they
-download our singularity container to run ShapeME on a linux operating system
+download our Apptainer container to run ShapeME on a linux operating system
 to which they have access. This will require the user to install
-[`singularity`](https://docs.sylabs.io/guides/3.0/user-guide/quick_start.html)
+[`Apptainer`](https://apptainer.org/docs/user/main/quick_start.html)
 on their systems.
 
 The main script most users will run is `ShapeME.py`. See below for documentation
@@ -79,7 +79,7 @@ TODO: I think wsize must be less than the minimum narrowpeak region width,
 but I have to check on that and insert a note on it here.
 
 ```bash
-singularity exec -B $(pwd):$(pwd) \
+apptainer exec -B $(pwd):$(pwd) \
     shapeme_<version>.sif \
     python /src/python3/convert_narrowpeak_to_fire.py \
         <np_fname> \
@@ -145,8 +145,8 @@ case ShapeME is basically a wrapper for
 steps to avoid reporting motifs with overlapping information), or to incorporate
 shape and sequence motifs into a single model.
 
-We distribute ShapeME as a singularity container, which can be run on any
-computer with a Linux environment that has singularity installed.
+We distribute ShapeME as an Apptainer container, which can be run on any
+computer with a Linux environment that has Apptainer installed.
 
 The ShapeME container can be downloaded from our
 [google drive](https://drive.google.com/drive/folders/1e7N4iYO7BHuuZG4q-H7xBk1c6bE9GmOt?usp=sharing)
@@ -155,10 +155,10 @@ location.
 In all instructions below, you should substitute the characters `<version>` with
 the actual version number of the container you're using in every instance of
 `shapeme_<version>.sif`. Of course, you will also need to substitute `/path/to`
-with the actual path to the location with the ShapeME singularity container.
+with the actual path to the location with the ShapeME Apptainer container.
 
-For more information on how to use `singularity` for your system please follow
-the `singularity` documentation [here](10.1016/j.molcel.2007.09.027).
+For more information on how to use `apptainer` for your system please follow
+the `apptainer` documentation [here](https://apptainer.org/docs/user/main/quick_start.html).
 
 ## Inference on provided example data
 
@@ -177,7 +177,7 @@ on which you are running ShapeME:
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --data_dir ${data_dir} \
@@ -210,7 +210,7 @@ command line.
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --find_seq_motifs \
@@ -237,7 +237,7 @@ flag.
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --find_seq_motifs \
@@ -263,7 +263,7 @@ suitable to the system on which you are running ShapeME:
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --data_dir ${data_dir} \
@@ -285,7 +285,7 @@ suitable to the system on which you are running ShapeME:
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --find_seq_motifs \
@@ -312,7 +312,7 @@ flag.
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --find_seq_motifs \
@@ -338,7 +338,7 @@ suitable to the system on which you are running ShapeME:
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --data_dir ${data_dir} \
@@ -361,7 +361,7 @@ suitable to the system on which you are running ShapeME:
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --find_seq_motifs \
@@ -389,7 +389,7 @@ flag.
 nprocs=8
 data_dir=$(pwd)
 
-singularity exec -B ${data_dir} \
+apptainer exec -B ${data_dir} \
     /path/to/shapeme_<verson>.sif \
     python /src/python3/ShapeME.py infer \
         --find_seq_motifs \
@@ -601,7 +601,7 @@ max_count=1
 
 kmer=10
 
-singularity exec -B $(pwd):$(pwd) \
+apptainer exec -B $(pwd):$(pwd) \
     shapeme_<version>.sif \
     python /src/python3/find_motifs.py \
         --score_file <infile> \
@@ -670,4 +670,23 @@ which contains the numeric values for each motif, including each shape's
 z-score at each position in the motif, and the weight applied to each
 shape at each position in the motif. For users familiar with the meme file format,
 the dsm file will look familiar, as its format was inspired by the meme format.
+
+# Building the Apptainer container locally
+
+If you should find you need to build your own Apptainer container locally rather
+than use our pre-build container, take the following steps, substituting
+`<src_direc>` and `<path/to/container.sif>` with the location in which you
+would like the ShapeME source code and the absolute path to the container
+after it is built, respectively:
+
+```bash
+# enter the directory you wish to contain the ShapeME source code
+cd <src_direc>
+git clone https://github.com/freddolino-lab/ShapeME.git
+cd ShapeME/singularity
+apptainer build <path/to/container.sif> shapeme.def
+```
+
+Note that you must have Apptainer installed on your system to build or run
+the container.
 
