@@ -3,7 +3,7 @@
 All notable changes to singularity containers will be documented
 in this file.
 
-## 0.0.1
+## 0.1.0
 
-Shiny and new
+Release for publication and ShapeME web server
 
