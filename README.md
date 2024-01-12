@@ -1,5 +1,8 @@
 # ShapeME - Shape-based Motif Elicitation
 
+If you simply want to use our web interface to ShapeME,
+go [here](https://seq2fun.dcmb.med.umich.edu/shapeme).
+
 ShapeME is a tool for finding informative motifs in DNA structure. 
 
 In contrast to conventional motif finders which search for motifs in sequence
