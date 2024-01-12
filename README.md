@@ -20,8 +20,8 @@ ShapeME. This powerful mutual information-based approach is inspired by the `FIR
 algorithm developed for sequence motif inference ([Elemento et al.
 2007](https://doi.org/10.1016/j.molcel.2007.09.027)).
 
-For most ShapeME users, we recommend running ShapeME using our [web interface]
-(https://seq2fun.dcmb.med.umich.edu/shapeme).
+For most ShapeME users, we recommend running ShapeME using our
+[web interface](https://seq2fun.dcmb.med.umich.edu/shapeme).
 
 For users who would like to run ShapeME on their own hardware, we recommend they
 download our Apptainer container using `apptainer pull` to run ShapeME on a
