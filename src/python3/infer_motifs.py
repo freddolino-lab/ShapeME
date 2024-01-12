@@ -362,6 +362,7 @@ def main(args, status):
             status = "FinishedError"
             with open(status_fname, "w") as status_f:
                 json.dump(status, status_f)
+
             raise(Exception(
                 f"run_streme.py returned non-zero exit status.\n"\
                 f"Check files {streme_log_fname} and {streme_err_fname}."
