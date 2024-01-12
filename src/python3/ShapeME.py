@@ -455,10 +455,9 @@ def set_outdir_pref(no_shape_motifs, find_seq_motifs):
         if find_seq_motifs:
             outdir_pre += "seq"
         else:
-            logging.error(
-                f"You included --no_shape_motifs without including --find_seq_motifs. "\
+            msg = f"You included --no_shape_motifs without including --find_seq_motifs. "\
                 f"No motifs will be found. Exiting now."
-            )
+            logging.error(msg)
             sys.exit(1)
     return outdir_pre
 
@@ -479,6 +478,7 @@ def infer(args):
     status = "Running"
     with open(status_fname, "w") as status_f:
         json.dump(status, status_f)
+
 
     loglevel = args.log_level
     numeric_level = getattr(logging, loglevel.upper(), None)
@@ -571,14 +571,13 @@ def infer(args):
         #check=True,
     )
     if convert_result.returncode != 0:
-        logging.error(
-            f"ERROR: running the following command:\n\n"\
+        msg = f"ERROR: running the following command:\n\n"\
             f"{convert}\n\n"\
             f"resulted in the following stderr:\n\n"\
-            f"{convert_result.stderr.decode()}\n\n"
+            f"{convert_result.stderr.decode()}\n\n"\
             f"and the following stdout:\n\n"\
             f"{convert_result.stdout.decode()}"
-        )
+        logging.error(msg)
         sys.exit(1)
     else:
         logging.info("Converting training sequences to shapes ran without error")
@@ -692,6 +691,10 @@ def infer(args):
             f"and the following stdout:\n\n"\
             f"{infer_result.stdout.decode()}"
         )
+        status = "FinishedError"
+        with open(status_fname, "w") as status_f:
+            json.dump(status, status_f)
+        shutil.copy2(os.path.join(out_dir, "report.html"), os.path.join(data_dir, "report.html"))
         sys.exit(1)
     else:
         logging.info(
@@ -706,6 +709,15 @@ def infer(args):
         with open(os.path.join(out_dir, "job_status.json"), "r") as stat_f:
             main_status = json.load(stat_f)
             if main_status == "FinishedNoMotif":
+
+                out_page_name = os.path.join(out_dir, "report.html")
+                write_report(
+                    environ = jinja_env,
+                    temp_base = "no_motifs.html.temp",
+                    info = {},
+                    out_name = out_page_name,
+                )
+
                 with open(status_fname, "w") as status_f:
                     json.dump(main_status, status_f)
                 logging.info("ShapeME finished with no motifs identified.")
@@ -1017,6 +1029,15 @@ def infer(args):
                     f"and the following stdout:\n\n"\
                     f"{infer_result.stdout.decode()}"
                 )
+
+                status = "FinishedError"
+                with open(status_fname, "w") as status_f:
+                    json.dump(status, status_f)
+
+                shutil.copy2(
+                    os.path.join(out_dir, "report.html"),
+                    os.path.join(data_dir, "report.html"),
+                )
                 sys.exit(1)
             else:
                 logging.info(
@@ -1255,7 +1276,6 @@ def infer(args):
         json.dump(status, status_f)
     logging.info("ShapeME finished")
 
-  
 
 
 def prep_data(args):
