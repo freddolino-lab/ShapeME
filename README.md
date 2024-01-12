@@ -150,15 +150,13 @@ case ShapeME is basically a wrapper for
 steps to avoid reporting motifs with overlapping information), or to incorporate
 shape and sequence motifs into a single model.
 
+To run ShapeME, we recommend using our
+[web interface](https://seq2fun.dcmb.med.umich.edu/shapeme). However,
+if you prefer to use the ShapeME CLI, you can pull an Apptainer container
+using these brief instructions.
+
 We distribute ShapeME as an Apptainer container, which can be run on any
 computer with a Linux environment that has Apptainer installed.
-
-The ShapeME container can be downloaded from our
-[google drive](https://drive.google.com/drive/folders/1e7N4iYO7BHuuZG4q-H7xBk1c6bE9GmOt?usp=sharing)
-location.
-
-In all instructions below, you should substitute `/path/to`
-with the actual path to the location with the ShapeME Apptainer container.
 
 For more information on how to set up `apptainer` for your system please follow
 the `apptainer` documentation [here](https://apptainer.org/docs/user/main/quick_start.html).
@@ -170,6 +168,9 @@ you will need to direct `apptainer` to use the SylabsCloud repository by running
 of our container by running
 `apptainer pull shapeme.sif library://schroedj/appliances/shapeme:latest`.
 Verify the container by running `apptainer verify shapeme.sif`.
+
+In all instructions below, you should substitute `/path/to`
+with the actual path to the location with the ShapeME Apptainer container.
 
 ## Inference on provided example data
 
