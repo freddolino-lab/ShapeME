@@ -32,6 +32,10 @@ import inout
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
 def logit(p):
+    if p == 0:
+        p = np.finfo(np.float32).eps
+    elif p == 1:
+        p = p - np.finfo(np.float32).eps
     x = np.log(p/(1-p))
     return x
 

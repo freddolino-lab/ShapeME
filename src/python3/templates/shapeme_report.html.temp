@@ -30,7 +30,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
     <title>ShapeME</title>
-    {#<link rel="stylesheet" href="{{ url_for('static', filename='chota.min.css') }}">#}
+    <link rel="stylesheet" href="/shapeme/chota.min.css")>
     <style>
       .container {
         max-width: 800px;
@@ -42,6 +42,10 @@
   <body>
     <div class="container">
       <h1>ShapeME results</h1>
+      <a href="/shapeme/logout">Log out</a>
+      <br>
+      <a href="/shapeme/dashboard">Back to dashboard</a>
+      <br>
 
       <fieldset>
         <legend>Motifs</legend>
