@@ -1050,10 +1050,8 @@ def infer(args):
                 )
                 # if no motifs in this fold, move on to next one
                 stat_fname = f"{out_dir}/job_status.json"
-                print(f"stat_fname: {stat_fname}")
                 with open(stat_fname, "r") as status_f:
                     fold_status = status_f.readlines()[0]
-                    print(f"fold_status: {fold_status}")
                     if "FinishedNoMotif" in fold_status:
                         logging.info(f"No motifs identified in fold {k}. Moving on to next fold.")
                         continue
