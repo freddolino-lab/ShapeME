@@ -21,6 +21,8 @@
 
         {{ error }}
 
+      <h2>These kinds of errors should not occur. Please contact Jeremy Schroeder at schroedj@umich.edu, letting him know the job id that yielded this error (the job id is the text of the link you click in your dashboard to get to this page), and with this full error message in your email.</h2>
+
     </div>
   </body>
 </html>
