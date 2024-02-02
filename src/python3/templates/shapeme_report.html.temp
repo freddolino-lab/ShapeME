@@ -61,6 +61,9 @@
             <th>e-value</th>
           </tr>
           {% for motif_info in logo_data %}
+            <tr>
+                <a href="/shapeme/data/{{ motif_info[7] }}" download>Download logo</a>
+            </tr>
           <tr>
             <td><img src="data:image/jpg;base64, {{ motif_info[0] }}"></td>
             <td>{{ motif_info[1] }}</td>
@@ -77,12 +80,14 @@
 
       <fieldset>
         <legend>Motif enrichment</legend>
+          <a href="/shapeme/data/{{ heatmap_path }}" download>Download heatmap</a><br>
           <img src="data:image/jpg;base64, {{ heatmap_data }}">
       </fieldset>
 
       <fieldset>
         <legend>Cross-validated performance</legend>
-          Folds with motifs: {{ performance_data.folds_with_motifs }}
+          Folds with motifs: {{ performance_data.folds_with_motifs }}<br>
+          <a href="/shapeme/data/{{ performance_path }}" download>Download AUPR plot</a><br>
           <img src="data:image/jpg;base64, {{ performance_data.plot }}">
       </fieldset>
 

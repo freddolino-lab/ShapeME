@@ -1,29 +1,3 @@
-{#{% macro table_plot(info) %}
-    <table style="width:100%">
-      <tr>
-        <th>Logo</th>
-        <th>Name</th>
-        <th>ID</th>
-        <th>Adj. MI</th>
-        <th>z-score</th>
-        <th>robustness</th>
-        <th>e-value</th>
-      </tr>
-      {% for motif_info in info %}
-      <tr>
-        <td><img src="data:image/jpg;base64, {{ motif_info[0] }}"></td>
-        <td>{{ motif_info[1] }}</td>
-        <td>{{ motif_info[2] }}</td>
-        <td>{{ motif_info[3] }}</td>
-        <td>{{ motif_info[4] }}</td>
-        <td>{{ motif_info[5] }}</td>
-        <td>{{ motif_info[6] }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-{% endmacro %}
-#}
-
 <!DOCTYPE html>
 <html>
   <head>
@@ -61,6 +35,10 @@
             <th>e-value</th>
           </tr>
           {% for motif_info in logo_data %}
+            <tr>
+                <a href="/shapeme/data/{{ motif_info[7] }}" download>Download logo</a>
+            </tr>
+
           <tr>
             <td><img src="data:image/jpg;base64, {{ motif_info[0] }}"></td>
             <td>{{ motif_info[1] }}</td>
@@ -73,12 +51,11 @@
           {% endfor %}
         </table>
 
-
-          {# {{ table_plot({{ logo_data }}) }} #}
       </fieldset>
 
       <fieldset>
         <legend>Motif enrichment</legend>
+          <a href="/shapeme/data/{{ heatmap_path }}" download>Download heatmap</a>
           <img src="data:image/jpg;base64, {{ heatmap_data }}">
       </fieldset>
 
