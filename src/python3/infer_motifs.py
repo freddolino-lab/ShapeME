@@ -1246,7 +1246,7 @@ def main(args, status):
             np.round(motif.zscore, 1),
             motif.robustness,
             np.round(motif.evalue, 2),
-            f"{data_dir}/{plot_fname}",
+            f"{in_direc}/{plot_fname}",
         ))
 
     # write motifs to meme-like file
@@ -1267,7 +1267,7 @@ def main(args, status):
     report_info = {
         "logo_data": logo_data,
         "heatmap_data": heatmap_data,
-        "heatmap_path": f"{data_dir}/{final_heatmap.png}",
+        "heatmap_path": f"{in_direc}/final_heatmap.png",
     }
 
     if not args.no_report:
