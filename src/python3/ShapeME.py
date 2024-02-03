@@ -1260,10 +1260,12 @@ def infer(args):
         "folds_with_motifs": f"{performance.fold_count_with_motifs}/{performance.fold_count}"
     }
     
+    job_id = data_dir.split("/")[-1]
     report_data_fname = os.path.join(out_dir, "report_data.pkl")
     with open(report_data_fname, "rb") as info_f:
         report_info = pickle.load(info_f)
     report_info["performance_data"] = performance_data
+    report_info["performance_path"] = f"{job_id}/cv_aupr.png"
 
     out_page_name = os.path.join(out_dir, "report.html")
     write_report(

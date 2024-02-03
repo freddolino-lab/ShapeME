@@ -1264,10 +1264,11 @@ def main(args, status):
         heatmap_data = base64.b64encode(image_file.read()).decode()
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
 
+    job_id = in_direc.split("/")[-1]
     report_info = {
         "logo_data": logo_data,
         "heatmap_data": heatmap_data,
-        "heatmap_path": f"{in_direc}/final_heatmap.png",
+        "heatmap_path": f"{job_id}/final_heatmap.png",
     }
 
     if not args.no_report:
