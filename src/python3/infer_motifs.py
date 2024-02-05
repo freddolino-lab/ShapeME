@@ -1265,11 +1265,13 @@ def main(args, status):
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
 
     job_id = in_direc.split("/")[-1]
+    print(f"job_id: {job_id}")
     report_info = {
         "logo_data": logo_data,
         "heatmap_data": heatmap_data,
         "heatmap_path": f"{job_id}/final_heatmap.png",
     }
+    print(f"heatmap_path: {report_info['heatmap_path']}")
 
     if not args.no_report:
         print(f"report_info keys:\n{report_info.keys()}")

@@ -1261,11 +1261,13 @@ def infer(args):
     }
     
     job_id = data_dir.split("/")[-1]
+    print(f"job_id: {job_id}")
     report_data_fname = os.path.join(out_dir, "report_data.pkl")
     with open(report_data_fname, "rb") as info_f:
         report_info = pickle.load(info_f)
     report_info["performance_data"] = performance_data
     report_info["performance_path"] = f"{job_id}/cv_aupr.png"
+    print(f"performance_path: {report_info['performance_path']}")
 
     out_page_name = os.path.join(out_dir, "report.html")
     write_report(
