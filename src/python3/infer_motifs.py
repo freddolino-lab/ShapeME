@@ -1234,6 +1234,7 @@ def main(args, status):
     #######################################################################
     #######################################################################
     logo_data = []
+    job_id = in_direc.split("/")[-1]
     for plot_fname,motif in plot_fnames:
         with open(plot_fname, "rb") as image_file:
             logo_img = base64.b64encode(image_file.read()).decode()
@@ -1246,7 +1247,7 @@ def main(args, status):
             np.round(motif.zscore, 1),
             motif.robustness,
             np.round(motif.evalue, 2),
-            f"{in_direc}/{plot_fname}",
+            f"{job_id}/{plot_fname}",
         ))
 
     # write motifs to meme-like file
@@ -1264,7 +1265,6 @@ def main(args, status):
         heatmap_data = base64.b64encode(image_file.read()).decode()
     logging.info(f"Finished motif inference. Final results are in {out_motif_fname}")
 
-    job_id = in_direc.split("/")[-1]
     report_info = {
         "logo_data": logo_data,
         "heatmap_data": heatmap_data,
