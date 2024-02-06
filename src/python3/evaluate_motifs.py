@@ -396,14 +396,14 @@ def train_sklearn_glm(X,y,fit_intercept=False,family='binomial'):
             penalty = None,
             multi_class = "multinomial",
             fit_intercept = fit_intercept,
-            max_iter = 200,
+            max_iter = 500,
         )
     else:
         model = linear_model.LogisticRegression(
             penalty=None,
             multi_class = "ovr",
             fit_intercept = fit_intercept,
-            max_iter = 200,
+            max_iter = 500,
         )
 
     model.fit(X,y)
