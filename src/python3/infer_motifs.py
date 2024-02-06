@@ -1228,17 +1228,13 @@ def main(args, status):
     # modify each motif's enrichments attribute
     best_motifs.get_enrichments(records)
 
-    #######################################################################
-    #######################################################################
-    ## consider whether to place enrichments in these tuples
-    #######################################################################
-    #######################################################################
     logo_data = []
     job_id = in_direc.split("/")[-1]
     for plot_fname,motif in plot_fnames:
         with open(plot_fname, "rb") as image_file:
             logo_img = base64.b64encode(image_file.read()).decode()
         motif.set_evalue(len(best_motifs))
+        plot_basename = os.path.basename(plot_fname)
         logo_data.append((
             logo_img,
             motif.alt_name,
@@ -1247,7 +1243,7 @@ def main(args, status):
             np.round(motif.zscore, 1),
             motif.robustness,
             np.round(motif.evalue, 2),
-            f"{job_id}/{plot_fname}",
+            f"{job_id}/{plot_basename}",
         ))
 
     # write motifs to meme-like file

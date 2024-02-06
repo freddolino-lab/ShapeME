@@ -36,7 +36,13 @@
           </tr>
           {% for motif_info in logo_data %}
             <tr>
-                <a href="/shapeme/data/{{ motif_info[7] }}" download>Download logo</a>
+                <td><a href="/shapeme/data/{{ motif_info[7] }}" download>Download logo</a></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
             </tr>
 
           <tr>

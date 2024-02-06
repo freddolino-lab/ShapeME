@@ -36,19 +36,17 @@ numpy2ri.activate()
 prroc = importr('PRROC')
 glmnet = importr('glmnet')
 base = importr('base',  robject_translations={'as.data.frame': 'as_data_frame'})
-#brms = importr('brms')
-#stats = importr('stats', robject_translations={'as.formula': 'as_formula'})
 
 glmnet.glmnet = STM(glmnet.glmnet, init_prm_translate = {"lam": "lambda"})
-#brms.set_prior = STM(brms.set_prior, init_prm_translate = {"cl": "class"})
 
+from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
 supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
 
-#EPSILON = sys.float_info.epsilon
+jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
 def shape_run(
         shape_motifs,
@@ -546,7 +544,6 @@ def evaluate_fit2(
     for col_i in range(num_cats):
         yhat[:,col_i] = np.dot(X, coefs[col_i,:])
 
-    # check!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if num_cats > 1:
         for row_i in range(num_seqs):
             yhat[row_i,:] = softmax(yhat[row_i,:])
@@ -769,37 +766,11 @@ def set_family(yvals):
 #    retained_motifs = [motif_list[i] for i,_ in enumerate(retain) if _]
 #    return (retained_motifs, retained_X, new_lut)
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--continuous', type=int, default=None,
-            help="number of bins to discretize continuous input data with")
-    parser.add_argument('--test_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
-    parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir", default=None)
-    parser.add_argument('--test_shape_files', nargs="+", type=str,
-                         help='inputfiles with test shape scores')
-    parser.add_argument('--train_shape_files', nargs="+", type=str,
-                         help='inputfiles with training shape scores', default=None)
-    parser.add_argument('--shape_names', nargs="+", type=str,
-                         help='parameter names')
-    parser.add_argument('--data_dir', type=str, help="Directory containing data")
-    parser.add_argument('--train_score_file', type=str, help="File with peak names and y-vals", default=None)
-    parser.add_argument('--test_score_file', type=str, help="File with peak names and y-vals")
-    parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
-    parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
-    parser.add_argument('--out_prefix', type=str, help="Prefix to prepend to output files.")
-    parser.add_argument('--config_file', type=str, help="Basename of configuration file.", default="config.json")
-    parser.add_argument('--streme_thresh', type=float, default= 0.05,
-        help="Threshold for including motifs identified by streme. Default: %(default)f")
-    parser.add_argument('--tmpdir', action='store', type=str, default=None,
-        help=f"Sets the location into which to write temporary files. If ommitted, will "\
-                f"use TMPDIR environment variable.")
+def main(args):
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
     logging.getLogger('matplotlib.font_manager').disabled = True
-
-    args = parser.parse_args()
 
     logging.info("Arguments")
     logging.info(str(args))
@@ -1049,4 +1020,65 @@ if __name__ == "__main__":
                 prc_prefix+".pdf",
             )
         )
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--continuous', type=int, default=None,
+            help="number of bins to discretize continuous input data with")
+    parser.add_argument('--test_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
+    parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir", default=None)
+    parser.add_argument('--test_shape_files', nargs="+", type=str,
+                         help='inputfiles with test shape scores')
+    parser.add_argument('--train_shape_files', nargs="+", type=str,
+                         help='inputfiles with training shape scores', default=None)
+    parser.add_argument('--shape_names', nargs="+", type=str,
+                         help='parameter names')
+    parser.add_argument('--data_dir', type=str, help="Directory containing data")
+    parser.add_argument('--train_score_file', type=str, help="File with peak names and y-vals", default=None)
+    parser.add_argument('--test_score_file', type=str, help="File with peak names and y-vals")
+    parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
+    parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
+    parser.add_argument('--out_prefix', type=str, help="Prefix to prepend to output files.")
+    parser.add_argument('--config_file', type=str, help="Basename of configuration file.", default="config.json")
+    parser.add_argument('--streme_thresh', type=float, default= 0.05,
+        help="Threshold for including motifs identified by streme. Default: %(default)f")
+    parser.add_argument('--tmpdir', action='store', type=str, default=None,
+        help=f"Sets the location into which to write temporary files. If ommitted, will "\
+                f"use TMPDIR environment variable.")
+    args = parser.parse_args()
+    return args
+
+
+if __name__ == "__main__":
+
+    args = parse_args()
+
+    try:
+        main(args)
+    except Exception as err:
+        logging.error(f"\nError encountered in evaluate_motifs.py:\n{err}\n")
+        status = "FinishedError"
+        in_direc = args.data_dir
+        out_direc = args.out_dir
+        out_direc = os.path.join(in_direc, out_direc)
+
+        if not os.path.isdir(out_direc):
+            os.mkdir(out_direc)
+
+        out_page_name = os.path.join(out_direc, "report.html")
+
+        report_info = {
+            "error": err,
+        }
+        write_report(
+            environ = jinja_env,
+            temp_base = "error.html.temp",
+            info = report_info,
+            out_name = out_page_name,
+        )
+
+        status_fname = os.path.join(out_direc, "job_status.json")
+        with open(status_fname, "w") as status_f:
+            json.dump(status, status_f)
+        sys.exit(1)
 
