@@ -325,7 +325,7 @@ def CV_F1(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
         penalty = None,
         multi_class = mc,
         fit_intercept = fit_intercept,
-        max_iter = 200,
+        max_iter = 500,
     )
 
     F_scores = cross_val_score(
