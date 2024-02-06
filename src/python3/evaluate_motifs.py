@@ -48,6 +48,28 @@ supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness'
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
+def write_report(environ, temp_base, info, out_name):
+    print("writing report")
+    print(f"base template: {temp_base}")
+    template = environ.get_template(temp_base)
+    print(f"out_name: {out_name}")
+    content = template.render(**info)
+    with open(out_name, "w", encoding="utf-8") as report:
+        report.write(content)
+
+def match_test_coefs_to_trained(all_test_motifs, trained_var_lut):
+    retain_col_idxs = []
+    test_var_lut = all_test_motifs.var_lut
+    for trained_coef_idx,trained_coef_info in trained_var_lut.items():
+        for test_coef_idx,test_coef_info in test_var_lut.items():
+            if test_coef_idx in retain_col_idxs:
+                continue
+            if trained_coef_info == test_coef_info:
+                retain_col_idxs.append(test_coef_idx)
+
+    all_test_motifs.X = all_test_motifs.X[:, retain_col_idxs].copy()
+    all_test_motifs.var_lut = trained_var_lut
+
 def shape_run(
         shape_motifs,
         rust_motifs_fname,
@@ -873,6 +895,10 @@ def main(args):
 
     if os.path.isfile(motif_fname):
 
+##########################################################################
+## what i need to do is to crossref the test motifs coef lut against the trained motifs coef lut, keeping only the coefs that are in the trained coef lut
+##########################################################################
+
         motifs = inout.Motifs()
         motifs.read_file( motif_fname )
         seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
@@ -986,6 +1012,16 @@ def main(args):
         else:
             while np.min(test_y) != 0:
                 test_y -= 1
+
+        print()
+        print("---------all_test_motifs---------------")
+        print(all_test_motifs)
+        print("---------all_test_motifs.var_lut---------------")
+        pprint(all_test_motifs.var_lut)
+        print("---------trained_motif_var_coefs-------------------")
+        pprint(motif_var_lut)
+
+        match_test_coefs_to_trained(all_test_motifs, motif_var_lut)
 
         fit_eval = evaluate_fit2(
             motif_coefs,
