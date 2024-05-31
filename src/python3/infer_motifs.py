@@ -806,6 +806,16 @@ def main(args, status):
                 env=my_env,
                 capture_output=True,
             )
+            # here is a spot where I need to write the ouptut of the rust binary to logs
+            res_log_fname = os.path.join(out_direc, "infer_motifs_bin.log")
+            res_err_fname = os.path.join(out_direc, "infer_motifs_bin.err")
+            run_output = result.stdout.decode()
+            with open(res_log_fname, "w") as logf:
+                logf.write(run_output)
+            run_err = result.stderr.decode()
+            with open(res_err_fname, "w") as errf:
+                errf.write(run_err)
+            
             if result.returncode != 0:
                 raise inout.RustBinaryException(FIND_CMD)
             if "No shape motifs found by infer_motifs binary." in result.stdout.decode():
