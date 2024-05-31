@@ -36,19 +36,39 @@ numpy2ri.activate()
 prroc = importr('PRROC')
 glmnet = importr('glmnet')
 base = importr('base',  robject_translations={'as.data.frame': 'as_data_frame'})
-#brms = importr('brms')
-#stats = importr('stats', robject_translations={'as.formula': 'as_formula'})
 
 glmnet.glmnet = STM(glmnet.glmnet, init_prm_translate = {"lam": "lambda"})
-#brms.set_prior = STM(brms.set_prior, init_prm_translate = {"cl": "class"})
 
+from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
 supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
 
-#EPSILON = sys.float_info.epsilon
+jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
+
+def write_report(environ, temp_base, info, out_name):
+    print("writing report")
+    print(f"base template: {temp_base}")
+    template = environ.get_template(temp_base)
+    print(f"out_name: {out_name}")
+    content = template.render(**info)
+    with open(out_name, "w", encoding="utf-8") as report:
+        report.write(content)
+
+def match_test_coefs_to_trained(all_test_motifs, trained_var_lut):
+    retain_col_idxs = []
+    test_var_lut = all_test_motifs.var_lut
+    for trained_coef_idx,trained_coef_info in trained_var_lut.items():
+        for test_coef_idx,test_coef_info in test_var_lut.items():
+            if test_coef_idx in retain_col_idxs:
+                continue
+            if trained_coef_info == test_coef_info:
+                retain_col_idxs.append(test_coef_idx)
+
+    all_test_motifs.X = all_test_motifs.X[:, retain_col_idxs].copy()
+    all_test_motifs.var_lut = trained_var_lut
 
 def shape_run(
         shape_motifs,
@@ -305,7 +325,7 @@ def CV_F1(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
         penalty = None,
         multi_class = mc,
         fit_intercept = fit_intercept,
-        max_iter = 200,
+        max_iter = 500,
     )
 
     F_scores = cross_val_score(
@@ -376,14 +396,14 @@ def train_sklearn_glm(X,y,fit_intercept=False,family='binomial'):
             penalty = None,
             multi_class = "multinomial",
             fit_intercept = fit_intercept,
-            max_iter = 200,
+            max_iter = 500,
         )
     else:
         model = linear_model.LogisticRegression(
             penalty=None,
             multi_class = "ovr",
             fit_intercept = fit_intercept,
-            max_iter = 200,
+            max_iter = 500,
         )
 
     model.fit(X,y)
@@ -546,7 +566,6 @@ def evaluate_fit2(
     for col_i in range(num_cats):
         yhat[:,col_i] = np.dot(X, coefs[col_i,:])
 
-    # check!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if num_cats > 1:
         for row_i in range(num_seqs):
             yhat[row_i,:] = softmax(yhat[row_i,:])
@@ -769,37 +788,11 @@ def set_family(yvals):
 #    retained_motifs = [motif_list[i] for i,_ in enumerate(retain) if _]
 #    return (retained_motifs, retained_X, new_lut)
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--continuous', type=int, default=None,
-            help="number of bins to discretize continuous input data with")
-    parser.add_argument('--test_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
-    parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir", default=None)
-    parser.add_argument('--test_shape_files', nargs="+", type=str,
-                         help='inputfiles with test shape scores')
-    parser.add_argument('--train_shape_files', nargs="+", type=str,
-                         help='inputfiles with training shape scores', default=None)
-    parser.add_argument('--shape_names', nargs="+", type=str,
-                         help='parameter names')
-    parser.add_argument('--data_dir', type=str, help="Directory containing data")
-    parser.add_argument('--train_score_file', type=str, help="File with peak names and y-vals", default=None)
-    parser.add_argument('--test_score_file', type=str, help="File with peak names and y-vals")
-    parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
-    parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
-    parser.add_argument('--out_prefix', type=str, help="Prefix to prepend to output files.")
-    parser.add_argument('--config_file', type=str, help="Basename of configuration file.", default="config.json")
-    parser.add_argument('--streme_thresh', type=float, default= 0.05,
-        help="Threshold for including motifs identified by streme. Default: %(default)f")
-    parser.add_argument('--tmpdir', action='store', type=str, default=None,
-        help=f"Sets the location into which to write temporary files. If ommitted, will "\
-                f"use TMPDIR environment variable.")
+def main(args):
 
     level = logging.INFO
     logging.basicConfig(format='%(asctime)s %(message)s', level=level, stream=sys.stdout) 
     logging.getLogger('matplotlib.font_manager').disabled = True
-
-    args = parser.parse_args()
 
     logging.info("Arguments")
     logging.info(str(args))
@@ -901,6 +894,10 @@ if __name__ == "__main__":
     fam = set_family(test_y)
 
     if os.path.isfile(motif_fname):
+
+##########################################################################
+## what i need to do is to crossref the test motifs coef lut against the trained motifs coef lut, keeping only the coefs that are in the trained coef lut
+##########################################################################
 
         motifs = inout.Motifs()
         motifs.read_file( motif_fname )
@@ -1016,6 +1013,16 @@ if __name__ == "__main__":
             while np.min(test_y) != 0:
                 test_y -= 1
 
+        print()
+        print("---------all_test_motifs---------------")
+        print(all_test_motifs)
+        print("---------all_test_motifs.var_lut---------------")
+        pprint(all_test_motifs.var_lut)
+        print("---------trained_motif_var_coefs-------------------")
+        pprint(motif_var_lut)
+
+        match_test_coefs_to_trained(all_test_motifs, motif_var_lut)
+
         fit_eval = evaluate_fit2(
             motif_coefs,
             all_test_motifs.X,
@@ -1049,4 +1056,65 @@ if __name__ == "__main__":
                 prc_prefix+".pdf",
             )
         )
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--continuous', type=int, default=None,
+            help="number of bins to discretize continuous input data with")
+    parser.add_argument('--test_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir")
+    parser.add_argument('--train_seq_fasta', type=str, help="basename of sequence fasta, must be within data_dir", default=None)
+    parser.add_argument('--test_shape_files', nargs="+", type=str,
+                         help='inputfiles with test shape scores')
+    parser.add_argument('--train_shape_files', nargs="+", type=str,
+                         help='inputfiles with training shape scores', default=None)
+    parser.add_argument('--shape_names', nargs="+", type=str,
+                         help='parameter names')
+    parser.add_argument('--data_dir', type=str, help="Directory containing data")
+    parser.add_argument('--train_score_file', type=str, help="File with peak names and y-vals", default=None)
+    parser.add_argument('--test_score_file', type=str, help="File with peak names and y-vals")
+    parser.add_argument('--out_dir', type=str, help="Directory to which to write outputs")
+    parser.add_argument('--nprocs', type=int, help="Number of cores to run in parallel")
+    parser.add_argument('--out_prefix', type=str, help="Prefix to prepend to output files.")
+    parser.add_argument('--config_file', type=str, help="Basename of configuration file.", default="config.json")
+    parser.add_argument('--streme_thresh', type=float, default= 0.05,
+        help="Threshold for including motifs identified by streme. Default: %(default)f")
+    parser.add_argument('--tmpdir', action='store', type=str, default=None,
+        help=f"Sets the location into which to write temporary files. If ommitted, will "\
+                f"use TMPDIR environment variable.")
+    args = parser.parse_args()
+    return args
+
+
+if __name__ == "__main__":
+
+    args = parse_args()
+
+    try:
+        main(args)
+    except Exception as err:
+        logging.error(f"\nError encountered in evaluate_motifs.py:\n{err}\n")
+        status = "FinishedError"
+        in_direc = args.data_dir
+        out_direc = args.out_dir
+        out_direc = os.path.join(in_direc, out_direc)
+
+        if not os.path.isdir(out_direc):
+            os.mkdir(out_direc)
+
+        out_page_name = os.path.join(out_direc, "report.html")
+
+        report_info = {
+            "error": err,
+        }
+        write_report(
+            environ = jinja_env,
+            temp_base = "error.html.temp",
+            info = report_info,
+            out_name = out_page_name,
+        )
+
+        status_fname = os.path.join(out_direc, "job_status.json")
+        with open(status_fname, "w") as status_f:
+            json.dump(status, status_f)
+        sys.exit(1)
 
