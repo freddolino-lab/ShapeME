@@ -1367,11 +1367,18 @@ pub fn filter_seeds<'a>(
     // Make sure first seed passes AIC
     let log_lik = rec_num as f64 * seeds.seeds[0].mi;
     let aic = info_theory::calc_aic(delta_k, log_lik);
+    /////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////
+    // here i'll instead start to return top motif even in aic < 0.0, but keep it in low-info pool
+    // of seeds so that it can be ignored later if a high-info seed arises
+    /////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////
+    let motif = seeds.seeds[0].to_motif(threshold);
     if aic < 0.0 {
-        let motif = seeds.seeds[0].to_motif(threshold);
         top_motifs.push(motif);
         //info_vals_in_model.push(&seeds.seeds[0].mi);
     } else {
+        top_motifs.push(motif);
         return Motifs::new(top_motifs)
     }
 
