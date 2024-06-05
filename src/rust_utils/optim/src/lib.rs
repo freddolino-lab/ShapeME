@@ -553,7 +553,7 @@ impl Particle {
     }
 
     /// Determine whether to accept the new position, or to go back to prior
-    /// position and try again. If score is greater that prior score,
+    /// position and try again. If score is greater than prior score,
     /// return true. If the score is less than prior score, determine whether
     /// to return true probabilistically using the following function:
     ///

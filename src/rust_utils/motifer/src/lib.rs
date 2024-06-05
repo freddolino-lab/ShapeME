@@ -1349,7 +1349,7 @@ pub fn filter_seeds<'a>(
         rec_db: &'a RecordsDB,
         threshold: &f64,
         max_count: &i64,
-) -> Motifs {
+) -> (Motifs,bool) {
 
     // get number of parameters in model (shape number * seed length * 2)
     //  we multiply by two because we'll be optimizing shape AND weight values
@@ -1379,7 +1379,7 @@ pub fn filter_seeds<'a>(
         //info_vals_in_model.push(&seeds.seeds[0].mi);
     } else {
         top_motifs.push(motif);
-        return Motifs::new(top_motifs)
+        return (Motifs::new(top_motifs), false)
     }
 
     // loop through candidate seeds
@@ -1439,7 +1439,7 @@ pub fn filter_seeds<'a>(
         //let duration = now.elapsed().as_secs_f64() / 60.0;
         //println!("Evaluating whether seed {} took {} minutes.", i+2, duration);
     }
-    Motifs::new(top_motifs)
+    (Motifs::new(top_motifs), true)
 }
 
 /// An enumeration of possible parameter names
@@ -1689,7 +1689,7 @@ impl Motifs {
         Motifs{motifs: Vec::<Motif>::new()}
     }
 
-    fn new(motifs: Vec<Motif>) -> Motifs {
+    pub fn new(motifs: Vec<Motif>) -> Motifs {
         Motifs{motifs}
     }
 
@@ -1754,6 +1754,8 @@ impl Motifs {
     }
 
     pub fn len(&self) -> usize {self.motifs.len()}
+
+    pub fn is_empty(&self) -> bool {self.motifs.len() == 0}
 
     pub fn supplement_robustness(&mut self, rec_db: &RecordsDB, max_count: &i64) {
         for (i,motif) in self.motifs.iter_mut().enumerate() {
@@ -1845,7 +1847,7 @@ impl Motifs {
         );
     }
 
-    fn sort_motifs(&mut self) {
+    pub fn sort_motifs(&mut self) {
         self.motifs.par_sort_unstable_by_key(|motif| OrderedFloat(-motif.mi))
     }
 
