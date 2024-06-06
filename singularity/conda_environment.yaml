@@ -26,8 +26,8 @@ dependencies:
     - rpy2
     - seaborn
     - meme=5.5.3
-    - seqlogo
-    - pip
+      #- seqlogo
+      #- pip
       #- openssl
       #- sqlite
       #- sqlcipher

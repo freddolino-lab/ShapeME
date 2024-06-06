@@ -9,6 +9,10 @@ use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 use rayon::current_num_threads;
 
+fn all_false(elements: Vec<bool>) -> bool {
+    elements.into_iter().all(|x| !x)
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let cfg = motifer::parse_config(&args).unwrap();
@@ -32,6 +36,7 @@ fn main() {
     // I'll have to get the first chunk and calculate initial threshold,
     // then use that threshold for all chunks
     let mut motifs = motifer::Motifs::empty();
+    let mut low_info_motifs = motifer::Motifs::empty();
     let mut threshold = 1000.0;
     let mut counter = 0;
     let mut prior_len = 0;
@@ -83,20 +88,33 @@ fn main() {
         let duration = now.elapsed().as_secs_f64() / 60.0;
         println!("MI calculation for batch {} took {} minutes.", i+1, duration);
 
-        //seeds.pickle_seeds(&String::from("/home/x-schroeder/pre_filter_seeds.pkl"));
         println!("{} seeds in batch {} prior to CMI-based filtering.", seeds.len(), i+1);
-        let these_motifs = motifer::filter_seeds(
+        let (these_motifs,post_filter) = motifer::filter_seeds(
             &mut seeds,
             &rec_db,
             &threshold,
             &cfg.max_count,
         );
-        println!(
-            "{} seeds in batch {} after CMI-based filtering.",
-            these_motifs.len(),
-            i+1,
-        );
-        motifs.append(these_motifs);
+        if post_filter {
+            let hi_info_len = these_motifs.len();
+            motifs.append(these_motifs);
+            println!(
+                "{} seeds in batch {} after CMI-based filtering.",
+                hi_info_len,
+                i+1,
+            );
+        } else {
+            if motifs.len() == 0 {
+                low_info_motifs.append(these_motifs);
+                println!(
+                    "No informative seeds present in batch {},
+                    retaining top-scoring seed to fall back on if 
+                    no informative motif is identified during
+                    initial search.",
+                    i+1,
+                );
+            }
+        }
 
         // don't waste time doing another cmi filter if we have the max batch num set
         // super high.
@@ -108,6 +126,15 @@ fn main() {
 
             // if we added motifs, re-set number of batches without addition counter
             let motifs_len = motifs.len();
+            println!(
+                "{} motifs.",
+                motifs_len,
+            );
+            let lo_inf_motifs_len = low_info_motifs.len();
+            println!(
+                "{} low info motifs.",
+                lo_inf_motifs_len,
+            );
             if motifs_len > prior_len {
                 prior_len = motifs_len;
                 counter = 0;
@@ -128,16 +155,31 @@ fn main() {
         println!();
     }
 
+    // if no informative motifs were found on initial search,
+    // take the top 5 low-information seeds directly to optimization,
+    // but if informative seeds were identified on initial search,
+    // proceed with CMI filter and optimization of them.
+    if motifs.is_empty() {
+        low_info_motifs.sort_motifs();
+        if low_info_motifs.len() > 5 {
+            low_info_motifs = motifer::Motifs::new(low_info_motifs.motifs.split_off(5));
+        } else {
+            low_info_motifs = motifer::Motifs::new(low_info_motifs.motifs);
+        }
+        motifs = low_info_motifs;
+        println!("No informative seeds identified after initial search. Moving to optimization with {} highest-information seeds from the low-information pool.", motifs.len());
+    } else {
+        motifs = motifs.filter_motifs(
+            &rec_db,
+            &cfg.max_count,
+        );
+        println!("{} motifs left after pooled CMI-based filtering.", motifs.len());
+    }
+
     if motifs.len() == 0 {
         println!("No shape motifs found by infer_motifs binary.");
         process::exit(0x0100);
     }
-    println!("{} seeds collected during initial batched evaluation.", motifs.len());
-    let mut motifs = motifs.filter_motifs(
-        &rec_db,
-        &cfg.max_count,
-    );
-    println!("{} motifs left after pooled CMI-based filtering.", motifs.len());
 
     // Optimization options
     // set temp to difference between p_temp and 0.5 on logit scale
@@ -248,11 +290,16 @@ fn main() {
     });
 
     println!("\nFiltering optimized motifs based on conditional mutual information.");
-    let mut motifs = motifs.filter_motifs(
+    motifs = motifs.filter_motifs(
         &rec_db,
         &cfg.max_count,
     );
     println!("{} motifs left after CMI-based filtering.", motifs.len());
+
+    if motifs.len() == 0 {
+        println!("No shape motifs found by infer_motifs binary.");
+        process::exit(0x0100);
+    }
 
     // undo record permutation now, prior to final udate of hits/mi/etc.
     rec_db.undo_record_permutation();
