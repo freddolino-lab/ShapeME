@@ -822,7 +822,7 @@ class Motif:
         if np.all(self.X == 1, axis=0):
             print(f"WARNING: All records were identified as hits for motif {motif_name}.")
 
-    def set_shape_X(self, rec_db, max_count, motif_hit_list=None):
+    def set_shape_X(self, rec_db, max_count, motif_hit_list=None, test=False):
 
         #print(f"Max count: {max_count}")
         if motif_hit_list is None:
@@ -869,42 +869,44 @@ class Motif:
 
                     col_idx += 1
 
-            # remove columns for which all records were zero
-            cols_all_zero = np.all(self.X == 0, axis=0)
-            inds_all_zero = np.where(cols_all_zero)[0]
-            if len(inds_all_zero) > 0:
-                print(f"Removed {len(inds_all_zero)} columns from a motif's design matrix because they only contained the value 0 and thus provide no information.")
-            inds_not_all_zero = np.where(~cols_all_zero)[0]
-            #print(f"inds_all_zero: {inds_all_zero}")
-            #print(f"inds_not_all_zero: {inds_not_all_zero}")
-            self.X = self.X[:,inds_not_all_zero]
-            # re-set var lut after filtering out hit categories without hits
-            tmp_lut = {}
-            # get sorted list of keys from original var_lut
-            var_lut_keys = sorted(list(self.var_lut.keys()))
-            # re-index keys to tmp_lut
-            for i,k in enumerate(inds_not_all_zero):
-                tmp_lut[i] = self.var_lut[k]
-            self.var_lut = tmp_lut
+            # if we're using training data, do the following
+            if not test:
+                # remove columns for which all records were zero
+                cols_all_zero = np.all(self.X == 0, axis=0)
+                inds_all_zero = np.where(cols_all_zero)[0]
+                if len(inds_all_zero) > 0:
+                    print(f"Removed {len(inds_all_zero)} columns from a motif's design matrix because they only contained the value 0 and thus provide no information.")
+                inds_not_all_zero = np.where(~cols_all_zero)[0]
+                #print(f"inds_all_zero: {inds_all_zero}")
+                #print(f"inds_not_all_zero: {inds_not_all_zero}")
+                self.X = self.X[:,inds_not_all_zero]
+                # re-set var lut after filtering out hit categories without hits
+                tmp_lut = {}
+                # get sorted list of keys from original var_lut
+                var_lut_keys = sorted(list(self.var_lut.keys()))
+                # re-index keys to tmp_lut
+                for i,k in enumerate(inds_not_all_zero):
+                    tmp_lut[i] = self.var_lut[k]
+                self.var_lut = tmp_lut
 
-            # remove columns for which all records were one
-            cols_all_one = np.all(self.X == 1, axis=0)
-            inds_all_one = np.where(cols_all_one)[0]
-            inds_not_all_one = np.where(~cols_all_one)[0]
-            #print(f"inds_all_one: {inds_all_one}")
-            #print(f"inds_not_all_one: {inds_not_all_one}")
-            if len(inds_all_one) > 0:
-                print(f"Removed {len(inds_all_one)} columns from a motif's design matrix because they only contained the value 1 and thus provide no information.")
-            self.X = self.X[:,inds_not_all_one]
-            # re-set var lut after filtering out hit categories without information
-            tmp_lut = {}
-            # get sorted list of keys from original var_lut
-            var_lut_keys = sorted(list(self.var_lut.keys()))
-            # re-index keys to tmp_lut
-            for i,k in enumerate(inds_not_all_one):
-                tmp_lut[i] = self.var_lut[k]
-            self.var_lut = tmp_lut
-            #print(f"var lut in set_shape_X: {self.var_lut}")
+                # remove columns for which all records were one
+                cols_all_one = np.all(self.X == 1, axis=0)
+                inds_all_one = np.where(cols_all_one)[0]
+                inds_not_all_one = np.where(~cols_all_one)[0]
+                #print(f"inds_all_one: {inds_all_one}")
+                #print(f"inds_not_all_one: {inds_not_all_one}")
+                if len(inds_all_one) > 0:
+                    print(f"Removed {len(inds_all_one)} columns from a motif's design matrix because they only contained the value 1 and thus provide no information.")
+                self.X = self.X[:,inds_not_all_one]
+                # re-set var lut after filtering out hit categories without information
+                tmp_lut = {}
+                # get sorted list of keys from original var_lut
+                var_lut_keys = sorted(list(self.var_lut.keys()))
+                # re-index keys to tmp_lut
+                for i,k in enumerate(inds_not_all_one):
+                    tmp_lut[i] = self.var_lut[k]
+                self.var_lut = tmp_lut
+                #print(f"var lut in set_shape_X: {self.var_lut}")
 
     def set_X(
             self,
@@ -912,6 +914,7 @@ class Motif:
             seq_motif_hits=None,
             max_count=None,
             motif_hit_list=None,
+            test=False,
     ):
 
         if self.motif_type == "sequence":
@@ -926,7 +929,7 @@ class Motif:
                 print(f"Attempted to get design matrix for "\
                     f"a shape motif without passing max_count. Exiting with error.")
                 sys.exit(1)
-            self.set_shape_X(rec_db, max_count, motif_hit_list)
+            self.set_shape_X(rec_db, max_count, motif_hit_list, test)
 
         else:
             print("to get design matrix for a motif, motif_type must be set. Exiting with error")
@@ -1752,6 +1755,7 @@ class Motifs:
             pval_thresh=None,
             nosort=False,
             var_lut=None,
+            test=False,
     ):
 
         if not nosort:
@@ -1782,7 +1786,7 @@ class Motifs:
         for motif_idx,motif in enumerate(self):
             #print(f"motif type: {motif.motif_type}")
             if motif.motif_type == "sequence":
-                motif.set_X(rec_db, seq_motif_hits = motif_hits, max_count = max_count)
+                motif.set_X(rec_db, seq_motif_hits = motif_hits, max_count = max_count, test = test)
             elif motif.motif_type == "shape":
                 # for shape motifs, if we're using a var_lut, then we're actually evaluating
                 # the motif's performance on some set of data. Use the var_lut to assemble
@@ -1798,6 +1802,7 @@ class Motifs:
                     rec_db,
                     max_count = max_count,
                     motif_hit_list = motif_hit_cats,
+                    test = test
                 )
                 #print(f"motif var lut: {motif.var_lut}")
 

@@ -23,6 +23,7 @@ singularity/current
 singularity/def
 singularity/*.sif
 *.sif
+src/python3/unit_tests/test_data/motif_cat_removal_test_data
 
 # Ignore everything except seqs.* in example data
 examples/*/*.*

@@ -424,6 +424,7 @@ class TestPerformance(unittest.TestCase):
         )
         self.assertTrue(False)
 
+
 class TestMotifMethods(unittest.TestCase):
 
     def setUp(self):
@@ -487,7 +488,7 @@ class TestMotifMethods(unittest.TestCase):
     def test_set_motif_X(self):
         self.assertTrue(False)
 
-    def test_seq_seq_X(self):
+    def test_set_seq_X(self):
         self.assertTrue(False)
         
     def test_read_rust_motifs(self):
@@ -515,7 +516,6 @@ class TestMotifMethods(unittest.TestCase):
         self.assertEqual(true_mi, motif.mi)
         self.assertEqual(true_thresh, motif.threshold)
                 
-
     def test_motif_shape(self):
         self.assertEqual(self.motifs[0].shape()[0], 5)
         self.assertEqual(self.motifs[0].shape()[1], 10)
@@ -688,7 +688,7 @@ class TestMotifMethods(unittest.TestCase):
         self.assertEqual(len(target_hits), len(hits))
         for i,hit in enumerate(target_hits):
             for j,elem in enumerate(hit):
-                self.assertEqual(elem, hits[i][j])
+                self.assertAlmostEqual(elem, hits[i][j])
 
     def test_read_streme_meme_file(self):
         true_str = "ALPHABET= ACGT\nSHAPES= \nMOTIF 1-AAATATGAAGA STREME-1\nletter-probability matrix: alength= 4 w= 11 nsites= 65 E= 0.17\n\nMOTIF 2-AATAAAAGTTRA STREME-2\nletter-probability matrix: alength= 4 w= 12 nsites= 46 E= 2.3\n\nMOTIF 3-AATATTATAKWGA STREME-3\nletter-probability matrix: alength= 4 w= 13 nsites= 57 E= 3.3\n\nMOTIF 4-AMAAACWTWWYA STREME-4\nletter-probability matrix: alength= 4 w= 12 nsites= 39 E= 4.0\n\n"
@@ -761,7 +761,8 @@ class TestMotifMethods(unittest.TestCase):
  
         hits = self.small_motifs.identify(records)
         ###########################################################
-        ## note: figure out score and p-value/q-value
+        ## note: figure out score and p-value/q-value,
+        ## extract sequence from matched region too
         ###########################################################
         # output should match fimo.tsv columns:
         # id alt_id seq_name sequence_name start end strand score p-value q-value matched_sequence

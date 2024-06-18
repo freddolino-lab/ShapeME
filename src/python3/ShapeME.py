@@ -301,6 +301,15 @@ def parse_args():
                         help="total window size around peak center")
     prep_data.add_argument('--nrand', type=int, default=3, 
             help="multiplier for number of random seqs to include")
+
+    prep_data.add_argument("--max_peaks", type=int, action="store",
+        default=0,
+        help=f"Sets the maximum number of peaks to fetch "\
+            f"from narrowpeak file. Default is 0, which denotes no "\
+            f"limit to the number of peaks. If set to any other "\
+            f"integer value, the peaks in the narrowpeak file "\
+            f"will be sorted in order of descending signal and "\
+            f"the highest-signal peaks will be retained.")
     prep_data.add_argument('--seed', type=int, default=1234, 
             help="random seed for reproducibility")
     prep_data.add_argument('--rmchr', action="store_true", default=False, 
@@ -1290,6 +1299,7 @@ def prep_data(args):
     fa_basename = args.fasta_file
     wsize = args.wsize
     nrand = args.nrand
+    max_peaks = args.max_peaks
     seed = args.seed
     rmchr = args.rmchr
     continuous = args.continuous
@@ -1300,7 +1310,12 @@ def prep_data(args):
 
     PREP_EXE = f"python {this_path}/convert_narrowpeak_to_fire.py "\
         f"{np_fname} {fa_fname} seqs "\
-        f"--wsize {wsize} --nrand {nrand} --center_metric {center_metric}"
+        f"--wsize {wsize} "\
+        f"--nrand {nrand} "\
+        f"--max_peaks {max_peaks} "\
+        f"--center_metric {center_metric}"
+    if continuous:
+        PREP_EXE += " --continuous"
 
     # workaround for potential security vulnerability of shell=True
     PREP_CMD = shlex.quote(PREP_EXE)

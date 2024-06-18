@@ -738,8 +738,8 @@ def main(args, status):
         f"{out_pref}_logistic_regression_coefs_per_class.txt",
     )
 
-    #res_log_fname = os.path.join(out_direc, "infer_motifs_bin.log")
-    #res_err_fname = os.path.join(out_direc, "infer_motifs_bin.err")
+    res_log_fname = os.path.join(out_direc, "infer_motifs_bin.log")
+    res_err_fname = os.path.join(out_direc, "infer_motifs_bin.err")
     #run_output = result.stdout.decode()
     #with open(res_log_fname, "w") as logf:
     #    logf.write(run_output)

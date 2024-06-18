@@ -115,6 +115,7 @@ def shape_run(
         max_count = args_dict["max_count"],
         rec_db = recs,
         nosort = True,
+        test = True
     )
     return new_motifs
 
@@ -197,6 +198,7 @@ def fimo_run(
         pval_thresh = streme_thresh,
         rec_db = recs,
         nosort = True,
+        test = True,
     )
     return seq_motifs
 
@@ -698,7 +700,6 @@ def fetch_coefficients_multinomial(fit, n_classes):
         
     return coefs_arr
 
-
 def set_family(yvals):
     distinct_cats = np.unique(yvals)
     num_cats = len(distinct_cats)
@@ -707,7 +708,6 @@ def set_family(yvals):
     else:
         fam = 'multinomial'
     return (fam,num_cats)
-
 
 #def filter_motifs(motif_list, motif_X, coefs, var_lut):
 #    '''Determines which coeficients were shrunk to zero during LASSO regression

@@ -73,6 +73,7 @@ class Peak(object):
 
 
 class PeakList(object):
+
     def __init__(self):
         self.data = []
 
@@ -107,6 +108,13 @@ class PeakList(object):
         new_peak_list = PeakList()
         new_peak_list.data = filter(filter_func, self.data)
         return new_peak_list
+
+    def filter_max_n(self, max_n):
+        self.sort()
+        self.data = self.data[:max_n]
+
+    def sort(self):
+        self.data = sorted(self.data, key=lambda peak: -peak.signalval)
 
     def __len__(self):
         return len(self.data)
