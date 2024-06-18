@@ -111,6 +111,8 @@ class PeakList(object):
 
     def filter_max_n(self, max_n):
         self.sort()
+        if len(self) < max_n:
+            max_n = len(self)
         self.data = self.data[:max_n]
 
     def sort(self):
