@@ -3,6 +3,7 @@ src/__pycache__
 src/utils/__pycache__
 src/rust_utils/target/debug
 src/rust_utils/target/release
+src/rust_utils/target/x86_64-unknown-linux-musl
 src/rust_utils/target/x86_64-unknown-linux-musl/release/build
 src/rust_utils/target/x86_64-unknown-linux-musl/release/deps
 src/rust_utils/target/x86_64-unknown-linux-musl/release/examples

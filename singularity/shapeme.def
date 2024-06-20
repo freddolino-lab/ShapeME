@@ -4,13 +4,13 @@ Stage: build
 
 %setup
     mkdir ${SINGULARITY_ROOTFS}/src
-    mkdir -p ${SINGULARITY_ROOTFS}/src/rust_utils/target/release
+    mkdir -p ${SINGULARITY_ROOTFS}/src/rust_utils/target/x86_64-unknown-linux-musl/release
     cp -r ../src/python3 ${SINGULARITY_ROOTFS}/src/
     #cp -r ../src/rust_utils ${SINGULARITY_ROOTFS}/src/
-    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/evaluate_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
-    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/filter_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
-    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
-    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/infer_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/evaluate_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/x86_64-unknown-linux-musl/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/filter_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/x86_64-unknown-linux-musl/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness ${SINGULARITY_ROOTFS}/src/rust_utils/target/x86_64-unknown-linux-musl/release/
+    cp ../src/rust_utils/target/x86_64-unknown-linux-musl/release/infer_motifs ${SINGULARITY_ROOTFS}/src/rust_utils/target/x86_64-unknown-linux-musl/release/
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment

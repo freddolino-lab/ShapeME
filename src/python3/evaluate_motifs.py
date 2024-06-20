@@ -43,8 +43,8 @@ from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
-rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
-supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
+rust_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/evaluate_motifs')
+supp_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness')
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
@@ -85,7 +85,7 @@ def shape_run(
 
     shape_motifs.write_shape_motifs_as_rust_output(rust_motifs_fname)
 
-    new_motfs = copy.deepcopy(shape_motifs)
+    #new_motfs = copy.deepcopy(shape_motifs)
 
     # get motif evaluations on test data
     args_dict['eval_shape_fname'] = shape_fname
@@ -895,13 +895,21 @@ def main(args):
 
     if os.path.isfile(motif_fname):
 
-##########################################################################
-## what i need to do is to crossref the test motifs coef lut against the trained motifs coef lut, keeping only the coefs that are in the trained coef lut
-##########################################################################
-
         motifs = inout.Motifs()
         motifs.read_file( motif_fname )
+        sorted_ids = [m.identifier for m in motifs]
+
         seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+
+        if len(seq_motifs) > 0:
+
+            if args.test_seq_fasta is None:
+                raise inout.NoSeqFaException()
+
+            if (args.train_score_file is not None) and (args.train_shape_files is not None):
+                if args.train_seq_fasta is None:
+                    raise inout.NoSeqFaException()
+
         # X is None for both at this point
         #print(f"seq_motifs.X: {seq_motifs.X}")
         #print(f"shape_motifs.X: {shape_motifs.X}")
@@ -941,13 +949,6 @@ def main(args):
 
         if len(seq_motifs) > 0:
 
-            if args.test_seq_fasta is None:
-                raise inout.NoSeqFaException()
-
-            if (args.train_score_file is not None) and (args.train_shape_files is not None):
-                if args.train_seq_fasta is None:
-                    raise inout.NoSeqFaException()
-
             test_seq_fasta = os.path.join(in_direc, args.test_seq_fasta)
             if (args.train_score_file is not None) and (args.train_shape_files is not None):
                 train_seq_fasta = os.path.join(in_direc, args.train_seq_fasta)
@@ -984,6 +985,8 @@ def main(args):
                     rec_db = test_records,
                     pval_thresh = streme_thresh,
                     nosort = True,
+                    test = True,
+                    id_sort_order = sorted_ids,
                 )
                 #print(f"Shape of all_test_motifs.X in shape_and_seq_motifs block: {all_test_motifs.X.shape}")
                 #print("Merging training motifs")
@@ -995,6 +998,7 @@ def main(args):
                         rec_db = train_records,
                         pval_thresh = streme_thresh,
                         nosort = True,
+                        test = True,
                     )
             else:
                 all_test_motifs = test_seq_motifs

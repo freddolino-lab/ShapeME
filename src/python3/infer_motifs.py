@@ -20,9 +20,9 @@ import fimopytools as fimo
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
-infer_bin = os.path.join(this_path, '../rust_utils/target/release/infer_motifs')
-supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
-cmi_bin = os.path.join(this_path, '../rust_utils/target/release/filter_motifs')
+infer_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/infer_motifs')
+supp_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness')
+cmi_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/filter_motifs')
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
@@ -821,6 +821,8 @@ def main(args, status):
                 raise inout.RustBinaryException(FIND_CMD)
             if "No shape motifs found by infer_motifs binary." in result.stdout.decode():
                 no_shape_motifs = True
+            else:
+                logging.info("Shape motifs were successfully identified. Moving on to model selection.")
         else:
             logging.info(f"Reading prior shape motifs from {args.shape_rust_file}.")
             rust_out_fname = args.shape_rust_file

@@ -1276,6 +1276,7 @@ def infer(args):
         report_info = pickle.load(info_f)
     report_info["performance_data"] = performance_data
     report_info["performance_path"] = f"{job_id}/cv_aupr.png"
+    report_info["dsm_location"] = f"{job_id}/{outdir_pre}_main_output/final_motifs.dsm"
     print(f"performance_path: {report_info['performance_path']}")
 
     out_page_name = os.path.join(out_dir, "report.html")
@@ -1290,7 +1291,6 @@ def infer(args):
     with open(status_fname, "w") as status_f:
         json.dump(status, status_f)
     logging.info("ShapeME finished")
-
 
 
 def prep_data(args):
