@@ -315,6 +315,54 @@ def calculate_bic(n, loglik, num_params):
 def calculate_F1():
     pass
 
+def bal_acc_score(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
+
+    mc = "multinomial"
+    if family == "binomial":
+        mc = "ovr"
+
+    estimator = linear_model.LogisticRegression(
+        penalty = None,
+        multi_class = mc,
+        fit_intercept = fit_intercept,
+        max_iter = 500,
+    )
+
+    scores = cross_val_score(
+        estimator,
+        X,
+        y,
+        scoring = "balanced_accuracy",
+        cv = folds,
+        n_jobs = cores,
+    )
+
+    return scores.mean()
+
+def ave_prec_score(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
+    mc = "multinomial"
+    if family == "binomial":
+        mc = "ovr"
+
+    estimator = linear_model.LogisticRegression(
+        penalty = None,
+        multi_class = mc,
+        fit_intercept = fit_intercept,
+        max_iter = 500,
+    )
+
+    F_scores = cross_val_score(
+        estimator,
+        X,
+        y,
+        scoring = "average_precision",
+        cv = folds,
+        n_jobs = cores,
+    )
+
+    return F_scores.mean()
+
+
 def CV_F1(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
 
     mc = "multinomial"

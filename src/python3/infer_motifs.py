@@ -492,7 +492,8 @@ def main(args, status):
         fit_intercept = False,
     )
 
-    intercept_metric = evm.CV_F1(
+    #intercept_metric = evm.CV_F1(
+    intercept_metric = evm.ave_prec_score(
         intercept_X,
         records.y,
         folds = 5,
@@ -587,7 +588,7 @@ def main(args, status):
                 print()
                 logging.info(
                     f"Only one sequence motif present. "\
-                    f"Performing model selection using CV-F1 to determine whether "\
+                    f"Performing model selection to determine whether "\
                     f"the motif is informative over intercept alone."
                 )
                 # toggle one_seq_motif to True for later use in building combined
@@ -643,7 +644,7 @@ def main(args, status):
                     print()
                     logging.info(
                         f"Only one sequence motif left after LASSO regression.\n"\
-                        f"Performing model selection using CV-F1 to determine whether "\
+                        f"Performing model selection to determine whether "\
                         f"the remaining motif is informative over intercept alone."
                     )
 
@@ -663,7 +664,8 @@ def main(args, status):
                 fit_intercept = False, # intercept already in design mat
             )
 
-            seq_motifs.metric = evm.CV_F1(
+            #seq_motifs.metric = evm.CV_F1(
+            seq_motifs.metric = evm.ave_prec_score(
                 intercept_and_motif_X,
                 records.y,
                 folds = 5,
@@ -905,7 +907,8 @@ def main(args, status):
         if shape_motifs.X.shape[1] == 1:
             filtered_shape_coefs = motif_fit.coef_
 
-        shape_motifs.metric = evm.CV_F1(
+        #shape_motifs.metric = evm.CV_F1(
+        shape_motifs.metric = evm.ave_prec_score(
             intercept_and_shape_X,
             records.y,
             folds = 5,
@@ -982,15 +985,6 @@ def main(args, status):
         # if there were both shape and seq motifs, combine into one model
         if shape_motif_exists and seq_motif_exists:
 
-            #if num_cats != 2:
-            #    print(
-            #        f"Combining shape and sequence motifs only supported "\
-            #        f"for binary inputs. Skipping merged sequence and shape model "\
-            #        f"steps."
-            #    )
-
-            #else:
-
             shape_and_seq_motifs = shape_motifs.new_with_motifs(
                 seq_motifs,
                 max_count = max_count,
@@ -1050,9 +1044,6 @@ def main(args, status):
                 with open(shape_and_seq_fit_fname, "wb") as f:
                     pickle.dump(shape_and_seq_fit, f)
 
-                #shape_and_seq_motifs = shape_motifs.copy()
-                #shape_and_seq_motifs.extend(seq_motifs.copy())
-
                 shape_and_seq_coefs = evm.fetch_coefficients(
                     fam,
                     shape_and_seq_fit,
@@ -1094,7 +1085,9 @@ def main(args, status):
                     fit_intercept = False, # intercept already in design mat
                 )
 
-                shape_and_seq_motifs.metric = evm.CV_F1(
+
+                #shape_and_seq_motifs.metric = evm.CV_F1(
+                shape_and_seq_motifs.metric = evm.ave_prec_score(
                     intercept_and_shape_and_seq_X,
                     records.y,
                     folds = 5,
@@ -1182,7 +1175,6 @@ def main(args, status):
             out_fname = out_motif_basename + "_sequence_motifs.dsm"
             seq_motifs.write_file(out_fname, records)
     if shape_motif_exists and seq_motif_exists:
-        #if num_cats != 2:
         motifs_info.append((shape_and_seq_motifs, filtered_shape_and_seq_coefs))
         if args.write_all_files:
             out_fname = out_motif_basename + "_shape_and_sequence_motifs.dsm"
@@ -1217,7 +1209,7 @@ def main(args, status):
             return_index=False,
         )
         print()
-        logging.info(f"Best model, based on F-score, was {best_motifs.motif_type}.")
+        logging.info(f"Best model, based on average precision score, was {best_motifs.motif_type}.")
 
     # if only one, set the extant one to "best_motifs"
     else:
