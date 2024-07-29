@@ -14,7 +14,7 @@ Stage: build
     chmod -R 755 ${SINGULARITY_ROOTFS}/src
 
 %environment
-    export SHAPEME_VER=0.2.3
+    export SHAPEME_VER=0.2.2
     export PATH="/opt/conda/envs/motifer/bin:/opt/conda/bin:${PATH}"
 
 %files
@@ -31,13 +31,14 @@ Stage: build
     && apk add bash libffi libffi-dev libarchive \
     && conda update -y -n base conda \
     && conda install anaconda \
-    && conda env create -f env_spec.yaml \
+    && conda install -c conda-forge mamba \
+    && mamba env create -f env_spec.yaml \
     && cd 
 
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh
     cat >$CUSTOM_ENV <<EOF
 #!/bin/bash
-PS1="[shapeme_0.2.3]\w \$"
+PS1="[shapeme_0.2.2]\w \$"
 EOF
     chmod 755 $CUSTOM_ENV
 

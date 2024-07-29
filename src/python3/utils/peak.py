@@ -109,6 +109,15 @@ class PeakList(object):
         new_peak_list.data = filter(filter_func, self.data)
         return new_peak_list
 
+    def filter_above_percentile(self, percentile_cutoff):
+
+        if not (0 <= percentile_cutoff <= 1):
+            raise ValueError("Percentile cutoff must be between 0 and 100.")
+        # Calculate the percentile value
+        cutoff_value = np.percentile([peak.signalval for peak in self.data], percentile_cutoff*100)
+        # Filter the list to keep only values above the percentile cutoff
+        self.data = [peak for peak in self.data if peak.signalval > cutoff_value]
+
     def filter_max_n(self, max_n):
         self.sort()
         if len(self) < max_n:

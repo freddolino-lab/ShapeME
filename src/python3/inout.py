@@ -133,6 +133,8 @@ def read_shape_motifs(fname, shape_lut, alt_name_base=None):
     for i,motif in enumerate(rust_mi_results):
         if "identifier" in motif:
             motif_id = motif["identifier"]
+            if motif_id == "None":
+                motif_id = f"SHAPE-{i+1}"
         else:
             motif_id = f"SHAPE-{i+1}"
         if alt_name_base is not None:

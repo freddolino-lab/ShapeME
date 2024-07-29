@@ -1781,6 +1781,7 @@ impl Motifs {
             motif.update_hit_positions(rec_db, max_count);
             motif.update_robustness(rec_db, max_count);
             motif.update_zscore(rec_db, max_count);
+            motif.set_id(i);
         }
     }
 
@@ -2760,6 +2761,15 @@ impl Motif {
         let robustness = None;
         let identifier = None;
         Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness, identifier}
+    }
+
+    fn set_id(&mut self, i: usize) {
+        if let Some(id) = &self.identifier {
+
+        } else {
+            let identifier = format!("SHAPE-{}", i+1);
+            self.identifier = Some(identifier);
+        }
     }
 
     /// Returns a copy of Motif

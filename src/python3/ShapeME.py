@@ -301,7 +301,10 @@ def parse_args():
                         help="total window size around peak center")
     prep_data.add_argument('--nrand', type=int, default=3, 
             help="multiplier for number of random seqs to include")
-
+    prep_data.add_argument('--percentile_thresh', type=float, default=None, 
+            action="store",
+            help="Percentile cutoff (by signalValue) for peak inclusion"
+            )
     prep_data.add_argument("--max_peaks", type=int, action="store",
         default=0,
         help=f"Sets the maximum number of peaks to fetch "\
@@ -1304,6 +1307,7 @@ def prep_data(args):
     rmchr = args.rmchr
     continuous = args.continuous
     center_metric = args.center_metric
+    percentile_thresh = args.percentile_thresh
 
     np_fname = os.path.join(data_dir, np_basename)
     fa_fname = os.path.join(data_dir, fa_basename)
@@ -1312,10 +1316,13 @@ def prep_data(args):
         f"{np_fname} {fa_fname} seqs "\
         f"--wsize {wsize} "\
         f"--nrand {nrand} "\
-        f"--max_peaks {max_peaks} "\
         f"--center_metric {center_metric}"
+    if max_peaks != 0:
+        PREP_EXE += f" --max_peaks {max_peaks}"
     if continuous:
         PREP_EXE += " --continuous"
+    if percentile_thresh is not None:
+        PREP_EXE += f" --percentile_thresh {percentile_thresh}"
 
     # workaround for potential security vulnerability of shell=True
     PREP_CMD = shlex.quote(PREP_EXE)

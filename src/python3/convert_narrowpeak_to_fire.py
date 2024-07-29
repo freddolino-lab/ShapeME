@@ -116,6 +116,10 @@ if __name__ == "__main__":
             help="multiplier for number of random seqs to include")
     parser.add_argument('--max_peaks', type=int, default=0, 
             help="maximum number of peaks to include. Default is 0, which indicates no limit. If set to a different value, peaks will be sorted in order of descending signal and truncated at the selected number of highest-signal peaks.")
+    parser.add_argument('--percentile_thresh', type=float, default=None, 
+            action="store",
+            help="Percentile cutoff (by signalValue) for peak inclusion"
+            )
     parser.add_argument('--seed', type=int, default=1234, 
             help="random seed for reproducibility")
     parser.add_argument('--rmchr', action="store_true", default=False, 
@@ -139,6 +143,8 @@ if __name__ == "__main__":
     peaks = pk.PeakList()
     logging.warning("reading in narrowPeaks")
     peaks.from_narrowPeak_file(args.npfile)
+    if args.percentile_thresh is not None:
+        peaks.filter_above_percentile(args.percentile_thresh)
     if args.max_peaks != 0:
         peaks.filter_max_n(args.max_peaks)
     if args.rmchr:

@@ -1093,32 +1093,32 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    try:
-        main(args)
-    except Exception as err:
-        logging.error(f"\nError encountered in evaluate_motifs.py:\n{err}\n")
-        status = "FinishedError"
-        in_direc = args.data_dir
-        out_direc = args.out_dir
-        out_direc = os.path.join(in_direc, out_direc)
+    #try:
+    main(args)
+    #except Exception as err:
+    #    logging.error(f"\nError encountered in evaluate_motifs.py:\n{err}\n")
+    #    status = "FinishedError"
+    #    in_direc = args.data_dir
+    #    out_direc = args.out_dir
+    #    out_direc = os.path.join(in_direc, out_direc)
 
-        if not os.path.isdir(out_direc):
-            os.mkdir(out_direc)
+    #    if not os.path.isdir(out_direc):
+    #        os.mkdir(out_direc)
 
-        out_page_name = os.path.join(out_direc, "report.html")
+    #    out_page_name = os.path.join(out_direc, "report.html")
 
-        report_info = {
-            "error": err,
-        }
-        write_report(
-            environ = jinja_env,
-            temp_base = "error.html.temp",
-            info = report_info,
-            out_name = out_page_name,
-        )
+    #    report_info = {
+    #        "error": err,
+    #    }
+    #    write_report(
+    #        environ = jinja_env,
+    #        temp_base = "error.html.temp",
+    #        info = report_info,
+    #        out_name = out_page_name,
+    #    )
 
-        status_fname = os.path.join(out_direc, "job_status.json")
-        with open(status_fname, "w") as status_f:
-            json.dump(status, status_f)
-        sys.exit(1)
+    #    status_fname = os.path.join(out_direc, "job_status.json")
+    #    with open(status_fname, "w") as status_f:
+    #        json.dump(status, status_f)
+    #    sys.exit(1)
 
