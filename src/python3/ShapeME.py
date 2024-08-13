@@ -442,6 +442,8 @@ def parse_args():
     infer.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
+    infer.add_argument("--lock_into_both_shape_and_seq", action="store_true", default=False,
+            help=f"Include to keep combined sequence and shape model from being pruned by LASSO regression.")
 
     args = parser.parse_args()
     return args
@@ -490,6 +492,7 @@ def infer(args):
     status_fname = os.path.join(data_dir, "job_status.json")
     max_n = args.max_n
     seq_meme_file = args.seq_meme_file
+    lock_into_both_shape_and_seq = args.lock_into_both_shape_and_seq 
 
     status = "Running"
     with open(status_fname, "w") as status_f:
@@ -676,6 +679,8 @@ def infer(args):
             f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
             f"--streme_thresh {args.streme_thresh} " \
             f"--find_seq_motifs "
+        if lock_into_both_shape_and_seq:
+            INFER_EXE += f"--lock_into_both_shape_and_seq "
 
     if seq_meme_file is not None:
 
@@ -1012,6 +1017,10 @@ def infer(args):
                 f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
                 f"--streme_thresh {args.streme_thresh} " \
                 f"--find_seq_motifs "
+
+            if lock_into_both_shape_and_seq:
+                INFER_EXE += "--lock_into_both_shape_and_seq "
+
             EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "
                 #f"--train_seq_fasta {train_seq_fasta} "
                 #f"--find_seq_motifs "
