@@ -1533,6 +1533,7 @@ class Motifs:
                 ))
 
             output = result.stdout.decode()
+            print(f"\nstdout of get_robustness for motif {motif.identifier}:\n{output}\n")
             #import ipdb; ipdb.set_trace()
             try:
                 mi,robustness,zscore = parse_robustness_output(output)
@@ -1540,6 +1541,7 @@ class Motifs:
                 motif.robustness = robustness
                 motif.zscore = zscore
             except:
+                ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
                 raise(Exception(
                     f"Something went wrong in supplementing robustness:\n\n"\
                     f"Looked for {ami_pat} in:\n"\

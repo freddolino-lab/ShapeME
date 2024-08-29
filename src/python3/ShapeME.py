@@ -205,7 +205,9 @@ class Performance():
         #rand_df = pd.DataFrame(data={"randoms":randoms, "yvals":rand_yvals, "cat":rand_categories})
         #print(f"rand_df:\n{rand_df}")
 
-        fig,ax = plt.subplots(figsize=(5,0.75*len(self.main_auprs)))
+        fig_height = 0.75 * len(self.main_auprs)
+        fig_height = fig_height if len(self.main_auprs) > 1 else 1.5  # Ensure minimum fig height for single category
+        fig,ax = plt.subplots(figsize=(5,fig_height))
         ax.plot(
             randoms,
             rand_categories,
@@ -241,7 +243,11 @@ class Performance():
         plt.xlabel("AUPR")
         plt.ylabel("Category")
         plt.xlim((-0.05,1.05))
-        plt.tight_layout()
+        if len(self.main_auprs) == 1:
+            ax.set_ylim(0.5, 1.5)
+            plt.tight_layout(pad=1.0)
+        else:
+            plt.tight_layout()
         plt.savefig(plot_fname)
 
 
@@ -322,6 +328,7 @@ def parse_args():
     prep_data.add_argument('--center_metric', type=str, 
             help="geom or height, geom gives geometric center of the peak (default). \
                     height gives narrowpeak defined peak summit.")
+    prep_data.add_argument("--out_dir", required=True, action="store", help="Absolute path to output director to which sequences and scores will be written")
 
     # infer
     infer = subparsers.add_parser("infer", help="run motif inference using an existing fasta file and scores file")
@@ -497,7 +504,6 @@ def infer(args):
     status = "Running"
     with open(status_fname, "w") as status_f:
         json.dump(status, status_f)
-
 
     loglevel = args.log_level
     numeric_level = getattr(logging, loglevel.upper(), None)
@@ -1288,7 +1294,7 @@ def infer(args):
         report_info = pickle.load(info_f)
     report_info["performance_data"] = performance_data
     report_info["performance_path"] = f"{job_id}/cv_aupr.png"
-    report_info["dsm_location"] = f"{job_id}/{outdir_pre}_main_output/final_motifs.dsm"
+    report_info["dsm_location"] = f"{job_id}/final_motifs.dsm"
     print(f"performance_path: {report_info['performance_path']}")
 
     out_page_name = os.path.join(out_dir, "report.html")
@@ -1317,6 +1323,7 @@ def prep_data(args):
     continuous = args.continuous
     center_metric = args.center_metric
     percentile_thresh = args.percentile_thresh
+    out_dir = args.out_dir
 
     np_fname = os.path.join(data_dir, np_basename)
     fa_fname = os.path.join(data_dir, fa_basename)
@@ -1325,7 +1332,8 @@ def prep_data(args):
         f"{np_fname} {fa_fname} seqs "\
         f"--wsize {wsize} "\
         f"--nrand {nrand} "\
-        f"--center_metric {center_metric}"
+        f"--center_metric {center_metric}"\
+        f"--out_dir {out_dir}"
     if max_peaks != 0:
         PREP_EXE += f" --max_peaks {max_peaks}"
     if continuous:

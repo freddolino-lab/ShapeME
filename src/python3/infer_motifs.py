@@ -824,7 +824,7 @@ def main(args, status):
             if "No shape motifs found by infer_motifs binary." in result.stdout.decode():
                 no_shape_motifs = True
             else:
-                logging.info("Shape motifs were successfully identified. Moving on to model selection.")
+                logging.info("Shape motif inference binary ran without error.")
         else:
             logging.info(f"Reading prior shape motifs from {args.shape_rust_file}.")
             rust_out_fname = args.shape_rust_file
@@ -1205,54 +1205,62 @@ def main(args, status):
             json.dump(status, status_f)
         sys.exit()
 
-    # if we are not locking into doing both mode, do this
-    if not args.lock_into_both_shape_and_seq:
-        # if there was more than one inout.Motifs object generated, choose best model here
-        if len(motifs_info) > 1:
+    if shape_motif_exists and seq_motif_exists:
+        best_motifs = shape_and_seq_motifs
+        best_motif_coefs = filtered_shape_and_seq_coefs
+    elif seq_motif_exists:
+        best_motifs = seq_motifs
+        best_motif_coefs = filtered_seq_coefs
+    elif shape_motif_exists:
+        best_motifs = shape_motifs
+        best_motif_coefs = filtered_shape_coefs
+    ## if we are not locking into doing both mode, do this
+    #if not args.lock_into_both_shape_and_seq:
+    #    # if there was more than one inout.Motifs object generated, choose best model here
+    #    if len(motifs_info) > 1:
 
-            motif_metrics = [x[0].metric for x in motifs_info]
+    #        motif_metrics = [x[0].metric for x in motifs_info]
 
-            best_motifs,best_motif_coefs = evm.choose_model(
-                motif_metrics,
-                motifs_info,
-                return_index=False,
-            )
-            print()
-            logging.info(f"Best model, based on average precision score, was {best_motifs.motif_type}.")
+    #        best_motifs,best_motif_coefs = evm.choose_model(
+    #            motif_metrics,
+    #            motifs_info,
+    #            return_index=False,
+    #        )
+    #        print()
+    #        logging.info(f"Best model, based on F1 score, was {best_motifs.motif_type}.")
 
-        # if only one, set the extant one to "best_motifs"
-        else:
-            best_motifs,best_motif_coefs = motifs_info[0]
+    #    # if only one, set the extant one to "best_motifs"
+    #    else:
+    #        best_motifs,best_motif_coefs = motifs_info[0]
 
-    # if we ARE locked into both mode, choose whether evidence for both
-    # even exists, and if it does, choose shape and seq
-    else:
-        if shape_motif_exists and seq_motif_exists:
-            best_motifs = shape_and_seq_motifs
-            best_motif_coefs = filtered_shape_and_seq_coefs
-        else:
-            # if there was more than one inout.Motifs object generated, choose best model here
-            if len(motifs_info) > 1:
+    ## if we ARE locked into both mode, choose whether evidence for both
+    ## even exists, and if it does, choose shape and seq
+    #else:
+    #    if shape_motif_exists and seq_motif_exists:
+    #        best_motifs = shape_and_seq_motifs
+    #        best_motif_coefs = filtered_shape_and_seq_coefs
+    #    else:
+    #        # if there was more than one inout.Motifs object generated, choose best model here
+    #        if len(motifs_info) > 1:
 
-                motif_metrics = [x[0].metric for x in motifs_info]
+    #            motif_metrics = [x[0].metric for x in motifs_info]
 
-                best_motifs,best_motif_coefs = evm.choose_model(
-                    motif_metrics,
-                    motifs_info,
-                    return_index=False,
-                )
-                print()
-                logging.info(f"Best model, based on average precision score, was {best_motifs.motif_type}.")
+    #            best_motifs,best_motif_coefs = evm.choose_model(
+    #                motif_metrics,
+    #                motifs_info,
+    #                return_index=False,
+    #            )
+    #            print()
+    #            logging.info(f"Best model, based on F1 score, was {best_motifs.motif_type}.")
 
-            # if only one, set the extant one to "best_motifs"
-            else:
-                best_motifs,best_motif_coefs = motifs_info[0]
+    #        # if only one, set the extant one to "best_motifs"
+    #        else:
+    #            best_motifs,best_motif_coefs = motifs_info[0]
 
 
     #######################################################################
     #best_motifs = motifs_info[-1] # uncomment for forcing a specific model for debug
 
-    print(f"all motifs_info:\n{motifs_info}")
     print(f"Best motif coefficients:\n{best_motif_coefs}")
     print(f"Best motif info:\n{best_motifs}")
 
