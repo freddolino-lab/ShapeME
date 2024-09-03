@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: frolvlad/alpine-miniconda3:latest
+From: continuumio/miniconda3
 Stage: build
 
 %setup
@@ -26,12 +26,12 @@ Stage: build
 
 %post
     export PATH="/conda/envs/motifer/bin:/opt/conda/bin:${PATH}" \
-    && apk update \
-    && apk upgrade \
-    && apk add bash libffi libffi-dev libarchive \
+    && apt update -y \
+    && apt upgrade -y \
+    && apt install -y libffi-dev \
     && conda update -y -n base conda \
-    && conda install anaconda \
-    && conda env create -f env_spec.yaml \
+    && conda install -c conda-forge mamba \
+    && mamba env create -f env_spec.yaml \
     && cd 
 
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh

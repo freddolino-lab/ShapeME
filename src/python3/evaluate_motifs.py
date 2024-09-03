@@ -538,9 +538,9 @@ def prec_recall(yhat, target_y):
         aupr = auc(recall, precision)
  
         pr_rec = {
-            "precision": precision,
-            "recall": recall,
-            "logit_threshold": thresholds,
+            "precision": list(precision),
+            "recall": list(recall),
+            "logit_threshold": list(thresholds),
             "auc": aupr,
         }
         pr_rec['random_auc'] = no_skill
@@ -670,7 +670,7 @@ def evaluate_fit2(
     #    for j in range(num_cats):
     #        classes[:, j, i] = y_hat[:,j] > threshold
         
-    output = prec_recall(yhat, test_y, plot, prefix)
+    output = prec_recall(yhat, test_y)
 
     return(output)
 
@@ -913,7 +913,7 @@ def main(args):
     #lasso_fit_fname = glob.glob(fit_search)[0]
     eval_out_fname = os.path.join(out_direc, 'precision_recall.json')
     prc_prefix = os.path.join(out_direc, 'precision_recall_curve')
-    eval_dist_plot_prefix = os.path.join(out_direc, 'class_yhat_distribution')
+    #eval_dist_plot_prefix = os.path.join(out_direc, 'class_yhat_distribution')
     out_pref = args.out_prefix
     
     with open(config_fname, 'r') as f:
@@ -1114,8 +1114,8 @@ def main(args):
             motif_coefs,
             all_test_motifs.X,
             test_y,
-            prefix=eval_dist_plot_prefix,
-            plot=False,
+            #prefix=eval_dist_plot_prefix,
+            #plot=False,
         )
 
         with open(eval_out_fname, 'w') as f:
