@@ -129,10 +129,14 @@ def read_shape_motifs(fname, shape_lut, alt_name_base=None):
 
     with open(fname, 'r') as f:
         rust_mi_results = json.load(f)
-
     motif_results = []
     for i,motif in enumerate(rust_mi_results):
-        motif_id = f"SHAPE-{i+1}"
+        if "identifier" in motif:
+            motif_id = motif["identifier"]
+            if motif_id == "None":
+                motif_id = f"SHAPE-{i+1}"
+        else:
+            motif_id = f"SHAPE-{i+1}"
         if alt_name_base is not None:
             alt_name = f"{alt_name_base}-{i+1}"
         else: alt_name = "None"
@@ -790,7 +794,7 @@ class Motif:
         pval = stats.norm.sf(self.zscore)
         self.evalue = pval * motif_num
 
-    def set_seq_X(self, rec_db, seq_motif_hits):
+    def set_seq_X(self, rec_db, seq_motif_hits, test=False):
         motif_name = self.alt_name
         print(f"Getting hits from fimo file for motif {motif_name}")
         #print(f"seq_motif_hits keys: {seq_motif_hits.keys()}")
@@ -817,12 +821,13 @@ class Motif:
         #print(f"max val in self.X: {self.X.max()}")
         #print(f"min val in self.X: {self.X.min()}")
 
-        if np.all(self.X == 0, axis=0):
-            print(f"WARNING: No records were identified as hits for motif {motif_name}.")
-        if np.all(self.X == 1, axis=0):
-            print(f"WARNING: All records were identified as hits for motif {motif_name}.")
+        if not test:
+            if np.all(self.X == 0, axis=0):
+                print(f"WARNING: No records were identified as hits for motif {motif_name}.")
+            if np.all(self.X == 1, axis=0):
+                print(f"WARNING: All records were identified as hits for motif {motif_name}.")
 
-    def set_shape_X(self, rec_db, max_count, motif_hit_list=None):
+    def set_shape_X(self, rec_db, max_count, motif_hit_list=None, test=False):
 
         #print(f"Max count: {max_count}")
         if motif_hit_list is None:
@@ -869,42 +874,44 @@ class Motif:
 
                     col_idx += 1
 
-            # remove columns for which all records were zero
-            cols_all_zero = np.all(self.X == 0, axis=0)
-            inds_all_zero = np.where(cols_all_zero)[0]
-            if len(inds_all_zero) > 0:
-                print(f"Removed {len(inds_all_zero)} columns from a motif's design matrix because they only contained the value 0 and thus provide no information.")
-            inds_not_all_zero = np.where(~cols_all_zero)[0]
-            #print(f"inds_all_zero: {inds_all_zero}")
-            #print(f"inds_not_all_zero: {inds_not_all_zero}")
-            self.X = self.X[:,inds_not_all_zero]
-            # re-set var lut after filtering out hit categories without hits
-            tmp_lut = {}
-            # get sorted list of keys from original var_lut
-            var_lut_keys = sorted(list(self.var_lut.keys()))
-            # re-index keys to tmp_lut
-            for i,k in enumerate(inds_not_all_zero):
-                tmp_lut[i] = self.var_lut[k]
-            self.var_lut = tmp_lut
+            # if we're using training data, do the following
+            if not test:
+                # remove columns for which all records were zero
+                cols_all_zero = np.all(self.X == 0, axis=0)
+                inds_all_zero = np.where(cols_all_zero)[0]
+                if len(inds_all_zero) > 0:
+                    print(f"Removed {len(inds_all_zero)} columns from a motif's design matrix because they only contained the value 0 and thus provide no information.")
+                inds_not_all_zero = np.where(~cols_all_zero)[0]
+                #print(f"inds_all_zero: {inds_all_zero}")
+                #print(f"inds_not_all_zero: {inds_not_all_zero}")
+                self.X = self.X[:,inds_not_all_zero]
+                # re-set var lut after filtering out hit categories without hits
+                tmp_lut = {}
+                # get sorted list of keys from original var_lut
+                var_lut_keys = sorted(list(self.var_lut.keys()))
+                # re-index keys to tmp_lut
+                for i,k in enumerate(inds_not_all_zero):
+                    tmp_lut[i] = self.var_lut[k]
+                self.var_lut = tmp_lut
 
-            # remove columns for which all records were one
-            cols_all_one = np.all(self.X == 1, axis=0)
-            inds_all_one = np.where(cols_all_one)[0]
-            inds_not_all_one = np.where(~cols_all_one)[0]
-            #print(f"inds_all_one: {inds_all_one}")
-            #print(f"inds_not_all_one: {inds_not_all_one}")
-            if len(inds_all_one) > 0:
-                print(f"Removed {len(inds_all_one)} columns from a motif's design matrix because they only contained the value 1 and thus provide no information.")
-            self.X = self.X[:,inds_not_all_one]
-            # re-set var lut after filtering out hit categories without information
-            tmp_lut = {}
-            # get sorted list of keys from original var_lut
-            var_lut_keys = sorted(list(self.var_lut.keys()))
-            # re-index keys to tmp_lut
-            for i,k in enumerate(inds_not_all_one):
-                tmp_lut[i] = self.var_lut[k]
-            self.var_lut = tmp_lut
-            #print(f"var lut in set_shape_X: {self.var_lut}")
+                # remove columns for which all records were one
+                cols_all_one = np.all(self.X == 1, axis=0)
+                inds_all_one = np.where(cols_all_one)[0]
+                inds_not_all_one = np.where(~cols_all_one)[0]
+                #print(f"inds_all_one: {inds_all_one}")
+                #print(f"inds_not_all_one: {inds_not_all_one}")
+                if len(inds_all_one) > 0:
+                    print(f"Removed {len(inds_all_one)} columns from a motif's design matrix because they only contained the value 1 and thus provide no information.")
+                self.X = self.X[:,inds_not_all_one]
+                # re-set var lut after filtering out hit categories without information
+                tmp_lut = {}
+                # get sorted list of keys from original var_lut
+                var_lut_keys = sorted(list(self.var_lut.keys()))
+                # re-index keys to tmp_lut
+                for i,k in enumerate(inds_not_all_one):
+                    tmp_lut[i] = self.var_lut[k]
+                self.var_lut = tmp_lut
+                #print(f"var lut in set_shape_X: {self.var_lut}")
 
     def set_X(
             self,
@@ -912,6 +919,7 @@ class Motif:
             seq_motif_hits=None,
             max_count=None,
             motif_hit_list=None,
+            test=False,
     ):
 
         if self.motif_type == "sequence":
@@ -919,14 +927,14 @@ class Motif:
                 print(f"Attempted to get design matrix for "\
                     f"a sequence motif without passing seq_motif_hits. Exiting with error.")
                 sys.exit(1)
-            self.set_seq_X(rec_db, seq_motif_hits)
+            self.set_seq_X(rec_db, seq_motif_hits, test)
 
         elif self.motif_type == "shape":
             if max_count is None:
                 print(f"Attempted to get design matrix for "\
                     f"a shape motif without passing max_count. Exiting with error.")
                 sys.exit(1)
-            self.set_shape_X(rec_db, max_count, motif_hit_list)
+            self.set_shape_X(rec_db, max_count, motif_hit_list, test)
 
         else:
             print("to get design matrix for a motif, motif_type must be set. Exiting with error")
@@ -1077,6 +1085,8 @@ class Motif:
             },
             "threshold": self.threshold,
         }
+        if self.identifier is not None:
+            motif_dict["identifier"] = self.identifier
 
         return motif_dict
 
@@ -1523,6 +1533,7 @@ class Motifs:
                 ))
 
             output = result.stdout.decode()
+            print(f"\nstdout of get_robustness for motif {motif.identifier}:\n{output}\n")
             #import ipdb; ipdb.set_trace()
             try:
                 mi,robustness,zscore = parse_robustness_output(output)
@@ -1530,6 +1541,7 @@ class Motifs:
                 motif.robustness = robustness
                 motif.zscore = zscore
             except:
+                ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
                 raise(Exception(
                     f"Something went wrong in supplementing robustness:\n\n"\
                     f"Looked for {ami_pat} in:\n"\
@@ -1681,6 +1693,11 @@ class Motifs:
             #    motif["contingency_fit_samples"] = ro.conversion.rpy2py(c_df)
             #    motif["null_fit_samples"] = ro.conversion.rpy2py(i_df)
 
+    def fetch_motif_by_identifier(self, identifier):
+        for motif in self.motifs:
+            if motif.identifier == identifier:
+                return motif
+
     def merge_with_motifs(
             self,
             other,
@@ -1690,6 +1707,8 @@ class Motifs:
             pval_thresh,
             nosort=False,
             var_lut=None,
+            test=False,
+            id_sort_order=None,
     ):
 
         #orig_covar_num = self.X.shape[1]
@@ -1697,7 +1716,21 @@ class Motifs:
 
         #self.X = np.append(self.X, other.X, axis=1)
         #self.var_lut = self.var_lut.copy()
-        self.motifs.extend(other.motifs)
+        these_motifs = self.motifs
+        these_motifs.extend(other.motifs)
+        ###################################################
+        ## note that somehow motif ids are not same in test motifs as in trained motifs. looking into why
+        ###################################################
+        if id_sort_order is not None:
+            id_sorted_motifs = []
+            for identifier in id_sort_order:
+                id_sorted_motifs.append(
+                    self.fetch_motif_by_identifier(identifier)
+                )
+            self.motifs = id_sorted_motifs
+        else:
+            self.motifs = these_motifs
+
         self.set_X(
             max_count=max_count,
             fimo_fname=fimo_fname,
@@ -1705,6 +1738,7 @@ class Motifs:
             pval_thresh=pval_thresh,
             nosort=nosort,
             var_lut=var_lut,
+            test=test,
         )
 
         #for other_motif_key,other_motif_info in other.var_lut.items():
@@ -1722,6 +1756,8 @@ class Motifs:
             pval_thresh,
             nosort=False,
             var_lut=None,
+            test=False,
+            id_sort_order=None,
     ):
         '''copies self and merges with other Motifs object.
         Returns a new Motifs object
@@ -1737,6 +1773,8 @@ class Motifs:
             pval_thresh,
             nosort=nosort,
             var_lut = var_lut,
+            test=test,
+            id_sort_order=id_sort_order,
         )
         
         return new_motifs
@@ -1752,6 +1790,7 @@ class Motifs:
             pval_thresh=None,
             nosort=False,
             var_lut=None,
+            test=False,
     ):
 
         if not nosort:
@@ -1763,6 +1802,7 @@ class Motifs:
         #import ipdb; ipdb.set_trace()
 
         motif_types = [motif.motif_type for motif in self]
+
         # if any are sequence motifs, read fimo_file
         if "sequence" in motif_types:
             #print(f"Fimo fname: {fimo_fname}")
@@ -1782,7 +1822,12 @@ class Motifs:
         for motif_idx,motif in enumerate(self):
             #print(f"motif type: {motif.motif_type}")
             if motif.motif_type == "sequence":
-                motif.set_X(rec_db, seq_motif_hits = motif_hits, max_count = max_count)
+                motif.set_X(
+                    rec_db,
+                    seq_motif_hits = motif_hits,
+                    max_count = max_count,
+                    test = test,
+                )
             elif motif.motif_type == "shape":
                 # for shape motifs, if we're using a var_lut, then we're actually evaluating
                 # the motif's performance on some set of data. Use the var_lut to assemble
@@ -1798,6 +1843,7 @@ class Motifs:
                     rec_db,
                     max_count = max_count,
                     motif_hit_list = motif_hit_cats,
+                    test = test
                 )
                 #print(f"motif var lut: {motif.var_lut}")
 

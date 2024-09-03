@@ -1,0 +1,5 @@
+
+Running fimo on all sequences in test_data/small_seq_motif_test_fimo.fa using motifs in seq_motifs.meme
+
+Running fimo command:
+fimo --max-strand --motif-pseudo 0.0 --oc test_outs/fimo --thresh 0.005 seq_motifs.meme test_data/small_seq_motif_test_fimo.fa

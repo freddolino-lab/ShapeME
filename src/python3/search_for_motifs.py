@@ -14,7 +14,7 @@ import cvlogistic
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
-rust_bin = os.path.join(this_path, '../rust_utils/target/release/search_for_motifs')
+rust_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/search_for_motifs')
 
 def read_parameter_file(infile):
     """ Wrapper to read a single parameter file

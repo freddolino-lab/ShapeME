@@ -20,9 +20,9 @@ import fimopytools as fimo
 
 this_path = Path(__file__).parent.absolute()
 sys.path.insert(0, this_path)
-infer_bin = os.path.join(this_path, '../rust_utils/target/release/infer_motifs')
-supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
-cmi_bin = os.path.join(this_path, '../rust_utils/target/release/filter_motifs')
+infer_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/infer_motifs')
+supp_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness')
+cmi_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/filter_motifs')
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
@@ -180,6 +180,8 @@ def parse_args():
                 f"use TMPDIR environment variable.")
     parser.add_argument('--no_report', action="store_true", default=False,
         help="Include at command line to suppress writing an html report of results. Note: a report will still be written in the case on an error.")
+    parser.add_argument('--lock_into_both_shape_and_seq', action="store_true", default=False,
+        help="Include at command line to force both shape_and_seq model to be reported as final set of motifs, and not to do final round of model selection.")
     args = parser.parse_args()
     return args
 
@@ -587,7 +589,7 @@ def main(args, status):
                 print()
                 logging.info(
                     f"Only one sequence motif present. "\
-                    f"Performing model selection using CV-F1 to determine whether "\
+                    f"Performing model selection to determine whether "\
                     f"the motif is informative over intercept alone."
                 )
                 # toggle one_seq_motif to True for later use in building combined
@@ -643,7 +645,7 @@ def main(args, status):
                     print()
                     logging.info(
                         f"Only one sequence motif left after LASSO regression.\n"\
-                        f"Performing model selection using CV-F1 to determine whether "\
+                        f"Performing model selection to determine whether "\
                         f"the remaining motif is informative over intercept alone."
                     )
 
@@ -738,8 +740,8 @@ def main(args, status):
         f"{out_pref}_logistic_regression_coefs_per_class.txt",
     )
 
-    #res_log_fname = os.path.join(out_direc, "infer_motifs_bin.log")
-    #res_err_fname = os.path.join(out_direc, "infer_motifs_bin.err")
+    res_log_fname = os.path.join(out_direc, "infer_motifs_bin.log")
+    res_err_fname = os.path.join(out_direc, "infer_motifs_bin.err")
     #run_output = result.stdout.decode()
     #with open(res_log_fname, "w") as logf:
     #    logf.write(run_output)
@@ -821,6 +823,8 @@ def main(args, status):
                 raise inout.RustBinaryException(FIND_CMD)
             if "No shape motifs found by infer_motifs binary." in result.stdout.decode():
                 no_shape_motifs = True
+            else:
+                logging.info("Shape motif inference binary ran without error.")
         else:
             logging.info(f"Reading prior shape motifs from {args.shape_rust_file}.")
             rust_out_fname = args.shape_rust_file
@@ -979,15 +983,6 @@ def main(args, status):
 
         # if there were both shape and seq motifs, combine into one model
         if shape_motif_exists and seq_motif_exists:
-
-            #if num_cats != 2:
-            #    print(
-            #        f"Combining shape and sequence motifs only supported "\
-            #        f"for binary inputs. Skipping merged sequence and shape model "\
-            #        f"steps."
-            #    )
-
-            #else:
 
             shape_and_seq_motifs = shape_motifs.new_with_motifs(
                 seq_motifs,
@@ -1180,7 +1175,6 @@ def main(args, status):
             out_fname = out_motif_basename + "_sequence_motifs.dsm"
             seq_motifs.write_file(out_fname, records)
     if shape_motif_exists and seq_motif_exists:
-        #if num_cats != 2:
         motifs_info.append((shape_and_seq_motifs, filtered_shape_and_seq_coefs))
         if args.write_all_files:
             out_fname = out_motif_basename + "_shape_and_sequence_motifs.dsm"
@@ -1204,27 +1198,62 @@ def main(args, status):
             json.dump(status, status_f)
         sys.exit()
 
-    # if there was more than one inout.Motifs object generated, choose best model here
-    if len(motifs_info) > 1:
+    if shape_motif_exists and seq_motif_exists:
+        best_motifs = shape_and_seq_motifs
+        best_motif_coefs = filtered_shape_and_seq_coefs
+    elif seq_motif_exists:
+        best_motifs = seq_motifs
+        best_motif_coefs = filtered_seq_coefs
+    elif shape_motif_exists:
+        best_motifs = shape_motifs
+        best_motif_coefs = filtered_shape_coefs
+    ## if we are not locking into doing both mode, do this
+    #if not args.lock_into_both_shape_and_seq:
+    #    # if there was more than one inout.Motifs object generated, choose best model here
+    #    if len(motifs_info) > 1:
 
-        motif_metrics = [x[0].metric for x in motifs_info]
+    #        motif_metrics = [x[0].metric for x in motifs_info]
 
-        best_motifs,best_motif_coefs = evm.choose_model(
-            motif_metrics,
-            motifs_info,
-            return_index=False,
-        )
-        print()
-        logging.info(f"Best model, based on F-score, was {best_motifs.motif_type}.")
+    #        best_motifs,best_motif_coefs = evm.choose_model(
+    #            motif_metrics,
+    #            motifs_info,
+    #            return_index=False,
+    #        )
+    #        print()
+    #        logging.info(f"Best model, based on F1 score, was {best_motifs.motif_type}.")
 
-    # if only one, set the extant one to "best_motifs"
-    else:
-        best_motifs,best_motif_coefs = motifs_info[0]
+    #    # if only one, set the extant one to "best_motifs"
+    #    else:
+    #        best_motifs,best_motif_coefs = motifs_info[0]
+
+    ## if we ARE locked into both mode, choose whether evidence for both
+    ## even exists, and if it does, choose shape and seq
+    #else:
+    #    if shape_motif_exists and seq_motif_exists:
+    #        best_motifs = shape_and_seq_motifs
+    #        best_motif_coefs = filtered_shape_and_seq_coefs
+    #    else:
+    #        # if there was more than one inout.Motifs object generated, choose best model here
+    #        if len(motifs_info) > 1:
+
+    #            motif_metrics = [x[0].metric for x in motifs_info]
+
+    #            best_motifs,best_motif_coefs = evm.choose_model(
+    #                motif_metrics,
+    #                motifs_info,
+    #                return_index=False,
+    #            )
+    #            print()
+    #            logging.info(f"Best model, based on F1 score, was {best_motifs.motif_type}.")
+
+    #        # if only one, set the extant one to "best_motifs"
+    #        else:
+    #            best_motifs,best_motif_coefs = motifs_info[0]
+
 
     #######################################################################
     #best_motifs = motifs_info[-1] # uncomment for forcing a specific model for debug
 
-    print(f"all motifs_info:\n{motifs_info}")
     print(f"Best motif coefficients:\n{best_motif_coefs}")
     print(f"Best motif info:\n{best_motifs}")
 

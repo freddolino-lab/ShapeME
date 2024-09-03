@@ -194,7 +194,9 @@ class Performance():
             main_categories.append(category)
             main_auprs.append(self.main_auprs[cat_idx])
 
-        fig,ax = plt.subplots(figsize=(5,0.75*len(self.main_auprs)))
+        fig_height = 0.75 * len(self.main_auprs)
+        fig_height = fig_height if len(self.main_auprs) > 1 else 1.5  # Ensure minimum fig height for single category
+        fig,ax = plt.subplots(figsize=(5,fig_height))
         ax.plot(
             randoms,
             rand_categories,
@@ -230,7 +232,13 @@ class Performance():
         plt.xlabel("AUPR")
         plt.ylabel("Category")
         plt.xlim((-0.05,1.05))
-        #plt.tight_layout()
+
+        if len(self.main_auprs) == 1:
+            ax.set_ylim(0.5, 1.5)
+            plt.tight_layout(pad=1.0)
+        else:
+            plt.tight_layout()
+
         plt.savefig(plot_fname)
 
 
@@ -290,6 +298,18 @@ def parse_args():
                         help="total window size around peak center")
     prep_data.add_argument('--nrand', type=int, default=3, 
             help="multiplier for number of random seqs to include")
+    prep_data.add_argument('--percentile_thresh', type=float, default=None, 
+            action="store",
+            help="Percentile cutoff (by signalValue) for peak inclusion"
+            )
+    prep_data.add_argument("--max_peaks", type=int, action="store",
+        default=0,
+        help=f"Sets the maximum number of peaks to fetch "\
+            f"from narrowpeak file. Default is 0, which denotes no "\
+            f"limit to the number of peaks. If set to any other "\
+            f"integer value, the peaks in the narrowpeak file "\
+            f"will be sorted in order of descending signal and "\
+            f"the highest-signal peaks will be retained.")
     prep_data.add_argument('--seed', type=int, default=1234, 
             help="random seed for reproducibility")
     prep_data.add_argument('--rmchr', action="store_true", default=False, 
@@ -299,6 +319,7 @@ def parse_args():
     prep_data.add_argument('--center_metric', type=str, 
             help="geom or height, geom gives geometric center of the peak (default). \
                     height gives narrowpeak defined peak summit.")
+    prep_data.add_argument("--out_dir", required=True, action="store", help="Absolute path to output director to which sequences and scores will be written")
 
     # infer
     infer = subparsers.add_parser("infer", help="run motif inference using an existing fasta file and scores file")
@@ -419,6 +440,8 @@ def parse_args():
     infer.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
+    infer.add_argument("--lock_into_both_shape_and_seq", action="store_true", default=False,
+            help=f"Include to keep combined sequence and shape model from being pruned by LASSO regression.")
 
     args = parser.parse_args()
     return args
@@ -467,11 +490,11 @@ def infer(args):
     status_fname = os.path.join(data_dir, "job_status.json")
     max_n = args.max_n
     seq_meme_file = args.seq_meme_file
+    lock_into_both_shape_and_seq = args.lock_into_both_shape_and_seq 
 
     status = "Running"
     with open(status_fname, "w") as status_f:
         json.dump(status, status_f)
-
 
     loglevel = args.log_level
     numeric_level = getattr(logging, loglevel.upper(), None)
@@ -653,6 +676,8 @@ def infer(args):
             f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
             f"--streme_thresh {args.streme_thresh} " \
             f"--find_seq_motifs "
+        if lock_into_both_shape_and_seq:
+            INFER_EXE += f"--lock_into_both_shape_and_seq "
 
     if seq_meme_file is not None:
 
@@ -989,6 +1014,10 @@ def infer(args):
                 f"--seq_motif_positive_cats {args.seq_motif_positive_cats} " \
                 f"--streme_thresh {args.streme_thresh} " \
                 f"--find_seq_motifs "
+
+            if lock_into_both_shape_and_seq:
+                INFER_EXE += "--lock_into_both_shape_and_seq "
+
             EVAL_EXE += f" --test_seq_fasta {test_seq_fasta} "
                 #f"--train_seq_fasta {train_seq_fasta} "
                 #f"--find_seq_motifs "
@@ -1256,6 +1285,7 @@ def infer(args):
         report_info = pickle.load(info_f)
     report_info["performance_data"] = performance_data
     report_info["performance_path"] = f"{job_id}/cv_aupr.png"
+    report_info["dsm_location"] = f"{job_id}/final_motifs.dsm"
     print(f"performance_path: {report_info['performance_path']}")
 
     out_page_name = os.path.join(out_dir, "report.html")
@@ -1272,24 +1302,35 @@ def infer(args):
     logging.info("ShapeME finished")
 
 
-
 def prep_data(args):
     data_dir = args.data_dir
     np_basename = args.narrowpeak_file
     fa_basename = args.fasta_file
     wsize = args.wsize
     nrand = args.nrand
+    max_peaks = args.max_peaks
     seed = args.seed
     rmchr = args.rmchr
     continuous = args.continuous
     center_metric = args.center_metric
+    percentile_thresh = args.percentile_thresh
+    out_dir = args.out_dir
 
     np_fname = os.path.join(data_dir, np_basename)
     fa_fname = os.path.join(data_dir, fa_basename)
 
     PREP_EXE = f"python {this_path}/convert_narrowpeak_to_fire.py "\
         f"{np_fname} {fa_fname} seqs "\
-        f"--wsize {wsize} --nrand {nrand} --center_metric {center_metric}"
+        f"--wsize {wsize} "\
+        f"--nrand {nrand} "\
+        f"--center_metric {center_metric}"\
+        f"--out_dir {out_dir}"
+    if max_peaks != 0:
+        PREP_EXE += f" --max_peaks {max_peaks}"
+    if continuous:
+        PREP_EXE += " --continuous"
+    if percentile_thresh is not None:
+        PREP_EXE += f" --percentile_thresh {percentile_thresh}"
 
     # workaround for potential security vulnerability of shell=True
     PREP_CMD = shlex.quote(PREP_EXE)

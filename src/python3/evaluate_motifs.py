@@ -45,8 +45,8 @@ from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
 
 this_path = Path(__file__).parent.absolute()
-rust_bin = os.path.join(this_path, '../rust_utils/target/release/evaluate_motifs')
-supp_bin = os.path.join(this_path, '../rust_utils/target/release/get_robustness')
+rust_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/evaluate_motifs')
+supp_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness')
 
 jinja_env = Environment(loader=FileSystemLoader(os.path.join(this_path, "templates/")))
 
@@ -87,7 +87,7 @@ def shape_run(
 
     shape_motifs.write_shape_motifs_as_rust_output(rust_motifs_fname)
 
-    new_motfs = copy.deepcopy(shape_motifs)
+    #new_motfs = copy.deepcopy(shape_motifs)
 
     # get motif evaluations on test data
     args_dict['eval_shape_fname'] = shape_fname
@@ -117,6 +117,7 @@ def shape_run(
         max_count = args_dict["max_count"],
         rec_db = recs,
         nosort = True,
+        test = True
     )
     return new_motifs
 
@@ -199,6 +200,7 @@ def fimo_run(
         pval_thresh = streme_thresh,
         rec_db = recs,
         nosort = True,
+        test = True,
     )
     return seq_motifs
 
@@ -314,6 +316,54 @@ def calculate_bic(n, loglik, num_params):
 
 def calculate_F1():
     pass
+
+def bal_acc_score(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
+
+    mc = "multinomial"
+    if family == "binomial":
+        mc = "ovr"
+
+    estimator = linear_model.LogisticRegression(
+        penalty = None,
+        multi_class = mc,
+        fit_intercept = fit_intercept,
+        max_iter = 500,
+    )
+
+    scores = cross_val_score(
+        estimator,
+        X,
+        y,
+        scoring = "balanced_accuracy",
+        cv = folds,
+        n_jobs = cores,
+    )
+
+    return scores.mean()
+
+def ave_prec_score(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
+    mc = "multinomial"
+    if family == "binomial":
+        mc = "ovr"
+
+    estimator = linear_model.LogisticRegression(
+        penalty = None,
+        multi_class = mc,
+        fit_intercept = fit_intercept,
+        max_iter = 500,
+    )
+
+    F_scores = cross_val_score(
+        estimator,
+        X,
+        y,
+        scoring = "average_precision",
+        cv = folds,
+        n_jobs = cores,
+    )
+
+    return F_scores.mean()
+
 
 def CV_F1(X, y, folds=5, family="binomial", fit_intercept=False, cores=None):
 
@@ -731,7 +781,6 @@ def fetch_coefficients_multinomial(fit, n_classes):
         
     return coefs_arr
 
-
 def set_family(yvals):
     distinct_cats = np.unique(yvals)
     num_cats = len(distinct_cats)
@@ -740,7 +789,6 @@ def set_family(yvals):
     else:
         fam = 'multinomial'
     return (fam,num_cats)
-
 
 #def filter_motifs(motif_list, motif_X, coefs, var_lut):
 #    '''Determines which coeficients were shrunk to zero during LASSO regression
@@ -929,13 +977,21 @@ def main(args):
 
     if os.path.isfile(motif_fname):
 
-##########################################################################
-## what i need to do is to crossref the test motifs coef lut against the trained motifs coef lut, keeping only the coefs that are in the trained coef lut
-##########################################################################
-
         motifs = inout.Motifs()
         motifs.read_file( motif_fname )
+        sorted_ids = [m.identifier for m in motifs]
+
         seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+
+        if len(seq_motifs) > 0:
+
+            if args.test_seq_fasta is None:
+                raise inout.NoSeqFaException()
+
+            if (args.train_score_file is not None) and (args.train_shape_files is not None):
+                if args.train_seq_fasta is None:
+                    raise inout.NoSeqFaException()
+
         # X is None for both at this point
         #print(f"seq_motifs.X: {seq_motifs.X}")
         #print(f"shape_motifs.X: {shape_motifs.X}")
@@ -975,13 +1031,6 @@ def main(args):
 
         if len(seq_motifs) > 0:
 
-            if args.test_seq_fasta is None:
-                raise inout.NoSeqFaException()
-
-            if (args.train_score_file is not None) and (args.train_shape_files is not None):
-                if args.train_seq_fasta is None:
-                    raise inout.NoSeqFaException()
-
             test_seq_fasta = os.path.join(in_direc, args.test_seq_fasta)
             if (args.train_score_file is not None) and (args.train_shape_files is not None):
                 train_seq_fasta = os.path.join(in_direc, args.train_seq_fasta)
@@ -1018,6 +1067,8 @@ def main(args):
                     rec_db = test_records,
                     pval_thresh = streme_thresh,
                     nosort = True,
+                    test = True,
+                    id_sort_order = sorted_ids,
                 )
                 #print(f"Shape of all_test_motifs.X in shape_and_seq_motifs block: {all_test_motifs.X.shape}")
                 #print("Merging training motifs")
@@ -1029,6 +1080,7 @@ def main(args):
                         rec_db = train_records,
                         pval_thresh = streme_thresh,
                         nosort = True,
+                        test = True,
                     )
             else:
                 all_test_motifs = test_seq_motifs
@@ -1123,32 +1175,32 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    try:
-        main(args)
-    except Exception as err:
-        logging.error(f"\nError encountered in evaluate_motifs.py:\n{err}\n")
-        status = "FinishedError"
-        in_direc = args.data_dir
-        out_direc = args.out_dir
-        out_direc = os.path.join(in_direc, out_direc)
+    #try:
+    main(args)
+    #except Exception as err:
+    #    logging.error(f"\nError encountered in evaluate_motifs.py:\n{err}\n")
+    #    status = "FinishedError"
+    #    in_direc = args.data_dir
+    #    out_direc = args.out_dir
+    #    out_direc = os.path.join(in_direc, out_direc)
 
-        if not os.path.isdir(out_direc):
-            os.mkdir(out_direc)
+    #    if not os.path.isdir(out_direc):
+    #        os.mkdir(out_direc)
 
-        out_page_name = os.path.join(out_direc, "report.html")
+    #    out_page_name = os.path.join(out_direc, "report.html")
 
-        report_info = {
-            "error": err,
-        }
-        write_report(
-            environ = jinja_env,
-            temp_base = "error.html.temp",
-            info = report_info,
-            out_name = out_page_name,
-        )
+    #    report_info = {
+    #        "error": err,
+    #    }
+    #    write_report(
+    #        environ = jinja_env,
+    #        temp_base = "error.html.temp",
+    #        info = report_info,
+    #        out_name = out_page_name,
+    #    )
 
-        status_fname = os.path.join(out_direc, "job_status.json")
-        with open(status_fname, "w") as status_f:
-            json.dump(status, status_f)
-        sys.exit(1)
+    #    status_fname = os.path.join(out_direc, "job_status.json")
+    #    with open(status_fname, "w") as status_f:
+    #        json.dump(status, status_f)
+    #    sys.exit(1)
 

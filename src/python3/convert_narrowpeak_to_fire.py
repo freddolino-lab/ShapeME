@@ -114,6 +114,12 @@ if __name__ == "__main__":
                         help="total window size around peak center")
     parser.add_argument('--nrand', type=int, default=3, 
             help="multiplier for number of random seqs to include")
+    parser.add_argument('--max_peaks', type=int, default=0, 
+            help="maximum number of peaks to include. Default is 0, which indicates no limit. If set to a different value, peaks will be sorted in order of descending signal and truncated at the selected number of highest-signal peaks.")
+    parser.add_argument('--percentile_thresh', type=float, default=None, 
+            action="store",
+            help="Percentile cutoff (by signalValue) for peak inclusion"
+            )
     parser.add_argument('--seed', type=int, default=1234, 
             help="random seed for reproducibility")
     parser.add_argument('--rmchr', action="store_true", default=False, 
@@ -123,6 +129,7 @@ if __name__ == "__main__":
     parser.add_argument('--center_metric', type=str, 
             help="geom or height, geom gives geometric center of the peak (default). \
                     height gives narrowpeak defined peak summit.")
+    parse.add_argument("--out_dir", required=True, action="store", help="Absolute path to output director to which sequences and scores will be written")
 
     args = parser.parse_args()
     np.random.seed(args.seed)
@@ -137,6 +144,10 @@ if __name__ == "__main__":
     peaks = pk.PeakList()
     logging.warning("reading in narrowPeaks")
     peaks.from_narrowPeak_file(args.npfile)
+    if args.percentile_thresh is not None:
+        peaks.filter_above_percentile(args.percentile_thresh)
+    if args.max_peaks != 0:
+        peaks.filter_max_n(args.max_peaks)
     if args.rmchr:
         for peak in peaks.generator():
             peak.chrm = peak.chrm.replace("chr", "")
@@ -185,7 +196,7 @@ if __name__ == "__main__":
     #finalfire = realfire + fakefire
     #finalfire.shuffle()
     #finalfire.write(args.outpre+".txt")
-    outfire.write(args.outpre+".txt")
-    with open(args.outpre+".fa", mode="w") as outf:
+    outfire.write(os.path.join(args.out_dir, args.outpre+".txt"))
+    with open(os.path.join(args.out_dir, args.outpre+".fa"), mode="w") as outf:
         outfasta.write(outf)
         #outfire.write(args.outpre+"_fire.txt")

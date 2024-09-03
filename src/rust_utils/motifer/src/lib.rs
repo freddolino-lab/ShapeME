@@ -1621,6 +1621,7 @@ pub struct Motif {
     pub positions: Vec<(Vec<usize>, Vec<usize>)>,
     zscore: Option<f64>,
     robustness: Option<(u8,u8)>,
+    pub identifier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1659,6 +1660,7 @@ pub struct MotifReader {
     positions: Option<Vec<(Vec<usize>, Vec<usize>)>>,
     zscore: Option<f64>,
     robustness: Option<(u8,u8)>,
+    identifier: Option<String>,
 }
 
 /// Reads a vector of Motif structs from a pickle file
@@ -1731,6 +1733,12 @@ impl Motifs {
                 } else {
                     vec![(vec![usize::MAX], vec![usize::MAX])]
                 };
+            let identifier = 
+                if let Some(identifier) = &motif_reader.identifier {
+                    Some(identifier.to_string())
+                } else {
+                    None
+                };
             let zscore = motif_reader.zscore;
             let robustness = motif_reader.robustness;
             let motif = Motif {
@@ -1743,6 +1751,7 @@ impl Motifs {
                 positions,
                 zscore,
                 robustness,
+                identifier,
             };
             motifs.motifs.push(motif);
         }
@@ -1772,6 +1781,7 @@ impl Motifs {
             motif.update_hit_positions(rec_db, max_count);
             motif.update_robustness(rec_db, max_count);
             motif.update_zscore(rec_db, max_count);
+            motif.set_id(i);
         }
     }
 
@@ -2749,7 +2759,17 @@ impl Motif {
         let mi = 0.0;
         let zscore = None;
         let robustness = None;
-        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness}
+        let identifier = None;
+        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness, identifier}
+    }
+
+    fn set_id(&mut self, i: usize) {
+        if let Some(id) = &self.identifier {
+
+        } else {
+            let identifier = format!("SHAPE-{}", i+1);
+            self.identifier = Some(identifier);
+        }
     }
 
     /// Returns a copy of Motif
@@ -2768,7 +2788,13 @@ impl Motif {
         let threshold = self.threshold;
         let zscore = self.zscore;
         let robustness = self.robustness;
-        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness}
+        let identifier = 
+            if let Some(identifier) = &self.identifier {
+                Some(identifier.to_string())
+            } else {
+                None
+            };
+        Motif{params, weights, threshold, hits, mi, dists, positions, zscore, robustness, identifier}
     }
    
     /// Does constrained normalization of weights
@@ -2945,6 +2971,7 @@ impl<'a> Seed<'a> {
         let mi = self.mi;
         let zscore = None;
         let robustness = None;
+        let identifier = None;
         Motif {
             params,
             weights,
@@ -2955,6 +2982,7 @@ impl<'a> Seed<'a> {
             positions,
             zscore,
             robustness,
+            identifier,
         }
     }
 

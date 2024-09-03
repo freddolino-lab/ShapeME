@@ -52,6 +52,9 @@
 
         <table style="width:100%">
           <tr>
+            <a href="/shapeme/data/{{ dsm_location }}" download>Download motif file (meme-like dsm format)</a>
+          </tr>
+          <tr>
             <th>Logo</th>
             <th>Name</th>
             <th>ID</th>
