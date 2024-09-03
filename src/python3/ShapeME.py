@@ -194,17 +194,6 @@ class Performance():
             main_categories.append(category)
             main_auprs.append(self.main_auprs[cat_idx])
 
-        #fold_df = pd.DataFrame(data={"fold":folds, "aupr":fold_auprs, "cat":fold_categories})
-        #print(f"fold_df:\n{fold_df}")
-        #lims_df = pd.DataFrame(data={"xvals":ranges, "cat":std_categories})
-        #print(f"lims_df:\n{lims_df}")
-        #cv_df = pd.DataFrame(data={"aupr":cv_auprs, "cat":cv_categories})
-        #print(f"cv_df:\n{cv_df}")
-        #main_df = pd.DataFrame(data={"aupr":main_auprs, "cat":main_categories})
-        #print(f"main_df:\n{main_df}")
-        #rand_df = pd.DataFrame(data={"randoms":randoms, "yvals":rand_yvals, "cat":rand_categories})
-        #print(f"rand_df:\n{rand_df}")
-
         fig,ax = plt.subplots(figsize=(5,0.75*len(self.main_auprs)))
         ax.plot(
             randoms,
@@ -241,7 +230,7 @@ class Performance():
         plt.xlabel("AUPR")
         plt.ylabel("Category")
         plt.xlim((-0.05,1.05))
-        plt.tight_layout()
+        #plt.tight_layout()
         plt.savefig(plot_fname)
 
 

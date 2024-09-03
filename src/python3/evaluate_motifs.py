@@ -17,6 +17,8 @@ from matplotlib import pyplot as plt
 from sklearn import metrics
 from sklearn.model_selection import KFold,cross_val_score
 from sklearn import linear_model
+from sklearn.metrics import precision_recall_curve, auc, average_precision_score
+from sklearn.linear_model import LogisticRegression
 from statsmodels.stats import rates
 from scipy.stats import contingency
 
@@ -464,8 +466,39 @@ def calc_prec_recall(yhat_background, yhat_foreground):
 #    elif family == 'binomial':
 #        return binomial_prec_recall(yhat, target_y)
 
+def prec_recall(yhat, target_y):
 
-def prec_recall(yhat, target_y, plot=False, prefix=None):
+    n_classes = yhat.shape[1]
+    pr_rec_dict = {}
+
+    for this_class in range(n_classes):
+
+        # slice the correct index from yhat array
+        this_class_yhat = yhat[:,this_class].copy()
+        
+        # if doing binary classification (logit regression) switch this_class to 1
+        if n_classes == 1:
+            this_class = 1
+
+        y = target_y == this_class
+        no_skill = len(target_y[target_y==this_class]) / len(target_y)
+
+        # Calculate precision-recall values
+        precision, recall, _ = precision_recall_curve(y, this_class_yhat)
+        aupr = auc(recall, precision)
+ 
+        pr_rec = {
+            "precision": precision,
+            "recall": recall,
+            "auc": aupr,
+        }
+        pr_rec['random_auc'] = no_skill
+        pr_rec_dict[this_class] = pr_rec
+
+    return pr_rec_dict
+
+
+def prec_recall_old(yhat, target_y, plot=False, prefix=None):
 
     n_classes = yhat.shape[1]
     pr_rec_dict = {}
@@ -812,6 +845,7 @@ def main(args):
     test_yval_fname = os.path.join(out_direc, 'test_y_vals.npy')
     train_yval_fname = os.path.join(out_direc, 'train_y_vals.npy')
     config_fname = os.path.join(out_direc, args.config_file)
+
     # temp file just for running fimo
     seq_meme_fname = os.path.join(out_direc, 'seq_motifs.meme')
     rust_motifs_fname = os.path.join(out_direc, 'eval_rust_results.json')
