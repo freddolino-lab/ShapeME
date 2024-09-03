@@ -534,12 +534,13 @@ def prec_recall(yhat, target_y):
         no_skill = len(target_y[target_y==this_class]) / len(target_y)
 
         # Calculate precision-recall values
-        precision, recall, _ = precision_recall_curve(y, this_class_yhat)
+        precision, recall, thresholds = precision_recall_curve(y, this_class_yhat)
         aupr = auc(recall, precision)
  
         pr_rec = {
             "precision": precision,
             "recall": recall,
+            "logit_threshold": thresholds,
             "auc": aupr,
         }
         pr_rec['random_auc'] = no_skill
