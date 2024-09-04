@@ -536,12 +536,19 @@ def prec_recall(yhat, target_y):
         # Calculate precision-recall values
         precision, recall, thresholds = precision_recall_curve(y, this_class_yhat)
         aupr = auc(recall, precision)
- 
+
+        # Calculate F1 score at each threshold
+        f1_scores = [2 * (p * r) / (p + r) if (p + r) > 0 else 0 for p, r in zip(precision, recall)]
+        max_f1 = max(f1_scores)
+        max_f1_threshold = thresholds[f1_scores.index(max_f1)]
+
         pr_rec = {
             "precision": list(precision),
             "recall": list(recall),
             "logit_threshold": list(thresholds),
             "auc": aupr,
+            "max_F1": max_f1,
+            "max_F1_threshold": max_f1_threshold,
         }
         pr_rec['random_auc'] = no_skill
         pr_rec_dict[this_class] = pr_rec
