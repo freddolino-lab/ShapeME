@@ -98,6 +98,7 @@ def shape_run(
         json.dump(args_dict, f, indent=1)
 
     RUST = f"{rust_bin} {config_fname}"
+    logging.info(f"Running command: {RUST}")
 
     my_env = os.environ.copy()
     my_env['RUST_BACKTRACE'] = "1"
@@ -534,6 +535,7 @@ def prec_recall(yhat, target_y):
         no_skill = len(target_y[target_y==this_class]) / len(target_y)
 
         # Calculate precision-recall values
+        ap_score = average_precision_score(y, this_class_yhat)
         precision, recall, thresholds = precision_recall_curve(y, this_class_yhat)
         aupr = auc(recall, precision)
 
@@ -546,6 +548,7 @@ def prec_recall(yhat, target_y):
             "precision": list(precision),
             "recall": list(recall),
             "logit_threshold": list(thresholds),
+            "ave_prec_score": ap_score,
             "auc": aupr,
             "max_F1": max_f1,
             "max_F1_threshold": max_f1_threshold,
@@ -1138,6 +1141,7 @@ def main(args):
         logging.info("==========================================")
 
         for class_name,class_info in fit_eval.items():
+            logging.info("Max F1 score for class {}: {}".format(class_name, class_info['max_F1']))
             logging.info("Area under precision-recall curve for class {}: {}".format(class_name, class_info['auc']))
             logging.info(
                 "Expected area under precision-recall curve for random performance on class {}: {}".format(class_name, class_info['random_auc'])
