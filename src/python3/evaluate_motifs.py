@@ -44,6 +44,8 @@ glmnet.glmnet = STM(glmnet.glmnet, init_prm_translate = {"lam": "lambda"})
 from jinja2 import Environment,FileSystemLoader
 from pathlib import Path
 
+RNG = np.random.default_rng()
+
 this_path = Path(__file__).parent.absolute()
 rust_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/evaluate_motifs')
 supp_bin = os.path.join(this_path, '../rust_utils/target/x86_64-unknown-linux-musl/release/get_robustness')
@@ -198,7 +200,7 @@ def fimo_run(
 
     seq_motifs.set_X(
         fimo_fname = f"{fimo_direc}/fimo.tsv",
-        pval_thresh = streme_thresh,
+        qval_thresh = streme_thresh,
         rec_db = recs,
         nosort = True,
         test = True,
@@ -531,29 +533,45 @@ def prec_recall(yhat, target_y):
         if n_classes == 1:
             this_class = 1
 
-        y = target_y == this_class
         no_skill = len(target_y[target_y==this_class]) / len(target_y)
 
         # Calculate precision-recall values
-        ap_score = average_precision_score(y, this_class_yhat)
-        precision, recall, thresholds = precision_recall_curve(y, this_class_yhat)
-        aupr = auc(recall, precision)
+        #ap_score = average_precision_score(target_y==this_class, this_class_yhat)
+        #precision, recall, thresholds = precision_recall_curve(target_y==this_class, this_class_yhat)
+        #aupr = auc(recall, precision)
 
-        # Calculate F1 score at each threshold
-        f1_scores = [2 * (p * r) / (p + r) if (p + r) > 0 else 0 for p, r in zip(precision, recall)]
+        ## Calculate F1 score at each threshold
+        #f1_scores = [2 * (p * r) / (p + r) if (p + r) > 0 else 0 for p, r in zip(precision, recall)]
+        #max_f1 = max(f1_scores)
+        #max_f1_threshold = thresholds[f1_scores.index(max_f1)]
+
+        #no_skill_f1 = get_random_f1(target_y, this_class_yhat==this_class)
+
+        yhat_bg = this_class_yhat[target_y!=this_class]
+        yhat_fg = this_class_yhat[target_y==this_class]
+        pr_rec = calc_prec_recall(yhat_bg, yhat_fg)
+
+        f1_scores = [
+            2 * (p * r) / (p + r) if (p + r) > 0 else 0
+            for p, r in zip(pr_rec['precision'], pr_rec['recall'])
+        ]
         max_f1 = max(f1_scores)
-        max_f1_threshold = thresholds[f1_scores.index(max_f1)]
 
-        pr_rec = {
-            "precision": list(precision),
-            "recall": list(recall),
-            "logit_threshold": list(thresholds),
-            "ave_prec_score": ap_score,
-            "auc": aupr,
-            "max_F1": max_f1,
-            "max_F1_threshold": max_f1_threshold,
-        }
+        #print(dg_aupr)
+        #sys.exit()
+
+        #pr_rec = {
+        #    "precision": dg_aupr["precision"],
+        #    "recall": list(recall),
+        #    "logit_threshold": list(thresholds),
+        #    #"ave_prec_score": ap_score,
+        #    "auc": aupr,
+        #    "max_F1": max_f1,
+        #    "max_F1_threshold": max_f1_threshold,
+        #}
         pr_rec['random_auc'] = no_skill
+        pr_rec['max_F1'] = max_f1
+        #pr_rec['random_f1'] = no_skill_f1
         pr_rec_dict[this_class] = pr_rec
 
     return pr_rec_dict
@@ -667,9 +685,15 @@ def evaluate_fit2(
         yhat = inv_logit(yhat)
         
     #print("************************************")
+    #print(f"X: {X}")
+    #print(f"coefs: {coefs}")
     #print(f"yhat shape: {yhat.shape}")
     #print(f"yhat: {yhat}")
+    #print(f"test_y: {test_y}")
     #print("************************************")
+    #np.save(arr=yhat, file="yhat.npy")
+    #np.save(arr=test_y, file="test_y.npy")
+    #sys.exit()
 
     #classes = np.zeros((num_seqs, num_cats, thresh_num))
     #for (i,threshold) in enumerate(np.linspace(
@@ -1076,7 +1100,7 @@ def main(args):
                     max_count = max_count,
                     fimo_fname = f"{test_fimo_direc}/fimo.tsv",
                     rec_db = test_records,
-                    pval_thresh = streme_thresh,
+                    qval_thresh = streme_thresh,
                     nosort = True,
                     test = True,
                     id_sort_order = sorted_ids,
@@ -1089,7 +1113,7 @@ def main(args):
                         max_count = max_count,
                         fimo_fname = f"{train_fimo_direc}/fimo.tsv",
                         rec_db = train_records,
-                        pval_thresh = streme_thresh,
+                        qval_thresh = streme_thresh,
                         nosort = True,
                         test = True,
                     )

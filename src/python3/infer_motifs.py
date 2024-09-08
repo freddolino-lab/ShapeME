@@ -539,7 +539,7 @@ def main(args, status):
             max_count = max_count,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
             rec_db = records,
-            pval_thresh = streme_thresh,
+            qval_thresh = streme_thresh,
             nosort = True,
         )
 
@@ -555,7 +555,7 @@ def main(args, status):
             binary = cmi_bin,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
             rec_db = records,
-            pval_thresh = streme_thresh,
+            qval_thresh = streme_thresh,
             my_env = my_env,
             tmpdir = tmpdir,
         )
@@ -576,7 +576,7 @@ def main(args, status):
                 max_count = max_count,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
-                pval_thresh = streme_thresh,
+                qval_thresh = streme_thresh,
             )
             print(f"X shape: {seq_motifs.X.shape}")
             print(f"distinct y vals: {np.unique(records.y)}")
@@ -624,7 +624,7 @@ def main(args, status):
                     seq_coefs,
                     fimo_fname = f"{fimo_direc}/fimo.tsv",
                     rec_db = records,
-                    pval_thresh = streme_thresh,
+                    qval_thresh = streme_thresh,
                 )
 
                 print()
@@ -989,7 +989,7 @@ def main(args, status):
                 max_count = max_count,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
-                pval_thresh = streme_thresh,
+                qval_thresh = streme_thresh,
             )
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
@@ -998,7 +998,7 @@ def main(args, status):
             #    binary = cmi_bin,
             #    fimo_fname = f"{fimo_direc}/fimo.tsv",
             #    rec_db = records,
-            #    pval_thresh = streme_thresh,
+            #    qval_thresh = streme_thresh,
             #    my_env = my_env,
             #    tmpdir = tmpdir,
             #)
@@ -1027,7 +1027,7 @@ def main(args, status):
                 max_count = max_count,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
-                pval_thresh = streme_thresh,
+                qval_thresh = streme_thresh,
             )
             print(f"shape_and_seq_var_lut: {shape_and_seq_motifs.var_lut}")
             print(f"seq_var_lut: {seq_motifs.var_lut}")
@@ -1067,7 +1067,7 @@ def main(args, status):
                 max_count = max_count,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
-                pval_thresh = streme_thresh,
+                qval_thresh = streme_thresh,
             )
 
             print()

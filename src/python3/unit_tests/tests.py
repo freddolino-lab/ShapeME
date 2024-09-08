@@ -819,6 +819,13 @@ class TestMotifMethods(unittest.TestCase):
         self.assertEqual(rob[1], 10)
         self.assertEqual(z, 200.35)
 
+        line="adj_mi= 0, robustness= (10, 10), zscore= NaN\n"
+        mi,rob,z = inout.parse_robustness_output(line)
+        self.assertEqual(mi, 0.0)
+        self.assertEqual(rob[0], 10)
+        self.assertEqual(rob[1], 10)
+        self.assertTrue(np.isnan(z))
+
 
 class TestUtilities(unittest.TestCase):
 

@@ -120,13 +120,13 @@ class FimoFile(object):
                     newfimo.insert_entry(hit)
         return newfimo
  
-    def gather_hits_dict(self, pval_thresh=1.0):
+    def gather_hits_dict(self, qval_thresh=1.0):
         hits = {}
         for seqname,hit_info in self.data.items():
             #print(dir(hit_info.data[0]))
             for hit in hit_info.data:
-                if hit.pvalue is not None:
-                    if hit.pvalue > pval_thresh:
+                if hit.qvalue is not None:
+                    if hit.qvalue > qval_thresh:
                         continue
                 motif_name = hit.tfname
                 if motif_name in hits:
@@ -143,11 +143,11 @@ class FimoFile(object):
         motif_set = set(motif_list)
         return list(motif_set)
 
-    def get_design_matrix(self, rec_db, pval_thresh=1.0, motif_list=None):
+    def get_design_matrix(self, rec_db, qval_thresh=1.0, motif_list=None):
         var_lut = {}
         # set up array of zeros with n_records rows and n_motifs columns
         print("gathering hits dict")
-        motif_hits = self.gather_hits_dict(pval_thresh)
+        motif_hits = self.gather_hits_dict(qval_thresh)
         print("done gathering hits dict")
         X_list = []
         hit = 1
@@ -263,13 +263,13 @@ class StremeFile(object):
     def pull_entry(self, name):
         return self.data[name]
 
-    def gather_hits_dict(self, pval_thresh=1.0):
+    def gather_hits_dict(self, qval_thresh=1.0):
         hits = {}
         for seqname,hit_info in self.data.items():
             #print(dir(hit_info.data[0]))
             for hit in hit_info.data:
-                if hit.pvalue is not None:
-                    if hit.pvalue > pval_thresh:
+                if hit.qvalue is not None:
+                    if hit.qvalue > qval_thresh:
                         continue
                 motif_name = hit.tfname
                 if motif_name in hits:
@@ -286,10 +286,10 @@ class StremeFile(object):
         motif_set = set(motif_list)
         return list(motif_set)
 
-    def get_design_matrix(self, rec_db, pval_thresh=1.0, motif_list=None):
+    def get_design_matrix(self, rec_db, qval_thresh=1.0, motif_list=None):
         var_lut = {}
         # set up array of zeros with n_records rows and n_motifs columns
-        motif_hits = self.gather_hits_dict(pval_thresh)
+        motif_hits = self.gather_hits_dict(qval_thresh)
         X = np.zeros((len(rec_db), len(motif_hits)))
         for (i,motif) in enumerate(motif_list):
             motif_name = motif.alt_name

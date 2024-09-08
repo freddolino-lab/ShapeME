@@ -167,7 +167,7 @@ def parse_meme_file(fname, evalue_thresh=np.Inf):
     eval_pat = re.compile(r'(?<=[ES]\= )\S+')
     nsites_pat = re.compile(r'(?<=nsites\= )\d+')
     threshold_pat = re.compile(r'(?<=threshold\= )\S+')
-    ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+    ami_pat = re.compile(r'(?<=adj_mi\= )[^ ]+')
     robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
     zscore_pat = re.compile(r'(?<=z-score\= )\S+\.\d+')
 
@@ -1113,7 +1113,7 @@ def parse_transforms_line(line):
 
 def parse_robustness_output(output):
 
-    ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+    ami_pat = re.compile(r'(?<=adj_mi\= )[^,]+')
     robustness_pat = re.compile(r'(?<=robustness\= )\((\d+), (\d+)')
     #zscore_pat = re.compile(r'(?<=zscore\= )\S+\.\d+')
     zscore_pat = re.compile(r'(?<=zscore\= )\S+')
@@ -1276,7 +1276,7 @@ class Motifs:
         eval_pat = re.compile(r'(?<=E\= )\S+')
         nsites_pat = re.compile(r'(?<=nsites\= )\d+')
         threshold_pat = re.compile(r'(?<=threshold\= )\S+')
-        ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+        ami_pat = re.compile(r'(?<=adj_mi\= )[^ ]+')
         zscore_pat = re.compile(r'(?<=z-score\= )\S+\.\d+')
         robustness_pat = re.compile(r'(?<=robustness\= )(\d+)\/(\d+)')
 
@@ -1541,7 +1541,7 @@ class Motifs:
                 motif.robustness = robustness
                 motif.zscore = zscore
             except:
-                ami_pat = re.compile(r'(?<=adj_mi\= )\S+\.\d+')
+                ami_pat = re.compile(r'(?<=adj_mi\= )[^,]+')
                 raise(Exception(
                     f"Something went wrong in supplementing robustness:\n\n"\
                     f"Looked for {ami_pat} in:\n"\
@@ -1704,7 +1704,7 @@ class Motifs:
             max_count,
             fimo_fname,
             rec_db,
-            pval_thresh,
+            qval_thresh,
             nosort=False,
             var_lut=None,
             test=False,
@@ -1735,7 +1735,7 @@ class Motifs:
             max_count=max_count,
             fimo_fname=fimo_fname,
             rec_db=rec_db,
-            pval_thresh=pval_thresh,
+            qval_thresh=qval_thresh,
             nosort=nosort,
             var_lut=var_lut,
             test=test,
@@ -1753,7 +1753,7 @@ class Motifs:
             max_count,
             fimo_fname,
             rec_db,
-            pval_thresh,
+            qval_thresh,
             nosort=False,
             var_lut=None,
             test=False,
@@ -1770,7 +1770,7 @@ class Motifs:
             max_count,
             fimo_fname,
             rec_db,
-            pval_thresh,
+            qval_thresh,
             nosort=nosort,
             var_lut = var_lut,
             test=test,
@@ -1787,7 +1787,7 @@ class Motifs:
             max_count=None,
             fimo_fname=None,
             rec_db=None,
-            pval_thresh=None,
+            qval_thresh=None,
             nosort=False,
             var_lut=None,
             test=False,
@@ -1816,7 +1816,7 @@ class Motifs:
             ids_in_self = self.get_distinct_ids()
             #print(f"ids_in_self: {ids_in_self}")
             retained_hits = fimo_file.filter_by_id(ids_in_self)
-            motif_hits = retained_hits.gather_hits_dict(pval_thresh)
+            motif_hits = retained_hits.gather_hits_dict(qval_thresh)
 
         # set each motif's own individual var_lut and design matrix
         for motif_idx,motif in enumerate(self):
@@ -1902,7 +1902,7 @@ class Motifs:
             binary,
             fimo_fname,
             rec_db,
-            pval_thresh,
+            qval_thresh,
             my_env=None,
             tmpdir=None,
     ):
@@ -2001,7 +2001,7 @@ class Motifs:
             max_count = max_count,
             fimo_fname = fimo_fname,
             rec_db = rec_db,
-            pval_thresh = pval_thresh,
+            qval_thresh = qval_thresh,
             nosort = True,
         )
         print(f"After CMI-based filter, there are {len(self)} motifs.")
@@ -2012,7 +2012,7 @@ class Motifs:
             max_count = None,
             fimo_fname = None,
             rec_db = None,
-            pval_thresh = None,
+            qval_thresh = None,
     ):
         '''Determines which coeficients were shrunk to zero during LASSO regression
         and removes motifs for which all covariates in X were zero. Returns
@@ -2114,7 +2114,7 @@ class Motifs:
             max_count = max_count,
             fimo_fname = fimo_fname,
             rec_db = rec_db,
-            pval_thresh = pval_thresh,
+            qval_thresh = qval_thresh,
         )
 
         return(retained_coefs)

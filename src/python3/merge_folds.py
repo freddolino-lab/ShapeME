@@ -419,7 +419,7 @@ def main(args, status):
             max_count = max_count,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
             rec_db = records,
-            pval_thresh = streme_thresh,
+            qval_thresh = streme_thresh,
             nosort = True,
         )
         seq_motifs.supplement_robustness(
@@ -433,7 +433,7 @@ def main(args, status):
             binary = cmi_bin,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
             rec_db = records,
-            pval_thresh = streme_thresh,
+            qval_thresh = streme_thresh,
             my_env = my_env,
             tmpdir = tmpdir,
         )
@@ -442,7 +442,7 @@ def main(args, status):
             max_count = max_count,
             fimo_fname = f"{fimo_direc}/fimo.tsv",
             rec_db = records,
-            pval_thresh = streme_thresh,
+            qval_thresh = streme_thresh,
         )
 
         one_seq_motif = False
@@ -491,7 +491,7 @@ def main(args, status):
                 seq_coefs,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
-                pval_thresh = streme_thresh,
+                qval_thresh = streme_thresh,
             )
 
             print()
@@ -778,7 +778,7 @@ def main(args, status):
                 max_count,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
-                pval_thresh = streme_thresh,
+                qval_thresh = streme_thresh,
             )
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
@@ -787,7 +787,7 @@ def main(args, status):
                 binary = cmi_bin,
                 fimo_fname = f"{fimo_direc}/fimo.tsv",
                 rec_db = records,
-                pval_thresh = streme_thresh,
+                qval_thresh = streme_thresh,
                 my_env = my_env,
                 tmpdir = tmpdir,
             )
@@ -850,7 +850,7 @@ def main(args, status):
                     max_count = max_count,
                     fimo_fname = f"{fimo_direc}/fimo.tsv",
                     rec_db = records,
-                    pval_thresh = streme_thresh,
+                    qval_thresh = streme_thresh,
                 )
 
                 print()
