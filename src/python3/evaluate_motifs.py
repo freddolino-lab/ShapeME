@@ -482,11 +482,9 @@ def train_glmnet(X,y,folds=10,family='binomial',alpha=1):
 
 
 def calc_prec_recall(yhat_background, yhat_foreground):
+
     r_yhat_fg = ro.FloatVector(yhat_foreground)
     r_yhat_bg = ro.FloatVector(yhat_background)
-
-    #print(yhat_peaks.shape)
-    #print(yhat_nonpeaks.shape)
 
     auc = prroc.pr_curve(
         scores_class0 = r_yhat_fg, # positive class scores
@@ -535,20 +533,14 @@ def prec_recall(yhat, target_y):
 
         no_skill = len(target_y[target_y==this_class]) / len(target_y)
 
-        # Calculate precision-recall values
-        #ap_score = average_precision_score(target_y==this_class, this_class_yhat)
-        #precision, recall, thresholds = precision_recall_curve(target_y==this_class, this_class_yhat)
-        #aupr = auc(recall, precision)
-
-        ## Calculate F1 score at each threshold
-        #f1_scores = [2 * (p * r) / (p + r) if (p + r) > 0 else 0 for p, r in zip(precision, recall)]
-        #max_f1 = max(f1_scores)
-        #max_f1_threshold = thresholds[f1_scores.index(max_f1)]
-
-        #no_skill_f1 = get_random_f1(target_y, this_class_yhat==this_class)
-
         yhat_bg = this_class_yhat[target_y!=this_class]
         yhat_fg = this_class_yhat[target_y==this_class]
+
+        #print(f"target_y: {target_y}")
+        #print(f"this_class: {this_class}")
+        #print(f"yhat_bg.shape: {yhat_bg.shape}")
+        #print(f"yhat_fg.shape: {yhat_fg.shape}")
+
         pr_rec = calc_prec_recall(yhat_bg, yhat_fg)
 
         f1_scores = [
@@ -677,6 +669,12 @@ def evaluate_fit2(
     # get the logit-scale preditions for each category
     for col_i in range(num_cats):
         yhat[:,col_i] = np.dot(X, coefs[col_i,:])
+        # plotting the distribution of yhat vals and, more importantly, using the
+        # PPROC pr.curve function, requires a bit of difference between values
+        # in the yhat vector. If there's only one distinct value, add a tiny bit
+        # of noise to this class' yhat values just to make the funcitons work.
+        if len(np.unique(yhat[:,col_i])) == 1:
+            yhat[:,col_i] += np.random.normal(0.0, 0.001, len(yhat[:,col_i]))
 
     if num_cats > 1:
         for row_i in range(num_seqs):
@@ -684,6 +682,7 @@ def evaluate_fit2(
     else:
         yhat = inv_logit(yhat)
         
+    
     #print("************************************")
     #print(f"X: {X}")
     #print(f"coefs: {coefs}")
@@ -1010,6 +1009,7 @@ def main(args):
     test_y = test_records.y
     fam = set_family(test_y)
 
+    print(f"motif_fname {motif_fname}")
     if os.path.isfile(motif_fname):
 
         motifs = inout.Motifs()
@@ -1143,6 +1143,8 @@ def main(args):
         pprint(motif_var_lut)
 
         match_test_coefs_to_trained(all_test_motifs, motif_var_lut)
+        print("---------post-match all_test_motifs.var_lut---------------")
+        pprint(all_test_motifs.var_lut)
 
         fit_eval = evaluate_fit2(
             motif_coefs,
@@ -1178,6 +1180,8 @@ def main(args):
                 prc_prefix+".pdf",
             )
         )
+    else:
+        sys.exit(f"No motifs file {motifs_fname} found. Exiting now")
 
 def parse_args():
     parser = argparse.ArgumentParser()

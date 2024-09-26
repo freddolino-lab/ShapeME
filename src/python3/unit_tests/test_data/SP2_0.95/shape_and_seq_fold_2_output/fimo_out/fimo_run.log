@@ -1,0 +1,5 @@
+
+Running fimo on all sequences in /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp8it2zdqw/tmp_seq.fa using motifs in /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/streme_out/streme.txt
+
+Running fimo command:
+fimo --max-strand --motif-pseudo 0.0 --oc /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/fimo_out /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/streme_out/streme.txt /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp8it2zdqw/tmp_seq.fa

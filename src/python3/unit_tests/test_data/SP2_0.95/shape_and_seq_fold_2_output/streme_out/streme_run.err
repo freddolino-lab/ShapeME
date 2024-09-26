@@ -1,0 +1,621 @@
+# Warning: No hold-out set was created because the primary hold-out set 
+#          would have had fewer than 5 sequences.
+# Positive sequences "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp_pos.fa" - training: 35 hold-out: 0
+# Negative sequences "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp_neg.fa" - training: 106 hold-out: 0
+# Estimating background model from control sequences.
+# Background: A 0.29 C 0.21 G 0.21 T 0.29
+# Background order: 2 Background size: 84
+# Warning: Ignoring <thresh> (0.05) and setting <nmotifs> to 5.
+# Using Fisher Exact test for p-values.
+# Building suffix tree of positive and negative sequences...
+# SUFFIXTREE	0.00 seconds 	(cumulative 0.00 seconds)
+# Adding sequence counts and p-values to nodes using depth first search...
+# ADDCOUNTS	0.00 seconds 	(cumulative 0.01 seconds)
+# Sorting 9807 initial seed nodes by p-value...
+# SORTSEEDS	0.00 seconds 	(cumulative 0.01 seconds)
+#   Evaluating the top 25 seeds (out of 9807) of each width in range [3, 15] ...
+
+# EVALUATESEEDS	0.00 seconds 	(cumulative 0.19 seconds)
+# Refining the 4 best evaluated seeds of each width in range [8, 15]
+#   using score-based refinement (2302 evaluated seeds)...
+#   Refining evaluated seed 1: AGAGCGCA log_pvalue -24.36 width 8 w0 8
+#     ITER 1 pvalue 5.4e-019 pos 24 neg 0 score_threshold 6.084
+#   CAND-1-1 w 8 w0 8 'AGAGCGCA' 'AGAGCGBM' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 24 tr_neg 0 tr_pv 5.4e-019 tr_rat 25.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.08393
+#   Refining evaluated seed 2: CCCGACGC log_pvalue -22.82 width 8 w0 7
+#     ITER 1 pvalue 1.2e-019 pos 27 neg 2 score_threshold 7.507
+#   CAND-1-2 w 8 w0 7 'CCCGACGC' 'CCCGACGY' sd_pos 4 sd_neg 0 sd_pv -5.71 tr_pos 27 tr_neg 2 tr_pv 1.2e-019 tr_rat 9.3 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.50728
+#   Refining evaluated seed 3: AGCGGCCG log_pvalue -22.82 width 8 w0 6
+#     ITER 1 pvalue 6.2e-014 pos 20 neg 1 score_threshold 8.873
+#     ITER 2 pvalue 8.5e-016 pos 25 neg 4 score_threshold 7.197
+#     ITER 3 pvalue 1.3e-016 pos 25 neg 3 score_threshold 8.038
+#   CAND-1-3 w 8 w0 6 'AGCGGCCG' 'AGCGGCSG' sd_pos 4 sd_neg 0 sd_pv -5.71 tr_pos 25 tr_neg 3 tr_pv 1.3e-016 tr_rat 6.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.03836
+#   Refining evaluated seed 4: AGAGCGGC log_pvalue -22.74 width 8 w0 8
+#     ITER 1 pvalue 1.2e-016 pos 23 neg 1 score_threshold 6.878
+#   CAND-1-4 w 8 w0 8 'AGAGCGGC' 'AGAGCGGC' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 23 tr_neg 1 tr_pv 1.2e-016 tr_rat 12.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.87778
+#   Refining evaluated seed 5: AGAGCGGCC log_pvalue -21.05 width 9 w0 8
+#     ITER 1 pvalue 1.2e-015 pos 24 neg 3 score_threshold 8.062
+#     ITER 2 pvalue 1.0e-015 pos 22 neg 1 score_threshold 9.740
+#   CAND-1-5 w 9 w0 8 'AGAGCGGCC' 'AGAGCGBMS' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 22 tr_neg 1 tr_pv 1.0e-015 tr_rat 11.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.73997
+#   Refining evaluated seed 6: AGAGCGCAG log_pvalue -21.05 width 9 w0 8
+#     ITER 1 pvalue 4.9e-017 pos 22 neg 0 score_threshold 7.441
+#   CAND-1-6 w 9 w0 8 'AGAGCGCAG' 'AGAGCGBAS' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 22 tr_neg 0 tr_pv 4.9e-017 tr_rat 23.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.44073
+#   Refining evaluated seed 7: AGAGCGGAC log_pvalue -20.10 width 9 w0 9
+#     ITER 1 pvalue 4.9e-020 pos 29 neg 4 score_threshold 5.437
+#     ITER 2 pvalue 6.3e-021 pos 29 neg 3 score_threshold 7.023
+#   CAND-1-7 w 9 w0 9 'AGAGCGGAC' 'AGAGCGBMC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 29 tr_neg 3 tr_pv 6.3e-021 tr_rat 7.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.02311
+#   Refining evaluated seed 8: CGCTCTAGC log_pvalue -18.37 width 9 w0 10
+#     ITER 1 pvalue 7.2e-010 pos 15 neg 1 score_threshold 6.608
+#   CAND-1-8 w 9 w0 10 'CGCTCTAGC' 'CGCTCTAGS' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 15 tr_neg 1 tr_pv 7.2e-010 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.6077
+#   Refining evaluated seed 9: AGAGCGGCCG log_pvalue -17.63 width 10 w0 8
+#     ITER 1 pvalue 2.6e-014 pos 19 neg 0 score_threshold 10.335
+#   CAND-1-9 w 10 w0 8 'AGAGCGGCCG' 'AGAGCGGCCS' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 19 tr_neg 0 tr_pv 2.6e-014 tr_rat 20.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.3345
+#   Refining evaluated seed 10: CGCTCTAGCC log_pvalue -15.03 width 10 w0 10
+#     ITER 1 pvalue 1.4e-007 pos 13 neg 2 score_threshold 4.914
+#     ITER 2 pvalue 2.2e-008 pos 13 neg 1 score_threshold 10.613
+#   CAND-1-10 w 10 w0 10 'CGCTCTAGCC' 'CGCTCTRGSC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 13 tr_neg 1 tr_pv 2.2e-008 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.6132
+#   Refining evaluated seed 11: CTAGAGCGTC log_pvalue -13.40 width 10 w0 10
+#     ITER 1 pvalue 3.2e-010 pos 14 neg 0 score_threshold 9.171
+#   CAND-1-11 w 10 w0 10 'CTAGAGCGTC' 'CTAGAGCGKC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 14 tr_neg 0 tr_pv 3.2e-010 tr_rat 15.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.1706
+#   Refining evaluated seed 12: ACGCTCTAGG log_pvalue -13.40 width 10 w0 10
+#     ITER 1 pvalue 1.9e-009 pos 13 neg 0 score_threshold 11.070
+#     ITER 2 pvalue 3.2e-010 pos 14 neg 0 score_threshold 9.268
+#     ITER 3 pvalue 5.3e-011 pos 15 neg 0 score_threshold 9.996
+#     ITER 4 pvalue 1.5e-011 pos 21 neg 5 score_threshold 2.794
+#     ITER 5 pvalue 1.1e-014 pos 22 neg 2 score_threshold 8.994
+#     ITER 6 pvalue 1.0e-015 pos 22 neg 1 score_threshold 9.654
+#   CAND-1-12 w 10 w0 10 'ACGCTCTAGG' 'HCGCYSKRGS' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 22 tr_neg 1 tr_pv 1.0e-015 tr_rat 11.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.65366
+#   Refining evaluated seed 13: AGACGTCGGGG log_pvalue -11.81 width 11 w0 7
+#     ITER 1 pvalue 1.0e-015 pos 22 neg 1 score_threshold 6.189
+#   CAND-1-13 w 11 w0 7 'AGACGTCGGGG' 'AGACGTCGGGG' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 22 tr_neg 1 tr_pv 1.0e-015 tr_rat 11.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.18875
+#   Refining evaluated seed 14: AGAGCGTCGCC log_pvalue -11.81 width 11 w0 4
+#     ITER 1 pvalue 1.5e-011 pos 21 neg 5 score_threshold 2.566
+#     ITER 2 pvalue 1.7e-014 pos 27 neg 9 score_threshold 5.417
+#     ITER 3 pvalue 4.8e-017 pos 27 neg 5 score_threshold 8.063
+#   CAND-1-14 w 11 w0 4 'AGAGCGTCGCC' 'AGAGCGBCSSC' sd_pos 27 sd_neg 54 sd_pv -5.29 tr_pos 27 tr_neg 5 tr_pv 4.8e-017 tr_rat 4.7 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.06286
+#   Refining evaluated seed 15: CGACGCTCTGGCC log_pvalue -10.24 width 13 w0 5
+#     ITER 1 pvalue 5.7e-007 pos 11 neg 1 score_threshold 3.892
+#     ITER 2 pvalue 3.1e-009 pos 18 neg 5 score_threshold 0.237
+#     ITER 3 pvalue 6.2e-014 pos 20 neg 1 score_threshold 8.573
+#     ITER 4 pvalue 7.6e-015 pos 24 neg 4 score_threshold 3.886
+#     ITER 5 pvalue 1.3e-016 pos 25 neg 3 score_threshold 5.341
+#     ITER 6 pvalue 1.2e-016 pos 23 neg 1 score_threshold 9.721
+#   CAND-1-15 w 13 w0 5 'CGACGCTCTGGCC' 'SGNCGCKSYRGSS' sd_pos 9 sd_neg 0 sd_pv -13.40 tr_pos 23 tr_neg 1 tr_pv 1.2e-016 tr_rat 12.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.72089
+#   Refining evaluated seed 16: CGCTCTAGCCC log_pvalue -10.24 width 11 w0 10
+#     ITER 1 pvalue 9.3e-010 pos 17 neg 3 score_threshold 5.462
+#     ITER 2 pvalue 2.6e-011 pos 19 neg 3 score_threshold 7.906
+#     ITER 3 pvalue 1.5e-011 pos 21 neg 5 score_threshold 8.292
+#     ITER 4 pvalue 1.3e-012 pos 23 neg 6 score_threshold 6.092
+#     ITER 5 pvalue 3.1e-013 pos 23 neg 5 score_threshold 7.038
+#     ITER 6 pvalue 8.3e-014 pos 21 neg 2 score_threshold 9.933
+#   CAND-1-16 w 11 w0 10 'CGCTCTAGCCC' 'CGCTCYRGSCC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 21 tr_neg 2 tr_pv 8.3e-014 tr_rat 7.3 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.93261
+#   Refining evaluated seed 17: ACGCTCTAGGC log_pvalue -10.24 width 11 w0 10
+#     ITER 1 pvalue 8.4e-012 pos 16 neg 0 score_threshold 9.990
+#   CAND-1-17 w 11 w0 10 'ACGCTCTAGGC' 'ACGCTCTAGSC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 16 tr_neg 0 tr_pv 8.4e-012 tr_rat 17.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.98995
+#   Refining evaluated seed 18: CGCTCTAGGTAGC log_pvalue -8.71 width 13 w0 8
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 6.094
+#   CAND-1-18 w 13 w0 8 'CGCTCTAGGTAGC' 'CGCTCTAGGYNRC' sd_pos 7 sd_neg 0 sd_pv -10.24 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.09376
+#   Refining evaluated seed 19: AGAGCGTCTCCC log_pvalue -8.71 width 12 w0 8
+#     ITER 1 pvalue 2.1e-010 pos 21 neg 7 score_threshold 2.958
+#     ITER 2 pvalue 4.7e-013 pos 22 neg 4 score_threshold 8.635
+#     ITER 3 pvalue 8.3e-014 pos 21 neg 2 score_threshold 9.439
+#   CAND-1-19 w 12 w0 8 'AGAGCGTCTCCC' 'AGAGCGBCCSCN' sd_pos 4 sd_neg 0 sd_pv -5.71 tr_pos 21 tr_neg 2 tr_pv 8.3e-014 tr_rat 7.3 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.439
+#   Refining evaluated seed 20: AGACGTCGGGGA log_pvalue -8.71 width 12 w0 7
+#     ITER 1 pvalue 5.3e-011 pos 15 neg 0 score_threshold 10.837
+#   CAND-1-20 w 12 w0 7 'AGACGTCGGGGA' 'AGACGTCGGGGM' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 15 tr_neg 0 tr_pv 5.3e-011 tr_rat 16.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.8368
+#   Refining evaluated seed 21: CGACGCTCTGGC log_pvalue -8.71 width 12 w0 5
+#     ITER 1 pvalue 9.3e-010 pos 17 neg 3 score_threshold 1.783
+#     ITER 2 pvalue 1.5e-011 pos 21 neg 5 score_threshold 5.899
+#     ITER 3 pvalue 9.3e-012 pos 22 neg 6 score_threshold 6.079
+#     ITER 4 pvalue 4.7e-013 pos 22 neg 4 score_threshold 7.225
+#   CAND-1-21 w 12 w0 5 'CGACGCTCTGGC' 'CGACGYYCYDGN' sd_pos 9 sd_neg 0 sd_pv -13.40 tr_pos 22 tr_neg 4 tr_pv 4.7e-013 tr_rat 4.6 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.22477
+#   Refining evaluated seed 22: CTAGAGCGGACGAA log_pvalue -7.19 width 14 w0 11
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 7.841
+#     ITER 2 pvalue 1.5e-006 pos 9 neg 0 score_threshold 5.052
+#   CAND-1-22 w 14 w0 11 'CTAGAGCGGACGAA' 'CTAGAGCGGHVSVR' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 9 tr_neg 0 tr_pv 1.5e-006 tr_rat 10.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 5.05201
+#   Refining evaluated seed 23: CTAGAGCGGACGA log_pvalue -7.19 width 13 w0 11
+#     ITER 1 pvalue 1.5e-006 pos 9 neg 0 score_threshold 3.106
+#     ITER 2 pvalue 5.7e-008 pos 11 neg 0 score_threshold 8.348
+#     ITER 3 pvalue 1.9e-009 pos 13 neg 0 score_threshold 7.183
+#   CAND-1-23 w 13 w0 11 'CTAGAGCGGACGA' 'CTAGAGCGSHCSS' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 13 tr_neg 0 tr_pv 1.9e-009 tr_rat 14.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.18329
+#   Refining evaluated seed 24: CCAGAGCGTCCTC log_pvalue -7.19 width 13 w0 10
+#     ITER 1 pvalue 5.7e-008 pos 11 neg 0 score_threshold 13.095
+#     ITER 2 pvalue 2.8e-008 pos 14 neg 2 score_threshold 3.409
+#     ITER 3 pvalue 3.2e-010 pos 14 neg 0 score_threshold 11.954
+#   CAND-1-24 w 13 w0 10 'CCAGAGCGTCCTC' 'CYAGAGCGBMSVS' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 14 tr_neg 0 tr_pv 3.2e-010 tr_rat 15.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.9536
+#   Refining evaluated seed 25: CGCTCTAGGCAA log_pvalue -7.19 width 12 w0 10
+#     ITER 1 pvalue 5.7e-008 pos 11 neg 0 score_threshold 9.901
+#     ITER 2 pvalue 1.0e-008 pos 12 neg 0 score_threshold 8.755
+#     ITER 3 pvalue 3.1e-009 pos 18 neg 5 score_threshold 0.850
+#     ITER 4 pvalue 4.0e-014 pos 24 neg 5 score_threshold 5.047
+#     ITER 5 pvalue 8.5e-016 pos 25 neg 4 score_threshold 7.732
+#     ITER 6 pvalue 1.5e-017 pos 25 neg 2 score_threshold 8.252
+#   CAND-1-25 w 12 w0 10 'CGCTCTAGGCAA' 'CGSYSHMGGVSR' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 25 tr_neg 2 tr_pv 1.5e-017 tr_rat 8.7 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.25153
+#   Refining evaluated seed 26: CTAGAGCGTCTCCC log_pvalue -5.71 width 14 w0 10
+#     ITER 1 pvalue 6.2e-007 pos 13 neg 3 score_threshold 1.416
+#     ITER 2 pvalue 2.2e-011 pos 20 neg 4 score_threshold 2.658
+#     ITER 3 pvalue 4.2e-016 pos 21 neg 0 score_threshold 9.052
+#   CAND-1-26 w 14 w0 10 'CTAGAGCGTCTCCC' 'CTAGMGCGBMVVCV' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 21 tr_neg 0 tr_pv 4.2e-016 tr_rat 22.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.0522
+#   Refining evaluated seed 27: CTAGAGCGGATAGA log_pvalue -5.71 width 14 w0 10
+#     ITER 1 pvalue 4.1e-009 pos 14 neg 1 score_threshold 2.889
+#     ITER 2 pvalue 8.4e-012 pos 16 neg 0 score_threshold 8.615
+#   CAND-1-27 w 14 w0 10 'CTAGAGCGGATAGA' 'CTAGAGCGKMBNSV' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 16 tr_neg 0 tr_pv 8.4e-012 tr_rat 17.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.61474
+#   Refining evaluated seed 28: CGCTCTAGGTAGCT log_pvalue -5.71 width 14 w0 8
+#     ITER 1 pvalue 7.2e-010 pos 15 neg 1 score_threshold 7.100
+#     ITER 2 pvalue 4.7e-013 pos 22 neg 4 score_threshold 6.739
+#   CAND-1-28 w 14 w0 8 'CGCTCTAGGTAGCT' 'CGCTCKRGGYVRCT' sd_pos 7 sd_neg 0 sd_pv -10.24 tr_pos 22 tr_neg 4 tr_pv 4.7e-013 tr_rat 4.6 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.7394
+#   Refining evaluated seed 29: CTAGAGCGGACGAAA log_pvalue -4.25 width 15 w0 11
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 2.525
+#     ITER 2 pvalue 3.0e-007 pos 10 neg 0 score_threshold 5.463
+#     ITER 3 pvalue 5.7e-008 pos 11 neg 0 score_threshold 7.839
+#   CAND-1-29 w 15 w0 11 'CTAGAGCGGACGAAA' 'CTAGAGCGKMVSVRV' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 11 tr_neg 0 tr_pv 5.7e-008 tr_rat 12.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.83896
+#   Refining evaluated seed 30: CTAGAGCGTCTCCCC log_pvalue -4.25 width 15 w0 10
+#     ITER 1 pvalue 1.9e-009 pos 13 neg 0 score_threshold 1.567
+#     ITER 2 pvalue 3.2e-010 pos 14 neg 0 score_threshold 6.508
+#   CAND-1-30 w 15 w0 10 'CTAGAGCGTCTCCCC' 'CTAGAGCGBCNVCNS' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 14 tr_neg 0 tr_pv 3.2e-010 tr_rat 15.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.50767
+#   Refining evaluated seed 31: CGCTCTAGCCCTCGC log_pvalue -4.25 width 15 w0 10
+#     ITER 1 pvalue 7.2e-010 pos 15 neg 1 score_threshold 10.056
+#     ITER 2 pvalue 2.0e-011 pos 17 neg 1 score_threshold 9.180
+#     ITER 3 pvalue 8.2e-015 pos 21 neg 1 score_threshold 8.072
+#     ITER 4 pvalue 1.2e-016 pos 23 neg 1 score_threshold 8.157
+#     ITER 5 pvalue 4.9e-017 pos 22 neg 0 score_threshold 9.991
+#   CAND-1-31 w 15 w0 10 'CGCTCTAGCCCTCGC' 'CGCTSKCGCCGSCBC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 22 tr_neg 0 tr_pv 4.9e-017 tr_rat 23.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.9907
+#   Refining evaluated seed 32: CCTAGAGCGGACACG log_pvalue -4.25 width 15 w0 9
+#     ITER 1 pvalue 1.1e-007 pos 12 neg 1 score_threshold 0.150
+#     ITER 2 pvalue 1.9e-009 pos 13 neg 0 score_threshold 11.711
+#   CAND-1-32 w 15 w0 9 'CCTAGAGCGGACACG' 'SCTAGAGCGBMSVCR' sd_pos 4 sd_neg 0 sd_pv -5.71 tr_pos 13 tr_neg 0 tr_pv 1.9e-009 tr_rat 14.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.7111
+#     ITER 1 pvalue 1.5e-017 pos 25 neg 2 score_threshold 7.424
+# Testing palindromic version of model: pal log_pvalue -38.737 non-pal log_pvalue -46.513 log_pvalue_ratio 0.833 ED 5.635...
+# Using non-palindromic version of final model...
+#  Refining final model: 'AGAGCGGAC' 'AGAGCGBMC'
+# REFINESEEDS	0.00 seconds 	(cumulative 0.34 seconds)
+# BEST-1 'AGAGCGGAC' 'AGAGCGBMC' w 9 start_w 9 pos_count 29 neg_count 3 train_pvalue 6.3e-021 train_ratio 7.5 test_pos 0 test_neg 0 test_pvalue 1.0e+000 test_ratio 0.0 score_thr 7.02
+
+# FINDBESTMODEL	0.00 seconds 	(cumulative 0.34 seconds)
+# Erasing 47 positive and 3 negative matches to the motif from seed: AGAGCGGAC
+# Building suffix tree of positive and negative sequences...
+# SUFFIXTREE	0.00 seconds 	(cumulative 0.34 seconds)
+# Adding sequence counts and p-values to nodes using depth first search...
+# ADDCOUNTS	0.00 seconds 	(cumulative 0.35 seconds)
+# Sorting 9008 initial seed nodes by p-value...
+# SORTSEEDS	0.00 seconds 	(cumulative 0.35 seconds)
+#   Evaluating the top 25 seeds (out of 9008) of each width in range [3, 15] ...
+
+# EVALUATESEEDS	0.00 seconds 	(cumulative 0.53 seconds)
+# Refining the 4 best evaluated seeds of each width in range [8, 15]
+#   using score-based refinement (2216 evaluated seeds)...
+#   Refining evaluated seed 1: CCGCGACC log_pvalue -12.70 width 8 w0 4
+#     ITER 1 pvalue 4.7e-010 pos 23 neg 11 score_threshold 6.407
+#   CAND-2-1 w 8 w0 4 'CCGCGACC' 'CCGCGACS' sd_pos 13 sd_neg 8 sd_pv -9.30 tr_pos 23 tr_neg 11 tr_pv 4.7e-010 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.40737
+#   Refining evaluated seed 2: CCCGACGA log_pvalue -11.81 width 8 w0 7
+#     ITER 1 pvalue 5.7e-008 pos 11 neg 0 score_threshold 9.563
+#   CAND-2-2 w 8 w0 7 'CCCGACGA' 'CCCGACGW' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 11 tr_neg 0 tr_pv 5.7e-008 tr_rat 12.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.56341
+#   Refining evaluated seed 3: AAGGCCAATT log_pvalue -10.24 width 10 w0 9
+#     ITER 1 pvalue 1.5e-006 pos 9 neg 0 score_threshold 9.308
+#   CAND-2-3 w 10 w0 9 'AAGGCCAATT' 'AAGGCCAATY' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 9 tr_neg 0 tr_pv 1.5e-006 tr_rat 10.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.30797
+#   Refining evaluated seed 4: AATTGGCCTT log_pvalue -10.24 width 10 w0 7
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 9.762
+#   CAND-2-4 w 10 w0 7 'AATTGGCCTT' 'AATTGGCCTT' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.76187
+#   Refining evaluated seed 5: AGACGTCGG log_pvalue -10.24 width 9 w0 7
+#     ITER 1 pvalue 3.0e-007 pos 10 neg 0 score_threshold 7.515
+#   CAND-2-5 w 9 w0 7 'AGACGTCGG' 'AGACGTCGG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 10 tr_neg 0 tr_pv 3.0e-007 tr_rat 11.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.51542
+#   Refining evaluated seed 6: CCCCGACG log_pvalue -10.24 width 8 w0 8
+#     ITER 1 pvalue 2.7e-011 pos 18 neg 2 score_threshold 7.749
+#   CAND-2-6 w 8 w0 8 'CCCCGACG' 'CCSCGACG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 18 tr_neg 2 tr_pv 2.7e-011 tr_rat 6.3 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.74923
+#   Refining evaluated seed 7: ACGTCGGG log_pvalue -10.24 width 8 w0 8
+#     ITER 1 pvalue 7.2e-010 pos 15 neg 1 score_threshold 9.843
+#     ITER 2 pvalue 1.6e-010 pos 18 neg 3 score_threshold 7.620
+#     ITER 3 pvalue 5.3e-011 pos 15 neg 0 score_threshold 11.176
+#   CAND-2-7 w 8 w0 8 'ACGTCGGG' 'MCGTCGSG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 15 tr_neg 0 tr_pv 5.3e-011 tr_rat 16.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.1763
+#   Refining evaluated seed 8: AAGGCCAAT log_pvalue -9.81 width 9 w0 9
+#     ITER 1 pvalue 1.5e-006 pos 9 neg 0 score_threshold 8.573
+#     ITER 2 pvalue 6.6e-007 pos 12 neg 2 score_threshold 4.917
+#     ITER 3 pvalue 1.0e-008 pos 12 neg 0 score_threshold 10.675
+#   CAND-2-8 w 9 w0 9 'AAGGCCAAT' 'AAGGCSAMT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 12 tr_neg 0 tr_pv 1.0e-008 tr_rat 13.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.6747
+#   Refining evaluated seed 9: AGACGTCGGG log_pvalue -8.71 width 10 w0 7
+#     ITER 1 pvalue 1.0e-008 pos 12 neg 0 score_threshold 7.947
+#   CAND-2-9 w 10 w0 7 'AGACGTCGGG' 'AGACGTCGGG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 12 tr_neg 0 tr_pv 1.0e-008 tr_rat 13.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.94657
+#   Refining evaluated seed 10: ACCAATCATA log_pvalue -8.71 width 10 w0 7
+#     ITER 1 pvalue 3.0e-007 pos 10 neg 0 score_threshold 10.616
+#     ITER 2 pvalue 5.7e-008 pos 11 neg 0 score_threshold 10.077
+#   CAND-2-10 w 10 w0 7 'ACCAATCATA' 'ACCAATCAKA' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 11 tr_neg 0 tr_pv 5.7e-008 tr_rat 12.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.0769
+#   Refining evaluated seed 11: GCCAATCAG log_pvalue -8.71 width 9 w0 4
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 10.246
+#   CAND-2-11 w 9 w0 4 'GCCAATCAG' 'GCCAATCMG' sd_pos 16 sd_neg 31 sd_pv -2.85 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.2459
+#   Refining evaluated seed 12: AGGCCAATT log_pvalue -8.40 width 9 w0 8
+#     ITER 1 pvalue 1.5e-006 pos 9 neg 0 score_threshold 8.406
+#   CAND-2-12 w 9 w0 8 'AGGCCAATT' 'AGGCCAATY' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 9 tr_neg 0 tr_pv 1.5e-006 tr_rat 10.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.40641
+#   Refining evaluated seed 13: AAGACCAATCCG log_pvalue -7.19 width 12 w0 10
+#   CAND-2-13 w 12 w0 10 'AAGACCAATCCG' 'AAGACCAATCCG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.6142
+#   Refining evaluated seed 14: GACCAATCATA log_pvalue -7.19 width 11 w0 8
+#     ITER 1 pvalue 1.3e-005 pos 10 neg 2 score_threshold 0.774
+#     ITER 2 pvalue 2.7e-006 pos 10 neg 1 score_threshold 10.951
+#   CAND-2-14 w 11 w0 8 'GACCAATCATA' 'GRCCAATCVKA' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 10 tr_neg 1 tr_pv 2.7e-006 tr_rat 5.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.951
+#   Refining evaluated seed 15: AGACGTCGGGG log_pvalue -7.19 width 11 w0 7
+#     ITER 1 pvalue 1.0e-008 pos 12 neg 0 score_threshold 8.198
+#     ITER 2 pvalue 7.7e-010 pos 18 neg 4 score_threshold 5.412
+#     ITER 3 pvalue 1.6e-010 pos 18 neg 3 score_threshold 8.222
+#   CAND-2-15 w 11 w0 7 'AGACGTCGGGG' 'HGRCKTCGGGK' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 18 tr_neg 3 tr_pv 1.6e-010 tr_rat 4.8 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.22222
+#   Refining evaluated seed 16: ACCAATCATAA log_pvalue -7.19 width 11 w0 7
+#     ITER 1 pvalue 2.9e-006 pos 15 neg 7 score_threshold 5.537
+#     ITER 2 pvalue 5.0e-007 pos 14 neg 4 score_threshold 9.124
+#     ITER 3 pvalue 4.1e-007 pos 17 neg 8 score_threshold 5.745
+#     ITER 4 pvalue 1.6e-008 pos 17 neg 5 score_threshold 9.418
+#   CAND-2-16 w 11 w0 7 'ACCAATCATAA' 'ACCAAYSMKAR' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 17 tr_neg 5 tr_pv 1.6e-008 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.4181
+#   Refining evaluated seed 17: AGACCAATCGTAAG log_pvalue -5.71 width 14 w0 8
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 8.576
+#   CAND-2-17 w 14 w0 8 'AGACCAATCGTAAG' 'AGACCAATCMKARG' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.57629
+#   Refining evaluated seed 18: AGACGTCGGGGAAG log_pvalue -5.71 width 14 w0 7
+#   CAND-2-18 w 14 w0 7 'AGACGTCGGGGAAG' 'AGACGTCGGGGAAG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 14.8372
+#   Refining evaluated seed 19: AGGCCAATCCGAA log_pvalue -5.71 width 13 w0 9
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 7.379
+#   CAND-2-19 w 13 w0 9 'AGGCCAATCCGAA' 'AGRCCAATCMKAA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.37915
+#   Refining evaluated seed 20: AGACGTCGGGGAA log_pvalue -5.71 width 13 w0 7
+#     ITER 1 pvalue 1.2e-005 pos 9 neg 1 score_threshold 1.117
+#     ITER 2 pvalue 3.0e-007 pos 10 neg 0 score_threshold 6.633
+#   CAND-2-20 w 13 w0 7 'AGACGTCGGGGAA' 'AGMCGTVSGGGMV' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 10 tr_neg 0 tr_pv 3.0e-007 tr_rat 11.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.63257
+#   Refining evaluated seed 21: AAGGCCAATCAGA log_pvalue -5.71 width 13 w0 3
+#   CAND-2-21 w 13 w0 3 'AAGGCCAATCAGA' 'AAGGCCAATCAGA' sd_pos 28 sd_neg 99 sd_pv -0.01 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 4.2474
+#   Refining evaluated seed 22: AGGCCAATCCGA log_pvalue -5.71 width 12 w0 9
+#     ITER 1 pvalue 2.4e-007 pos 16 neg 6 score_threshold 2.618
+#     ITER 2 pvalue 3.2e-010 pos 14 neg 0 score_threshold 9.968
+#   CAND-2-22 w 12 w0 9 'AGGCCAATCCGA' 'AGDCCRMKHMGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 14 tr_neg 0 tr_pv 3.2e-010 tr_rat 15.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.96844
+#   Refining evaluated seed 23: AGGCCAATTAGA log_pvalue -5.71 width 12 w0 8
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 11.475
+#   CAND-2-23 w 12 w0 8 'AGGCCAATTAGA' 'AGGCCAATYMGA' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.4745
+#   Refining evaluated seed 24: CCCGACGACTCT log_pvalue -5.71 width 12 w0 7
+#     ITER 1 pvalue 1.7e-004 pos 6 neg 0 score_threshold 2.514
+#   CAND-2-24 w 12 w0 7 'CCCGACGACTCT' 'CCCGACGTCTCT' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 2.51426
+#   Refining evaluated seed 25: AGGCCAATCCG log_pvalue -5.71 width 11 w0 9
+#     ITER 1 pvalue 1.7e-004 pos 6 neg 0 score_threshold 14.616
+#   CAND-2-25 w 11 w0 9 'AGGCCAATCCG' 'AGRCCAATCMG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 14.616
+#   Refining evaluated seed 26: AAGACCAATCCGT log_pvalue -4.30 width 13 w0 10
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 17.724
+#   CAND-2-26 w 13 w0 10 'AAGACCAATCCGT' 'AAGRCCAATCCGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 17.724
+#   Refining evaluated seed 27: AGACGTCGGGGAAGG log_pvalue -4.25 width 15 w0 7
+#   CAND-2-27 w 15 w0 7 'AGACGTCGGGGAAGG' 'AGACGTCGGGGAAGG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.1162
+#   Refining evaluated seed 28: AGGCCAATCCGAAG log_pvalue -4.25 width 14 w0 9
+#   CAND-2-28 w 14 w0 9 'AGGCCAATCCGAAG' 'AGGCCAATCCGAAG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 0.0459063
+#   Refining evaluated seed 29: CCCCGACGACTCTA log_pvalue -4.25 width 14 w0 8
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 19.441
+#   CAND-2-29 w 14 w0 8 'CCCCGACGACTCTA' 'CCCCGACGTCTCTD' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 19.4414
+#   Refining evaluated seed 30: AGGCCAATCCGAAGT log_pvalue -2.81 width 15 w0 9
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 1.661
+#   CAND-2-30 w 15 w0 9 'AGGCCAATCCGAAGT' 'AGRCCAATCVGAVKY' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 1.66079
+#   Refining evaluated seed 31: CCCCGACGACTCTAC log_pvalue -2.81 width 15 w0 8
+#   CAND-2-31 w 15 w0 8 'CCCCGACGACTCTAC' 'CCCCGACGACTCTAC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.4221
+#   Refining evaluated seed 32: ACGTCCGGGAGAAGC log_pvalue -2.81 width 15 w0 5
+#     ITER 1 pvalue 1.4e-002 pos 3 neg 0 score_threshold 26.379
+#   CAND-2-32 w 15 w0 5 'ACGTCCGGGAGAAGC' 'ACSKMSGSGARVRGY' sd_pos 4 sd_neg 2 sd_pv -3.40 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 26.3793
+#     ITER 1 pvalue 1.2e-009 pos 20 neg 7 score_threshold 6.264
+# Testing palindromic version of model: pal log_pvalue -20.529 non-pal log_pvalue -24.348 log_pvalue_ratio 0.843 ED 4.539...
+# Using non-palindromic version of final model...
+#  Refining final model: 'CCCCGACG' 'CCSCGACG'
+# REFINESEEDS	0.00 seconds 	(cumulative 0.62 seconds)
+# BEST-2 'CCCCGACG' 'CCSCGACG' w 8 start_w 8 pos_count 18 neg_count 2 train_pvalue 2.7e-011 train_ratio 6.3 test_pos 0 test_neg 0 test_pvalue 1.0e+000 test_ratio 0.0 score_thr 7.75
+
+# FINDBESTMODEL	0.00 seconds 	(cumulative 0.62 seconds)
+# Erasing 22 positive and 2 negative matches to the motif from seed: CCCCGACG
+# Building suffix tree of positive and negative sequences...
+# SUFFIXTREE	0.00 seconds 	(cumulative 0.62 seconds)
+# Adding sequence counts and p-values to nodes using depth first search...
+# ADDCOUNTS	0.00 seconds 	(cumulative 0.63 seconds)
+# Sorting 8728 initial seed nodes by p-value...
+# SORTSEEDS	0.00 seconds 	(cumulative 0.63 seconds)
+#   Evaluating the top 25 seeds (out of 8728) of each width in range [3, 15] ...
+
+# EVALUATESEEDS	0.00 seconds 	(cumulative 0.80 seconds)
+# Refining the 4 best evaluated seeds of each width in range [8, 15]
+#   using score-based refinement (2150 evaluated seeds)...
+#   Refining evaluated seed 1: AATTGGCCTT log_pvalue -10.24 width 10 w0 7
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 7.618
+#   CAND-3-1 w 10 w0 7 'AATTGGCCTT' 'AATTSGCCTT' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.61802
+#   Refining evaluated seed 2: AAGGCCAAT log_pvalue -9.81 width 9 w0 9
+#     ITER 1 pvalue 1.5e-006 pos 9 neg 0 score_threshold 8.580
+#   CAND-3-2 w 9 w0 9 'AAGGCCAAT' 'AAGGCCAAT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 9 tr_neg 0 tr_pv 1.5e-006 tr_rat 10.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.57973
+#   Refining evaluated seed 3: AAGGCCAATT log_pvalue -8.71 width 10 w0 9
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 9.800
+#   CAND-3-3 w 10 w0 9 'AAGGCCAATT' 'AAGGCCAATT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.80039
+#   Refining evaluated seed 4: CCAATCATAA log_pvalue -8.71 width 10 w0 7
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 12.032
+#   CAND-3-4 w 10 w0 7 'CCAATCATAA' 'CCAATCATAR' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.0316
+#   Refining evaluated seed 5: ACCAATCATA log_pvalue -8.71 width 10 w0 7
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 10.707
+#   CAND-3-5 w 10 w0 7 'ACCAATCATA' 'ACCAATCATA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.7069
+#   Refining evaluated seed 6: CCAATCATA log_pvalue -8.40 width 9 w0 7
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 10.867
+#   CAND-3-6 w 9 w0 7 'CCAATCATA' 'CCAATCATA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.8666
+#   Refining evaluated seed 7: CCAATCAT log_pvalue -7.30 width 8 w0 7
+#     ITER 1 pvalue 7.4e-006 pos 8 neg 0 score_threshold 11.138
+#   CAND-3-7 w 8 w0 7 'CCAATCAT' 'CCAATCAT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 8 tr_neg 0 tr_pv 7.4e-006 tr_rat 9.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.138
+#   Refining evaluated seed 8: ACCAATCATAA log_pvalue -7.19 width 11 w0 7
+#     ITER 1 pvalue 1.2e-005 pos 9 neg 1 score_threshold 4.359
+#     ITER 2 pvalue 1.5e-006 pos 9 neg 0 score_threshold 12.419
+#   CAND-3-8 w 11 w0 7 'ACCAATCATAA' 'ACCAAYCAKAA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 9 tr_neg 0 tr_pv 1.5e-006 tr_rat 10.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.4191
+#   Refining evaluated seed 9: ATGGTTGGT log_pvalue -7.19 width 9 w0 7
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 6.427
+#   CAND-3-9 w 9 w0 7 'ATGGTTGGT' 'ATGRTTGGT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.42673
+#   Refining evaluated seed 10: GCACCAATG log_pvalue -7.19 width 9 w0 6
+#   CAND-3-10 w 9 w0 6 'GCACCAATG' 'GCACCAATG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.66222
+#   Refining evaluated seed 11: AGGCCAAT log_pvalue -7.19 width 8 w0 8
+#   CAND-3-11 w 8 w0 8 'AGGCCAAT' 'AGGCCAAT' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.74141
+#   Refining evaluated seed 12: GCACCGGC log_pvalue -7.19 width 8 w0 3
+#     ITER 1 pvalue 1.7e-004 pos 6 neg 0 score_threshold 12.170
+#   CAND-3-12 w 8 w0 3 'GCACCGGC' 'GCACCGGC' sd_pos 26 sd_neg 78 sd_pv -0.58 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.1705
+#   Refining evaluated seed 13: GCCAATCA log_pvalue -7.06 width 8 w0 4
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 11.564
+#   CAND-3-13 w 8 w0 4 'GCCAATCA' 'GCCAATYA' sd_pos 15 sd_neg 31 sd_pv -2.29 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.5641
+#   Refining evaluated seed 14: AGGCCAATTAGA log_pvalue -5.71 width 12 w0 8
+#     ITER 1 pvalue 1.7e-004 pos 6 neg 0 score_threshold 12.703
+#   CAND-3-14 w 12 w0 8 'AGGCCAATTAGA' 'AGGCCAATYAGA' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.7027
+#   Refining evaluated seed 15: AGGCCAATTAG log_pvalue -5.71 width 11 w0 8
+#   CAND-3-15 w 11 w0 8 'AGGCCAATTAG' 'AGGCCAATTAG' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.1772
+#   Refining evaluated seed 16: GGCCAATCAGA log_pvalue -5.71 width 11 w0 5
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 3.850
+#   CAND-3-16 w 11 w0 5 'GGCCAATCAGA' 'GGCCAATYAKA' sd_pos 8 sd_neg 11 sd_pv -2.81 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 3.85008
+#   Refining evaluated seed 17: AAGGCCAATTAGA log_pvalue -4.25 width 13 w0 9
+#   CAND-3-17 w 13 w0 9 'AAGGCCAATTAGA' 'AAGGCCAATTAGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.44362
+#   Refining evaluated seed 18: AATTGGCCTTCTT log_pvalue -4.25 width 13 w0 7
+#     ITER 1 pvalue 5.2e-003 pos 7 neg 4 score_threshold 0.520
+#     ITER 2 pvalue 3.6e-005 pos 7 neg 0 score_threshold 13.009
+#   CAND-3-18 w 13 w0 7 'AATTGGCCTTCTT' 'AATTSGCYTTCKK' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 13.0087
+#   Refining evaluated seed 19: AAGGCCAATCAGA log_pvalue -4.25 width 13 w0 3
+#   CAND-3-19 w 13 w0 3 'AAGGCCAATCAGA' 'AAGGCCAATCAGA' sd_pos 28 sd_neg 99 sd_pv -0.01 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 4.2474
+#   Refining evaluated seed 20: AGGCCAATCCGA log_pvalue -4.25 width 12 w0 9
+#     ITER 1 pvalue 1.7e-004 pos 6 neg 0 score_threshold 12.449
+#   CAND-3-20 w 12 w0 9 'AGGCCAATCCGA' 'AGRCCAATYMGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.4495
+#   Refining evaluated seed 21: AATTGGCCTTCT log_pvalue -4.25 width 12 w0 7
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 15.823
+#   CAND-3-21 w 12 w0 7 'AATTGGCCTTCT' 'AATTSGCCTTCT' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 15.8231
+#   Refining evaluated seed 22: CAATCGTAAGCC log_pvalue -4.25 width 12 w0 5
+#     ITER 1 pvalue 1.4e-002 pos 4 neg 1 score_threshold 1.084
+#     ITER 2 pvalue 3.3e-003 pos 4 neg 0 score_threshold 19.007
+#   CAND-3-22 w 12 w0 5 'CAATCGTAAGCC' 'CAAYCGDAAGHC' sd_pos 6 sd_neg 8 sd_pv -2.33 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 19.0071
+#   Refining evaluated seed 23: CAACCATAGAG log_pvalue -4.25 width 11 w0 11
+#   CAND-3-23 w 11 w0 11 'CAACCATAGAG' 'CAACCATAGAG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 13.6605
+#   Refining evaluated seed 24: AGGCCAATCCGAAGT log_pvalue -2.81 width 15 w0 9
+#   CAND-3-24 w 15 w0 9 'AGGCCAATCCGAAGT' 'AGGCCAATCCGAAGT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.1048
+#   Refining evaluated seed 25: CAGGCGAGTGACTGT log_pvalue -2.81 width 15 w0 7
+#   CAND-3-25 w 15 w0 7 'CAGGCGAGTGACTGT' 'CAGGCGAGTGACTGT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 14.4681
+#   Refining evaluated seed 26: CTAGAGCGGCAGTAC log_pvalue -2.81 width 15 w0 3
+#   CAND-3-26 w 15 w0 3 'CTAGAGCGGCAGTAC' 'CTAGAGCGGCAGTAC' sd_pos 20 sd_neg 77 sd_pv -0.03 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 0.485478
+#   Refining evaluated seed 27: AGGCCAATCCGAAG log_pvalue -2.81 width 14 w0 9
+#   CAND-3-27 w 14 w0 9 'AGGCCAATCCGAAG' 'AGGCCAATCCGAAG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 0.411588
+#   Refining evaluated seed 28: CAGGCGAGTGACTG log_pvalue -2.81 width 14 w0 7
+#   CAND-3-28 w 14 w0 7 'CAGGCGAGTGACTG' 'CAGGCGAGTGACTG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.402
+#   Refining evaluated seed 29: AGGCGAATTACAGT log_pvalue -2.81 width 14 w0 6
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 7.091
+#   CAND-3-29 w 14 w0 6 'AGGCGAATTACAGT' 'AGGCGARTKACASK' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.09147
+#   Refining evaluated seed 30: GGCCAATCAGACTT log_pvalue -2.81 width 14 w0 5
+#     ITER 1 pvalue 3.3e-003 pos 4 neg 0 score_threshold 19.981
+#   CAND-3-30 w 14 w0 5 'GGCCAATCAGACTT' 'GGCSAATCMGAVTT' sd_pos 8 sd_neg 11 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 19.9808
+#   Refining evaluated seed 31: CAACCATAGAGAT log_pvalue -2.81 width 13 w0 11
+#   CAND-3-31 w 13 w0 11 'CAACCATAGAGAT' 'CAACCATAGAGAT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.345
+#   Refining evaluated seed 32: GGGTTGAGTGATGCG log_pvalue -1.39 width 15 w0 11
+#   CAND-3-32 w 15 w0 11 'GGGTTGAGTGATGCG' 'GGGTTGAGTGATGCG' sd_pos 1 sd_neg 1 sd_pv -0.83 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 30.6814
+#     ITER 1 pvalue 1.2e-005 pos 9 neg 1 score_threshold 8.153
+# Testing palindromic version of model: pal log_pvalue -11.296 non-pal log_pvalue -13.404 log_pvalue_ratio 0.843 ED 9.323...
+# Using non-palindromic version of final model...
+#  Refining final model: 'ACCAATCATAA' 'ACCAAYCAKAA'
+# REFINESEEDS	0.00 seconds 	(cumulative 0.87 seconds)
+# BEST-3 'ACCAATCATAA' 'ACCAAYCAKAA' w 11 start_w 7 pos_count 9 neg_count 0 train_pvalue 1.5e-006 train_ratio 10.0 test_pos 0 test_neg 0 test_pvalue 1.0e+000 test_ratio 0.0 score_thr 12.42
+
+# FINDBESTMODEL	0.00 seconds 	(cumulative 0.87 seconds)
+# Erasing 9 positive and 0 negative matches to the motif from seed: ACCAATCATAA
+# Building suffix tree of positive and negative sequences...
+# SUFFIXTREE	0.00 seconds 	(cumulative 0.87 seconds)
+# Adding sequence counts and p-values to nodes using depth first search...
+# ADDCOUNTS	0.00 seconds 	(cumulative 0.88 seconds)
+# Sorting 8582 initial seed nodes by p-value...
+# SORTSEEDS	0.00 seconds 	(cumulative 0.88 seconds)
+#   Evaluating the top 25 seeds (out of 8582) of each width in range [3, 15] ...
+
+# EVALUATESEEDS	0.00 seconds 	(cumulative 1.05 seconds)
+# Refining the 4 best evaluated seeds of each width in range [8, 15]
+#   using score-based refinement (2121 evaluated seeds)...
+#   Refining evaluated seed 1: AATTGGCCTT log_pvalue -5.71 width 10 w0 7
+#     ITER 1 pvalue 9.5e-004 pos 6 neg 1 score_threshold 6.098
+#     ITER 2 pvalue 1.7e-004 pos 6 neg 0 score_threshold 12.601
+#   CAND-4-1 w 10 w0 7 'AATTGGCCTT' 'ARKTSGCYTT' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.6014
+#   Refining evaluated seed 2: ATAGAGGGGC log_pvalue -5.71 width 10 w0 6
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 12.337
+#   CAND-4-2 w 10 w0 6 'ATAGAGGGGC' 'MTAGAGSGGY' sd_pos 3 sd_neg 2 sd_pv -2.32 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.3365
+#   Refining evaluated seed 3: AAGAGGGCC log_pvalue -5.71 width 9 w0 7
+#     ITER 1 pvalue 3.3e-003 pos 4 neg 0 score_threshold 12.250
+#   CAND-4-3 w 9 w0 7 'AAGAGGGCC' 'AAGADGGCC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.2504
+#   Refining evaluated seed 4: AAGAGGGC log_pvalue -5.71 width 8 w0 7
+#   CAND-4-4 w 8 w0 7 'AAGAGGGC' 'AAGAGGGC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.7656
+#   Refining evaluated seed 5: GCACCGGC log_pvalue -5.71 width 8 w0 3
+#   CAND-4-5 w 8 w0 3 'GCACCGGC' 'GCACCGGC' sd_pos 26 sd_neg 78 sd_pv -0.58 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.69944
+#   Refining evaluated seed 6: ATAGAGGGG log_pvalue -5.61 width 9 w0 6
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 12.997
+#   CAND-4-6 w 9 w0 6 'ATAGAGGGG' 'MTAGAGSGG' sd_pos 3 sd_neg 2 sd_pv -2.32 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.9968
+#   Refining evaluated seed 7: GCTTCCAC log_pvalue -4.56 width 8 w0 6
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 12.624
+#   CAND-4-7 w 8 w0 6 'GCTTCCAC' 'GCTTCCMC' sd_pos 4 sd_neg 4 sd_pv -2.25 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.6244
+#   Refining evaluated seed 8: GCGCTCAG log_pvalue -4.56 width 8 w0 4
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 11.886
+#   CAND-4-8 w 8 w0 4 'GCGCTCAG' 'GCGCTCAG' sd_pos 6 sd_neg 5 sd_pv -3.59 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.8859
+#   Refining evaluated seed 9: AATTGGCCTTCTT log_pvalue -4.25 width 13 w0 7
+#     ITER 1 pvalue 7.5e-003 pos 6 neg 3 score_threshold 4.266
+#     ITER 2 pvalue 1.7e-004 pos 6 neg 0 score_threshold 13.306
+#   CAND-4-9 w 13 w0 7 'AATTGGCCTTCTT' 'AATTSGCYTTCKK' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 13.3064
+#   Refining evaluated seed 10: AATTGGCCTTCT log_pvalue -4.25 width 12 w0 7
+#     ITER 1 pvalue 3.3e-003 pos 4 neg 0 score_threshold 16.616
+#   CAND-4-10 w 12 w0 7 'AATTGGCCTTCT' 'AATTGGCCTTCB' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 16.6163
+#   Refining evaluated seed 11: CCAGGCCGCCA log_pvalue -4.25 width 11 w0 8
+#     ITER 1 pvalue 1.1e-002 pos 5 neg 2 score_threshold 4.780
+#     ITER 2 pvalue 7.5e-004 pos 5 neg 0 score_threshold 15.480
+#   CAND-4-11 w 11 w0 8 'CCAGGCCGCCA' 'CCAGGCYSSCV' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 15.4802
+#   Refining evaluated seed 12: AATGACAGGAA log_pvalue -4.25 width 11 w0 8
+#   CAND-4-12 w 11 w0 8 'AATGACAGGAA' 'AATGACAGGAA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.65528
+#   Refining evaluated seed 13: AATTGGCCTTC log_pvalue -4.25 width 11 w0 7
+#   CAND-4-13 w 11 w0 7 'AATTGGCCTTC' 'AATTGGCCTTC' sd_pos 3 sd_neg 0 sd_pv -4.25 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.6998
+#   Refining evaluated seed 14: CCGCTTCCAC log_pvalue -4.25 width 10 w0 8
+#     ITER 1 pvalue 1.4e-002 pos 3 neg 0 score_threshold 16.747
+#   CAND-4-14 w 10 w0 8 'CCGCTTCCAC' 'CMGCTTCCMY' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 16.7468
+#   Refining evaluated seed 15: CCAGGCCGCC log_pvalue -4.25 width 10 w0 8
+#     ITER 1 pvalue 1.4e-002 pos 4 neg 1 score_threshold 14.268
+#   CAND-4-15 w 10 w0 8 'CCAGGCCGCC' 'CCAGGCCGCC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 1 tr_pv 1.4e-002 tr_rat 2.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 14.2678
+#   Refining evaluated seed 16: ACCAGGCCG log_pvalue -4.25 width 9 w0 9
+#     ITER 1 pvalue 1.4e-002 pos 4 neg 1 score_threshold 8.214
+#     ITER 2 pvalue 3.3e-003 pos 4 neg 0 score_threshold 16.606
+#   CAND-4-16 w 9 w0 9 'ACCAGGCCG' 'ACSAGGCCG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 16.6059
+#   Refining evaluated seed 17: AGGACTCCT log_pvalue -4.25 width 9 w0 7
+#   CAND-4-17 w 9 w0 7 'AGGACTCCT' 'AGGACTCCT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.12534
+#   Refining evaluated seed 18: AATTGGCTTTCG log_pvalue -3.05 width 12 w0 3
+#     ITER 1 pvalue 3.3e-003 pos 4 neg 0 score_threshold 15.079
+#   CAND-4-18 w 12 w0 3 'AATTGGCTTTCG' 'AATTGGCTHTCG' sd_pos 16 sd_neg 86 sd_pv -0.00 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 15.0791
+#   Refining evaluated seed 19: ATTGGCTTTCG log_pvalue -3.05 width 11 w0 5
+#     ITER 1 pvalue 1.4e-002 pos 3 neg 0 score_threshold 15.848
+#   CAND-4-19 w 11 w0 5 'ATTGGCTTTCG' 'ATTGGCYYTYK' sd_pos 7 sd_neg 4 sd_pv -5.26 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 15.8479
+#   Refining evaluated seed 20: CGTGAGAGAAACTAG log_pvalue -2.81 width 15 w0 5
+#   CAND-4-20 w 15 w0 5 'CGTGAGAGAAACTAG' 'CGTGAGAGAAACTAG' sd_pos 2 sd_neg 1 sd_pv -1.88 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 3.9417
+#   Refining evaluated seed 21: CTAGAGCGGCAGTAC log_pvalue -2.81 width 15 w0 3
+#   CAND-4-21 w 15 w0 3 'CTAGAGCGGCAGTAC' 'CTAGAGCGGCAGTAC' sd_pos 20 sd_neg 77 sd_pv -0.03 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 0.485478
+#   Refining evaluated seed 22: CGTGAGAGAAACTA log_pvalue -2.81 width 14 w0 5
+#   CAND-4-22 w 14 w0 5 'CGTGAGAGAAACTA' 'CGTGAGAGAAACTA' sd_pos 2 sd_neg 1 sd_pv -1.88 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.72303
+#   Refining evaluated seed 23: CGGCCTGGTGTGTC log_pvalue -2.81 width 14 w0 5
+#   CAND-4-23 w 14 w0 5 'CGGCCTGGTGTGTC' 'CGGCCTGGTGTGTC' sd_pos 4 sd_neg 2 sd_pv -3.40 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.5137
+#   Refining evaluated seed 24: CTAGAGCGGCAGTA log_pvalue -2.81 width 14 w0 3
+#   CAND-4-24 w 14 w0 3 'CTAGAGCGGCAGTA' 'CTAGAGCGGCAGTA' sd_pos 20 sd_neg 77 sd_pv -0.03 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 3.76782
+#   Refining evaluated seed 25: ACCAGGCCGCCAT log_pvalue -2.81 width 13 w0 9
+#     ITER 1 pvalue 3.3e-002 pos 4 neg 2 score_threshold 0.946
+#     ITER 2 pvalue 3.3e-003 pos 4 neg 0 score_threshold 16.534
+#   CAND-4-25 w 13 w0 9 'ACCAGGCCGCCAT' 'ACCAGGCYGSCVB' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 16.534
+#   Refining evaluated seed 26: AATTGGCTCTTGT log_pvalue -2.81 width 13 w0 8
+#     ITER 1 pvalue 1.4e-002 pos 4 neg 1 score_threshold 4.091
+#     ITER 2 pvalue 3.3e-003 pos 4 neg 0 score_threshold 16.448
+#   CAND-4-26 w 13 w0 8 'AATTGGCTCTTGT' 'AATTGGCTHTCGT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 16.4485
+#   Refining evaluated seed 27: CGCTTCCACGGGA log_pvalue -2.81 width 13 w0 7
+#   CAND-4-27 w 13 w0 7 'CGCTTCCACGGGA' 'CGCTTCCACGGGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.20451
+#   Refining evaluated seed 28: ACCAGGCCGCCA log_pvalue -2.81 width 12 w0 9
+#     ITER 1 pvalue 1.7e-004 pos 6 neg 0 score_threshold 10.016
+#   CAND-4-28 w 12 w0 9 'ACCAGGCCGCCA' 'ACCAGGCYGNCA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 6 tr_neg 0 tr_pv 1.7e-004 tr_rat 7.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 10.0157
+#   Refining evaluated seed 29: CAGGCTCCACGA log_pvalue -2.81 width 12 w0 8
+#   CAND-4-29 w 12 w0 8 'CAGGCTCCACGA' 'CAGGCTCCACGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.0469
+#   Refining evaluated seed 30: GGGTTGAGTGATGCG log_pvalue -1.39 width 15 w0 11
+#   CAND-4-30 w 15 w0 11 'GGGTTGAGTGATGCG' 'GGGTTGAGTGATGCG' sd_pos 1 sd_neg 1 sd_pv -0.83 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 30.6814
+#   Refining evaluated seed 31: AGGCGGCCAGCCTCG log_pvalue -1.39 width 15 w0 11
+#   CAND-4-31 w 15 w0 11 'AGGCGGCCAGCCTCG' 'AGGCGGCCAGCCTCG' sd_pos 1 sd_neg 1 sd_pv -0.83 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 31.4471
+#   Refining evaluated seed 32: GGGTTGAGTGATGC log_pvalue -1.39 width 14 w0 11
+#   CAND-4-32 w 14 w0 11 'GGGTTGAGTGATGC' 'GGGTTGAGTGATGC' sd_pos 1 sd_neg 1 sd_pv -0.83 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 27.0195
+#     ITER 1 pvalue 3.3e-003 pos 4 neg 0 score_threshold 9.387
+# Testing palindromic version of model: pal log_pvalue -5.708 non-pal log_pvalue -8.706 log_pvalue_ratio 0.656 ED 9.703...
+# Using non-palindromic version of final model...
+#  Refining final model: 'AATTGGCCTTCTT' 'AATTSGCYTTCKK'
+# REFINESEEDS	0.00 seconds 	(cumulative 1.12 seconds)
+# BEST-4 'AATTGGCCTTCTT' 'AATTSGCYTTCKK' w 13 start_w 7 pos_count 6 neg_count 0 train_pvalue 1.7e-004 train_ratio 7.0 test_pos 0 test_neg 0 test_pvalue 1.0e+000 test_ratio 0.0 score_thr 13.31
+
+# FINDBESTMODEL	0.00 seconds 	(cumulative 1.12 seconds)
+# Erasing 6 positive and 0 negative matches to the motif from seed: AATTGGCCTTCTT
+# Building suffix tree of positive and negative sequences...
+# SUFFIXTREE	0.00 seconds 	(cumulative 1.12 seconds)
+# Adding sequence counts and p-values to nodes using depth first search...
+# ADDCOUNTS	0.00 seconds 	(cumulative 1.12 seconds)
+# Sorting 8467 initial seed nodes by p-value...
+# SORTSEEDS	0.00 seconds 	(cumulative 1.13 seconds)
+#   Evaluating the top 25 seeds (out of 8467) of each width in range [3, 15] ...
+
+# EVALUATESEEDS	0.00 seconds 	(cumulative 1.30 seconds)
+# Refining the 4 best evaluated seeds of each width in range [8, 15]
+#   using score-based refinement (2117 evaluated seeds)...
+#   Refining evaluated seed 1: ATAGAGGGGC log_pvalue -5.71 width 10 w0 6
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 12.337
+#   CAND-5-1 w 10 w0 6 'ATAGAGGGGC' 'MTAGAGSGGY' sd_pos 3 sd_neg 2 sd_pv -2.32 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.3365
+#   Refining evaluated seed 2: GCACCGGC log_pvalue -5.71 width 8 w0 3
+#   CAND-5-2 w 8 w0 3 'GCACCGGC' 'GCACCGGC' sd_pos 25 sd_neg 78 sd_pv -0.38 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.69944
+#   Refining evaluated seed 3: ATAGAGGGG log_pvalue -5.61 width 9 w0 6
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 12.997
+#   CAND-5-3 w 9 w0 6 'ATAGAGGGG' 'MTAGAGSGG' sd_pos 3 sd_neg 2 sd_pv -2.32 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.9968
+#   Refining evaluated seed 4: GCTTCCAC log_pvalue -4.56 width 8 w0 6
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 12.624
+#   CAND-5-4 w 8 w0 6 'GCTTCCAC' 'GCTTCCMC' sd_pos 4 sd_neg 4 sd_pv -2.25 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.6244
+#   Refining evaluated seed 5: GCGCTCAG log_pvalue -4.56 width 8 w0 4
+#     ITER 1 pvalue 7.5e-004 pos 5 neg 0 score_threshold 11.886
+#   CAND-5-5 w 8 w0 4 'GCGCTCAG' 'GCGCTCAG' sd_pos 6 sd_neg 5 sd_pv -3.59 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.8859
+#   Refining evaluated seed 6: AATGACAGA log_pvalue -4.30 width 9 w0 5
+#     ITER 1 pvalue 1.2e-002 pos 8 neg 7 score_threshold 2.169
+#     ITER 2 pvalue 8.5e-004 pos 7 neg 2 score_threshold 9.806
+#   CAND-5-6 w 9 w0 5 'AATGACAGA' 'AATGACAGR' sd_pos 7 sd_neg 14 sd_pv -1.45 tr_pos 7 tr_neg 2 tr_pv 8.5e-004 tr_rat 2.7 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.80558
+#   Refining evaluated seed 7: CCAGGCCGCCA log_pvalue -4.25 width 11 w0 8
+#     ITER 1 pvalue 1.1e-002 pos 5 neg 2 score_threshold 4.780
+#     ITER 2 pvalue 7.5e-004 pos 5 neg 0 score_threshold 15.480
+#   CAND-5-7 w 11 w0 8 'CCAGGCCGCCA' 'CCAGGCYSSCV' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 5 tr_neg 0 tr_pv 7.5e-004 tr_rat 6.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 15.4802
+#   Refining evaluated seed 8: AATGACAGGAA log_pvalue -4.25 width 11 w0 8
+#   CAND-5-8 w 11 w0 8 'AATGACAGGAA' 'AATGACAGGAA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.65528
+#   Refining evaluated seed 9: CCGCTTCCAC log_pvalue -4.25 width 10 w0 8
+#     ITER 1 pvalue 1.4e-002 pos 3 neg 0 score_threshold 16.747
+#   CAND-5-9 w 10 w0 8 'CCGCTTCCAC' 'CMGCTTCCMY' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 16.7468
+#   Refining evaluated seed 10: CCAGGCCGCC log_pvalue -4.25 width 10 w0 8
+#     ITER 1 pvalue 1.4e-002 pos 4 neg 1 score_threshold 14.268
+#   CAND-5-10 w 10 w0 8 'CCAGGCCGCC' 'CCAGGCCGCC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 1 tr_pv 1.4e-002 tr_rat 2.5 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 14.2678
+#   Refining evaluated seed 11: ATGACAGGAA log_pvalue -4.25 width 10 w0 7
+#     ITER 1 pvalue 3.3e-003 pos 4 neg 0 score_threshold 13.177
+#   CAND-5-11 w 10 w0 7 'ATGACAGGAA' 'ATGACAGGAA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 13.1769
+#   Refining evaluated seed 12: ACCAGGCCG log_pvalue -4.25 width 9 w0 9
+#     ITER 1 pvalue 1.4e-002 pos 3 neg 0 score_threshold 17.204
+#   CAND-5-12 w 9 w0 9 'ACCAGGCCG' 'ACCAGGCYG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 17.2042
+#   Refining evaluated seed 13: AGGACTCCT log_pvalue -4.25 width 9 w0 7
+#   CAND-5-13 w 9 w0 7 'AGGACTCCT' 'AGGACTCCT' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 7.12534
+#   Refining evaluated seed 14: AGCGCTCA log_pvalue -4.25 width 8 w0 9
+#     ITER 1 pvalue 1.4e-002 pos 4 neg 1 score_threshold 7.884
+#     ITER 2 pvalue 3.3e-003 pos 4 neg 0 score_threshold 14.175
+#   CAND-5-14 w 8 w0 9 'AGCGCTCA' 'AGCGSTCA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 14.1752
+#   Refining evaluated seed 15: CTAGAGCGGCAGTAC log_pvalue -2.81 width 15 w0 3
+#   CAND-5-15 w 15 w0 3 'CTAGAGCGGCAGTAC' 'CTAGAGCGGCAGTAC' sd_pos 19 sd_neg 77 sd_pv -0.01 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 0.485478
+#   Refining evaluated seed 16: GAAGCGGTGAAGGA log_pvalue -2.81 width 14 w0 5
+#   CAND-5-16 w 14 w0 5 'GAAGCGGTGAAGGA' 'GAAGCGGTGAAGGA' sd_pos 5 sd_neg 9 sd_pv -1.41 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.63
+#   Refining evaluated seed 17: CGGCCTGGTGTGTC log_pvalue -2.81 width 14 w0 5
+#   CAND-5-17 w 14 w0 5 'CGGCCTGGTGTGTC' 'CGGCCTGGTGTGTC' sd_pos 4 sd_neg 2 sd_pv -3.40 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.5137
+#   Refining evaluated seed 18: CTAGAGCGGCAGTA log_pvalue -2.81 width 14 w0 3
+#   CAND-5-18 w 14 w0 3 'CTAGAGCGGCAGTA' 'CTAGAGCGGCAGTA' sd_pos 19 sd_neg 77 sd_pv -0.01 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 3.76782
+#   Refining evaluated seed 19: ACCAGGCCGCCAT log_pvalue -2.81 width 13 w0 9
+#     ITER 1 pvalue 3.3e-002 pos 4 neg 2 score_threshold 0.946
+#     ITER 2 pvalue 3.3e-003 pos 4 neg 0 score_threshold 16.534
+#   CAND-5-19 w 13 w0 9 'ACCAGGCCGCCAT' 'ACCAGGCYGSCVB' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 4 tr_neg 0 tr_pv 3.3e-003 tr_rat 5.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 16.534
+#   Refining evaluated seed 20: CGCTTCCACGGGA log_pvalue -2.81 width 13 w0 7
+#   CAND-5-20 w 13 w0 7 'CGCTTCCACGGGA' 'CGCTTCCACGGGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 9.20451
+#   Refining evaluated seed 21: AGAGCGGTAGGAA log_pvalue -2.81 width 13 w0 7
+#     ITER 1 pvalue 4.7e-002 pos 3 neg 1 score_threshold 2.997
+#     ITER 2 pvalue 1.4e-002 pos 3 neg 0 score_threshold 20.459
+#   CAND-5-21 w 13 w0 7 'AGAGCGGTAGGAA' 'AGMSCGGYAGKAV' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 20.4591
+#   Refining evaluated seed 22: AAGCGGTCAAAGC log_pvalue -2.81 width 13 w0 7
+#   CAND-5-22 w 13 w0 7 'AAGCGGTCAAAGC' 'AAGCGGTCAAAGC' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 8.77495
+#   Refining evaluated seed 23: ACCAGGCCGCCA log_pvalue -2.81 width 12 w0 9
+#   CAND-5-23 w 12 w0 9 'ACCAGGCCGCCA' 'ACCAGGCCGCCA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 14.6742
+#   Refining evaluated seed 24: CAGGCTCCACGA log_pvalue -2.81 width 12 w0 8
+#   CAND-5-24 w 12 w0 8 'CAGGCTCCACGA' 'CAGGCTCCACGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.0469
+#   Refining evaluated seed 25: CGCTTCCACGGG log_pvalue -2.81 width 12 w0 7
+#   CAND-5-25 w 12 w0 7 'CGCTTCCACGGG' 'CGCTTCCACGGG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 12.8937
+#   Refining evaluated seed 26: AGAGCGGTAGGA log_pvalue -2.81 width 12 w0 7
+#   CAND-5-26 w 12 w0 7 'AGAGCGGTAGGA' 'AGAGCGGTAGGA' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 3 tr_neg 0 tr_pv 1.4e-002 tr_rat 4.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 6.86428
+#   Refining evaluated seed 27: CCAGCGCTCAG log_pvalue -2.81 width 11 w0 11
+#   CAND-5-27 w 11 w0 11 'CCAGCGCTCAG' 'CCAGCGCTCAG' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 2 tr_neg 0 tr_pv 6.0e-002 tr_rat 3.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 21.0478
+#   Refining evaluated seed 28: ACCGCTTCCAC log_pvalue -2.81 width 11 w0 9
+#     ITER 1 pvalue 3.6e-005 pos 7 neg 0 score_threshold 11.008
+#   CAND-5-28 w 11 w0 9 'ACCGCTTCCAC' 'ACCGCTKCCAY' sd_pos 2 sd_neg 0 sd_pv -2.81 tr_pos 7 tr_neg 0 tr_pv 3.6e-005 tr_rat 8.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 11.0076
+#   Refining evaluated seed 29: GGGTTGAGTGATGCG log_pvalue -1.39 width 15 w0 11
+#   CAND-5-29 w 15 w0 11 'GGGTTGAGTGATGCG' 'GGGTTGAGTGATGCG' sd_pos 1 sd_neg 1 sd_pv -0.83 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 30.6814
+#   Refining evaluated seed 30: AGGCGGCCAGCCTCG log_pvalue -1.39 width 15 w0 11
+#   CAND-5-30 w 15 w0 11 'AGGCGGCCAGCCTCG' 'AGGCGGCCAGCCTCG' sd_pos 1 sd_neg 1 sd_pv -0.83 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 31.4471
+#   Refining evaluated seed 31: AAGAAGAAGAAAAGA log_pvalue -1.39 width 15 w0 11
+#   CAND-5-31 w 15 w0 11 'AAGAAGAAGAAAAGA' 'AAGAAGAAGAAAAGA' sd_pos 1 sd_neg 0 sd_pv -1.39 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 25.0138
+#   Refining evaluated seed 32: GGGTTGAGTGATGC log_pvalue -1.39 width 14 w0 11
+#   CAND-5-32 w 14 w0 11 'GGGTTGAGTGATGC' 'GGGTTGAGTGATGC' sd_pos 1 sd_neg 1 sd_pv -0.83 tr_pos 1 tr_neg 0 tr_pv 2.5e-001 tr_rat 2.0 test_pos 0 test_neg 0 test_pv 1.0e+000 test_rat 0.0 score_threshold 27.0195
+#     ITER 1 pvalue 3.1e-003 pos 6 neg 2 score_threshold 6.270
+#     ITER 2 pvalue 9.5e-004 pos 6 neg 1 score_threshold 9.260
+# Testing palindromic version of model: pal log_pvalue -6.963 non-pal log_pvalue -10.244 log_pvalue_ratio 0.680 ED 7.199...
+# Using non-palindromic version of final model...
+#  Refining final model: 'ACCGCTTCCAC' 'ACCGCTKCCAY'
+# REFINESEEDS	0.00 seconds 	(cumulative 1.36 seconds)
+# BEST-5 'ACCGCTTCCAC' 'ACCGCTKCCAY' w 11 start_w 9 pos_count 7 neg_count 0 train_pvalue 3.6e-005 train_ratio 8.0 test_pos 0 test_neg 0 test_pvalue 1.0e+000 test_ratio 0.0 score_thr 11.01
+
+# FINDBESTMODEL	0.00 seconds 	(cumulative 1.36 seconds)
+# Erasing 7 positive and 0 negative matches to the motif from seed: ACCGCTTCCAC
+# Positive sequences "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp_pos.fa" - training: 35 hold-out: 0
+# Negative sequences "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp_neg.fa" - training: 106 hold-out: 0
+# Estimating background model from control sequences.
+# Background: A 0.29 C 0.21 G 0.21 T 0.29
+# Background order: 2 Background size: 84
+# Using Fisher Exact test for p-values.
+# Freeing storage...

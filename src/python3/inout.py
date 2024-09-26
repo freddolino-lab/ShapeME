@@ -725,12 +725,13 @@ class Motif:
         )[:,0,:,:]
         return rec_windows
 
-    def scan(self, ragged_rec_db):
+    def scan(self, ragged_rec_db, sequences):
         """Scans this motif for occurrences in target
 
         Args:
         -----
         ragged_rec_db: RaggedRecordDatabase
+        sequences: dictionary of rec_nam, fasta nucleotide sequence key,value pairs
         """
 
         if not ragged_rec_db.normalized:
@@ -742,6 +743,7 @@ class Motif:
         threshold = self.threshold
         hits = []
         for rec_name,rec_shapes in ragged_rec_db.X.items():
+            fa_seq = sequences.pull_entry(rec_name)
             #print(rec_name)
             # iterate over rec_shapes in len(self) length windows
             # windows is shape (W,S,MW,SN), where
@@ -777,13 +779,15 @@ class Motif:
 
             if plus_hits.size > 0:
                 for i,start in enumerate(plus_starts):
+                    hit_seq = fa_seq.pull_seq(start = start-1, end = plus_ends[i])
                     hits.append((
-                        self.identifier, self.alt_name, rec_name, start, plus_ends[i], "+", plus_dists[i], 1, 1, ""
+                        self.identifier, self.alt_name, rec_name, start, plus_ends[i], "+", plus_dists[i], 1, 1, hit_seq
                     ))
             if minus_hits.size > 0:
                 for i,start in enumerate(minus_starts):
+                    hit_seq = fa_seq.pull_seq(start = start-1, end = minus_ends[i], rc=True)
                     hits.append((
-                        self.identifier, self.alt_name, rec_name, start, minus_ends[i], "-", minus_dists[i], 1, 1, ""
+                        self.identifier, self.alt_name, rec_name, start, minus_ends[i], "-", minus_dists[i], 1, 1, hit_seq
                     ))
         return hits
 
@@ -1185,17 +1189,18 @@ class Motifs:
             outstr += "\n"
         return outstr
 
-    def identify(self, ragged_rec_db):
+    def identify(self, ragged_rec_db, sequences):
         """Identifies instances of motifs in target shapes.
 
         Args:
         -----
         ragged_rec_db : RaggedRecordDatabase
+        sequences: dictionary of rec_nam, fasta nucleotide sequence key,value pairs
         """
 
         hits_info = []
         for motif in self:
-            hits = motif.scan(ragged_rec_db)
+            hits = motif.scan(ragged_rec_db, sequences)
             hits_info.extend(hits)
 
         # sort by ("seqname", "start")

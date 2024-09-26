@@ -1,0 +1,54 @@
+{
+ "out_fname": "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/rust_results.json",
+ "shape_fname": "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/shapes.npy",
+ "yvals_fname": "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/y_vals.npy",
+ "alpha": 0.01,
+ "max_count": 1,
+ "kmer": 10,
+ "cores": 64,
+ "seed_sample_size": 500,
+ "records_per_seed": 20,
+ "windows_per_record": 2,
+ "thresh_sd_from_mean": 2.0,
+ "threshold_lb": 0.0,
+ "threshold_ub": 3.0,
+ "shape_lb": -4.0,
+ "shape_ub": 4.0,
+ "weight_lb": -4.0,
+ "weight_ub": 4.0,
+ "temperature": 0.25,
+ "stepsize": 0.25,
+ "n_opt_iter": 20000,
+ "t_adjust": 0.0002,
+ "batch_size": 500,
+ "max_batch_no_new": 5,
+ "good_motif_out_fname": "/expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/shape_and_seq_post_opt_cmi_filtered_motifs_temp_0.25_stepsize_0.25_alpha_0.01_max_count_1.pkl",
+ "names": [
+  "EP",
+  "HelT",
+  "MGW",
+  "ProT",
+  "Roll"
+ ],
+ "indices": [
+  0,
+  1,
+  2,
+  3,
+  4
+ ],
+ "centers": [
+  -6.73,
+  34.61,
+  5.0,
+  -7.0,
+  -2.02
+ ],
+ "spreads": [
+  1.6456860000000004,
+  1.6012079999999973,
+  0.5485620000000001,
+  4.67019,
+  1.63086
+ ]
+}

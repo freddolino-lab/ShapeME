@@ -1,0 +1,32 @@
+
+infer_motifs binary using 64 cores via rayon
+Max number of batches allowed prior to terminating initial seed evaluation: 5
+
+Making Seeds from batch 1 of RecordsDB.
+Calculating initial threshold
+Initial threshold is 0.7141022997026846
+Doing MI calculation for batch 1.
+MI calculation for batch 1 took 0.04388298795 minutes.
+6627 seeds in batch 1 prior to CMI-based filtering.
+No informative seeds present in batch 1,
+                    retaining top-scoring seed to fall back on if 
+                    no informative motif is identified during
+                    initial search.
+0 motifs.
+1 low info motifs.
+No new motifs added to list for 1 batch.
+
+No informative seeds identified after initial search. Moving to optimization with 1 highest-information seeds from the low-information pool.
+Optimizing motif 0 using simulated annealing.
+Optimizing motif 0 took 0.5400919053000001 minutes.
+It started with an adjusted mutual information of 0.23603142042857103, and ended with a value of 0.490608832451362.
+
+Filtering optimized motifs based on conditional mutual information.
+rec_num: 141
+shape_num: 5
+win_len: 10
+delta_k: 101
+Motif 0 AMI is 0.490608832451362
+AIC: 63.64830924871592
+0 motifs left after CMI-based filtering.
+No shape motifs found by infer_motifs binary.

@@ -1,0 +1,719 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html xmlns:cis="http://zlab.bu.edu/schema/cisml" xmlns:fimo="http://noble.gs.washington.edu/schema/cisml" xmlns:mem="http://noble.gs.washington.edu/meme">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta charset="UTF-8">
+<title>FIMO Results</title>
+<style type="text/css">
+td.left {text-align: left;}
+td.right {text-align: right; padding-right: 1cm;}
+</style>
+</head>
+<body color="#000000">
+<a name="top_buttons"></a>
+<hr>
+<table summary="buttons" align="left" cellspacing="0">
+<tr>
+<td bgcolor="#00FFFF"><a href="#database_and_motifs"><b>Database and Motifs</b></a></td>
+<td bgcolor="#DDFFDD"><a href="#sec_i"><b>High-scoring Motif Occurences</b></a></td>
+<td bgcolor="#DDDDFF"><a href="#debugging_information"><b>Debugging Information</b></a></td>
+<td bgcolor="#FFDD00"><a href="fimo.tsv""><b>Results in TSV Format</b></a></td>
+<td bgcolor="#FFDDFF"><a href="fimo.gff""><b>Results in GFF3 Format</b></a></td>
+</tr>
+</table>
+<br/>
+<br/>
+<hr/>
+<center><big><b>FIMO - Motif search tool</b></big></center>
+<hr>
+<p>
+FIMO version 5.5.3, (Release date: Sat Jun 10 16:19:38 2023 -0700)
+</p>
+<p>
+For further information on how to interpret these results please access <a href="https://meme-suite.org/meme/doc/fimo-output-format.html">https://meme-suite.org/meme/doc/fimo-output-format.html</a>.<br>
+To get a copy of the FIMO software please access <a href="https://meme-suite.org">https://meme-suite.org</a>
+
+</p>
+<p>If you use FIMO in your research, please cite the following paper:<br>
+Charles E. Grant, Timothy L. Bailey, and William Stafford Noble,
+"FIMO: Scanning for occurrences of a given motif",
+<i>Bioinformatics</i>, <b>27</b>(7):1017-1018, 2011.
+<a href="http://bioinformatics.oxfordjournals.org/content/27/7/1017">[full text]</a></p>
+<hr>
+<center><big><b><a name="database_and_motifs">DATABASE AND MOTIFS</a></b></big></center>
+<hr>
+<div style="padding-left: 0.75in; line-height: 1em; font-family: monospace;">
+<p>
+  DATABASE /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp8it2zdqw/tmp_seq.fa
+  <br />
+  Database contains 141 sequences, 8460 residues
+</p>
+<p>
+  MOTIFS /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/streme_out/streme.txt (DNA)
+  <table>
+    <thead>
+      <tr>
+        <th style="border-bottom: 1px dashed;">MOTIF</th>
+        <th style="border-bottom: 1px dashed; padding-left: 1em;">WIDTH</th>
+        <th style="border-bottom: 1px dashed; padding-left: 1em;text-align:left;" >
+         BEST POSSIBLE MATCH
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align:right;">1-AGAGCGBMC</td>
+        <td style="text-align:right;padding-left: 1em;">9</td>
+        <td style="text-align:left;padding-left: 1em;">AGAGCGGAC</td>
+       </tr>
+      <tr>
+        <td style="text-align:right;">2-CCSCGACG</td>
+        <td style="text-align:right;padding-left: 1em;">8</td>
+        <td style="text-align:left;padding-left: 1em;">CCCCGACG</td>
+       </tr>
+      <tr>
+        <td style="text-align:right;">3-ACCAAYCAKAA</td>
+        <td style="text-align:right;padding-left: 1em;">11</td>
+        <td style="text-align:left;padding-left: 1em;">ACCAATCATAA</td>
+       </tr>
+      <tr>
+        <td style="text-align:right;">4-ACCGCTKCCAY</td>
+        <td style="text-align:right;padding-left: 1em;">11</td>
+        <td style="text-align:left;padding-left: 1em;">ACCGCTTCCAC</td>
+       </tr>
+      <tr>
+        <td style="text-align:right;">5-AATTSGCYTTCKK</td>
+        <td style="text-align:right;padding-left: 1em;">13</td>
+        <td style="text-align:left;padding-left: 1em;">AATTGGCTTTCGT</td>
+       </tr>
+    </tbody>
+  </table>
+</p>
+<p>
+Random model letter frequencies (--nrdb--):
+<br/>
+
+A 0.275 C 0.225 G 0.225 T 0.275 </p>
+</div>
+<hr>
+<center><big><b><a name="sec_i">SECTION I: HIGH-SCORING MOTIF OCCURENCES</a></b></big></center>
+<hr>
+<ul>
+<li>
+There were 47 motif occurences with a p-value less than 0.0001.
+
+The full set of motif occurences can be seen in the
+TSV (tab-delimited values) output file
+<a href="fimo.tsv">fimo.tsv</a>, 
+the GFF3 file 
+<a href="fimo.gff">fimo.gff</a> 
+which may be suitable for uploading to the 
+<a href="http://genome.ucsc.edu/cgi-bin/hgTables">UCSC Genome Table Browser</a>
+(assuming the FASTA input sequences included genomic coordinates in UCSC or Galaxy format),
+or the XML file 
+<a href="fimo.xml">fimo.xml</a>.
+</li>
+<li>
+The <i>p</i>-value of a motif occurrence is defined as the
+probability of a random sequence of the same length as the motif
+matching that position of the sequence with as good or better a score.
+</li>
+<li>
+The score for the match of a position in a sequence to a motif
+is computed by summing the appropriate entries from each column of
+the position-dependent scoring matrix that represents the motif.
+</li>
+<li>
+The q-value of a motif occurrence is defined as the
+false discovery rate if the occurrence is accepted as significant.
+</li>
+<li>The table is sorted by increasing <i>p</i>-value.</li>
+</ul>
+<table border="1">
+<thead>
+<tr>
+<th>Motif ID</th>
+<th>Alt ID</th>
+<th>Sequence Name</th>
+<th>Strand</th>
+<th>Start</th>
+<th>End</th>
+<th>p-value</th>
+<th>q-value</th>
+<th>Matched Sequence</th>
+</tr>
+</thead>
+<tbody>
+    <tr>
+      <td style="text-align:left;">5-AATTSGCYTTCKK</td>
+      <td style="text-align:left;">STREME-5</td>
+      <td style="text-align:left;">peak_38</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">45</td>
+      <td style="text-align:left;">57</td>
+      <td style="text-align:left;">6.57e-08</td>
+      <td style="text-align:left;">0.000173</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AATTGGCCTTCTT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">5-AATTSGCYTTCKK</td>
+      <td style="text-align:left;">STREME-5</td>
+      <td style="text-align:left;">peak_4</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">19</td>
+      <td style="text-align:left;">31</td>
+      <td style="text-align:left;">9.66e-08</td>
+      <td style="text-align:left;">0.000173</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AATTGGCTTTCGG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">4-ACCGCTKCCAY</td>
+      <td style="text-align:left;">STREME-4</td>
+      <td style="text-align:left;">peak_3</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">27</td>
+      <td style="text-align:left;">37</td>
+      <td style="text-align:left;">3.06e-07</td>
+      <td style="text-align:left;">0.00102</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCGCTTCCAC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_8</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">2</td>
+      <td style="text-align:left;">12</td>
+      <td style="text-align:left;">3.7e-07</td>
+      <td style="text-align:left;">0.00102</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCAATCATAA</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_22</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">18</td>
+      <td style="text-align:left;">26</td>
+      <td style="text-align:left;">2.72e-06</td>
+      <td style="text-align:left;">0.00438</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGGAC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_42</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">39</td>
+      <td style="text-align:left;">47</td>
+      <td style="text-align:left;">2.72e-06</td>
+      <td style="text-align:left;">0.00438</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGGAC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">4-ACCGCTKCCAY</td>
+      <td style="text-align:left;">STREME-4</td>
+      <td style="text-align:left;">peak_37</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">34</td>
+      <td style="text-align:left;">44</td>
+      <td style="text-align:left;">2.85e-06</td>
+      <td style="text-align:left;">0.00474</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCGCTTCCCT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">5-AATTSGCYTTCKK</td>
+      <td style="text-align:left;">STREME-5</td>
+      <td style="text-align:left;">peak_30</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">45</td>
+      <td style="text-align:left;">57</td>
+      <td style="text-align:left;">2.93e-06</td>
+      <td style="text-align:left;">0.00277</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AATTGGCTCTTGT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">5-AATTSGCYTTCKK</td>
+      <td style="text-align:left;">STREME-5</td>
+      <td style="text-align:left;">peak_5</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">38</td>
+      <td style="text-align:left;">50</td>
+      <td style="text-align:left;">3.1e-06</td>
+      <td style="text-align:left;">0.00277</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AAGTCGCCTTCCT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_10</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">6</td>
+      <td style="text-align:left;">16</td>
+      <td style="text-align:left;">3.81e-06</td>
+      <td style="text-align:left;">0.00524</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCAACCATAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_2</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">1</td>
+      <td style="text-align:left;">9</td>
+      <td style="text-align:left;">4.95e-06</td>
+      <td style="text-align:left;">0.00532</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGGCC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_38</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">10</td>
+      <td style="text-align:left;">20</td>
+      <td style="text-align:left;">6.43e-06</td>
+      <td style="text-align:left;">0.0059</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCAATCGTAA</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">5-AATTSGCYTTCKK</td>
+      <td style="text-align:left;">STREME-5</td>
+      <td style="text-align:left;">peak_29</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">48</td>
+      <td style="text-align:left;">60</td>
+      <td style="text-align:left;">7.42e-06</td>
+      <td style="text-align:left;">0.0053</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGTTGGCCTTGTG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_4</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">35</td>
+      <td style="text-align:left;">43</td>
+      <td style="text-align:left;">7.67e-06</td>
+      <td style="text-align:left;">0.00618</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGCAC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">2-CCSCGACG</td>
+      <td style="text-align:left;">STREME-2</td>
+      <td style="text-align:left;">peak_14</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">18</td>
+      <td style="text-align:left;">25</td>
+      <td style="text-align:left;">8.13e-06</td>
+      <td style="text-align:left;">0.00981</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">CCCCGACG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">2-CCSCGACG</td>
+      <td style="text-align:left;">STREME-2</td>
+      <td style="text-align:left;">peak_2</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">27</td>
+      <td style="text-align:left;">34</td>
+      <td style="text-align:left;">8.13e-06</td>
+      <td style="text-align:left;">0.00981</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">CCCCGACG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">2-CCSCGACG</td>
+      <td style="text-align:left;">STREME-2</td>
+      <td style="text-align:left;">peak_1</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">45</td>
+      <td style="text-align:left;">52</td>
+      <td style="text-align:left;">8.13e-06</td>
+      <td style="text-align:left;">0.00981</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">CCCCGACG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_6</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">1</td>
+      <td style="text-align:left;">11</td>
+      <td style="text-align:left;">9.2e-06</td>
+      <td style="text-align:left;">0.00633</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GCCAACCAGAA</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_25</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">31</td>
+      <td style="text-align:left;">39</td>
+      <td style="text-align:left;">9.9e-06</td>
+      <td style="text-align:left;">0.00639</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGCCC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_17</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">4</td>
+      <td style="text-align:left;">14</td>
+      <td style="text-align:left;">1.34e-05</td>
+      <td style="text-align:left;">0.00737</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GCCAATCAGAC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">5-AATTSGCYTTCKK</td>
+      <td style="text-align:left;">STREME-5</td>
+      <td style="text-align:left;">peak_26</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">31</td>
+      <td style="text-align:left;">43</td>
+      <td style="text-align:left;">1.57e-05</td>
+      <td style="text-align:left;">0.00933</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AACTCGGTATCGT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">2-CCSCGACG</td>
+      <td style="text-align:left;">STREME-2</td>
+      <td style="text-align:left;">peak_26</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">26</td>
+      <td style="text-align:left;">33</td>
+      <td style="text-align:left;">1.63e-05</td>
+      <td style="text-align:left;">0.0147</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">CCGCGACG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_9</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">41</td>
+      <td style="text-align:left;">49</td>
+      <td style="text-align:left;">2.09e-05</td>
+      <td style="text-align:left;">0.0112</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGTCC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">4-ACCGCTKCCAY</td>
+      <td style="text-align:left;">STREME-4</td>
+      <td style="text-align:left;">peak_26</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">1</td>
+      <td style="text-align:left;">11</td>
+      <td style="text-align:left;">2.42e-05</td>
+      <td style="text-align:left;">0.0269</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GCCGGTGCCAT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_24</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">37</td>
+      <td style="text-align:left;">47</td>
+      <td style="text-align:left;">2.75e-05</td>
+      <td style="text-align:left;">0.0114</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCAATGATCA</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_1</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">1</td>
+      <td style="text-align:left;">9</td>
+      <td style="text-align:left;">2.77e-05</td>
+      <td style="text-align:left;">0.0117</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGCAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_20</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">22</td>
+      <td style="text-align:left;">32</td>
+      <td style="text-align:left;">2.9e-05</td>
+      <td style="text-align:left;">0.0114</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCAGTTATAA</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_7</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">24</td>
+      <td style="text-align:left;">32</td>
+      <td style="text-align:left;">2.99e-05</td>
+      <td style="text-align:left;">0.0117</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGCCG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">2-CCSCGACG</td>
+      <td style="text-align:left;">STREME-2</td>
+      <td style="text-align:left;">peak_16</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">14</td>
+      <td style="text-align:left;">21</td>
+      <td style="text-align:left;">3.28e-05</td>
+      <td style="text-align:left;">0.0238</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">CCCCGGCG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_13</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">24</td>
+      <td style="text-align:left;">32</td>
+      <td style="text-align:left;">3.32e-05</td>
+      <td style="text-align:left;">0.0117</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGGAT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_30</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">10</td>
+      <td style="text-align:left;">20</td>
+      <td style="text-align:left;">3.38e-05</td>
+      <td style="text-align:left;">0.0116</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GCCAATCCGAA</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">4-ACCGCTKCCAY</td>
+      <td style="text-align:left;">STREME-4</td>
+      <td style="text-align:left;">peak_21</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">41</td>
+      <td style="text-align:left;">51</td>
+      <td style="text-align:left;">3.52e-05</td>
+      <td style="text-align:left;">0.0292</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GCAGCTTCCCC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">5-AATTSGCYTTCKK</td>
+      <td style="text-align:left;">STREME-5</td>
+      <td style="text-align:left;">peak_9_1</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">4</td>
+      <td style="text-align:left;">16</td>
+      <td style="text-align:left;">3.63e-05</td>
+      <td style="text-align:left;">0.0185</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGCTGGGCATGGT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_40</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">51</td>
+      <td style="text-align:left;">59</td>
+      <td style="text-align:left;">3.81e-05</td>
+      <td style="text-align:left;">0.0117</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGGCT</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_7</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">8</td>
+      <td style="text-align:left;">16</td>
+      <td style="text-align:left;">4e-05</td>
+      <td style="text-align:left;">0.0117</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GGAGCGCCC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_41</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">48</td>
+      <td style="text-align:left;">58</td>
+      <td style="text-align:left;">4.15e-05</td>
+      <td style="text-align:left;">0.0127</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AACAACCATAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">2-CCSCGACG</td>
+      <td style="text-align:left;">STREME-2</td>
+      <td style="text-align:left;">peak_22</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">35</td>
+      <td style="text-align:left;">42</td>
+      <td style="text-align:left;">4.91e-05</td>
+      <td style="text-align:left;">0.0296</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">CCCGGACG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_33</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">5</td>
+      <td style="text-align:left;">13</td>
+      <td style="text-align:left;">4.93e-05</td>
+      <td style="text-align:left;">0.0125</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGTAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_15</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">39</td>
+      <td style="text-align:left;">47</td>
+      <td style="text-align:left;">5.43e-05</td>
+      <td style="text-align:left;">0.0125</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGTCG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_32</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">47</td>
+      <td style="text-align:left;">55</td>
+      <td style="text-align:left;">5.43e-05</td>
+      <td style="text-align:left;">0.0125</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AGAGCGTCG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_40</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">23</td>
+      <td style="text-align:left;">33</td>
+      <td style="text-align:left;">5.51e-05</td>
+      <td style="text-align:left;">0.0152</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACCAGCGAGAC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_23</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">48</td>
+      <td style="text-align:left;">56</td>
+      <td style="text-align:left;">6.16e-05</td>
+      <td style="text-align:left;">0.0133</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GGAGCGGAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">4-ACCGCTKCCAY</td>
+      <td style="text-align:left;">STREME-4</td>
+      <td style="text-align:left;">peak_15</td>
+      <td style="text-align:center;">+</td>
+      <td style="text-align:left;">26</td>
+      <td style="text-align:left;">36</td>
+      <td style="text-align:left;">6.53e-05</td>
+      <td style="text-align:left;">0.0435</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">GCCGCAGCTAC</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">3-ACCAAYCAKAA</td>
+      <td style="text-align:left;">STREME-3</td>
+      <td style="text-align:left;">peak_43_0</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">30</td>
+      <td style="text-align:left;">40</td>
+      <td style="text-align:left;">8.63e-05</td>
+      <td style="text-align:left;">0.0216</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">AACAGTCAGAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">2-CCSCGACG</td>
+      <td style="text-align:left;">STREME-2</td>
+      <td style="text-align:left;">peak_19</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">7</td>
+      <td style="text-align:left;">14</td>
+      <td style="text-align:left;">8.69e-05</td>
+      <td style="text-align:left;">0.0449</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">CCGCGAAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">4-ACCGCTKCCAY</td>
+      <td style="text-align:left;">STREME-4</td>
+      <td style="text-align:left;">peak_40</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">11</td>
+      <td style="text-align:left;">21</td>
+      <td style="text-align:left;">9.17e-05</td>
+      <td style="text-align:left;">0.0508</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACGGCTGCTAG</td>
+   </tr>
+    <tr>
+      <td style="text-align:left;">1-AGAGCGBMC</td>
+      <td style="text-align:left;">STREME-1</td>
+      <td style="text-align:left;">peak_25</td>
+      <td style="text-align:center;">-</td>
+      <td style="text-align:left;">3</td>
+      <td style="text-align:left;">11</td>
+      <td style="text-align:left;">9.76e-05</td>
+      <td style="text-align:left;">0.0197</td>
+      <td style="text-align:left;font-size:x-large;font-family:monospace;">ACAGCGCCC</td>
+   </tr>
+</tbody>
+</table>
+
+<hr>
+<center><big><b><a name="debugging_information">DEBUGGING INFORMATION</a></b></big></center>
+<hr>
+<p>
+Command line:
+</p>
+<pre>
+fimo --max-strand --motif-pseudo 0.0 --oc /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/fimo_out /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/streme_out/streme.txt /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp8it2zdqw/tmp_seq.fa
+</pre>
+<p>
+Settings:
+</p>
+<pre>
+<table>
+  <tr>
+    <td style="padding-right: 2em">output_directory = /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/fimo_out</td>
+    <td style="padding-left: 5em; padding-right: 2em">MEME file name = /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/streme_out/streme.txt</td>
+    <td style="padding-left: 5em; padding-right: 2em">sequence file name = /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp8it2zdqw/tmp_seq.fa</td>
+  </tr>  <tr>
+    <td style="padding-right: 2em">background file name = --nrdb--</td>
+    <td style="padding-left: 5em; padding-right: 2em">alphabet = DNA</td>
+    <td style="padding-left: 5em; padding-right: 2em">max stored scores = 100000</td>
+  </tr>  <tr>
+    <td style="padding-right: 2em">allow clobber = true</td>
+    <td style="padding-left: 5em; padding-right: 2em">compute q-values = true</td>
+    <td style="padding-left: 5em; padding-right: 2em">parse genomic coord. = false</td>
+  </tr>
+  <tr>
+    <td style="padding-right: 2em">text only = false</td>
+    <td style="padding-left: 5em; padding-right: 2em">scan both strands = true</td>
+    <td style="padding-left: 5em; padding-right: 2em">max strand = true</td>
+  </tr>
+  <tr>
+    <td style="padding-right: 2em">threshold type = p-value</td>
+    <td style="padding-left: 5em; padding-right: 2em">output theshold = 0.0001</td>
+    <td style="padding-left: 5em; padding-right: 2em">pseudocount = 0</td>
+  </tr>
+  <tr>
+    <td style="padding-right: 2em">alpha = 1</td>
+    <td style="padding-left: 5em; padding-right: 2em">verbosity = 2</td>
+    <td style="padding-left: 5em; padding-right: 2em"></td>
+  </tr>
+
+</table>
+</pre>
+<p>
+This information can be useful in the event you wish to report a
+problem with the FIMO software.
+</p>
+<hr>
+<span style="background-color: #DDDDFF"><a href="#top_buttons"><b>Go to top</b></a></span>
+</body>
+</html>

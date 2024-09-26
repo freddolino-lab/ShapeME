@@ -1,0 +1,40 @@
+Using motif +1-AGAGCGBMC of width 9.
+Using motif -1-AGAGCGBMC of width 9.
+Computing q-values.
+# Computing q-values.
+#   Estimating pi_0 from a uniformly sampled set of 7332 p-values.
+#   Estimating pi_0.
+# Minimal pi_zero = 0.439989
+#   Estimated pi_0=0.439989
+Using motif +2-CCSCGACG of width 8.
+Using motif -2-CCSCGACG of width 8.
+Computing q-values.
+# Computing q-values.
+#   Estimating pi_0 from a uniformly sampled set of 7473 p-values.
+#   Estimating pi_0.
+# Minimal pi_zero = 0.484411
+#   Estimated pi_0=0.484411
+Using motif +3-ACCAAYCAKAA of width 11.
+Using motif -3-ACCAAYCAKAA of width 11.
+Computing q-values.
+# Computing q-values.
+#   Estimating pi_0 from a uniformly sampled set of 7050 p-values.
+#   Estimating pi_0.
+# Minimal pi_zero = 0.390071
+#   Estimated pi_0=0.390071
+Using motif +4-ACCGCTKCCAY of width 11.
+Using motif -4-ACCGCTKCCAY of width 11.
+Computing q-values.
+# Computing q-values.
+#   Estimating pi_0 from a uniformly sampled set of 7050 p-values.
+#   Estimating pi_0.
+# Minimal pi_zero = 0.471773
+#   Estimated pi_0=0.471773
+Using motif +5-AATTSGCYTTCKK of width 13.
+Using motif -5-AATTSGCYTTCKK of width 13.
+Computing q-values.
+# Computing q-values.
+#   Estimating pi_0 from a uniformly sampled set of 6768 p-values.
+#   Estimating pi_0.
+# Minimal pi_zero = 0.528073
+#   Estimated pi_0=0.528073

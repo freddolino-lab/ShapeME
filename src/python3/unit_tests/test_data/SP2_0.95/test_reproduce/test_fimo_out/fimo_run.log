@@ -1,0 +1,5 @@
+
+Running fimo on all sequences in /corexfs/schroedj/src/ShapeME/src/python3/unit_tests/test_data/SP2_0.95/tmp906dqji8fold_2_test.fa using motifs in /corexfs/schroedj/src/ShapeME/src/python3/unit_tests/test_data/SP2_0.95/test_reproduce/seq_motifs.meme
+
+Running fimo command:
+fimo --max-strand --motif-pseudo 0.0 --oc /corexfs/schroedj/src/ShapeME/src/python3/unit_tests/test_data/SP2_0.95/test_reproduce/test_fimo_out --thresh 0.05 /corexfs/schroedj/src/ShapeME/src/python3/unit_tests/test_data/SP2_0.95/test_reproduce/seq_motifs.meme /corexfs/schroedj/src/ShapeME/src/python3/unit_tests/test_data/SP2_0.95/tmp906dqji8fold_2_test.fa

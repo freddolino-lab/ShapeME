@@ -1,0 +1,3 @@
+
+Running streme command:
+streme --evalue --thresh 0.05  --p /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp_pos.fa --n /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/tmp/tmp_neg.fa --dna --oc /expanse/lustre/projects/mia174/jwschroeder/motif_data/SP2_0.95/shape_and_seq_fold_2_output/streme_out
