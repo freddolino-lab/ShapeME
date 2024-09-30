@@ -1323,7 +1323,7 @@ def prep_data(args):
         f"{np_fname} {fa_fname} seqs "\
         f"--wsize {wsize} "\
         f"--nrand {nrand} "\
-        f"--center_metric {center_metric}"\
+        f"--center_metric {center_metric} "\
         f"--out_dir {out_dir}"
     if max_peaks != 0:
         PREP_EXE += f" --max_peaks {max_peaks}"

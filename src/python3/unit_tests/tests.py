@@ -444,7 +444,6 @@ class TestFastaMethods(unittest.TestCase):
         self.assertTrue(same)
 
 
-
 class TestMotifMethods(unittest.TestCase):
 
     def setUp(self):
@@ -535,7 +534,7 @@ class TestMotifMethods(unittest.TestCase):
         self.assertTrue(np.all(true_hits == motif.hits))
         self.assertEqual(true_mi, motif.mi)
         self.assertEqual(true_thresh, motif.threshold)
-                
+
     def test_motif_shape(self):
         self.assertEqual(self.motifs[0].shape()[0], 5)
         self.assertEqual(self.motifs[0].shape()[1], 10)
@@ -697,14 +696,12 @@ class TestMotifMethods(unittest.TestCase):
             sequences.read_whole_file(seqf)
 
         transforms = self.small_motifs.transforms
-        #print(f"records X shape: {[_.shape for _ in records.X.values()]}")
         records.normalize_shapes_from_values(
             centers = (transforms["EP"][0], transforms["HelT"][0], transforms["MGW"][0], transforms["ProT"][0], transforms["Roll"][0]), 
             spreads = (transforms["EP"][1], transforms["HelT"][1], transforms["MGW"][1], transforms["ProT"][1], transforms["Roll"][1]), 
         )
 
         motif = self.small_motifs[0]
-        #print(f"motif width: {len(motif)}")
         motif.threshold = 0.01
         hits = motif.scan(records, sequences)
         motif = self.small_motifs[1]
@@ -748,7 +745,6 @@ class TestMotifMethods(unittest.TestCase):
 
         seq_motifs = inout.Motifs()
         seq_motifs.read_file("test_data/small_seq_motifs.meme")
-        #print(seq_motifs)
         fimo_res = shapeit.get_fimo_results(
             seq_motifs,
             "test_data/small_seq_motif_test_fimo.fa",
@@ -954,7 +950,6 @@ class TestRecordsMethods(unittest.TestCase):
             y,
             rng_seed=self.seed,
         )
-        print(retained_indices)
         self.assertEqual(len(samp_y), len(samp_recs))
 
 

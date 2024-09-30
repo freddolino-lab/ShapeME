@@ -1160,6 +1160,7 @@ class Motifs:
                 self.motifs = read_shape_motifs(fname, shape_lut, alt_name_base)
                 if len(self.motifs) == 0:
                     raise Exception(f"No shape motifs found in {fname}")
+                self.shape_row_lut = self.motifs[0].row_lut.copy()
                 self.motif_type = motif_type
             elif motif_type == "sequence":
                 self.motifs = parse_meme_file(fname, evalue_thresh=evalue_thresh)
@@ -1297,9 +1298,10 @@ class Motifs:
                     }
 
                 if line.startswith("SHAPES= "):
+                    elems = line.strip("SHAPES=").strip().split(" ")
                     self.shape_row_lut = {
                         i:v for i,v
-                        in enumerate(line.strip("SHAPES=").strip().split(" "))
+                        in enumerate(elems)
                     }
 
                 if line.startswith("Shape transformations"):
@@ -1453,6 +1455,7 @@ class Motifs:
 
         with open(fname, mode="w") as f:
 
+            f.write("ShapeME version 0.2.7\n\n")
             f.write("MEME version 4\n\n")
             f.write("ALPHABET= ACGT\n\n")
             f.write("strands: + -\n\n")
@@ -1477,6 +1480,7 @@ class Motifs:
         shapes_str = self.get_shape_str()
         with open(fname, mode="w") as f:
 
+            f.write("ShapeME version 0.2.7\n\n")
             f.write("MEME version 4\n\n")
             f.write("ALPHABET= ACGT\n\n")
             f.write(f"SHAPES= {shapes_str}\n\n")

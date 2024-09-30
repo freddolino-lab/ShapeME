@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument('--center_metric', type=str, 
             help="geom or height, geom gives geometric center of the peak (default). \
                     height gives narrowpeak defined peak summit.")
-    parse.add_argument("--out_dir", required=True, action="store", help="Absolute path to output director to which sequences and scores will be written")
+    parser.add_argument("--out_dir", required=True, action="store", help="Absolute path to output director to which sequences and scores will be written")
 
     args = parser.parse_args()
     np.random.seed(args.seed)

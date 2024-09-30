@@ -22,10 +22,13 @@ import pickle
 import tempfile
 
 this_path = Path(__file__).parent.absolute()
+utils_path = os.path.join(this_path, "utils")
 sys.path.insert(0, this_path)
+sys.path.insert(0, utils_path)
 
 import evaluate_motifs as evm
 import inout as io
+import fasta as fa
 
 
 def parse_args():
@@ -107,7 +110,9 @@ def identify(args):
     ident_res = ""
     if shape_motifs:
 
-        seqs = parse_fasta(seq_fasta)
+        sequences = fa.FastaFile()
+        with open(seq_fasta, "r") as seqf:
+            sequences.read_whole_file(seqf)
 
         shape_names = ["EP", "HelT", "MGW", "ProT", "Roll"]
         full_shape_fnames = ""
@@ -130,8 +135,8 @@ def identify(args):
             shape_dict = shape_fname_dict,
             shift_params = ["Roll", "HelT"],
             exclude_na = True,
-            y = np.zeros(len(seqs)),
-            record_names = [_[0] for _ in seqs],
+            y = np.zeros(len(sequences[0])),
+            record_names = sequences.names,
         )
         records.normalize_shapes_from_values(
             centers = (
@@ -152,7 +157,7 @@ def identify(args):
 
         #with open(shape_fname, 'wb') as shape_f:
         #    np.save(shape_fname, records.X.transpose((0,2,1)))
-        hits = shape_motifs.identify(records)
+        hits = shape_motifs.identify(records, sequences)
         ident_res += hits
         
 
