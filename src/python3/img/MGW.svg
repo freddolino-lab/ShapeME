@@ -1,18 +1,33 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="210mm"
    height="297mm"
    viewBox="0 0 210 297"
    version="1.1"
    id="svg147"
-   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   inkscape:version="1.0.2 (e86c870879, 2021-01-15)"
    sodipodi:docname="MGW.svg"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
+   inkscape:export-filename="/corexfs/schroedj/src/ShapeME/src/python3/img/MGW.png"
+   inkscape:export-xdpi="1200"
+   inkscape:export-ydpi="1200">
+  <metadata
+     id="metadata21630">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
   <sodipodi:namedview
      id="namedview149"
      pagecolor="#ffffff"
@@ -23,15 +38,16 @@
      inkscape:pagecheckerboard="0"
      inkscape:document-units="mm"
      showgrid="false"
-     inkscape:zoom="0.68328423"
-     inkscape:cx="397.34563"
-     inkscape:cy="561.9916"
+     inkscape:zoom="2.7331369"
+     inkscape:cx="384.25499"
+     inkscape:cy="464.21391"
      inkscape:window-width="1920"
-     inkscape:window-height="939"
-     inkscape:window-x="1080"
-     inkscape:window-y="503"
+     inkscape:window-height="1001"
+     inkscape:window-x="0"
+     inkscape:window-y="50"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
+     inkscape:current-layer="g2152-6"
+     inkscape:document-rotation="0" />
   <defs
      id="defs144">
     <clipPath
@@ -78,13 +94,13 @@
           <text
              xml:space="preserve"
              style="font-size:6.35px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:none;stroke-width:0.264583"
-             x="45.494789"
+             x="45.009308"
              y="79.026405"
              id="text27021"><tspan
                sodipodi:role="line"
                id="tspan27019"
-               style="fill:#ffffff;fill-opacity:1;stroke-width:0.264583"
-               x="45.494789"
+               style="font-weight:bold;fill:#ffffff;fill-opacity:1;stroke-width:0.264583"
+               x="45.009308"
                y="79.026405">W</tspan></text>
         </g>
         <path

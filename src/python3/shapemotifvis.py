@@ -327,7 +327,7 @@ def plot_shape_logo(
     #fig.legend(handles, labels, loc=legend_loc)
     print(f"Writing shape logo to {file_name}")
     #fig.tight_layout()
-    plt.savefig(file_name)
+    plt.savefig(file_name, dpi=600)
     plt.close()
     return file_name
 
@@ -586,11 +586,13 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
 def plot_motif_enrichment_seaborn(
         motifs,
         file_name,
-        records,
+        records=None,
+        distinct_cats = None,
         top_n = 30,
         robust = True,
 ):
-    distinct_cats = np.unique(records.y)
+    if records is not None:
+        distinct_cats = np.unique(records.y)
     cat_num = len(distinct_cats)
 
     var_lut = motifs.var_lut
@@ -617,7 +619,10 @@ def plot_motif_enrichment_seaborn(
             hm_data[i,j] = enrich["log2_ratio"][table_row_idx,table_col_idx]
             hm_pvals[i,j] = enrich["pvals"][table_row_idx,table_col_idx]
             hm_teststats[i,j] = enrich["test_stats"][table_row_idx,table_col_idx]
-    col_labs = [f"Bin: {int(records.category_lut[category]):d}" for category in distinct_cats]
+    if records is not None:
+        col_labs = [f"Bin: {int(records.category_lut[category]):d}" for category in distinct_cats]
+    else:
+        col_labs = [f"Bin: {category:d}" for category in distinct_cats]
 
     abs_max = np.abs(hm_data.max())
     abs_min = np.abs(hm_data.min())
@@ -627,8 +632,8 @@ def plot_motif_enrichment_seaborn(
         vmax = 6
         vmin = -6
     else:
-        vmax = None
-        vmin = None
+        vmax = lim
+        vmin = -lim
 
     nrow = len(row_labs)
     ncol = len(col_labs)
