@@ -1389,7 +1389,7 @@ pub fn filter_seeds<'a>(
         // if this seed doesn't pass AIC on its own delta_k params, skip it
         let log_lik = rec_num as f64 * cand_seed.mi;
         if info_theory::calc_aic(delta_k, log_lik) > 0.0 {
-            continue
+            break
         }
 
         let cand_hits = &cand_seed.hits;

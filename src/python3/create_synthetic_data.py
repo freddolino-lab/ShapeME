@@ -157,9 +157,14 @@ def substitute_motif_into_records(fa_file, y_cats, motif_seq,
         y = y_cats[i]
         if y == yval:
             if np.random.rand(1) < motif_frac:
+                if "," in motif_seq:
+                    motif_seqs = motif_seq.split(",")
+                    this_motif_seq = np.random.choice(motif_seqs)
+                else:
+                    this_motif_seq = motif_seq
                 substitute_motif(
                     fa_entry,
-                    motif_seq,
+                    this_motif_seq,
                     count_by_strand,
                     inter_motif_distance,
                     motif_pos,
@@ -344,6 +349,17 @@ def main():
                     yval = other_y,
                     motif_frac = motif_nonpeak_frac/2,
                 )
+
+    with open(os.path.join(out_dir, out_pre + "_main.txt"),'w') as main_fire_file:
+        main_fire_file.write("name\tscore\n")
+        for j,fa_rec in enumerate(fa_seqs):
+            main_fire_file.write("{}\t{}\n".format(fa_rec.header[1:], y_vals[j]))
+    main_fa_fname = os.path.join(out_dir, out_pre + "_main.fa")
+    with open(main_fa_fname, "w") as main_fa_file:
+        fa_seqs.write(main_fa_file)
+
+    RSCRIPT = "Rscript {}/utils/calc_shape.R {{}}".format(this_path)
+    subprocess.call(RSCRIPT.format(main_fa_fname), shell=True)
 
     kf = KFold(n_splits=folds)
     for i,(train_index, test_index) in enumerate(kf.split(y_vals)):
