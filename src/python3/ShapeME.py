@@ -442,6 +442,8 @@ def parse_args():
                 f"INFO, WARNING, ERROR, CRITICAL.")
     infer.add_argument("--lock_into_both_shape_and_seq", action="store_true", default=False,
             help=f"Include to keep combined sequence and shape model from being pruned by LASSO regression.")
+    infer.add_argument("--max_num_motifs", type=int, default=0,
+        help=f"Integer. Set to the max number of motifs to return. Defaults to 0 (no limit).")
 
     args = parser.parse_args()
     return args
@@ -491,6 +493,7 @@ def infer(args):
     max_n = args.max_n
     seq_meme_file = args.seq_meme_file
     lock_into_both_shape_and_seq = args.lock_into_both_shape_and_seq 
+    max_num_motifs = args.max_num_motifs
 
     status = "Running"
     with open(status_fname, "w") as status_f:
@@ -659,6 +662,7 @@ def infer(args):
         f"--batch_size {args.batch_size} " \
         f"--tmpdir {tmpdir} " \
         f"--log_level {args.log_level} "\
+        f"--max_num_motifs {max_num_motifs} "\
         f"--no_report"
 
     if args.exhaustive:
@@ -986,6 +990,7 @@ def infer(args):
                 f"--alpha {args.alpha} " \
                 f"--batch_size {args.batch_size} " \
                 f"--tmpdir {tmpdir} " \
+                f"--max_num_motifs {max_num_motifs} "\
                 f"--log_level {args.log_level}"
 
             if args.exhaustive:

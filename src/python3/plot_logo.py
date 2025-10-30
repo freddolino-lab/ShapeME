@@ -25,7 +25,7 @@ def main():
     seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
 
     shape_lut = {v:k for k,v in shape_motifs.shape_row_lut.items()}
-    #print(shape_lut)
+    print(shape_lut)
     plot_fnames = smv.plot_logos(
         motifs,
         final_motif_plot_suffix,

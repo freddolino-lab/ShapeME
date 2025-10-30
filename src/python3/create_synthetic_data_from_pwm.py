@@ -89,14 +89,14 @@ def make_continuous_y_vals(n_records, cat_centers, cat_sd, noise_center, noise_s
     return y_vals,y_cats
     
 
-def substitute_motif(fa_rec, motif_seq, count_by_strand = (1,0),
+def substitute_motif(fa_rec, motif, count_by_strand = (1,0),
                      inter_motif_dist = 5, motif_pos = None):
     '''Substitute the motif's sequence at randomly chosen position.
     
     Args:
     -----
     fa_rec : FastaEntry
-    motif_seq : str
+    motif : instance of Motif class
     motif_pos : int
     count_by_strand : tuple
         Number of occurrances of motif on (+,-) strands.
@@ -111,7 +111,7 @@ def substitute_motif(fa_rec, motif_seq, count_by_strand = (1,0),
 
     # randomly choose start position for motif within this record
     seq_len = len(fa_rec.seq)
-    motif_len = len(motif_seq)
+    motif_len = len(motif)
 
     number_of_occurrences = np.sum(count_by_strand)
     total_len = (
@@ -126,12 +126,11 @@ def substitute_motif(fa_rec, motif_seq, count_by_strand = (1,0),
 
     # substitute motif at randomly chosen position
     for i,occurrences in enumerate(count_by_strand):
-        if i == 1:
-            motif_seq = complement(motif_seq)
+        motif_instance_seq = motif.make_seq_from_pwd()
         for j in range(occurrences):
             upstream_seq = fa_rec.seq[:motif_pos]
             downstream_seq = fa_rec.seq[(motif_pos+motif_len):]
-            fa_rec.seq = upstream_seq + motif_seq + downstream_seq
+            fa_rec.seq = upstream_seq + motif_instance_seq + downstream_seq
             motif_pos += motif_len + inter_motif_dist
 
 
@@ -145,7 +144,7 @@ def complement(sequence):
     return ''.join(comp_seq)[::-1]
 
 
-def substitute_motif_into_records(fa_file, y_cats, motif_seq,
+def substitute_motif_into_records(fa_file, y_cats, motifs,
                                   count_by_strand = (1,0),
                                   inter_motif_distance = 5,
                                   motif_pos = None, yval=1, motif_frac = 1.0):
@@ -157,14 +156,13 @@ def substitute_motif_into_records(fa_file, y_cats, motif_seq,
         y = y_cats[i]
         if y == yval:
             if np.random.rand(1) < motif_frac:
-                if "," in motif_seq:
-                    motif_seqs = motif_seq.split(",")
-                    this_motif_seq = np.random.choice(motif_seqs)
+                if len(motifs) > 1:
+                    raise "Insertion of known motifs from a pwm is currently only implemented for meme files containing a single sequence motif pwm."
                 else:
-                    this_motif_seq = motif_seq
+                    motif = motifs[0]
                 substitute_motif(
                     fa_entry,
-                    this_motif_seq,
+                    motif,
                     count_by_strand,
                     inter_motif_distance,
                     motif_pos,
@@ -183,8 +181,8 @@ def main():
                          help="prefix to place at beginning of output file names.")
     parser.add_argument('--seqlen', action='store', type=int, default=60,
                          help="Length of sequences in synthetic dataset (default is 60).")
-    parser.add_argument('--motifs', action='store', type=str, nargs='+',
-                         help="Space-separated list of sequences of the motifs to place in the peaks")
+    parser.add_argument('--meme_file', action='store', type=str,
+                         help="Name of meme-formatted file containing the PWMs from which to draw motif ocurrences")
     parser.add_argument('--motif_peak_frac', action='store', type=float, default=1.0,
                          help="Fraction of peaks to place motif into (default is 1.0)")
     parser.add_argument('--motif_nonpeak_frac', action='store', type=float, default=0.0,
@@ -200,7 +198,6 @@ def main():
     parser.add_argument('--ncats', action='store', type=int, default=2, help="The number of categories containing motifs (see --pivot-category if you want to add one extra category without any motif).")
     parser.add_argument('--pivot-category', action='store_true', default=False, help="If this flag is set, an extra category will be present in the synthetic data in which no motif is expected to be enriched. Ignored if ncats=1, since in that case, cat 1 will have the motif and cat 0 will not.")
     parser.add_argument('--folds', action='store', type=int, default=5, help="The number of folds for k-fold CV.")
-    parser.add_argument('--noshapes', action='store_true', help="include at command line if you only want sequences produced.")
 
     args = parser.parse_args()
 
@@ -211,18 +208,18 @@ def main():
     seq_len = args.seqlen
     rec_num = args.recnum
     frac_peaks = args.fracpeaks
-    motifs = args.motifs
+    meme_file = args.meme_file
     plus_strand_count = args.motif_count_plus
     minus_strand_count = args.motif_count_minus
     inter_motif_dist = args.inter_motif_distance
     motif_peak_frac = args.motif_peak_frac
     motif_nonpeak_frac = args.motif_nonpeak_frac
     out_pre = args.outpre
-    noshapes = args.noshapes
 
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
 
+    motifs = inout.parse_meme_file(meme_file)
     motif_len = len(motifs[0])
 
     fa_seqs = make_random_seqs(rec_num, length = seq_len)
@@ -237,7 +234,7 @@ def main():
             substitute_motif_into_records(
                 fa_seqs,
                 y_vals,
-                motifs[0],
+                motifs,
                 (plus_strand_count, minus_strand_count),
                 inter_motif_dist,
                 yval = 1,
@@ -245,70 +242,71 @@ def main():
             )
 
 
-        else:
-            # add one to ncats if the user decided to include a pivot
-            if args.pivot_category:
-                ncats += 1
-            # approximately even number of records per category
-            y_vals = make_categorical_y_vals(rec_num, n_cats=ncats)
-            distinct_cats = np.unique(y_vals)
-            if args.pivot_category:
-                distinct_cats = distinct_cats[:-1]
+    #    else:
+    #        # add one to ncats if the user decided to include a pivot
+    #        if args.pivot_category:
+    #            ncats += 1
+    #        # approximately even number of records per category
+    #        y_vals = make_categorical_y_vals(rec_num, n_cats=ncats)
+    #        distinct_cats = np.unique(y_vals)
+    #        if args.pivot_category:
+    #            distinct_cats = distinct_cats[:-1]
 
-            for motif,cat in zip(motifs, distinct_cats):
-                # fa_seqs modified in-place here to include the motif at a 
-                #  randomly chosen site in each record where y_val is cat
-                substitute_motif_into_records(
-                    fa_seqs,
-                    y_vals,
-                    motif,
-                    (plus_strand_count, minus_strand_count),
-                    inter_motif_dist,
-                    yval = cat,
-                    motif_frac = motif_peak_frac,
-                )
+    #        for motif,cat in zip(motifs, distinct_cats):
+    #            # fa_seqs modified in-place here to include the motif at a 
+    #            #  randomly chosen site in each record where y_val is cat
+    #            substitute_motif_into_records(
+    #                fa_seqs,
+    #                y_vals,
+    #                motif,
+    #                (plus_strand_count, minus_strand_count),
+    #                inter_motif_dist,
+    #                yval = cat,
+    #                motif_frac = motif_peak_frac,
+    #            )
 
-    if dtype == 'continuous':
-        y_vals,y_cats = make_continuous_y_vals(
-            rec_num,
-            cat_centers = np.linspace(
-                start= -(ncats-1.0)/2.0,
-                stop= ncats/2.0,
-                num=ncats
-            ),
-            cat_sd = 0.25,
-            noise_center = 0.0,
-            noise_sd = 0.25,
-            n_cats=ncats,
-            pivot_cat = args.pivot_category,
-        )
-        motif_cats = np.unique(y_cats)
-        if args.pivot_category:
-            motif_cats = motif_cats[:-1]
+    #if dtype == 'continuous':
+    #    y_vals,y_cats = make_continuous_y_vals(
+    #        rec_num,
+    #        cat_centers = np.linspace(
+    #            start= -(ncats-1.0)/2.0,
+    #            stop= ncats/2.0,
+    #            num=ncats
+    #        ),
+    #        cat_sd = 0.25,
+    #        noise_center = 0.0,
+    #        noise_sd = 0.25,
+    #        n_cats=ncats,
+    #        pivot_cat = args.pivot_category,
+    #    )
+    #    motif_cats = np.unique(y_cats)
+    #    if args.pivot_category:
+    #        motif_cats = motif_cats[:-1]
 
-        for motif,cat in zip(motifs, motif_cats):
-            # fa_seqs modified in-place here to include the motif at a 
-            #  randomly chosen site in each record where y_val is cat
-            substitute_motif_into_records(
-                fa_seqs,
-                y_cats,
-                motif,
-                (plus_strand_count, minus_strand_count),
-                inter_motif_dist,
-                yval = cat,
-                motif_frac = motif_peak_frac,
-            )
+    #    for motif,cat in zip(motifs, motif_cats):
+    #        # fa_seqs modified in-place here to include the motif at a 
+    #        #  randomly chosen site in each record where y_val is cat
+    #        substitute_motif_into_records(
+    #            fa_seqs,
+    #            y_cats,
+    #            motif,
+    #            (plus_strand_count, minus_strand_count),
+    #            inter_motif_dist,
+    #            yval = cat,
+    #            motif_frac = motif_peak_frac,
+    #        )
 
     if dtype == 'categorical':
         y = y_vals
-    if dtype == 'continuous':
-        y = y_cats
+    #if dtype == 'continuous':
+    #    y = y_cats
+
     # sub some instances of motif into off-target bins at given rate
     if ncats == 2:
         substitute_motif_into_records(
             fa_seqs,
             y,
-            motifs[0],
+            motifs,
             (1, 0),
             inter_motif_dist,
             yval = 0,
@@ -317,40 +315,40 @@ def main():
         substitute_motif_into_records(
             fa_seqs,
             y,
-            motifs[0],
+            motifs,
             (0, 1),
             inter_motif_dist,
             yval = 0,
             motif_frac = motif_nonpeak_frac/2,
         )
-    else:
+    #else:
 
-        distinct_cats = np.unique(y)
-        if args.pivot_category:
-            distinct_cats = distinct_cats[:-1]
+    #    distinct_cats = np.unique(y)
+    #    if args.pivot_category:
+    #        distinct_cats = distinct_cats[:-1]
 
-        for i,(motif,cat) in enumerate(zip(motifs, distinct_cats)):
+    #    for i,(motif,cat) in enumerate(zip(motifs, distinct_cats)):
 
-            other_cats = distinct_cats[distinct_cats != cat]
-            for other_y in other_cats:
-                substitute_motif_into_records(
-                    fa_seqs,
-                    y,
-                    motif,
-                    (1, 0),
-                    inter_motif_dist,
-                    yval = other_y,
-                    motif_frac = motif_nonpeak_frac/2,
-                )
-                substitute_motif_into_records(
-                    fa_seqs,
-                    y,
-                    motif,
-                    (0, 1),
-                    inter_motif_dist,
-                    yval = other_y,
-                    motif_frac = motif_nonpeak_frac/2,
-                )
+    #        other_cats = distinct_cats[distinct_cats != cat]
+    #        for other_y in other_cats:
+    #            substitute_motif_into_records(
+    #                fa_seqs,
+    #                y,
+    #                motif,
+    #                (1, 0),
+    #                inter_motif_dist,
+    #                yval = other_y,
+    #                motif_frac = motif_nonpeak_frac/2,
+    #            )
+    #            substitute_motif_into_records(
+    #                fa_seqs,
+    #                y,
+    #                motif,
+    #                (0, 1),
+    #                inter_motif_dist,
+    #                yval = other_y,
+    #                motif_frac = motif_nonpeak_frac/2,
+    #            )
 
     with open(os.path.join(out_dir, out_pre + "_main.txt"),'w') as main_fire_file:
         main_fire_file.write("name\tscore\n")
@@ -360,45 +358,41 @@ def main():
     with open(main_fa_fname, "w") as main_fa_file:
         fa_seqs.write(main_fa_file)
 
-    if not noshapes:
+    RSCRIPT = "Rscript {}/utils/calc_shape.R {{}}".format(this_path)
+    subprocess.call(RSCRIPT.format(main_fa_fname), shell=True)
+
+    kf = KFold(n_splits=folds)
+    for i,(train_index, test_index) in enumerate(kf.split(y_vals)):
+        #print(i)
+        #print(len(train_index))
+        #print(len(test_index))
+        train_fa = fa_seqs[train_index]
+        train_y = y_vals[train_index]
+        test_fa = fa_seqs[test_index]
+        test_y = y_vals[test_index]
+
+        with open(os.path.join(out_dir, out_pre + "_train_{}.txt".format(i)) ,'w') as train_fire_file:
+            train_fire_file.write("name\tscore\n")
+            for j,fa_rec in enumerate(train_fa):
+                train_fire_file.write("{}\t{}\n".format(fa_rec.header[1:], train_y[j]))
+
+        with open(os.path.join(out_dir, out_pre + "_test_{}.txt".format(i)) ,'w') as test_fire_file:
+            test_fire_file.write("name\tscore\n")
+            for j,fa_rec in enumerate(test_fa):
+                test_fire_file.write("{}\t{}\n".format(fa_rec.header[1:], test_y[j]))
+
+        train_fa_fname = os.path.join(out_dir, out_pre + "_train_{}.fa".format(i))
+        with open(train_fa_fname, "w") as train_fa_file:
+            train_fa.write(train_fa_file)
+
         RSCRIPT = "Rscript {}/utils/calc_shape.R {{}}".format(this_path)
-        subprocess.call(RSCRIPT.format(main_fa_fname), shell=True)
+        subprocess.call(RSCRIPT.format(train_fa_fname), shell=True)
 
-    if folds > 0 :
-        kf = KFold(n_splits=folds)
-        for i,(train_index, test_index) in enumerate(kf.split(y_vals)):
-            #print(i)
-            #print(len(train_index))
-            #print(len(test_index))
-            train_fa = fa_seqs[train_index]
-            train_y = y_vals[train_index]
-            test_fa = fa_seqs[test_index]
-            test_y = y_vals[test_index]
+        test_fa_fname = os.path.join(out_dir, out_pre + "_test_{}.fa".format(i))
+        with open(test_fa_fname, "w") as test_fa_file:
+            test_fa.write(test_fa_file)
 
-            with open(os.path.join(out_dir, out_pre + "_train_{}.txt".format(i)) ,'w') as train_fire_file:
-                train_fire_file.write("name\tscore\n")
-                for j,fa_rec in enumerate(train_fa):
-                    train_fire_file.write("{}\t{}\n".format(fa_rec.header[1:], train_y[j]))
-
-            with open(os.path.join(out_dir, out_pre + "_test_{}.txt".format(i)) ,'w') as test_fire_file:
-                test_fire_file.write("name\tscore\n")
-                for j,fa_rec in enumerate(test_fa):
-                    test_fire_file.write("{}\t{}\n".format(fa_rec.header[1:], test_y[j]))
-
-            train_fa_fname = os.path.join(out_dir, out_pre + "_train_{}.fa".format(i))
-            with open(train_fa_fname, "w") as train_fa_file:
-                train_fa.write(train_fa_file)
-
-            if not noshapes:
-                RSCRIPT = "Rscript {}/utils/calc_shape.R {{}}".format(this_path)
-                subprocess.call(RSCRIPT.format(train_fa_fname), shell=True)
-
-            test_fa_fname = os.path.join(out_dir, out_pre + "_test_{}.fa".format(i))
-            with open(test_fa_fname, "w") as test_fa_file:
-                test_fa.write(test_fa_file)
-
-            if not noshapes:
-                subprocess.call(RSCRIPT.format(test_fa_fname), shell=True)
+        subprocess.call(RSCRIPT.format(test_fa_fname), shell=True)
 
 
 if __name__ == '__main__':

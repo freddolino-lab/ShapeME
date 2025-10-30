@@ -506,17 +506,6 @@ def calc_prec_recall(yhat_background, yhat_foreground):
     return output
 
 
-#def prec_recall(yhat, target_y, family='binomial', prefix=None, plot=False):
-#    ######################################################################
-#    ######################################################################
-#    ## modify this to just use a more general fxn that will look a lot like the multinomial here. Since I'm returning a binary yhat array of shape (n_rec, n_cat, n_thresh) anyway
-#    ######################################################################
-#    ######################################################################
-#    if family == 'multinomial':
-#        return multinomial_prec_recall(yhat, target_y, plot, prefix)
-#    elif family == 'binomial':
-#        return binomial_prec_recall(yhat, target_y)
-
 def prec_recall(yhat, target_y):
 
     n_classes = yhat.shape[1]
@@ -681,28 +670,7 @@ def evaluate_fit2(
             yhat[row_i,:] = softmax(yhat[row_i,:])
     else:
         yhat = inv_logit(yhat)
-        
     
-    #print("************************************")
-    #print(f"X: {X}")
-    #print(f"coefs: {coefs}")
-    #print(f"yhat shape: {yhat.shape}")
-    #print(f"yhat: {yhat}")
-    #print(f"test_y: {test_y}")
-    #print("************************************")
-    #np.save(arr=yhat, file="yhat.npy")
-    #np.save(arr=test_y, file="test_y.npy")
-    #sys.exit()
-
-    #classes = np.zeros((num_seqs, num_cats, thresh_num))
-    #for (i,threshold) in enumerate(np.linspace(
-    #    start = 0.0,
-    #    stop = 1.0,
-    #    num = thresh_num,
-    #)):
-    #    for j in range(num_cats):
-    #        classes[:, j, i] = y_hat[:,j] > threshold
-        
     output = prec_recall(yhat, test_y)
 
     return(output)
@@ -1214,33 +1182,4 @@ def parse_args():
 if __name__ == "__main__":
 
     args = parse_args()
-
-    #try:
     main(args)
-    #except Exception as err:
-    #    logging.error(f"\nError encountered in evaluate_motifs.py:\n{err}\n")
-    #    status = "FinishedError"
-    #    in_direc = args.data_dir
-    #    out_direc = args.out_dir
-    #    out_direc = os.path.join(in_direc, out_direc)
-
-    #    if not os.path.isdir(out_direc):
-    #        os.mkdir(out_direc)
-
-    #    out_page_name = os.path.join(out_direc, "report.html")
-
-    #    report_info = {
-    #        "error": err,
-    #    }
-    #    write_report(
-    #        environ = jinja_env,
-    #        temp_base = "error.html.temp",
-    #        info = report_info,
-    #        out_name = out_page_name,
-    #    )
-
-    #    status_fname = os.path.join(out_direc, "job_status.json")
-    #    with open(status_fname, "w") as status_f:
-    #        json.dump(status, status_f)
-    #    sys.exit(1)
-

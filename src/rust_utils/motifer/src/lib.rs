@@ -1109,7 +1109,7 @@ pub fn optim_objective(
         &params[0..length],
     ).unwrap();
 
-    // view to slice of params containing shapes
+    // view to slice of params containing weights
     let weights_arr = ArrayView::from_shape(
         (shape_num, *kmer),
         &params[length..2 * length],

@@ -16,6 +16,44 @@ import ShapeIT as shapeit
 import ShapeME as shapeme
 import fasta as fa
 
+class TestKSM(unittest.TestCase):
+
+    def setUp(self):
+        self.ksm_dir = "test_data/KSM"
+        self.ksm_list_fname = os.path.join(
+            self.ksm_dir,
+            "POU5F1_kmer_6.ksm_list.txt",
+        )
+        self.ksm_list = [
+            "POU5F1_kmer_6.m0.KSM.txt",
+            "POU5F1_kmer_6.m1.KSM.txt",
+            "POU5F1_kmer_6.m2.KSM.txt",
+        ]
+        self.ksm_scan_file = os.path.join(
+            self.ksm_dir,
+            "POU5F1_kmer_6.KSM.scan.motifInstances.txt",
+        )
+        self.ksm_score_file = os.path.join(
+            self.ksm_dir,
+            "seqs.txt",
+        )
+
+    def test_read_kms_files(self):
+        target_str1 = "POU5F1_kmer_6.m0"
+        target_str2 = "POU5F1_kmer_6.m1"
+        target_str3 = "POU5F1_kmer_6.m2"
+        motifs = inout.Motifs(motif_type="ksm", fname=self.ksm_list_fname)
+        self.assertEqual(target_str1, motifs[0].identifier)
+        self.assertEqual(target_str2, motifs[1].identifier)
+        self.assertEqual(target_str3, motifs[2].identifier)
+
+    def test_ksm_performance(self):
+
+        motifs = inout.Motifs(motif_type="ksm", fname=self.ksm_list_fname)
+
+        pass
+
+
 class TestPerformance(unittest.TestCase):
     
     def setUp(self):
@@ -106,80 +144,6 @@ class TestPerformance(unittest.TestCase):
             "test_data/test_performance/shape_and_seq_max_count_1_fold_3_output",
             "test_data/test_performance/shape_and_seq_max_count_1_fold_4_output",
         ]
-
-    #def test_init_tough_seq_performance(self):
-
-    #    perf = shapeme.Performance(
-    #        self.tough_seq_main_direc,
-    #        self.tough_test_tough_seq_fold_direcs,
-    #    )
-    #    true_fold_count = 5
-    #    true_fold_auprs = {
-    #        0: np.array([]),
-    #        1: np.array([]),
-    #        2: np.array([]),
-    #        3: np.array([]),
-    #        4: np.array([]),
-    #        5: np.array([]),
-    #        6: np.array([]),
-    #        7: np.array([]),
-    #        8: np.array([]),
-    #        9: np.array([]),
-    #    }
-
-    #def test_init_seq_performance(self):
-    #    
-    #    perf = shapeme.Performance(
-    #        self.seq_main_direc,
-    #        self.seq_fold_direcs,
-    #    )
-    #    true_fold_count = 5
-    #    true_fold_auprs = {
-    #        0: np.array([0.09084958464726543,0.09387165123007547,0.09396004859117905,]),
-    #        1: np.array([0.10624402362280766,0.10577252919647147,0.10588376802377063,]),
-    #        2: np.array([0.10320847879157836,0.10269580730222176,0.10411049382370997,]),
-    #        3: np.array([0.10028157831702283,0.1003839122163862,0.10157121803106495,]),
-    #        4: np.array([0.09681215516577825,0.096972239973642,0.09737613402224277,]),
-    #        5: np.array([0.10299170111479863,0.10378797575481427,0.10455338332232607,]),
-    #        6: np.array([0.09551125276126415,0.09642213976377445,0.0968253205009481,]),
-    #        7: np.array([0.10385949696444059,0.10389843558576005,0.10433138857438688,]),
-    #        8: np.array([0.10861330744237047,0.10110340936968243,0.10800752129715069,]),
-    #        9: np.array([0.11248243068560897,0.11596975723446443,0.13659527196218424,]),
-    #    }
-    #    true_random_auprs = {
-    #        0: np.array([0.09069366652305041,0.09059571259291177,0.09059571259291177,]),
-    #        1: np.array([0.10588108573890564,0.10578476785521922,0.10578476785521922,]),
-    #        2: np.array([0.10286514433433865,0.10287622535818162,0.10287622535818162,]),
-    #        3: np.array([0.1001723395088324,0.10029085424970376,0.10029085424970376,]),
-    #        4: np.array([0.0965101249461439,0.09641279758698697,0.09641279758698697,]),
-    #        5: np.array([0.1027574321413184,0.10287622535818162,0.10276850156199505,]),
-    #        6: np.array([0.09510986643688066,0.09512011203274803,0.09512011203274803,]),
-    #        7: np.array([0.10318828091339939,0.10319939674674136,0.10319939674674136,]),
-    #        8: np.array([0.10243429556225765,0.10244533017343531,0.10255305396962189,]),
-    #        9: np.array([0.1003877638948729,0.10039857804589034,0.10039857804589034,]),
-    #    }
-    #    #true_apur = 
-    #    #true_cv_aupr = 
-    #    #true_cv_aupr_sd = 
-
-    #    self.assertTrue(False)
-
-    #def test_init_shape_performance(self):
-    #    
-    #    perf = shapeme.Performance(
-    #        self.seq_main_direc,
-    #        self.seq_fold_direcs,
-    #    )
-    #    self.assertTrue(False)
-
-    #def test_init_shape_and_seq_performance(self):
-    #    
-    #    perf = shapeme.Performance(
-    #        self.shape_and_seq_main_direc,
-    #        self.shape_and_seq_fold_direcs,
-    #    )
-    #    self.assertTrue(False)
-
 
     def test_performance_string(self):
         out_dir = self.out_dir

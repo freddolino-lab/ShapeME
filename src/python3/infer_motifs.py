@@ -172,6 +172,8 @@ def parse_args():
             f"This can take a very long time for datasets with more than a few-thousand "\
             f"binding sites. Setting this option will override the "\
             f"--max_rounds_no_new_seed option.")
+    parser.add_argument("--max_num_motifs", type=int, default=0,
+        help=f"Integer. Set to the max number of motifs to return. Defaults to 0 (no limit).")
     parser.add_argument("--log_level", type=str, default="INFO",
         help=f"Sets log level for logging module. Valid values are DEBUG, "\
                 f"INFO, WARNING, ERROR, CRITICAL.")
@@ -234,6 +236,13 @@ def main(args, status):
     streme_thresh = float(args.streme_thresh)
     no_shape_motifs = args.no_shape_motifs
     tmpdir = args.tmpdir
+    max_num_motifs = args.max_num_motifs
+
+    if max_num_motifs == 0:
+        max_n = np.inf
+    else:
+        max_n = max_num_motifs
+
     if tmpdir is None:
         tmpdir = "/tmp"
 
@@ -527,6 +536,11 @@ def main(args, status):
             # set find_seq_motifs back to False to disable seq stuff later on
             find_seq_motifs = False
         else:
+            # limit the number of motifs to the max
+            if len(seq_motifs) > max_n:
+                top_motifs = seq_motifs[:max_n]
+                seq_motifs.motifs = top_motifs
+                
             find_seq_motifs = True
 
     if find_seq_motifs:
@@ -848,6 +862,11 @@ def main(args, status):
             max_count = max_count,
         )
 
+        # limit the number of motifs to the max
+        if len(shape_motifs) > max_n:
+            top_motifs = shape_motifs[:max_n]
+            shape_motifs.motifs = top_motifs
+
         # places design matrix and variable lookup table into shape_motifs
         shape_motifs.set_X(
             max_count = max_count,
@@ -993,31 +1012,12 @@ def main(args, status):
             )
             shape_and_seq_motifs.motif_type = "shape_and_seq"
 
-            #shape_and_seq_motifs.cmi_filter(
-            #    max_count = max_count,
-            #    binary = cmi_bin,
-            #    fimo_fname = f"{fimo_direc}/fimo.tsv",
-            #    rec_db = records,
-            #    qval_thresh = streme_thresh,
-            #    my_env = my_env,
-            #    tmpdir = tmpdir,
-            #)
+            # at this point, even if we've selected to limit the max number
+            # of returned motifs, just keep all the merged motifs for now.
+            # Each motif type has been reduced to its max.
+
             # check whether all motifs of a specific type were removed using cmi
             motif_types = [motif.motif_type for motif in shape_and_seq_motifs]
-            #if not "sequence" in motif_types:
-            #    logging.info(
-            #        f"Filtering shape and sequence motif model using CMI "\
-            #        f"removed all sequence motifs. Moving forward with only shape "\
-            #        f"motifs."
-            #    )
-            #    seq_motif_exists = False
-            #if not "shape" in motif_types:
-            #    logging.info(
-            #        f"Filtering shape and sequence motif model using CMI "\
-            #        f"removed all shape motifs. Moving forward with only sequence "\
-            #        f"motifs."
-            #    )
-            #    shape_motif_exists = False
 
             # if we still see evidence that shape AND sequence are important,
             #  do the next stuff

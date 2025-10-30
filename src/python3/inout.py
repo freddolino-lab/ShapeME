@@ -4,8 +4,10 @@ import cvlogistic
 import dnashapeparams as dsp
 #import shapemotifvis as smv
 import fimopytools as fimo
+import ksmpytools as ksmtools
 import logging
 #from numba import jit,prange
+import ipdb
 import welfords
 from scipy import stats
 from scipy import sparse
@@ -30,14 +32,27 @@ from statsmodels.stats import rates
 import tempfile
 import os
 
+
 from matplotlib import pyplot as plt
 
 EPSILON = np.finfo(float).eps
+ONE_HOT_ENCODING = {
+    "A": [0],
+    "C": [1],
+    "G": [2],
+    "T": [3],
+    "N": [0,1,2,3]
+}
+
+class PerturbSeqMotifException(Exception):
+    def __init__(self):
+        self.message = f"ERROR: motif perturbation not implemented for sequence motifs."
+        super().__init__(self.message)
 
 class ReadMotifException(Exception):
     def __init__(self):
         self.message = f"ERROR: passed a filename to Motifs() but did not set "\
-            f"the motif type. Set motif_type to either \"shape\" or \"sequence\"."
+            f"the motif type. Set motif_type to one of \"shape\", \"sequence\", or \"KSM\"."
         super().__init__(self.message)
 
 class SetNamesException(Exception):
@@ -100,7 +115,6 @@ def evaluate_match_object(mo):
         result = None
     return result
 
-
 def construct_records(
         in_direc,
         shape_names,
@@ -157,6 +171,60 @@ def read_fimo_file(fname):
 
     return motif_results
 
+
+def parse_ksm_file(fname, motif_name):
+    kmers = []
+    max_len = 0
+    with open(fname, "r") as ksm_f:
+        for line in ksm_f:
+            # skip header
+            if line.startswith("#"):
+                continue
+            if line.startswith("$"):
+                print("Finished parsing gapped kmers in ksm file")
+                break
+            if line.startswith("%"):
+                print("Finished parsing ksm file to motif")
+                break
+            elements = line.strip().split("\t")
+            kmer = elements[0]
+            fwd_kmer = kmer.split("/")[0]
+            if len(fwd_kmer) > max_len:
+                max_len = len(fwd_kmer)
+            kmers.append(fwd_kmer)
+
+        kmer_array = np.zeros((len(kmers),4,max_len))
+        for i,kmer in enumerate(kmers):
+            for p,base in enumerate(kmer):
+                try:
+                    idx = ONE_HOT_ENCODING[base]
+                except KeyError as e:
+                    sys.exit(f"KeyError: {e} in following kmer:\n{kmer}")
+                kmer_array[i,idx,p] = 1 / len(idx)
+
+    motif = Motif(
+        motif_name,
+        {},
+        kmer_array,
+        motif_type="ksm",
+        alt_name = motif_name,
+    )
+    return motif
+
+
+def parse_kmac_files(list_fname):
+
+    motif_list = []
+    fnames = []
+
+    with open(list_fname, "r") as listf:
+        for line in listf:
+            motif_name,motif_file = line.strip().split("\t")
+            motif = parse_ksm_file(motif_file, motif_name)
+            motif_list.append(motif)
+            fnames.append(motif_file)
+
+    return motif_list,fnames
 
 def parse_meme_file(fname, evalue_thresh=np.Inf):
 
@@ -592,21 +660,33 @@ def testing_optim_generate_peak_array(ref, query, weights, threshold,
 #@jit(nopython=True)
 #def euclidean_distance(vec1, vec2):
 #    return np.sqrt(np.sum((vec1 - vec2)**2))
-#
-#@jit(nopython=True)
-#def manhattan_distance(vec1, vec2, w=1):
-#    return np.sum(np.abs(vec1 - vec2) * w)
-#
-#@jit(nopython=True)
+
+def manhattan_distance(vec1, vec2, w=1, p=1):
+    abs_dif = np.abs(vec1 - vec2)
+    w_abs_dif = abs_dif * w
+    p_abs_dif = w_abs_dif * p
+    return np.sum(p_abs_dif)
+
 #def constrained_manhattan_distance(vec1, vec2, w=1):
 #    w_exp = np.exp(w)
 #    w = w_exp/np.sum(w_exp)
 #    return np.sum(np.abs(vec1 - vec2) * w)
-#
-#@jit(nopython=True)
-#def inv_logit(x):
-#    return np.exp(x) / (1 + np.exp(x))
-#
+
+def constrain_inv_logit(x, alpha):
+    return alpha + (1 - alpha) * np.exp(x) / (1 + np.exp(x))
+
+def constrain_logit(p, alpha):
+    print(p, alpha)
+    x = np.log((p-alpha)/(1-p))
+    print(x)
+    return x
+
+def inv_logit(x):
+    return np.exp(x) / (1 + np.exp(x))
+
+def logit(p):
+    return p / (1 - p)
+
 #@jit(nopython=True)
 #def constrained_inv_logit_manhattan_distance(vec1, vec2, w=1, a=0.1):
 #    w_floor_inv_logit = a + (1-a) * inv_logit(w)
@@ -711,6 +791,232 @@ class Motif:
 
     def __len__(self):
         return self.motif.shape[1]
+
+    def motif_information(self):
+        null_entropy = 0.0
+        model_entropy = 0.0
+        if self.motif_type == "ksm":
+            # get the information for the most naive possible model
+            # this most naive model is (N)k for every k.
+            for k in range(5,self.motif.shape[2]+1):
+                # multiply by four, since entropy is log2(0.25)*0.25 for each base
+                null_entropy += k * 4 * np.log2(0.25)*0.25
+
+            # now get the model's entropy
+            for kmer in self.motif:
+                for position in range(kmer.shape[1]):
+                    for row in range(kmer.shape[0]):
+                        sys.exit(1)
+
+        elif self.motif_type == "shape":
+            pass
+
+        info_reduction = null_entropy - model_entropy
+        return info_reduction
+
+    def shape_num(self):
+        return self.motif.shape[0]
+
+    def generate_perturbations(self, which_array="both", alpha=0.1, n_perturb=1000):
+        if self.motif_type == "sequence":
+            raise PerturbSeqMotifException()
+        for i in range(n_perturb):
+            if which_array == "both":
+                yield self.perturb(alpha)
+            elif which_array == "shapes":
+                yield self.perturb_shape()
+            elif which_array == "weights":
+                yield self.perturb_wieght(alpha)
+            else:
+                raise Exception(f"Error in Motif.generate_perturbations: argument which_array must be one of 'both', 'shapes', or 'weights', but the supplied argument was \'{which_array}\'. Exiting now.")
+
+    def perturb_shape(self):
+        if self.motif_type == "sequence":
+            raise PerturbSeqMotifException()
+        motif_copy = copy.deepcopy(self)
+
+        # Select a random cell in the copied array
+        #random_row = np.random.randint(0, motif_copy.motif.shape[0])
+        #random_col = np.random.randint(0, motif_copy.motif.shape[1])
+
+        # Perturb the selected cell in the copied array
+        perturbation = np.random.randn()  # Draw from standard normal distribution
+        #motif_copy.motif[random_row, random_col] += perturbation
+        motif_copy.motif += perturbation
+        return motif_copy
+
+    def perturb_weight(self, alpha):
+        if self.motif_type == "sequence":
+            raise PerturbSeqMotifException()
+        motif_copy = copy.deepcopy(self)
+
+        # transform normalized weights back to real space
+        inv_logit_weights = constrain_logit(motif_copy.weights, alpha)
+
+        # Select a random cell in the copied array
+        #random_row = np.random.randint(0, motif_copy.weights.shape[0])
+        #random_col = np.random.randint(0, motif_copy.weights.shape[1])
+
+        # Perturb the selected cell in the copied array
+        perturbation = np.random.randn()  # Draw from standard normal distribution
+        #inv_logit_weights[random_row, random_col] += perturbation
+        inv_logit_weights += perturbation
+
+        perturbed_weights = constrain_inv_logit(inv_logit_weights, alpha)
+        total = perturbed_weights.sum()
+        motif_copy.weights = perturbed_weights / total
+
+        return motif_copy
+
+    def perturb(self, alpha=0.1):
+        if self.motif_type == "sequence":
+            raise PerturbSeqMotifException()
+        if np.random.rand() < 0.5:
+            perturbed = self.perturb_shape()
+        else:
+            perturbed = self.perturb_weight(alpha)
+        return perturbed
+        
+
+    def distance_to_motif(self, other, ignore_weights=False, gap_penalty=1, shift=1000000):
+        """Compares this motif to other.
+        Currently only implemented for shape motifs.
+
+        Args:
+        -----
+
+        other: an instance of class Motif
+        gap_penalty: when sliding self Motif against other Motif, apply gap penalty term
+            if self is off one end or ther other of other.
+        shift: int
+            Sets the amount by which to shift query relative to reference. Default
+            is to try all shifts in search of minimum distance. If set, will only
+            perform the given shift.
+        """
+
+        if self.motif_type == "sequence":
+            raise "Motif comparison is currently only implemented for shape motifs"
+
+        self_length = len(self)
+        other_length = len(other)
+
+        # get mean weights to pad ends
+        mean_weights = (
+            ( self.weights.sum() + other.weights.sum() )
+            / ( self.weights.size + other.weights.size )
+        )
+        # create new reference shapes and weights. The padded shapes are just zeros, since that's
+        # the mean, as we are in z-space
+        pad_shapes = np.zeros_like(self.motif)
+        pad_weights = np.zeros_like(self.motif) + mean_weights
+        new_R_motif = np.concatenate((pad_shapes, other.motif, pad_shapes), axis=1)
+        new_R_weights = np.concatenate((pad_weights, other.weights, pad_weights), axis=1)
+
+        #ipdb.set_trace()
+
+        # create reference with the padded shapes and weights
+        ref = copy.deepcopy(other)
+        ref.motif = new_R_motif
+        ref.weights = new_R_weights
+
+        # crease mask for whether to apply gap penalty term.
+        # Mask will be one for each position at which to apply the penalty, zero for others
+        set_penalty = np.ones(self_length) * gap_penalty
+        penalty_ones = np.ones(other_length)
+        penalty_scalars = np.concatenate((set_penalty, penalty_ones, set_penalty))
+
+        padded_ref_length = len(ref)
+
+        k1 = 2.0
+        k2 = 2.0
+
+        # instantiate the minima to be tracked for identifying the shift at which
+        # distance is minimized
+        min_dist = np.inf
+        min_idx = 0
+        start_idx = 0
+        end_idx = start_idx + self_length
+        # scan query (self) along padded reference
+        while end_idx <= padded_ref_length:
+            if shift != 1_000_000:
+                start_idx = shift + self_length
+                end_idx = start_idx + self_length
+            # dist will accumulate for each shape/position
+            dist = 0.0
+            # for this shift in self, get the abs_diffs
+            abs_shape_diff = np.abs(self.motif - ref.motif[:,start_idx:end_idx])
+            abs_weight_diff = np.abs(self.weights - ref.weights[:,start_idx:end_idx])
+            these_penalties = penalty_scalars[start_idx:end_idx]
+
+            if not ignore_weights:
+                # for each shape s
+                for s in range(self.shape_num()):
+                    self_weights = self.weights[s,:]
+                    other_weights = ref.weights[s,start_idx:end_idx]
+                    weight_diffs = abs_weight_diff[s,:]
+                    shape_diffs = abs_shape_diff[s,:]
+                    # for each position l
+                    for l in range(self_length):
+                        self_weight = self_weights[l]
+                        other_weight = other_weights[l]
+                        this_penalty = these_penalties[l]
+
+                        max_weight = np.max([self_weight, other_weight])
+                        this_dist = (
+                            max_weight
+                            * ( k1**(shape_diffs[l]) * k2**(weight_diffs[l]) - 1.0 )
+                        )
+                        # scale the distance by the penalty scalar
+                        this_dist *= this_penalty
+                        # increment dist by this_dist
+                        dist += this_dist
+            else:
+                dist = manhattan_distance(
+                    self.motif,
+                    ref.motif[:,start_idx:end_idx],
+                    self.weights,
+                    these_penalties,
+                )
+
+            # if this distance is less than the current minimum, update
+            if dist < min_dist:
+                min_dist = dist
+                min_idx = start_idx
+ 
+            start_idx += 1
+            end_idx += 1
+
+            if shift != 1_000_000:
+                start_idx += 1000000
+                end_idx += 1000000
+
+        # calculate shift such that it's how far right we need to shift
+        # the query (self) to align with reference (other)
+        shift = min_idx - self_length 
+
+        return (min_dist,shift)
+
+
+    def make_seq_from_pwd(self):
+        """For a sequence motif, samples a sequence from the pwm, returning the resulting sequence.
+        """
+        if self.motif_type == "sequence":
+            # Define the letters corresponding to each row
+            letters = ["A", "C", "G", "T"]
+
+            # Generate the random sequence
+            random_sequence = []
+            for col_idx in range(len(self)):
+                col_probabilities = self.motif[:, col_idx]  # Get the column probabilities
+                col_probabilities /= col_probabilities.sum()  # Normalize to make sure it sums to 1
+                chosen_letter = np.random.choice(letters, p=col_probabilities)  # Sample a letter
+                random_sequence.append(chosen_letter)
+
+            # Join the list into a single string to get the sequence
+            random_sequence_string = "".join(random_sequence)
+            return random_sequence_string
+        else:
+            raise "Method not implemented for shape motifs"
 
     def shape(self):
         return self.motif.shape
@@ -933,6 +1239,13 @@ class Motif:
                 sys.exit(1)
             self.set_seq_X(rec_db, seq_motif_hits, test)
 
+        elif self.motif_type == "ksm":
+            if seq_motif_hits is None:
+                print(f"Attempted to get design matrix for "\
+                    f"a ksm motif without passing seq_motif_hits. Exiting with error.")
+                sys.exit(1)
+            self.set_seq_X(rec_db, seq_motif_hits, test)
+
         elif self.motif_type == "shape":
             if max_count is None:
                 print(f"Attempted to get design matrix for "\
@@ -993,12 +1306,16 @@ class Motif:
         --------
         string of line to be written
         """
+        #ipdb.set_trace()
         string = f"MOTIF {self.identifier} {self.alt_name}\n"
         if self.motif_type == "shape":
             string += f"shape-value matrix:"
         else:
             string += f"letter-probability matrix:"
-        string += f" alength= {self.motif.shape[0]} w= {self.motif.shape[1]}"
+        if self.motif_type == "shape" or self.motif_type == "sequence":
+            string += f" alength= {self.motif.shape[0]} w= {self.motif.shape[1]}"
+        else:
+            string += f" alength= {self.motif.shape[1]} w= {self.motif.shape[2]}"
         if self.motif_type == "sequence":
             if self.hits is None:
                 string += ""
@@ -1168,6 +1485,11 @@ class Motifs:
                     #raise Exception(f"No sequence motifs found in {fname}")
                     print(f"No sequence motifs found in {fname}")
                 self.motif_type = motif_type
+            elif motif_type == "ksm":
+                self.motifs,files = parse_kmac_files(fname)
+                if len(self.motifs) == 0:
+                    print(f"No KSM motifs found in {', '.join(files)}")
+                self.motif_type = motif_type
             else:
                 raise ReadMotifException()
 
@@ -1189,6 +1511,14 @@ class Motifs:
             outstr += motif.create_data_header_line()
             outstr += "\n"
         return outstr
+
+    def model_information(self):
+        information = 0.0
+        for motif in self:
+            motif_info = motif.motif_information()
+            information += motif_info
+        return information
+
 
     def identify(self, ragged_rec_db, sequences):
         """Identifies instances of motifs in target shapes.
@@ -1218,6 +1548,9 @@ class Motifs:
 
     def sort_motifs(self):
         self.motifs.sort(key=lambda x: x.zscore, reverse=True)
+
+    def aic(self):
+        pass
 
     def get_shape_str(self):
         shape_tuples = list([ (v,k) for k,v in self.shape_row_lut.items() ])
@@ -1727,9 +2060,7 @@ class Motifs:
         #self.var_lut = self.var_lut.copy()
         these_motifs = self.motifs
         these_motifs.extend(other.motifs)
-        ###################################################
-        ## note that somehow motif ids are not same in test motifs as in trained motifs. looking into why
-        ###################################################
+
         if id_sort_order is not None:
             id_sorted_motifs = []
             for identifier in id_sort_order:
@@ -1795,6 +2126,7 @@ class Motifs:
             self,
             max_count=None,
             fimo_fname=None,
+            ksm_fname=None,
             rec_db=None,
             qval_thresh=None,
             nosort=False,
@@ -1827,10 +2159,30 @@ class Motifs:
             retained_hits = fimo_file.filter_by_id(ids_in_self)
             motif_hits = retained_hits.gather_hits_dict(qval_thresh)
 
+        if "ksm" in motif_types:
+            if ksm_fname is None:
+                print("Trying to set design matrix on ksm motif, but no ksm file provided.")
+                print("Exiting with error.")
+                sys.exit(1)
+            ksm_file = ksmtools.KSMFile()
+            ksm_file.parse(ksm_fname)
+            #print(f"read {fimo_fname}")
+            ids_in_self = self.get_distinct_ids()
+            #print(f"ids_in_self: {ids_in_self}")
+            retained_hits = ksm_file.filter_by_id(ids_in_self)
+            motif_hits = retained_hits.gather_hits_dict(qval_thresh)
+
         # set each motif's own individual var_lut and design matrix
         for motif_idx,motif in enumerate(self):
             #print(f"motif type: {motif.motif_type}")
             if motif.motif_type == "sequence":
+                motif.set_X(
+                    rec_db,
+                    seq_motif_hits = motif_hits,
+                    max_count = max_count,
+                    test = test,
+                )
+            elif motif.motif_type == "ksm":
                 motif.set_X(
                     rec_db,
                     seq_motif_hits = motif_hits,
@@ -2665,6 +3017,23 @@ class RecordDatabase(object):
 
     def __getitem__(self, item):
         return self.X[item,:,:,0].T
+
+    def filter_for_record_names(self, rec_name_file):
+
+        indices_to_keep = []
+        with open(rec_name_file, "r") as f:
+            for line in f:
+                # add proper index to list
+                indices_to_keep.append(
+                    self.record_name_lut[line.strip()]
+                )
+        filtered_db = self.subset_records(indices_to_keep)
+        return filtered_db
+
+    def get_shapes_by_name(self, record_name):
+        idx = self.record_name_lut[record_name]
+        this = self[idx]
+        return this
 
     def write_to_files(self, out_direc, fname_base):
         """Writes shapes to fasta files and scores to txt file.

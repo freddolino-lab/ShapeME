@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 #from svgpathtools import svg2paths,parse_path
 #from svgpath2mpl import parse_path
+import ipdb
 
 from rpy2.robjects.packages import importr
 import rpy2.robjects as ro
@@ -143,6 +144,17 @@ def plot_seq_logos(motifs, suffix):
         fnames.append((plot_seq_logo(motif, suffix),motif))
     return fnames
 
+def set_marker_offsets(motif, shape_lut):
+    # set up dictionary to look up icons for each value in x_vals
+    offset_dict = {}
+    shape_param_num = motif.motif.shape[0]
+    offsets = np.linspace(-0.35, 0.35, shape_param_num)
+    idx_shape_lut = {v:k for k,v in shape_lut.items()}
+    motif_marker_offsets = {v : offsets[k] - 0.05 for k,v in idx_shape_lut.items()}
+    query_marker_offsets = {v : offsets[k] + 0.05 for k,v in idx_shape_lut.items()}
+    offsets = np.linspace(-0.2, 0.2, shape_param_num)
+    marker_offsets = {v:offsets[k] for k,v in idx_shape_lut.items()}
+    return (motif_marker_offsets, query_marker_offsets, idx_shape_lut, marker_offsets)
 
 def set_icons(motif, shape_lut):
     #print(f"Setting up to plot")
@@ -185,6 +197,176 @@ def set_limits(motifs, top_n):
     lower = np.max(lowers) - 0.75
     ylims = np.max(np.abs([upper, lower]))
     return (w_max,upper,lower,ylims)
+
+def plot_shape_motif_and_query(
+        motif,
+        query,
+        query_shift,
+        shape_lut,
+        suffix,
+        w_max,
+        upper,
+        lower,
+        ylims,
+):
+
+    shape_colors = {
+        "EP": "#000000",
+        "HelT": "#ff0000",
+        "MGW": "#0000ff",
+        "ProT": "#ffe500",
+        "Roll": "#00a100",
+    }
+    (img_dict,offset_dict,idx_shape_lut) = set_icons(motif, shape_lut)
+
+    file_name = set_plot_fname(motif, suffix)
+    fig,ax = plt.subplots(nrows=3, ncols=1, figsize=(8.5,3*2))
+    for i in range(len(ax)):
+        ax[i].axhline(y=0.0, color="black", linestyle="solid", linewidth=1)
+        ax[i].axhline(y=2.0, color="gray", linestyle="dashed", linewidth=1)
+        ax[i].axhline(y=4.0, color="gray", linestyle="dashed", linewidth=1)
+        ax[i].axhline(y=-2.0, color="gray", linestyle="dashed", linewidth=1)
+        ax[i].axhline(y=-4.0, color="gray", linestyle="dashed", linewidth=1)
+    mi = round(motif.mi, 2)
+    opt_y = motif.motif
+    query_y = query.motifs[0].motif
+    norm_weights = motif.weights / w_max
+    
+    # Set the x_values for plotting and the x tick labels
+    motif_vals = [i+1 for i in range(opt_y.shape[1])]
+    motif_labs = [str(i+1) for i in range(opt_y.shape[1])]
+    query_vals = [i+1 for i in range(query_shift,query_shift+opt_y.shape[1])]
+    shift_vals = []
+    shift_labs = []
+    if query_shift < 0:
+        for i in range(query_shift+1, 1):
+            shift_vals.append(i)
+            shift_labs.append(str(i-1))
+        x_vals = shift_vals + motif_vals
+        x_labs = shift_labs + motif_labs
+    elif query_shift > 0:
+        for i in range(opt_y.shape[1], query_shift+opt_y.shape[1]):
+            shift_vals.append(i+1)
+            shift_labs.append(f"{i+1}")
+        x_vals = motif_vals + shift_vals
+        x_labs = motif_labs + shift_labs
+
+    #ipdb.set_trace()
+    (motif_marker_offsets,query_marker_offsets,idx_shape_lut,marker_offsets) = set_marker_offsets(
+        motif,
+        shape_lut,
+    )
+
+    # plot the two together
+    for j in range(opt_y.shape[0]):
+
+        shape_name = idx_shape_lut[j]
+        j_motif_offset = motif_marker_offsets[shape_name]
+        j_query_offset = query_marker_offsets[shape_name]
+        j_logo_offset = marker_offsets[shape_name]
+
+        #ipdb.set_trace()
+
+        img_arr = img_dict[shape_name]
+        motif_pos_idx = 0
+        query_pos_idx = 0
+        color = shape_colors[shape_name]
+
+        motif_y_vals = opt_y[j,:]
+        motif_w_vals = norm_weights[j,:]
+
+        query_y_vals = query_y[j,:]
+
+        for k,x_val in enumerate(x_vals):
+
+            #ipdb.set_trace()
+            if x_val in motif_vals:
+                # set x to x_val plus motif offset
+                x = x_val + j_motif_offset
+                # set y to proper value
+                y = motif_y_vals[motif_pos_idx]
+                # get alpha
+                a = motif_w_vals[motif_pos_idx]
+                ax[2].plot(
+                    x,
+                    y,
+                    alpha = a,
+                    marker = "^",
+                    color = color,
+                    markersize = 4,
+                )
+
+                x = x_val + j_logo_offset
+
+                #ipdb.set_trace()
+                img = scale_image( img_arr, scale=a, frameon=True )
+                img.image.axes = ax[1]
+                ab = AnnotationBbox(
+                    offsetbox = img,
+                    xy = (x, y),
+                    # xybox and boxcoords together shift relative to xy
+                    xybox = (j_logo_offset*50, 0.0),
+                    xycoords = "data",
+                    boxcoords = "offset points",
+                    frameon=False,
+                )
+                ax[1].add_artist( ab )
+                motif_pos_idx += 1
+
+            if x_val in query_vals:
+                x = x_val + j_query_offset
+                y = query_y[j,query_pos_idx]
+                ax[2].plot(
+                    x,
+                    y,
+                    marker = "o",
+                    color = color,
+                    markersize = 4,
+                )
+
+                x = x_val + j_logo_offset
+
+                img = scale_image( img_arr, scale=1.0, frameon=True )
+                img.image.axes = ax[0]
+                ab = AnnotationBbox(
+                    offsetbox = img,
+                    xy = (x, y),
+                    # xybox and boxcoords together shift relative to xy
+                    xybox = (j_logo_offset*50, 0.0),
+                    xycoords = "data",
+                    boxcoords = "offset points",
+                    frameon=False,
+                )
+                ax[0].add_artist( ab )
+                query_pos_idx += 1
+
+            if j == 0:
+                if k % 2 == 0:
+                    for _ in range(len(ax)):
+                        ax[_].axvspan(
+                            x_vals[k]-0.5,
+                            x_vals[k]+0.5,
+                            facecolor = "0.2",
+                            alpha=0.2,
+                        )
+        #legend_artists.append(ab)
+        #legend_key.append(shape_name)
+
+    for _ in range(len(ax)):
+        ax[_].set_ylim(bottom=-ylims, top=ylims)
+        ax[_].set_xticks(x_vals)
+        ax[_].set_yticks([-4,-2,0,2,4])
+        ax[_].set_xlim(left=x_vals[0]-0.5, right=x_vals[-1]+0.5)
+        ax[_].set_xticklabels("")
+    ax[1].set_ylabel("Shape value (z-score)")
+    ax[2].set_xlabel("Position relative to motif start position")
+    ax[2].set_xticklabels(x_labs)
+
+    print(f"Writing plot to {file_name}")
+    fig.tight_layout()
+    plt.savefig(f"{file_name}.pdf", dpi=600)
+    plt.close()
+    return file_name
 
 def plot_shape_logo(
         motif,
@@ -327,9 +509,47 @@ def plot_shape_logo(
     #fig.legend(handles, labels, loc=legend_loc)
     print(f"Writing shape logo to {file_name}")
     #fig.tight_layout()
+    #ipdb.set_trace()
     plt.savefig(file_name, dpi=600)
     plt.close()
     return file_name
+
+def plot_motifs_and_query(
+        motifs,
+        query,
+        query_shift,
+        suffix,
+        shape_lut,
+        top_n = 30,
+        opacity=1,
+        legend_loc="upper left",
+):
+
+    #import ipdb; ipdb.set_trace()
+    seq_motifs,shape_motifs = motifs.split_seq_and_shape_motifs()
+    if shape_motifs is None:
+        return []
+    if len(shape_motifs) == 0:
+        return []
+
+    (w_max,upper,lower,ylims) = set_limits(shape_motifs, top_n)
+
+    fnames = []
+    for i,motif in enumerate(shape_motifs):
+
+        fnames.append((plot_shape_motif_and_query(
+            motif,
+            query,
+            query_shift,
+            shape_lut,
+            suffix,
+            w_max,
+            upper,
+            lower,
+            ylims,
+        ),motif))
+
+    return fnames
 
 
 def plot_shape_logos(motifs, suffix, shape_lut, top_n = 30, opacity=1, legend_loc="upper left"):
@@ -346,6 +566,7 @@ def plot_shape_logos(motifs, suffix, shape_lut, top_n = 30, opacity=1, legend_lo
         return []
 
     # pre-load images
+    #ipdb.set_trace()
     (img_dict,offset_dict,idx_shape_lut) = set_icons(shape_motifs[0], shape_lut)
     (w_max,upper,lower,ylims) = set_limits(shape_motifs, top_n)
 
