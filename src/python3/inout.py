@@ -226,7 +226,7 @@ def parse_kmac_files(list_fname):
 
     return motif_list,fnames
 
-def parse_meme_file(fname, evalue_thresh=np.Inf):
+def parse_meme_file(fname, evalue_thresh=np.inf):
 
     motif_list = []
 
@@ -1296,7 +1296,7 @@ class Motif:
                 (enr["test_stats"][i,j], enr["pvals"][i,j]) = result.tuple
 
         enr["log2_ratio"] = np.log2(
-            np.clip(enr["ratio"], EPSILON, np.Inf)
+            np.clip(enr["ratio"], EPSILON, np.inf)
         )
 
     def create_data_header_line(self):
@@ -1445,7 +1445,7 @@ def parse_robustness_output(output):
     robustness = (passes, attempts)
     zscore = float(zscore_pat.search(output).group())
     if zscore == "inf":
-        zscore = np.Inf
+        zscore = np.inf
 
     return (mi, robustness, zscore)
 
@@ -1454,7 +1454,7 @@ class Motifs:
 
     def __init__(
             self, fname=None, motif_type=None, shape_lut=None,
-            max_count=None, alt_name_base=None, evalue_thresh=np.Inf,
+            max_count=None, alt_name_base=None, evalue_thresh=np.inf,
     ):
 
         self.X = None

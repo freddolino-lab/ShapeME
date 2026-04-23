@@ -1,0 +1,13 @@
+name: deepdnashape
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy<1.24
+  - tensorflow=2.15.0
+  - h5py
+  - protobuf<5
+  - pip:
+      - wheel

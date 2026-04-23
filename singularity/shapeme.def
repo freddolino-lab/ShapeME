@@ -19,6 +19,7 @@ Stage: build
 
 %files
     env_spec.yaml
+    deepdnashape_env.yaml
     shapeme.bashrc /shapeme.bashrc
 
 %runscript
@@ -29,10 +30,15 @@ Stage: build
     && apt update -y \
     && apt upgrade -y \
     && apt install -y libffi-dev \
+    && apt install -y libffi-dev git ca-certificates \
     && conda update -y -n base conda \
     && conda install -c conda-forge mamba \
     && mamba env create -f env_spec.yaml \
-    && cd 
+    && mamba env create -f deepdnashape_env.yaml \
+    && cd /src \
+    && git clone https://github.com/JinsenLi/deepDNAshape.git \
+    && /opt/conda/envs/deepdnashape/bin/python -m pip install --no-deps ./deepDNAshape \
+    && rm -rf /src/deepDNAshape
 
     CUSTOM_ENV=/.singularity.d/env/99-zz_custom_env.sh
     cat >$CUSTOM_ENV <<EOF
@@ -46,3 +52,16 @@ EOF
     source /opt/conda/etc/profile.d/conda.sh
     conda activate motifer
     python -c "import numpy; print(numpy.__file__)"
+
+    echo "motifer python:"
+    /opt/conda/envs/motifer/bin/python -c "import sys; print(sys.executable)"
+
+    echo "motifer numpy:"
+    /opt/conda/envs/motifer/bin/python -c "import numpy as np; print('motifer numpy', np.__version__); print(np.__file__)"
+
+    echo "deepdnashape python:"
+    /opt/conda/envs/deepdnashape/bin/python -c "import sys; print(sys.executable)"
+
+    echo "deepdnashape numpy + tensorflow:"
+    /opt/conda/envs/deepdnashape/bin/python -c "import numpy as np; import tensorflow as tf; print('deepdnashape numpy', np.__version__); print('tf', tf.__version__)"
+

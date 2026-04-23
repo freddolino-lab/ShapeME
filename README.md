@@ -11,7 +11,9 @@ space, ShapeME instead identifies motifs in local DNA structure space using
 sequence-based predictions of DNA structure parameters including minor groove
 width, electrostatic potential, helical twist, propeller twist, and roll. DNA
 structural parameters are predicted from input sequences using `DNAshapeR`
-([Chiu et al. 2016](https://doi.org/10.1093/bioinformatics/btv735)).
+([Chiu et al. 2016](https://doi.org/10.1093/bioinformatics/btv735)) or `Deep DNAshape` 
+([Li et al. 2024](https://www-nature-com.proxy.lib.umich.edu/articles/s41467-024-45191-5)),
+which can be selected as the backend shape prediction.
 
 ShapeME excels at discovering DNA structural motifs that explain
 binary data such as bound and unbound regions on a chromosome for a given
@@ -476,6 +478,7 @@ description of each argument.
                             [--stepsize STEPSIZE] [--opt_niter OPT_NITER]
                             [--alpha ALPHA] [--batch_size BATCH_SIZE]
                             [--find_seq_motifs] [--no_shape_motifs]
+                            [--shape_tool {dnashaper,deepdnashape}]
                             [--seq_fasta SEQ_FASTA]
                             [--seq_motif_positive_cats SEQ_MOTIF_POSITIVE_CATS]
                             [--streme_thresh STREME_THRESH]
@@ -564,6 +567,9 @@ description of each argument.
       --no_shape_motifs     Add this flag to turn off shape motif inference. This
                             is useful if you basically want to use this script as
                             a wrapper for streme to just find sequence motifs.
+      --shape_tool {dnashaper,deepdnashape}
+                            Backend tool used to compute DNA shape tracks. 
+                            'dnashaper' uses DNAshapeR'deepdnashape' uses DeepDNAshape.
       --seq_fasta SEQ_FASTA
                             Name of fasta file (located within data_dir, do not
                             include the directory, just the file name) containing

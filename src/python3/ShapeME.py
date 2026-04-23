@@ -406,6 +406,9 @@ def parse_args():
         help=f"Add this flag to turn off shape motif inference. "\
             f"This is useful if you basically want to use this script "\
             f"as a wrapper for streme to just find sequence motifs.")
+    infer.add_argument("--shape_tool", choices=["dnashaper", "deepdnashape"], default="dnashaper",
+        help=f"Backend tool used to compute DNA shape tracks. 'dnashaper' uses DNAshapeR"
+            f"'deepdnashape' uses DeepDNAshape.")
     infer.add_argument("--seq_fasta", type=str, default=None,
         help=f"Name of fasta file (located within data_dir, do not include the "\
             f"directory, just the file name) containing sequences in which to "\
@@ -478,6 +481,42 @@ def set_outdir_pref(no_shape_motifs, find_seq_motifs):
             logging.error(msg)
             sys.exit(1)
     return outdir_pre
+
+# functions newly added to account for the shape tool to be specified
+def shape_file_list_str(seq_fasta: str, shape_names):
+    return "".join([f"{seq_fasta}.{s} " for s in shape_names])
+
+def run_shape_prediction(seq_fasta: str, shape_tool: str):
+    """
+    Generate per-shape files alongside seq_fasta.
+    """
+
+    if shape_tool.lower() == "dnashaper":
+        convert = f"Rscript {this_path}/utils/calc_shape.R {seq_fasta}"
+    elif shape_tool.lower() == "deepdnashape":
+        convert = f"/opt/conda/envs/deepdnashape/bin/python {this_path}/utils/calc_deepdnashape.py {seq_fasta}"
+    else:
+        logging.error(f"ERROR: Unrecognized --shape_tool: {shape_tool}")
+        sys.exit(1)
+
+    convert_result = subprocess.run(
+        convert,
+        shell=True,
+        capture_output=True,
+    )
+
+    if convert_result.returncode != 0:
+        msg = (
+            f"ERROR: running the following command:\n\n"
+            f"{convert}\n\n"
+            f"resulted in the following stderr:\n\n"
+            f"{convert_result.stderr.decode()}\n\n"
+            f"and the following stdout:\n\n"
+            f"{convert_result.stdout.decode()}")
+        logging.error(msg)
+        sys.exit(1)
+    else:
+        logging.info("Converting sequences to shapes ran without error")
 
 
 def infer(args):
@@ -582,27 +621,30 @@ def infer(args):
     ## in future versions, use this conversion in fold splitting.
     #############################################################
     #############################################################
-    convert = f"Rscript {this_path}/utils/calc_shape.R {seq_fasta}"
-    convert_result = subprocess.run(
-        convert,
-        shell=True,
-        capture_output=True,
-        #check=True,
-    )
-    if convert_result.returncode != 0:
-        msg = f"ERROR: running the following command:\n\n"\
-            f"{convert}\n\n"\
-            f"resulted in the following stderr:\n\n"\
-            f"{convert_result.stderr.decode()}\n\n"\
-            f"and the following stdout:\n\n"\
-            f"{convert_result.stdout.decode()}"
-        logging.error(msg)
-        sys.exit(1)
-    else:
-        logging.info("Converting training sequences to shapes ran without error")
-        full_shape_fnames = ""
-        for shape_name in shape_names:
-            full_shape_fnames += f"{seq_fasta}.{shape_name} "
+    #convert = f"Rscript {this_path}/utils/calc_shape.R {seq_fasta}"
+    #convert_result = subprocess.run(
+    #    convert,
+    #    shell=True,
+    #    capture_output=True,
+    #    #check=True,
+    #)
+    #if convert_result.returncode != 0:
+    #    msg = f"ERROR: running the following command:\n\n"\
+    #        f"{convert}\n\n"\
+    #        f"resulted in the following stderr:\n\n"\
+    #        f"{convert_result.stderr.decode()}\n\n"\
+    #        f"and the following stdout:\n\n"\
+    #        f"{convert_result.stdout.decode()}"
+    #    logging.error(msg)
+    #    sys.exit(1)
+    #else:
+    #    logging.info("Converting training sequences to shapes ran without error")
+    #    full_shape_fnames = ""
+    #    for shape_name in shape_names:
+    #        full_shape_fnames += f"{seq_fasta}.{shape_name} "
+    
+    run_shape_prediction(seq_fasta, args.shape_tool)
+    full_shape_fnames = shape_file_list_str(seq_fasta, shape_names)
 
     out_dir = os.path.join(data_dir, f"{outdir_pre}_main_output")
     tmpdir = os.path.join(out_dir, "tmp")
@@ -920,47 +962,49 @@ def infer(args):
                 test_score_file.write(f"\n{name}\t{yval}")
             test_score_file.close()
 
-            convert = f"Rscript {this_path}/utils/calc_shape.R {train_seq_fasta}"
-            #convert = shlex.quote(convert)
-            convert_result = subprocess.run(
-                convert,
-                shell=True,
-                capture_output=True,
-                #check=True,
-            )
-            if convert_result.returncode != 0:
-                logging.error(
-                    f"ERROR: running the following command:\n\n"\
-                    f"{convert}\n\n"\
-                    f"resulted in the following stderr:\n\n"\
-                    f"{convert_result.stderr.decode()}\n\n"
-                    f"and the following stdout:\n\n"\
-                    f"{convert_result.stdout.decode()}"
-                )
-                sys.exit(1)
-            else:
-                logging.info("Converting training sequences to shapes ran without error")
+            run_shape_prediction(train_seq_fasta, args.shape_tool)
+            #convert = f"Rscript {this_path}/utils/calc_shape.R {train_seq_fasta}"
+            ##convert = shlex.quote(convert)
+            #convert_result = subprocess.run(
+            #    convert,
+            #    shell=True,
+            #    capture_output=True,
+            #    #check=True,
+            #)
+            #if convert_result.returncode != 0:
+            #    logging.error(
+            #        f"ERROR: running the following command:\n\n"\
+            #        f"{convert}\n\n"\
+            #        f"resulted in the following stderr:\n\n"\
+            #        f"{convert_result.stderr.decode()}\n\n"
+            #        f"and the following stdout:\n\n"\
+            #        f"{convert_result.stdout.decode()}"
+            #    )
+            #    sys.exit(1)
+            #else:
+            #    logging.info("Converting training sequences to shapes ran without error")
 
-            convert = f"Rscript {this_path}/utils/calc_shape.R {test_seq_fasta}"
-            #convert = shlex.quote(convert)
-            convert_result = subprocess.run(
-                convert,
-                shell=True,
-                capture_output=True,
-                #check=True,
-            )
-            if convert_result.returncode != 0:
-                logging.error(
-                    f"ERROR: running the following command:\n\n"\
-                    f"{convert}\n\n"\
-                    f"resulted in the following stderr:\n\n"\
-                    f"{convert_result.stderr.decode()}\n\n"
-                    f"and the following stdout:\n\n"\
-                    f"{convert_result.stdout.decode()}"
-                )
-                sys.exit(1)
-            else:
-                logging.info("Converting testing sequences to shapes ran without error")
+            run_shape_prediction(test_seq_fasta, args.shape_tool)
+            #convert = f"Rscript {this_path}/utils/calc_shape.R {test_seq_fasta}"
+            ##convert = shlex.quote(convert)
+            #convert_result = subprocess.run(
+            #    convert,
+            #    shell=True,
+            #    capture_output=True,
+            #    #check=True,
+            #)
+            #if convert_result.returncode != 0:
+            #    logging.error(
+            #        f"ERROR: running the following command:\n\n"\
+            #        f"{convert}\n\n"\
+            #        f"resulted in the following stderr:\n\n"\
+            #        f"{convert_result.stderr.decode()}\n\n"
+            #        f"and the following stdout:\n\n"\
+            #        f"{convert_result.stdout.decode()}"
+            #    )
+            #    sys.exit(1)
+            #else:
+            #    logging.info("Converting testing sequences to shapes ran without error")
 
             INFER_EXE = f"python {this_path}/infer_motifs.py "\
                 f"--score_file {train_score_fname} "\

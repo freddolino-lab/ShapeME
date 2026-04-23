@@ -199,14 +199,22 @@ def main():
                         help="The type of data to be output.")
     parser.add_argument('--ncats', action='store', type=int, default=2, help="The number of categories containing motifs (see --pivot-category if you want to add one extra category without any motif).")
     parser.add_argument('--pivot-category', action='store_true', default=False, help="If this flag is set, an extra category will be present in the synthetic data in which no motif is expected to be enriched. Ignored if ncats=1, since in that case, cat 1 will have the motif and cat 0 will not.")
+    parser.add_argument('--cat_weights', action='store', type=float, nargs='+', default=None, 
+                        help="Class label sampling weights (class prevalence). For ncats=2, defaults to 0.80 class 0 and 0.20 class 1. example: --cat-weights 0.80 0.20")
     parser.add_argument('--folds', action='store', type=int, default=5, help="The number of folds for k-fold CV.")
+    parser.add_argument('--seed', action='store', type=int, default=None,
+                    help="Random seed for reproducibility")
     parser.add_argument('--noshapes', action='store_true', help="include at command line if you only want sequences produced.")
 
     args = parser.parse_args()
+    
+    if args.seed is not None:
+        np.random.seed(args.seed)
 
     folds = args.folds
     dtype = args.dtype
     ncats = args.ncats
+    cat_weights=args.cat_weights
     out_dir = args.outdir
     seq_len = args.seqlen
     rec_num = args.recnum
@@ -229,9 +237,23 @@ def main():
 
     if dtype == 'categorical':
 
+        # determine how many categories we actually generate (pivot adds one extra)
+        tmp_cats = ncats + 1 if args.pivot_category else ncats
+        
+        if cat_weights is not None:
+            if len(cat_weights) != tmp_cats:
+                raise ValueError(f"--cat-weights must have length {tmp_cats} (got {len(cat_weights)})")
+            cat_weights = np.array(cat_weights, dtype=float)
+            if np.any(cat_weights < 0):
+                raise ValueError("--cat-weights must be non-negative")
+            s = cat_weights.sum()
+            if s <= 0:
+                raise ValueError("--cat-weights must sum to a positive value")
+            cat_weights = (cat_weights / s).tolist()
+
         if ncats == 2:
             # weights as [0.75, 0.25] will give about 3x as many 0's as 1's
-            y_vals = make_categorical_y_vals(rec_num, weights=[0.8, 0.2], n_cats=ncats)
+            y_vals = make_categorical_y_vals(rec_num, weights=cat_weights if cat_weights is not None else [0.8, 0.2], n_cats=tmp_cats)
             # fa_seqs modified in-place here to include the motif at a 
             #  randomly chosen site in each record where y_val is cat
             substitute_motif_into_records(
@@ -250,7 +272,7 @@ def main():
             if args.pivot_category:
                 ncats += 1
             # approximately even number of records per category
-            y_vals = make_categorical_y_vals(rec_num, n_cats=ncats)
+            y_vals = make_categorical_y_vals(rec_num, weights=cat_weights, n_cats=tmp_cats)
             distinct_cats = np.unique(y_vals)
             if args.pivot_category:
                 distinct_cats = distinct_cats[:-1]
